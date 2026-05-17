@@ -1,0 +1,28 @@
+FROM golang:1.25-alpine AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /lg-hook ./cmd/lg-hook
+
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y bash curl ca-certificates util-linux && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /lg-hook /usr/local/bin/lg-hook
+
+RUN usermod -l lg -d /home/lg node && \
+    groupmod -n lg node && \
+    mkdir -p /home/lg && \
+    chown lg:lg /home/lg
+
+USER lg
+WORKDIR /home/lg
+
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+ENV PATH="/home/lg/.local/bin:${PATH}"
+ENV CLAUDE_CONFIG_DIR=/home/lg/.lemongrass/claude
+
+CMD ["sleep", "infinity"]
