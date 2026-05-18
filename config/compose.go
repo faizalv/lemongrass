@@ -18,7 +18,7 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
       - /var/run/docker.sock:/var/run/docker.sock
       - {{.BinPath}}:/usr/local/bin/lemongrass:ro
 {{- range .ProjectMounts}}
-      - {{.HostPath}}:/workspace/{{.Alias}}:rw
+      - {{.HostPath}}:/projects/{{.Alias}}:rw
 {{- end}}
     depends_on:
       lg-postgres:
