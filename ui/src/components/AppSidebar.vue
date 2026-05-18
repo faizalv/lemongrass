@@ -32,18 +32,37 @@
         </button>
 
         <div v-if="projMenuOpen" ref="menuRef" :style="s.projMenu">
-          <button
+          <div
             v-for="p in projects"
             :key="p.id"
-            :style="s.projMenuItem(p.id === currentProjectId)"
-            @click="selectProject(p.id)"
+            :style="s.projMenuItemWrap"
+            @mouseenter="hoveredMenuProject = p.id"
+            @mouseleave="hoveredMenuProject = ''"
           >
-            <AppIcon :name="p.id === currentProjectId ? 'check' : 'folder'" :size="12" :extra-style="{ color: p.id === currentProjectId ? '#F5C518' : '#555' }" />
-            <div style="flex:1;min-width:0">
-              <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
-              <div :style="{ ...s.projMeta, color: '#3D3D3D' }">{{ p.branch }}</div>
-            </div>
-          </button>
+            <button
+              :style="s.projMenuItem(p.id === currentProjectId)"
+              @click="selectProject(p.id)"
+            >
+              <AppIcon :name="p.id === currentProjectId ? 'check' : 'folder'" :size="12" :extra-style="{ color: p.id === currentProjectId ? '#F5C518' : '#555' }" />
+              <div style="flex:1;min-width:0">
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+                <div :style="{ ...s.projMeta, color: '#3D3D3D' }">{{ p.branch }}</div>
+              </div>
+            </button>
+            <button
+              v-if="hoveredMenuProject === p.id"
+              :style="s.trashBtn"
+              title="Remove project"
+              @click.stop="requestDelete(p.id)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6"/><path d="M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+              </svg>
+            </button>
+          </div>
           <div :style="s.projMenuDivider"></div>
           <button :style="s.projMenuFoot" @click="$emit('attach-project'); projMenuOpen = false">
             <AppIcon name="plus" :size="12" :extra-style="{ color: '#9A9A9A' }" />
@@ -138,12 +157,14 @@ const emit = defineEmits<{
   'attach-project': []
   'open-settings': []
   'open-debug': []
+  'delete-project': [id: string]
 }>()
 
 const projMenuOpen = ref(false)
 const hoveredAdd = ref(false)
 const hoveredDebug = ref(false)
 const hoveredSettings = ref(false)
+const hoveredMenuProject = ref('')
 const triggerRef = ref<HTMLElement | null>(null)
 const menuRef = ref<HTMLElement | null>(null)
 
@@ -152,6 +173,11 @@ const currentProject = computed(() => props.projects.find(p => p.id === props.cu
 function selectProject(id: string) {
   emit('switch-project', id)
   projMenuOpen.value = false
+}
+
+function requestDelete(id: string) {
+  projMenuOpen.value = false
+  emit('delete-project', id)
 }
 
 function onClickOutside(e: MouseEvent) {
@@ -221,12 +247,23 @@ const s = {
     overflow: 'hidden', zIndex: 80, animation: 'lgFadeIn 120ms ease',
   },
   projMenuItem: (active: boolean) => ({
-    width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
-    padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
+    flex: 1, display: 'flex', alignItems: 'center', gap: '8px',
+    padding: '10px 12px', paddingRight: '36px',
+    background: 'transparent', border: 'none', cursor: 'pointer',
     color: active ? '#F5C518' : '#D4D4D4',
     fontSize: '12.5px', fontFamily: "'DM Sans',sans-serif", fontWeight: 500,
     textAlign: 'left',
   }),
+  projMenuItemWrap: {
+    position: 'relative', display: 'flex', alignItems: 'center',
+  },
+  trashBtn: {
+    position: 'absolute', right: '8px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: '24px', height: '24px', borderRadius: '4px',
+    background: 'rgba(248,113,113,0.12)', border: 'none',
+    color: '#F87171', cursor: 'pointer', flexShrink: 0,
+  },
   projMenuDivider: { height: '1px', background: 'rgba(255,255,255,0.06)' },
   projMenuFoot: {
     width: '100%', display: 'flex', alignItems: 'center', gap: '8px',

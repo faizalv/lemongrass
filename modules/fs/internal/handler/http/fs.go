@@ -2,10 +2,11 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
-	"github.com/gin-gonic/gin"
-	transporter "github.com/faizalv/lemongrass/modules/fs/transporter/http"
 	"github.com/faizalv/lemongrass/modules/fs/internal/usecase"
+	transporter "github.com/faizalv/lemongrass/modules/fs/transporter/http"
+	"github.com/gin-gonic/gin"
 )
 
 type FsHandler struct {
@@ -17,7 +18,8 @@ func New(uc *usecase.FsUsecase) *FsHandler {
 }
 
 func (h *FsHandler) Browse(c *gin.Context) {
-	nodes, err := h.uc.Browse()
+	force := c.Query("refresh") == "true"
+	nodes, err := h.uc.Browse(force)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -45,6 +47,19 @@ func (h *FsHandler) Attach(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
+func (h *FsHandler) DeleteProject(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := h.uc.RemoveProject(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *FsHandler) ListProjects(c *gin.Context) {
 	projects, err := h.uc.ListProjects()
 	if err != nil {
@@ -58,4 +73,3 @@ func (h *FsHandler) ListProjects(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
-

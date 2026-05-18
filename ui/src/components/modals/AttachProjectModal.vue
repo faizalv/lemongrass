@@ -26,10 +26,32 @@
       <div v-else-if="phase === 'browsing' || phase === 'attaching'" :style="body">
         <div v-if="fetchError" :style="errBox">
           <span>{{ fetchError }}</span>
-          <button :style="retryBtn" @click="loadTree">Retry</button>
+          <button :style="retryBtn" @click="loadTree()">Retry</button>
         </div>
 
         <template v-else>
+          <div :style="treeHeader">
+            <span :style="treeLabel">Filesystem</span>
+            <button
+              :style="refreshBtn"
+              :disabled="refreshing || phase === 'attaching'"
+              @click="loadTree(true)"
+            >
+              <svg
+                :class="refreshing ? 'spin' : ''"
+                width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.2"
+                stroke-linecap="round" stroke-linejoin="round"
+              >
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M8 16H3v5"/>
+              </svg>
+              {{ refreshing ? 'Scanning…' : 'Refresh' }}
+            </button>
+          </div>
+
           <div :style="treeWrap">
             <FolderNode
               v-for="node in tree"
@@ -107,20 +129,28 @@ const tree = ref<FsNode[]>([])
 const selectedPath = ref('')
 const fetchError = ref('')
 const restartError = ref('')
+const refreshing = ref(false)
 
-onMounted(loadTree)
+onMounted(() => loadTree())
 
-async function loadTree() {
-  phase.value = 'loading'
+async function loadTree(force = false) {
   fetchError.value = ''
+  if (force) {
+    refreshing.value = true
+  } else {
+    phase.value = 'loading'
+  }
   try {
-    const r = await fetch('/api/fs/browse')
+    const url = force ? '/api/fs/browse?refresh=true' : '/api/fs/browse'
+    const r = await fetch(url)
     if (!r.ok) throw new Error(`Server returned ${r.status}`)
     tree.value = await r.json()
-    phase.value = 'browsing'
+    if (!force) phase.value = 'browsing'
   } catch (e: any) {
     fetchError.value = e?.message ?? 'Failed to load filesystem'
-    phase.value = 'browsing'
+    if (!force) phase.value = 'browsing'
+  } finally {
+    refreshing.value = false
   }
 }
 
@@ -225,6 +255,22 @@ const hint = {
 const subHint = {
   fontSize: '12px', fontFamily: "'DM Sans',sans-serif",
   color: '#555', marginTop: '-4px',
+}
+const treeHeader = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  marginBottom: '6px',
+}
+const treeLabel = {
+  fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em',
+  textTransform: 'uppercase', color: '#3D3D3D',
+  fontFamily: "'DM Sans',sans-serif",
+}
+const refreshBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: '5px',
+  padding: '4px 10px', borderRadius: '5px', border: 'none',
+  background: 'rgba(255,255,255,0.06)', color: '#9A9A9A',
+  cursor: 'pointer', fontSize: '11px', fontFamily: "'DM Sans',sans-serif",
+  fontWeight: 500, transition: 'background 120ms',
 }
 const treeWrap = {
   background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.08)',

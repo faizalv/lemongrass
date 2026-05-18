@@ -30,6 +30,7 @@ func (f *Fs) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/browse", f.h.Browse)
 	g.POST("/attach", f.h.Attach)
 	g.GET("/projects", f.h.ListProjects)
+	g.DELETE("/projects/:id", f.h.DeleteProject)
 }
 
 func (f *Fs) Startup(ctx context.Context) {

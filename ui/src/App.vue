@@ -11,6 +11,7 @@
       @attach-project="attachProjectOpen = true"
       @open-settings="settingsOpen = true"
       @open-debug="debugOpen = true"
+      @delete-project="handleDeleteProject"
     />
 
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
@@ -42,6 +43,14 @@
       @create="handleCreateWorkspace"
     />
 
+    <DeleteProjectModal
+      v-if="deletingProjectId"
+      :project-id="deletingProjectId"
+      :project-name="deletingProject?.name ?? ''"
+      @close="deletingProjectId = ''"
+      @deleted="handleDeleted"
+    />
+
     <SettingsModal
       v-if="settingsOpen"
       @close="settingsOpen = false"
@@ -63,6 +72,7 @@ import ReconnaissanceView from './components/ReconnaissanceView.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
 import AttachProjectModal from './components/modals/AttachProjectModal.vue'
 import AddWorkspaceModal from './components/modals/AddWorkspaceModal.vue'
+import DeleteProjectModal from './components/modals/DeleteProjectModal.vue'
 import SettingsModal from './components/modals/SettingsModal.vue'
 import DebugPanel from './components/DebugPanel.vue'
 
@@ -74,9 +84,11 @@ const settingsOpen = ref(false)
 const debugOpen = ref(false)
 const addingWorkspace = ref(false)
 const attachProjectOpen = ref(false)
+const deletingProjectId = ref('')
 
 const workspaces = computed(() => workspacesByProj.value[currentProjectId.value] ?? [])
 const currentProject = computed(() => projects.value.find(p => p.id === currentProjectId.value))
+const deletingProject = computed(() => projects.value.find(p => p.id === deletingProjectId.value))
 const activeWorkspace = computed(() => workspaces.value.find(w => w.id === activeWorkspaceId.value) ?? workspaces.value[0])
 const workspaceWithMeta = computed(() => ({
   ...activeWorkspace.value!,
@@ -90,6 +102,12 @@ onMounted(async () => {
     if (!r.ok) return
     const fsProjects: FsProject[] = await r.json()
     applyFsProjects(fsProjects)
+
+    const pid = new URLSearchParams(location.search).get('project')
+    if (pid && projects.value.find(p => p.id === pid)) {
+      currentProjectId.value = pid
+      activeWorkspaceId.value = workspacesByProj.value[pid]?.[0]?.id ?? 'reconnaissance'
+    }
   } catch { /* server not reachable yet */ }
 })
 
@@ -97,16 +115,20 @@ function handleSwitchProject(pid: string) {
   currentProjectId.value = pid
   const list = workspacesByProj.value[pid] ?? []
   activeWorkspaceId.value = list[1]?.id ?? list[0]?.id ?? ''
+  setProjectParam(pid)
 }
 
 function handleAttached(fsProjects: FsProject[]) {
-  applyFsProjects(fsProjects)
   const last = fsProjects[fsProjects.length - 1]
   if (last) {
-    currentProjectId.value = String(last.id)
-    activeWorkspaceId.value = 'reconnaissance'
+    // Full reload so Vue re-initialises against the restarted server.
+    // The ?project param is picked up in onMounted to restore the selection.
+    const url = new URL(location.href)
+    url.searchParams.set('project', String(last.id))
+    location.href = url.toString()
+  } else {
+    attachProjectOpen.value = false
   }
-  attachProjectOpen.value = false
 }
 
 function applyFsProjects(fsProjects: FsProject[]) {
@@ -134,6 +156,36 @@ function applyFsProjects(fsProjects: FsProject[]) {
     currentProjectId.value = projects.value[0].id
     activeWorkspaceId.value = 'reconnaissance'
   }
+}
+
+function handleDeleteProject(id: string) {
+  deletingProjectId.value = id
+}
+
+function handleDeleted(id: string) {
+  projects.value = projects.value.filter(p => p.id !== id)
+  const { [id]: _removed, ...rest } = workspacesByProj.value
+  workspacesByProj.value = rest
+  if (currentProjectId.value === id) {
+    const next = projects.value[0]
+    currentProjectId.value = next?.id ?? ''
+    activeWorkspaceId.value = next ? 'reconnaissance' : ''
+    if (next) setProjectParam(next.id)
+    else removeProjectParam()
+  }
+  deletingProjectId.value = ''
+}
+
+function setProjectParam(id: string) {
+  const url = new URL(location.href)
+  url.searchParams.set('project', id)
+  history.replaceState(null, '', url)
+}
+
+function removeProjectParam() {
+  const url = new URL(location.href)
+  url.searchParams.delete('project')
+  history.replaceState(null, '', url)
 }
 
 function handleCreateWorkspace(name: string) {

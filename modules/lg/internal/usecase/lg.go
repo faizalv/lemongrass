@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/faizalv/lemongrass/bus"
 	"github.com/faizalv/lemongrass/modules/lg/entity"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 )
@@ -17,7 +18,13 @@ type LgUsecase struct {
 }
 
 func New(pty *ptyclient.PtyClient) *LgUsecase {
-	return &LgUsecase{pty: pty}
+	uc := &LgUsecase{pty: pty}
+	bus.Default.On(bus.EventProjectRemoved, func(_ any) {
+		uc.mu.Lock()
+		uc.calls = nil
+		uc.mu.Unlock()
+	})
+	return uc
 }
 
 func (u *LgUsecase) RecordCall(cmd, args string) {
