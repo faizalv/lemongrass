@@ -124,16 +124,15 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 	}
 
 	// The PTY raw bytes arrive in a burst so waitForAll can fire before the
-	// welcome screen finishes rendering (~10s). The first \r above may be
-	// consumed during that init. Send a second \r after 15s to guarantee
-	// submission once the input box is live.
-	u.log.Printf("waiting for welcome screen to settle (15s)...")
-	time.Sleep(15 * time.Second)
+	// welcome screen finishes rendering. Wait until output goes quiet (input
+	// box is live) before sending the confirmation \r.
+	u.log.Printf("waiting for welcome screen to settle (idle 2s, max 20s)...")
+	out.waitForIdle(2*time.Second, 20*time.Second)
 	u.log.Printf("sending confirmation \\r")
 	stdinPipe.Write([]byte("\r"))
 
-	u.log.Printf("waiting for response (60s)...")
-	time.Sleep(60 * time.Second)
+	u.log.Printf("waiting for response (idle 5s, max 5min)...")
+	out.waitForIdle(5*time.Second, 5*time.Minute)
 
 	u.log.Printf("terminating session")
 	stdinPipe.Write([]byte{3}) // Ctrl+C
@@ -151,9 +150,10 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 
 // outputBuffer accumulates raw output, logs clean lines, and supports polling.
 type outputBuffer struct {
-	mu  sync.Mutex
-	raw []byte
-	log *log.Logger
+	mu        sync.Mutex
+	raw       []byte
+	lastWrite time.Time
+	log       *log.Logger
 }
 
 func (o *outputBuffer) write(p []byte) {
@@ -163,6 +163,7 @@ func (o *outputBuffer) write(p []byte) {
 	}
 	o.mu.Lock()
 	o.raw = append(o.raw, p...)
+	o.lastWrite = time.Now()
 	o.mu.Unlock()
 }
 
@@ -205,6 +206,22 @@ func (o *outputBuffer) waitForAll(signals []string, timeout time.Duration) bool 
 			return true
 		}
 		time.Sleep(200 * time.Millisecond)
+	}
+	return false
+}
+
+// waitForIdle returns true once no new bytes have arrived for quiesce duration,
+// or false if maxTimeout is reached first.
+func (o *outputBuffer) waitForIdle(quiesce, maxTimeout time.Duration) bool {
+	deadline := time.Now().Add(maxTimeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(200 * time.Millisecond)
+		o.mu.Lock()
+		last := o.lastWrite
+		o.mu.Unlock()
+		if !last.IsZero() && time.Since(last) >= quiesce {
+			return true
+		}
 	}
 	return false
 }
