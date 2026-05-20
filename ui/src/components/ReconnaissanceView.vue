@@ -1,5 +1,6 @@
 <template>
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#0A0A0A">
+
     <!-- Header -->
     <div :style="header">
       <div style="flex:1;min-width:0">
@@ -13,22 +14,26 @@
         </div>
         <div :style="mainTitle">Semantic map</div>
       </div>
-      <div :style="statsRow">
-        <span :style="statItem">
-          <span style="width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block"></span>
-          <span style="color:#D4D4D4;font-weight:600">{{ indexedFiles }}</span>
-          <span style="color:#555">/ {{ totalFiles }} files</span>
-        </span>
-        <span v-if="staleCount > 0" :style="{ ...statItem, color: '#F5C518' }">
-          <span style="width:7px;height:7px;border-radius:50%;background:#F5C518;display:inline-block"></span>
-          <span style="font-weight:600">{{ staleCount }}</span>
-          <span style="color:#555">stale</span>
-        </span>
-        <span v-if="missingCount > 0" :style="{ ...statItem, color: '#717171' }">
-          <span style="width:7px;height:7px;border-radius:50%;background:#5A5A5A;display:inline-block"></span>
-          <span style="font-weight:600">{{ missingCount }}</span>
-          <span style="color:#555">unexplored</span>
-        </span>
+
+      <!-- Coverage pills -->
+      <div :style="coverageRow">
+        <template v-if="loadingCoverage">
+          <div v-for="i in 2" :key="i" :style="coverageSkeleton" />
+        </template>
+        <template v-else>
+          <div
+            v-for="cov in coverage"
+            :key="cov.language"
+            :style="coveragePill(cov)"
+          >
+            <span :style="covLang">{{ cov.language }}</span>
+            <span :style="covNumbers">
+              <span :style="{ color: cov.explored > 0 ? '#4ADE80' : '#555', fontWeight: 600 }">{{ cov.explored }}</span>
+              <span style="color:#3A3A3A"> / </span>
+              <span style="color:#717171">{{ cov.total }}</span>
+            </span>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -36,89 +41,120 @@
     <div :style="infoBanner">
       <AppIcon name="info" :size="13" color="#60A5FA" :extra-style="{ flexShrink: 0 }" />
       <span>
-        Recon runs through <strong style="color:#E0E0E0;font-weight:600">Grooming</strong> — when a workspace needs a module that's stale or unexplored, you'll be asked to approve. Nothing happens here directly.
+        Exploration happens inside <strong style="color:#E0E0E0;font-weight:600">Grooming</strong> — the model annotates symbols as a side effect of planning. Nothing to interact with here.
       </span>
     </div>
 
-    <!-- Body: tree + detail -->
-    <div style="flex:1;display:flex;overflow:hidden">
-      <!-- Tree -->
-      <div style="flex:1;overflow:auto;padding:14px 0 40px;font-family:'JetBrains Mono','Courier Prime',monospace">
-        <!-- Root row -->
+    <!-- Filter bar -->
+    <div :style="filterBar">
+      <!-- Language tabs -->
+      <div :style="filterGroup">
         <button
-          :style="rowBg('', rootRow)"
-          @click="selected = ''"
-          @mouseenter="hovered = ''"
-          @mouseleave="hovered = null"
-        >
-          <AppIcon name="git-branch" :size="12" color="#F5C518" :extra-style="{ flexShrink: 0 }" />
-          <span :style="{ color: statusColors[rootStatus], fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }">{{ project.shortPath }}/</span>
-          <span style="color:#3D3D3D;font-size:11px;margin-left:8px;flex-shrink:0">{{ project.branch }}</span>
-        </button>
+          v-for="lang in ['all', ...coverage.map(c => c.language)]"
+          :key="lang"
+          :style="langTab(lang === activeLanguage)"
+          @click="setLanguage(lang)"
+        >{{ lang === 'all' ? 'All' : lang }}</button>
+      </div>
 
-        <!-- Modules -->
-        <template v-for="(m, i) in modules" :key="m.path">
+      <div style="flex:1" />
+
+      <!-- Kind select -->
+      <select :style="filterSelect" v-model="activeKind" @change="fetchNodes()">
+        <option value="">All kinds</option>
+        <option v-for="k in kinds" :key="k" :value="k">{{ k }}</option>
+      </select>
+
+      <!-- Status toggle -->
+      <div :style="filterGroup">
+        <button
+          v-for="s in statusOptions"
+          :key="s.value"
+          :style="statusTab(s.value === activeStatus)"
+          @click="setStatus(s.value)"
+        >{{ s.label }}</button>
+      </div>
+    </div>
+
+    <!-- Body: list + detail -->
+    <div style="flex:1;display:flex;overflow:hidden">
+
+      <!-- Node list -->
+      <div style="flex:1;overflow:auto;padding-bottom:40px">
+
+        <!-- Loading -->
+        <div v-if="loadingNodes" :style="centerState">
+          <div class="spin" :style="spinner" />
+          <span :style="stateHint">Loading symbols…</span>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="nodes.length === 0" :style="centerState">
+          <span :style="stateHint">No symbols match the current filters.</span>
+        </div>
+
+        <!-- Rows -->
+        <template v-else>
           <button
-            :style="rowBg(m.path, moduleRow(m))"
-            @click="selected = m.path"
-            @mouseenter="hovered = m.path"
-            @mouseleave="hovered = null"
+            v-for="node in nodes"
+            :key="node.id"
+            :style="nodeRow(node)"
+            @click="selected = node"
+            @mouseenter="hovered = node.id"
+            @mouseleave="hovered = ''"
           >
-            <span style="color:#2F2F2F;white-space:pre;flex-shrink:0">{{ treePrefix(i) }}</span>
-            <span :style="{ color: m.status === 'missing' ? '#5A5A5A' : statusColors[m.status], fontWeight: 600 }">{{ m.path }}</span>
-            <span :style="moduleMeta">
-              <span style="color:#555">{{ m.files }} files</span>
-              <template v-if="m.loc !== '—'"> · {{ typeof m.loc === 'number' ? m.loc.toLocaleString() : m.loc }} LoC</template>
-              <span> · {{ m.updated }}</span>
-              <span v-if="m.note" style="color:#F5C518;font-style:italic"> · {{ m.note }}</span>
+            <span :style="nodeName">
+              {{ node.symbol }}
+              <span v-if="node.receiver" style="color:#3D3D3D;font-weight:400"> · {{ node.receiver }}</span>
             </span>
-            <span :style="statusTag(m.status)">
-              <span :style="{ width: '6px', height: '6px', borderRadius: '50%', background: statusColors[m.status], boxShadow: m.status === 'fresh' ? `0 0 0 3px ${statusColors[m.status]}1A` : 'none', display: 'inline-block' }"></span>
-              {{ statusLabels[m.status] }}
+            <span :style="kindBadge(node.kind)">{{ node.kind }}</span>
+            <span :style="nodePath">
+              {{ shortPath(node.file_path) }}<span style="color:#3A3A3A">:{{ node.line_start }}–{{ node.line_end }}</span>
             </span>
           </button>
         </template>
-
-        <!-- Legend -->
-        <div :style="legend">
-          <span style="font-weight:700;letter-spacing:0.08em;text-transform:uppercase">Legend</span>
-          <LegendItem color="#4ADE80" label="indexed (MD5 matches)" />
-          <LegendItem color="#F5C518" label="stale (file hash drifted)" />
-          <LegendItem color="#5A5A5A" label="not explored yet" />
-        </div>
       </div>
 
       <!-- Detail panel -->
       <div :style="detailPanel">
-        <div v-if="!selectedModule" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:12px;color:#3D3D3D;font-family:'DM Sans',sans-serif">
-          Click a path to inspect.
+        <div v-if="!selected" :style="detailEmpty">
+          Click a symbol to inspect.
         </div>
         <template v-else>
-          <div :style="detailBreadcrumb">{{ selectedModule.path }}</div>
-          <div :style="statusPill(selectedModule.status)">
-            <span :style="{ width: '5px', height: '5px', borderRadius: '50%', background: statusColors[selectedModule.status], display: 'inline-block' }"></span>
-            {{ statusLabels[selectedModule.status] }}
+          <div :style="detailSymbol">{{ selected.symbol }}</div>
+          <div v-if="selected.receiver" :style="detailReceiver">on {{ selected.receiver }}</div>
+
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+            <span :style="kindBadge(selected.kind)">{{ selected.kind }}</span>
+            <span :style="statusPill(selected.status)">
+              <span :style="statusDot(selected.status)" />
+              {{ selected.status }}
+            </span>
           </div>
-          <div :style="statsGrid">
-            <DetailStat label="Files" :value="String(selectedModule.files)" />
-            <DetailStat label="LoC" :value="typeof selectedModule.loc === 'number' ? selectedModule.loc.toLocaleString() : selectedModule.loc" />
-            <DetailStat label="Functions" :value="String(selectedModule.funcs)" />
-            <DetailStat label="Routes" :value="String(selectedModule.routes)" />
+
+          <div :style="detailMeta">
+            <div :style="metaLabel">Package</div>
+            <div :style="metaVal">{{ selected.package }}</div>
           </div>
-          <div :style="detailRow">
-            <span style="color:#717171">Last indexed</span>
-            <span :style="detailVal">{{ selectedModule.updated }}</span>
+          <div :style="detailMeta">
+            <div :style="metaLabel">Location</div>
+            <div :style="metaVal">{{ selected.file_path }}:{{ selected.line_start }}–{{ selected.line_end }}</div>
           </div>
-          <div :style="detailRow">
-            <span style="color:#717171">Hash</span>
-            <span :style="detailVal">{{ selectedModule.hash }}</span>
-          </div>
-          <div v-if="selectedModule.reason" :style="staleReason">
-            <span style="color:#F5C518;font-weight:600">Why stale:</span> {{ selectedModule.reason }}
-          </div>
-          <div v-if="selectedModule.status === 'missing'" :style="missingNote">
-            Lemongrass hasn't indexed this module yet. The next grooming session that touches it will ask for permission to scan.
-          </div>
+
+          <!-- Description (explored) -->
+          <template v-if="selected.status === 'explored' && selected.description">
+            <div :style="{ ...metaLabel, marginTop: '20px', marginBottom: '8px' }">Description</div>
+            <div :style="descriptionBlock">{{ selected.description }}</div>
+          </template>
+
+          <!-- Signature (unexplored) -->
+          <template v-else-if="selected.signature">
+            <div :style="{ ...metaLabel, marginTop: '20px', marginBottom: '8px' }">Signature</div>
+            <div :style="signatureBlock">{{ selected.symbol }}{{ selected.signature }}</div>
+          </template>
+
+          <!-- Neither -->
+          <div v-else :style="notAnnotated">Not yet annotated.</div>
         </template>
       </div>
     </div>
@@ -126,122 +162,211 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineComponent, h } from 'vue'
-import type { Project } from '../types'
+import { ref, onMounted, watch } from 'vue'
+import type { Project, SemanticNode, LangCoverage } from '../types'
 import AppIcon from './AppIcon.vue'
 
-defineProps<{ project: Project }>()
+const props = defineProps<{ project: Project }>()
 
-interface ReconModule {
-  path: string; files: number; loc: number | string; hash: string
-  status: 'fresh' | 'stale' | 'missing'; updated: string
-  funcs: number | string; routes: number | string
-  note?: string; reason?: string
-}
+const coverage     = ref<LangCoverage[]>([])
+const nodes        = ref<SemanticNode[]>([])
+const selected     = ref<SemanticNode | null>(null)
+const hovered      = ref('')
+const loadingCoverage = ref(true)
+const loadingNodes = ref(true)
+const activeLanguage = ref('all')
+const activeKind   = ref('')
+const activeStatus = ref('')
 
-const modules: ReconModule[] = [
-  { path: 'cmd/server/',          files: 4,  loc: 412,   hash: 'a91…', status: 'fresh',   updated: '2h ago',     funcs: 18, routes: 0  },
-  { path: 'internal/auth/',       files: 11, loc: 1342,  hash: 'fc2…', status: 'fresh',   updated: 'today',      funcs: 62, routes: 4  },
-  { path: 'internal/middleware/', files: 8,  loc: 706,   hash: 'd44…', status: 'stale',   updated: '3 days ago', funcs: 22, routes: 0, reason: '2 files changed since last index' },
-  { path: 'internal/handlers/',   files: 22, loc: 3104,  hash: '9b1…', status: 'fresh',   updated: 'yesterday',  funcs: 88, routes: 31, note: '1 file modified — re-index queued' },
-  { path: 'internal/storage/',    files: 14, loc: 2018,  hash: 'b06…', status: 'fresh',   updated: '4 days ago', funcs: 71, routes: 0  },
-  { path: 'internal/transport/',  files: 14, loc: '—',   hash: '—',    status: 'missing', updated: 'never',      funcs: '—', routes: '—' },
-  { path: 'pkg/redis/',           files: 3,  loc: 196,   hash: 'e88…', status: 'fresh',   updated: '5 days ago', funcs: 14, routes: 0  },
-  { path: 'pkg/log/',             files: 2,  loc: 88,    hash: '11a…', status: 'fresh',   updated: '1 week ago', funcs: 8,  routes: 0  },
+const kinds = ['func','method','type','struct','interface','const','var','component','store','composable','plugin','class','hook','route']
+const statusOptions = [
+  { label: 'All',        value: '' },
+  { label: 'Unexplored', value: 'unexplored' },
+  { label: 'Explored',   value: 'explored' },
 ]
 
-const statusColors: Record<string, string> = { fresh: '#4ADE80', stale: '#F5C518', missing: '#5A5A5A' }
-const statusLabels: Record<string, string> = { fresh: 'indexed', stale: 'stale', missing: 'not indexed' }
+onMounted(async () => {
+  await Promise.all([fetchCoverage(), fetchNodes()])
+})
 
-const selected = ref('internal/middleware/')
-const hovered = ref<string | null>(null)
+watch(() => props.project.id, async () => {
+  selected.value = null
+  activeLanguage.value = 'all'
+  activeKind.value = ''
+  activeStatus.value = ''
+  await Promise.all([fetchCoverage(), fetchNodes()])
+})
 
-function rowBg(path: string, base: Record<string, any>) {
-  const isSelected = selected.value === path
-  const isHovered = hovered.value === path && !isSelected
+async function fetchCoverage() {
+  loadingCoverage.value = true
+  try {
+    const r = await fetch(`/api/recon/projects/${props.project.id}/coverage`)
+    if (r.ok) coverage.value = await r.json()
+  } catch { /* ignore */ }
+  finally { loadingCoverage.value = false }
+}
+
+async function fetchNodes() {
+  loadingNodes.value = true
+  selected.value = null
+  try {
+    const params = new URLSearchParams()
+    if (activeLanguage.value && activeLanguage.value !== 'all') params.set('language', activeLanguage.value)
+    if (activeKind.value)   params.set('kind',     activeKind.value)
+    if (activeStatus.value) params.set('status',   activeStatus.value)
+    const r = await fetch(`/api/recon/projects/${props.project.id}/nodes?${params}`)
+    if (r.ok) nodes.value = await r.json()
+  } catch { /* ignore */ }
+  finally { loadingNodes.value = false }
+}
+
+function setLanguage(lang: string) {
+  activeLanguage.value = lang
+  fetchNodes()
+}
+
+function setStatus(s: string) {
+  activeStatus.value = s
+  fetchNodes()
+}
+
+function shortPath(p: string): string {
+  const parts = p.split('/')
+  if (parts.length <= 3) return p
+  return '…/' + parts.slice(-2).join('/')
+}
+
+// ── Kind badge colours ───────────────────────────────────────────────────────
+
+const kindColors: Record<string, { bg: string; color: string }> = {
+  func:        { bg: 'rgba(96,165,250,0.12)',  color: '#60A5FA' },
+  method:      { bg: 'rgba(96,165,250,0.12)',  color: '#60A5FA' },
+  type:        { bg: 'rgba(167,139,250,0.12)', color: '#A78BFA' },
+  struct:      { bg: 'rgba(167,139,250,0.12)', color: '#A78BFA' },
+  interface:   { bg: 'rgba(167,139,250,0.12)', color: '#A78BFA' },
+  const:       { bg: 'rgba(245,197,24,0.10)',  color: '#F5C518' },
+  var:         { bg: 'rgba(245,197,24,0.10)',  color: '#F5C518' },
+  component:   { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
+  store:       { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
+  composable:  { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
+  plugin:      { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
+  class:       { bg: 'rgba(251,146,60,0.10)',  color: '#FB923C' },
+  hook:        { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
+  route:       { bg: 'rgba(251,146,60,0.10)',  color: '#FB923C' },
+}
+
+function kindBadge(kind: string) {
+  const c = kindColors[kind] ?? { bg: 'rgba(255,255,255,0.06)', color: '#9A9A9A' }
   return {
-    ...base,
-    background: isSelected ? 'rgba(245,197,24,0.07)' : isHovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-    borderLeft: isSelected ? '2px solid #F5C518' : '2px solid transparent',
+    display: 'inline-flex', alignItems: 'center',
+    padding: '2px 7px', borderRadius: '4px',
+    background: c.bg, color: c.color,
+    fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.04em',
+    fontFamily: "'DM Sans',sans-serif", flexShrink: 0,
   }
 }
 
-const selectedModule = computed(() => modules.find(m => m.path === selected.value) ?? null)
-const rootStatus = computed(() => modules.some(m => m.status === 'missing') ? 'stale' : 'fresh')
-const totalFiles = computed(() => modules.reduce((a, m) => a + m.files, 0))
-const indexedFiles = computed(() => modules.filter(m => m.status !== 'missing').reduce((a, m) => a + m.files, 0))
-const staleCount = computed(() => modules.filter(m => m.status === 'stale').length)
-const missingCount = computed(() => modules.filter(m => m.status === 'missing').length)
+// ── Status ───────────────────────────────────────────────────────────────────
 
-function treePrefix(i: number) {
-  return i === modules.length - 1 ? '└─ ' : '├─ '
+const statusColors: Record<string, string> = {
+  unexplored: '#555',
+  explored:   '#4ADE80',
+  removed:    '#F87171',
 }
 
-function moduleRow(_m: ReconModule) {
+function statusPill(status: string) {
+  const color = statusColors[status] ?? '#555'
   return {
-    display: 'flex', alignItems: 'center', gap: '0',
-    padding: '4px 14px',
-    border: 'none', borderRadius: '0', cursor: 'pointer',
-    width: '100%', textAlign: 'left',
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '13px', lineHeight: 1.6,
+    display: 'inline-flex', alignItems: 'center', gap: '5px',
+    padding: '3px 9px', borderRadius: '999px',
+    background: `${color}15`, color,
+    fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.05em',
+    textTransform: 'uppercase', fontFamily: "'DM Sans',sans-serif",
+  }
+}
+
+function statusDot(status: string) {
+  return {
+    width: '5px', height: '5px', borderRadius: '50%',
+    background: statusColors[status] ?? '#555', display: 'inline-block',
+  }
+}
+
+// ── Row ──────────────────────────────────────────────────────────────────────
+
+function nodeRow(node: SemanticNode) {
+  const isSelected = selected.value?.id === node.id
+  const isHovered  = hovered.value === node.id && !isSelected
+  const leftColor  = node.status === 'explored' ? '#4ADE80' : 'transparent'
+  return {
+    display: 'flex', alignItems: 'center', gap: '10px',
+    padding: '7px 20px 7px 18px',
+    border: 'none', borderRadius: 0, cursor: 'pointer', width: '100%', textAlign: 'left',
+    borderLeft: `2px solid ${isSelected ? '#F5C518' : leftColor}`,
+    background: isSelected ? 'rgba(245,197,24,0.06)' : isHovered ? 'rgba(255,255,255,0.03)' : 'transparent',
     transition: 'background 80ms ease',
   }
 }
 
-function statusPill(status: string) {
-  const color = statusColors[status]
+// ── Coverage pill ─────────────────────────────────────────────────────────────
+
+function coveragePill(cov: LangCoverage) {
   return {
-    display: 'inline-flex', alignItems: 'center', gap: '6px',
-    padding: '4px 10px', borderRadius: '999px',
-    background: status === 'missing' ? 'rgba(90,90,90,0.10)' : `${color}15`,
-    color, marginBottom: '14px',
-    fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-    whiteSpace: 'nowrap',
+    display: 'inline-flex', alignItems: 'center', gap: '8px',
+    padding: '5px 12px', borderRadius: '6px',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.07)',
   }
 }
 
-function statusTag(status: string) {
+// ── Tab helpers ───────────────────────────────────────────────────────────────
+
+function langTab(active: boolean) {
   return {
-    marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '5px',
-    color: statusColors[status], fontSize: '11px',
-    fontFamily: "'DM Sans',sans-serif", fontWeight: 600, whiteSpace: 'nowrap',
+    padding: '4px 10px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+    background: active ? 'rgba(245,197,24,0.12)' : 'transparent',
+    color: active ? '#F5C518' : '#555',
+    fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 600,
+    transition: 'all 100ms',
   }
 }
 
-const header = { padding: '22px 32px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-end', gap: '24px' }
-const breadcrumb = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden' }
-const mainTitle = { fontFamily: "'Comfortaa', sans-serif", fontSize: '28px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }
-const statsRow = { display: 'flex', gap: '18px', alignItems: 'center', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px', color: '#717171' }
-const statItem = { display: 'inline-flex', alignItems: 'center', gap: '6px' }
-const infoBanner = { padding: '10px 32px', background: 'rgba(96,165,250,0.04)', borderBottom: '1px solid rgba(96,165,250,0.12)', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', color: '#9A9A9A', flexShrink: 0 }
-const rootRow = { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px', width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '13px', lineHeight: 1.6, whiteSpace: 'nowrap', overflow: 'hidden' }
-const moduleMeta = { marginLeft: '14px', color: '#3D3D3D', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }
-const legend = { margin: '28px 32px 0', display: 'flex', alignItems: 'center', gap: '18px', fontFamily: "'DM Sans',sans-serif", fontSize: '11px', color: '#555' }
-const detailPanel = { width: '340px', flexShrink: 0, borderLeft: '1px solid rgba(255,255,255,0.06)', background: '#0C0C0C', overflow: 'auto', padding: '20px 22px 28px', fontFamily: "'DM Sans',sans-serif" }
-const detailBreadcrumb = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#555', marginBottom: '12px' }
-const statsGrid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }
-const detailRow = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '12px' }
-const detailVal = { color: '#D4D4D4', fontFamily: "'JetBrains Mono','Courier Prime',monospace" }
-const staleReason = { marginTop: '14px', padding: '10px 12px', background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.20)', borderRadius: '6px', color: '#E0E0E0', fontSize: '12px', lineHeight: 1.5 }
-const missingNote = { marginTop: '14px', padding: '12px 14px', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.10)', borderRadius: '6px', color: '#9A9A9A', fontSize: '12px', lineHeight: 1.55 }
+function statusTab(active: boolean) {
+  return {
+    padding: '4px 10px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+    background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+    color: active ? '#D4D4D4' : '#555',
+    fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 600,
+    transition: 'all 100ms',
+  }
+}
 
-const DetailStat = defineComponent({
-  props: ['label', 'value'],
-  setup(props) {
-    return () => h('div', {}, [
-      h('div', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#555', marginBottom: '3px' } }, props.label),
-      h('div', { style: { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '18px', fontWeight: 700, color: '#E0E0E0' } }, props.value),
-    ])
-  },
-})
+// ── Static styles ─────────────────────────────────────────────────────────────
 
-const LegendItem = defineComponent({
-  props: ['color', 'label'],
-  setup(props) {
-    return () => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px' } }, [
-      h('span', { style: { width: '8px', height: '8px', borderRadius: '50%', background: props.color, boxShadow: props.color === '#4ADE80' ? `0 0 0 3px ${props.color}1A` : 'none', display: 'inline-block' } }),
-      h('span', { style: { color: '#9A9A9A' } }, props.label),
-    ])
-  },
-})
+const header       = { padding: '22px 32px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-end', gap: '24px', flexShrink: 0 }
+const breadcrumb   = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden' }
+const mainTitle    = { fontFamily: "'Comfortaa',sans-serif", fontSize: '28px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }
+const coverageRow  = { display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }
+const coverageSkeleton = { width: '90px', height: '30px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }
+const covLang      = { fontFamily: "'DM Sans',sans-serif", fontSize: '11px', fontWeight: 700, color: '#9A9A9A', textTransform: 'uppercase', letterSpacing: '0.06em' }
+const covNumbers   = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px' }
+const infoBanner   = { padding: '10px 32px', background: 'rgba(96,165,250,0.04)', borderBottom: '1px solid rgba(96,165,250,0.12)', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', color: '#9A9A9A', flexShrink: 0 }
+const filterBar    = { display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 20px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, overflowX: 'auto' }
+const filterGroup  = { display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }
+const filterSelect = { padding: '4px 8px', borderRadius: '5px', border: '1px solid rgba(255,255,255,0.08)', background: '#111', color: '#9A9A9A', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', cursor: 'pointer', outline: 'none' }
+const centerState  = { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '12px' }
+const stateHint    = { fontSize: '13px', fontFamily: "'DM Sans',sans-serif", color: '#3D3D3D' }
+const spinner      = { width: '24px', height: '24px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.06)', borderTopColor: '#F5C518' }
+const nodeName     = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '13px', color: '#D4D4D4', fontWeight: 600, flexShrink: 0, minWidth: 0 }
+const nodePath     = { marginLeft: 'auto', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#3D3D3D', flexShrink: 0, whiteSpace: 'nowrap' }
+const detailPanel  = { width: '340px', flexShrink: 0, borderLeft: '1px solid rgba(255,255,255,0.06)', background: '#0C0C0C', overflow: 'auto', padding: '20px 22px 28px', fontFamily: "'DM Sans',sans-serif" }
+const detailEmpty  = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '12px', color: '#3D3D3D' }
+const detailSymbol = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '16px', fontWeight: 700, color: '#E0E0E0', marginBottom: '4px', wordBreak: 'break-all' }
+const detailReceiver = { fontFamily: "'DM Sans',sans-serif", fontSize: '11px', color: '#555', marginBottom: '12px' }
+const detailMeta   = { paddingBottom: '10px', marginBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }
+const metaLabel    = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#3D3D3D', marginBottom: '3px' }
+const metaVal      = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px', color: '#9A9A9A', wordBreak: 'break-all' }
+const descriptionBlock = { fontSize: '13px', color: '#C0C0C0', lineHeight: 1.6, fontFamily: "'DM Sans',sans-serif" }
+const signatureBlock   = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px', color: '#9A9A9A', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '10px 12px', lineHeight: 1.6, wordBreak: 'break-all' }
+const notAnnotated = { marginTop: '16px', fontSize: '12px', color: '#3D3D3D', fontStyle: 'italic' }
 </script>

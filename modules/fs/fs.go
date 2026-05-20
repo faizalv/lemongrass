@@ -4,13 +4,14 @@ import (
 	"context"
 	"path/filepath"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 	"github.com/faizalv/lemongrass/config"
+	"github.com/faizalv/lemongrass/modules/fs/entity"
 	handler "github.com/faizalv/lemongrass/modules/fs/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/fs/internal/repository"
 	"github.com/faizalv/lemongrass/modules/fs/internal/usecase"
+	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
+	"github.com/redis/go-redis/v9"
 )
 
 type Fs struct {
@@ -35,4 +36,8 @@ func (f *Fs) StartHTTPRouter(rg *gin.RouterGroup) {
 
 func (f *Fs) Startup(ctx context.Context) {
 	f.uc.RunSanityCheck(ctx)
+}
+
+func (f *Fs) ListProjects() ([]entity.Project, error) {
+	return f.uc.ListProjects()
 }

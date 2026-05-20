@@ -1,8 +1,12 @@
 package entity
 
 type Symbol struct {
-	Name string
-	Kind string // "func" | "type" | "interface" | "const" | "var"
+	Name      string
+	Kind      string // "func" | "method" | "type" | "struct" | "interface" | "const" | "var"
+	LineStart int
+	LineEnd   int
+	Receiver  string // method receiver type name; empty for non-methods
+	Signature string // parameter list, e.g. "(ctx context.Context, id int64)"
 }
 
 type FileNode struct {
@@ -21,6 +25,7 @@ type PackageNode struct {
 }
 
 type ProjectTree struct {
+	Language string
 	Module   string
 	Root     string
 	Packages []PackageNode

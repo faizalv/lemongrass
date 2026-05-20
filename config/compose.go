@@ -43,9 +43,20 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
       - CLAUDE_CONFIG_DIR=/home/lg/.lemongrass/claude
     restart: unless-stopped
 
+  lg-embed:
+    container_name: lg-embed
+    image: lemongrass-embed:latest
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
   lg-postgres:
     container_name: lg-postgres
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     volumes:
       - {{.LGDir}}/postgres:/var/lib/postgresql/data
     environment:

@@ -1,9 +1,11 @@
 package golang
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -17,7 +19,8 @@ type Parser struct{}
 
 func New() *Parser { return &Parser{} }
 
-func (p *Parser) Name() string { return "go" }
+func (p *Parser) Name() string     { return "go" }
+func (p *Parser) Priority() int    { return 80 }
 
 func (p *Parser) Detect(dir string) bool {
 	abs, err := filepath.Abs(dir)
@@ -29,8 +32,6 @@ func (p *Parser) Detect(dir string) bool {
 }
 
 func (p *Parser) Parse(dir string) (*entity.ProjectTree, error) {
-	// Resolve to absolute so WalkDir names and Rel calculations are clean.
-	// A relative path like "../../" has Base == ".." which would trigger shouldSkip.
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -43,7 +44,7 @@ func (p *Parser) Parse(dir string) (*entity.ProjectTree, error) {
 	}
 
 	var packages []entity.PackageNode
-	importIndex := make(map[string]int) // importPath -> index in packages
+	importIndex := make(map[string]int)
 
 	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -67,7 +68,6 @@ func (p *Parser) Parse(dir string) (*entity.ProjectTree, error) {
 		return nil, fmt.Errorf("walk %s: %w", dir, err)
 	}
 
-	// Second pass: build UsedBy from DependsOn
 	for i := range packages {
 		for _, dep := range packages[i].DependsOn {
 			if j, ok := importIndex[dep]; ok {
@@ -76,12 +76,11 @@ func (p *Parser) Parse(dir string) (*entity.ProjectTree, error) {
 		}
 	}
 
-	return &entity.ProjectTree{Module: moduleName, Root: dir, Packages: packages}, nil
+	return &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}, nil
 }
 
 func parseDir(dir, root, moduleName string) *entity.PackageNode {
 	fset := token.NewFileSet()
-	// Skip test files — they add noise without changing the public API shape.
 	pkgMap, _ := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
 		return !strings.HasSuffix(fi.Name(), "_test.go")
 	}, 0)
@@ -89,7 +88,6 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 		return nil
 	}
 
-	// Pick the non-test package when there are multiple (e.g. package + package_test).
 	var astPkg *ast.Package
 	for name, p := range pkgMap {
 		if !strings.HasSuffix(name, "_test") {
@@ -116,7 +114,7 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 		node := entity.FileNode{
 			Path:    filepath.ToSlash(relFile),
 			Package: astPkg.Name,
-			Exports: extractExports(astFile),
+			Exports: extractExports(fset, astFile),
 		}
 		for _, imp := range astFile.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
@@ -127,10 +125,8 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 		files = append(files, node)
 	}
 
-	// Sort files for stable output
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 
-	// DependsOn: only internal imports (same module)
 	var dependsOn []string
 	for imp := range importSet {
 		if strings.HasPrefix(imp, moduleName+"/") || imp == moduleName {
@@ -147,14 +143,28 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 	}
 }
 
-func extractExports(f *ast.File) []entity.Symbol {
+func extractExports(fset *token.FileSet, f *ast.File) []entity.Symbol {
 	var symbols []entity.Symbol
 	for _, decl := range f.Decls {
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
-			if d.Name.IsExported() && d.Recv == nil {
-				symbols = append(symbols, entity.Symbol{Name: d.Name.Name, Kind: "func"})
+			if !d.Name.IsExported() {
+				continue
 			}
+			sym := entity.Symbol{
+				Name:      d.Name.Name,
+				LineStart: fset.Position(d.Pos()).Line,
+				LineEnd:   fset.Position(d.End()).Line,
+				Signature: formatParams(fset, d.Type.Params),
+			}
+			if d.Recv != nil {
+				sym.Kind = "method"
+				sym.Receiver = receiverTypeName(d.Recv)
+			} else {
+				sym.Kind = "func"
+			}
+			symbols = append(symbols, sym)
+
 		case *ast.GenDecl:
 			for _, spec := range d.Specs {
 				switch s := spec.(type) {
@@ -163,10 +173,18 @@ func extractExports(f *ast.File) []entity.Symbol {
 						continue
 					}
 					kind := "type"
-					if _, ok := s.Type.(*ast.InterfaceType); ok {
+					switch s.Type.(type) {
+					case *ast.StructType:
+						kind = "struct"
+					case *ast.InterfaceType:
 						kind = "interface"
 					}
-					symbols = append(symbols, entity.Symbol{Name: s.Name.Name, Kind: kind})
+					symbols = append(symbols, entity.Symbol{
+						Name:      s.Name.Name,
+						Kind:      kind,
+						LineStart: fset.Position(s.Pos()).Line,
+						LineEnd:   fset.Position(s.End()).Line,
+					})
 				case *ast.ValueSpec:
 					for _, name := range s.Names {
 						if name.IsExported() {
@@ -174,7 +192,12 @@ func extractExports(f *ast.File) []entity.Symbol {
 							if d.Tok == token.CONST {
 								kind = "const"
 							}
-							symbols = append(symbols, entity.Symbol{Name: name.Name, Kind: kind})
+							symbols = append(symbols, entity.Symbol{
+								Name:      name.Name,
+								Kind:      kind,
+								LineStart: fset.Position(name.Pos()).Line,
+								LineEnd:   fset.Position(name.End()).Line,
+							})
 						}
 					}
 				}
@@ -183,6 +206,29 @@ func extractExports(f *ast.File) []entity.Symbol {
 	}
 	sort.Slice(symbols, func(i, j int) bool { return symbols[i].Name < symbols[j].Name })
 	return symbols
+}
+
+func formatParams(fset *token.FileSet, params *ast.FieldList) string {
+	if params == nil || params.NumFields() == 0 {
+		return ""
+	}
+	var buf bytes.Buffer
+	printer.Fprint(&buf, fset, params)
+	return buf.String()
+}
+
+func receiverTypeName(recv *ast.FieldList) string {
+	if recv == nil || len(recv.List) == 0 {
+		return ""
+	}
+	expr := recv.List[0].Type
+	if star, ok := expr.(*ast.StarExpr); ok {
+		expr = star.X
+	}
+	if ident, ok := expr.(*ast.Ident); ok {
+		return ident.Name
+	}
+	return ""
 }
 
 func readModuleName(dir string) (string, error) {

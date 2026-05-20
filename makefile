@@ -1,4 +1,4 @@
-.PHONY: build build-ui dev tooling lemongrass
+.PHONY: build build-ui dev tooling embed lemongrass
 
 build-ui:
 	cd ui && npm install && npm run build
@@ -15,7 +15,10 @@ tooling:
 	go build -o bin/migrategen ./cmd/tooling/migrategen
 	go build -o bin/domigrate ./cmd/tooling/domigrate
 
-lemongrass: build-ui
+embed:
+	docker build -f Dockerfile.embed -t lemongrass-embed:latest .
+
+lemongrass: build-ui embed
 	docker build -f Dockerfile.server -t lemongrass-server:latest .
 	docker build -f Dockerfile.runner -t lemongrass-runner:latest .
 	mkdir -p bin

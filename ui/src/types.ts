@@ -63,3 +63,24 @@ export type GroomingPhase =
   | 'done'
 
 export type TaskCommitStatus = 'open' | 'committing' | 'committed'
+
+export interface SemanticNode {
+  id: string
+  file_path: string
+  line_start: number
+  line_end: number
+  package: string
+  symbol: string
+  kind: string
+  language: string
+  receiver?: string
+  signature?: string
+  status: string
+  description?: string
+}
+
+export interface LangCoverage {
+  language: string
+  total: number
+  explored: number
+}

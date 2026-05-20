@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -19,6 +20,7 @@ import (
 	lgfs "github.com/faizalv/lemongrass/modules/fs"
 	lglg "github.com/faizalv/lemongrass/modules/lg"
 	lgpty "github.com/faizalv/lemongrass/modules/pty"
+	lgrecon "github.com/faizalv/lemongrass/modules/recon"
 	lgui "github.com/faizalv/lemongrass/ui"
 	"github.com/gin-gonic/gin"
 )
@@ -70,8 +72,30 @@ func main() {
 	lgMod.LoadMe(cfg, db, rds)
 	lgMod.StartHTTPRouter(api)
 
+	reconModule := &lgrecon.Recon{}
+	reconModule.LoadMe(cfg, db, rds)
+	reconModule.StartHTTPRouter(api)
+
 	fsModule.Startup(context.Background())
 	log.Println("startup sanity check: ok")
+
+	startupCtx := context.Background()
+	projects, err := fsModule.ListProjects()
+	if err != nil {
+		log.Printf("startup mapping: could not list projects: %v", err)
+	} else {
+		for _, p := range projects {
+			if p.Status == "removed" {
+				continue
+			}
+			dir := "/projects/" + filepath.Base(p.Path)
+			if err := reconModule.MapIfNeeded(startupCtx, p.ID, dir); err != nil {
+				log.Printf("startup mapping: project %d (%s): %v", p.ID, p.Path, err)
+			} else {
+				log.Printf("startup mapping: project %d ok", p.ID)
+			}
+		}
+	}
 
 	distFS, err := fs.Sub(lgui.Dist, "dist")
 	if err != nil {
