@@ -19,10 +19,6 @@
       <div :style="body">
         <div :style="sectionLabel">Workspace</div>
 
-        <SettingsRow label="Auto-run recon on attach" sub="When a project is freshly attached, recon its top-level modules without asking.">
-          <Toggle :on="autoRecon" @click="autoRecon = !autoRecon" />
-        </SettingsRow>
-
         <SettingsRow label="Worker parallelism" sub="Max number of file-workers the planner can run simultaneously.">
           <div style="display:flex;align-items:center;gap:6px">
             <button
@@ -74,7 +70,6 @@ import AppIcon from '../AppIcon.vue'
 
 defineEmits<{ 'close': [] }>()
 
-const autoRecon = ref(true)
 const parallelism = ref(4)
 const theme = ref('dark')
 

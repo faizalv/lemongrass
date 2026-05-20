@@ -15,13 +15,13 @@
     <div :style="tagline">Your local AI coding agent.</div>
     <div :style="desc">
       Groom requirements, plan patches, and run tests — all from your own machine.
-      Attach a project to get started.
+      Add a project to get started.
     </div>
 
     <!-- Primary CTA -->
-    <button :style="ctaBtn" @click="$emit('attach')">
+    <button :style="ctaBtn" @click="$emit('add')">
       <AppIcon name="folder-git-2" :size="15" />
-      Attach a project
+      Add a project
       <AppIcon name="arrow-right" :size="14" />
     </button>
 
@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import AppIcon from './AppIcon.vue'
 
-defineEmits<{ 'attach': [] }>()
+defineEmits<{ 'add': [] }>()
 
 const wrap = {
   flex: 1,

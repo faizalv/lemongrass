@@ -8,14 +8,14 @@
       @switch-project="handleSwitchProject"
       @select-workspace="activeWorkspaceId = $event"
       @add-workspace="addingWorkspace = true"
-      @attach-project="attachProjectOpen = true"
+      @add-project="addProjectOpen = true"
       @open-settings="settingsOpen = true"
       @open-debug="debugOpen = true"
       @delete-project="handleDeleteProject"
     />
 
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
-      <EmptyState v-if="projects.length === 0" @attach="attachProjectOpen = true" />
+      <EmptyState v-if="projects.length === 0" @add="addProjectOpen = true" />
 
       <template v-else>
         <ReconnaissanceView
@@ -30,10 +30,10 @@
       </template>
     </div>
 
-    <AttachProjectModal
-      v-if="attachProjectOpen"
-      @close="attachProjectOpen = false"
-      @attached="handleAttached"
+    <AddProjectModal
+      v-if="addProjectOpen"
+      @close="addProjectOpen = false"
+      @added="handleAdded"
     />
 
     <AddWorkspaceModal
@@ -70,7 +70,7 @@ import AppSidebar from './components/AppSidebar.vue'
 import EmptyState from './components/EmptyState.vue'
 import ReconnaissanceView from './components/ReconnaissanceView.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
-import AttachProjectModal from './components/modals/AttachProjectModal.vue'
+import AddProjectModal from './components/modals/AddProjectModal.vue'
 import AddWorkspaceModal from './components/modals/AddWorkspaceModal.vue'
 import DeleteProjectModal from './components/modals/DeleteProjectModal.vue'
 import SettingsModal from './components/modals/SettingsModal.vue'
@@ -83,7 +83,7 @@ const activeWorkspaceId = ref('')
 const settingsOpen = ref(false)
 const debugOpen = ref(false)
 const addingWorkspace = ref(false)
-const attachProjectOpen = ref(false)
+const addProjectOpen = ref(false)
 const deletingProjectId = ref('')
 
 const workspaces = computed(() => workspacesByProj.value[currentProjectId.value] ?? [])
@@ -118,7 +118,7 @@ function handleSwitchProject(pid: string) {
   setProjectParam(pid)
 }
 
-function handleAttached(fsProjects: FsProject[]) {
+function handleAdded(fsProjects: FsProject[]) {
   const last = fsProjects[fsProjects.length - 1]
   if (last) {
     // Full reload so Vue re-initialises against the restarted server.
@@ -127,7 +127,7 @@ function handleAttached(fsProjects: FsProject[]) {
     url.searchParams.set('project', String(last.id))
     location.href = url.toString()
   } else {
-    attachProjectOpen.value = false
+    addProjectOpen.value = false
   }
 }
 

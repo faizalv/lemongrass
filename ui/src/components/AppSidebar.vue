@@ -13,10 +13,10 @@
 
     <!-- Project picker -->
     <div :style="s.projWrap">
-      <!-- Empty: no projects attached -->
-      <button v-if="projects.length === 0" :style="s.attachBtn" @click="$emit('attach-project')">
+      <!-- Empty: no projects -->
+      <button v-if="projects.length === 0" :style="s.addProjectBtn" @click="$emit('add-project')">
         <AppIcon name="folder-git-2" :size="13" :extra-style="{ color: '#555', flexShrink: 0 }" />
-        <span :style="{ flex: 1, minWidth: 0, fontSize: '12.5px', color: '#555', fontWeight: 500, textAlign: 'left' }">Attach a project…</span>
+        <span :style="{ flex: 1, minWidth: 0, fontSize: '12.5px', color: '#555', fontWeight: 500, textAlign: 'left' }">Add a project…</span>
         <AppIcon name="plus" :size="12" :extra-style="{ color: '#555', flexShrink: 0 }" />
       </button>
 
@@ -64,9 +64,9 @@
             </button>
           </div>
           <div :style="s.projMenuDivider"></div>
-          <button :style="s.projMenuFoot" @click="$emit('attach-project'); projMenuOpen = false">
+          <button :style="s.projMenuFoot" @click="$emit('add-project'); projMenuOpen = false">
             <AppIcon name="plus" :size="12" :extra-style="{ color: '#9A9A9A' }" />
-            Attach new project…
+            Add new project…
           </button>
         </div>
       </template>
@@ -81,10 +81,10 @@
     <!-- Workspace list -->
     <div :style="s.wsList">
       <template v-if="projects.length === 0">
-        <!-- No project attached yet -->
+        <!-- No projects yet -->
         <div :style="s.wsEmptyHint">
           <AppIcon name="layers" :size="14" :extra-style="{ color: '#2A2A2A', flexShrink: 0 }" />
-          <span style="font-size:12px;color:#3D3D3D;line-height:1.5">Attach a project to see workspaces here.</span>
+          <span style="font-size:12px;color:#3D3D3D;line-height:1.5">Add a project to see workspaces here.</span>
         </div>
       </template>
 
@@ -154,7 +154,7 @@ const emit = defineEmits<{
   'switch-project': [id: string]
   'select-workspace': [id: string]
   'add-workspace': []
-  'attach-project': []
+  'add-project': []
   'open-settings': []
   'open-debug': []
   'delete-project': [id: string]
@@ -308,7 +308,7 @@ const s = {
     display: 'flex', alignItems: 'flex-start', gap: '10px',
     padding: '12px 10px', margin: '4px 0',
   },
-  attachBtn: {
+  addProjectBtn: {
     width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
     padding: '9px 11px',
     background: '#0E0E0E',

@@ -32,14 +32,14 @@ func (h *FsHandler) Browse(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func (h *FsHandler) Attach(c *gin.Context) {
-	var req transporter.AttachRequest
+func (h *FsHandler) AddProject(c *gin.Context) {
+	var req transporter.AddProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.Path == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
 		return
 	}
 
-	if err := h.uc.Attach(req.ToPayload()); err != nil {
+	if err := h.uc.AddProject(req.ToPayload()); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

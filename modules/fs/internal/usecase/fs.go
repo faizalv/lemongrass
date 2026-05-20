@@ -75,7 +75,7 @@ func (uc *FsUsecase) browseFromDaemon() ([]entity.Node, error) {
 	return buildTree(paths), nil
 }
 
-func (uc *FsUsecase) Attach(path string) error {
+func (uc *FsUsecase) AddProject(path string) error {
 	if _, err := uc.repo.Save(path); err != nil {
 		return err
 	}

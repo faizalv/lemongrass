@@ -4,11 +4,11 @@ import (
 	"github.com/faizalv/lemongrass/modules/fs/entity"
 )
 
-type AttachRequest struct {
+type AddProjectRequest struct {
 	Path string `json:"path"`
 }
 
-func (r AttachRequest) ToPayload() string {
+func (r AddProjectRequest) ToPayload() string {
 	return r.Path
 }
 

@@ -12,7 +12,7 @@
         </div>
         <div>
           <div :style="eyebrow">Get started</div>
-          <div :style="titleStyle">Attach a project</div>
+          <div :style="titleStyle">Add a project</div>
         </div>
       </div>
 
@@ -23,7 +23,7 @@
       </div>
 
       <!-- BROWSING -->
-      <div v-else-if="phase === 'browsing' || phase === 'attaching'" :style="body">
+      <div v-else-if="phase === 'browsing' || phase === 'adding'" :style="body">
         <div v-if="fetchError" :style="errBox">
           <span>{{ fetchError }}</span>
           <button :style="retryBtn" @click="loadTree()">Retry</button>
@@ -34,7 +34,7 @@
             <span :style="treeLabel">Filesystem</span>
             <button
               :style="refreshBtn"
-              :disabled="refreshing || phase === 'attaching'"
+              :disabled="refreshing || phase === 'adding'"
               @click="loadTree(true)"
             >
               <svg
@@ -92,20 +92,20 @@
       </div>
 
       <!-- Footer -->
-      <div v-if="phase === 'browsing' || phase === 'attaching'" :style="footer">
-        <button :style="btnGhost" @click="$emit('close')" :disabled="phase === 'attaching'">Cancel</button>
+      <div v-if="phase === 'browsing' || phase === 'adding'" :style="footer">
+        <button :style="btnGhost" @click="$emit('close')" :disabled="phase === 'adding'">Cancel</button>
         <button
           :style="btnPrimary(!!selectedPath && phase === 'browsing')"
-          :disabled="!selectedPath || phase === 'attaching'"
-          @click="attach"
+          :disabled="!selectedPath || phase === 'adding'"
+          @click="addProject"
         >
-          <svg v-if="phase === 'attaching'" class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg v-if="phase === 'adding'" class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
           </svg>
           <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
-          {{ phase === 'attaching' ? 'Attaching…' : 'Attach project' }}
+          {{ phase === 'adding' ? 'Adding…' : 'Add project' }}
         </button>
       </div>
     </div>
@@ -119,10 +119,10 @@ import FolderNode from '../FolderNode.vue'
 
 const emit = defineEmits<{
   close: []
-  attached: [projects: FsProject[]]
+  added: [projects: FsProject[]]
 }>()
 
-type Phase = 'loading' | 'browsing' | 'attaching' | 'restarting' | 'error'
+type Phase = 'loading' | 'browsing' | 'adding' | 'restarting' | 'error'
 
 const phase = ref<Phase>('loading')
 const tree = ref<FsNode[]>([])
@@ -154,19 +154,19 @@ async function loadTree(force = false) {
   }
 }
 
-async function attach() {
+async function addProject() {
   if (!selectedPath.value || phase.value !== 'browsing') return
-  phase.value = 'attaching'
+  phase.value = 'adding'
 
   try {
-    const r = await fetch('/api/fs/attach', {
+    const r = await fetch('/api/fs/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: selectedPath.value }),
     })
     if (r.status !== 202) throw new Error(`Unexpected status ${r.status}`)
   } catch (e: any) {
-    restartError.value = e?.message ?? 'Attach request failed'
+    restartError.value = e?.message ?? 'Add project request failed'
     phase.value = 'error'
     return
   }
@@ -177,7 +177,7 @@ async function attach() {
     const r = await fetch('/api/fs/projects')
     if (!r.ok) throw new Error('Failed to load projects')
     const projects: FsProject[] = await r.json()
-    emit('attached', projects)
+    emit('added', projects)
   } catch (e: any) {
     restartError.value = e?.message ?? 'Server did not come back in time'
     phase.value = 'error'
@@ -201,7 +201,7 @@ function delay(ms: number) {
 }
 
 function onBackdropClick() {
-  if (phase.value === 'restarting' || phase.value === 'attaching') return
+  if (phase.value === 'restarting' || phase.value === 'adding') return
   emit('close')
 }
 

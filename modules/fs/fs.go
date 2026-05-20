@@ -28,8 +28,8 @@ func (f *Fs) LoadMe(cfg config.Config, db *sqlx.DB, rds *redis.Client) {
 func (f *Fs) StartHTTPRouter(rg *gin.RouterGroup) {
 	g := rg.Group("/fs")
 	g.GET("/browse", f.h.Browse)
-	g.POST("/attach", f.h.Attach)
 	g.GET("/projects", f.h.ListProjects)
+	g.POST("/projects", f.h.AddProject)
 	g.DELETE("/projects/:id", f.h.DeleteProject)
 }
 
