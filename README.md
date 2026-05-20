@@ -6,11 +6,9 @@ A control plane for Claude Code. You point it at a codebase, describe what you w
 
 ## The problem
 
-Claude Code CLI is great but it is designed for interactive use. You sit in front of a terminal, you type, Claude responds. If you want to drive it programmatically, you either pay for the API (different product, different behavior) or you figure out a way to automate the CLI itself.
+Claude Code is a capable coding agent but it is designed for interactive, one-shot sessions. You describe something, it works on it, you review the result. There is no structure around that loop -- no approval gates before code gets written, no persistent semantic understanding of your codebase across sessions, no way to say "plan first, execute only after I agree with the plan."
 
-Lemongrass wraps the Claude Code CLI in a pty, injects input, reads output, and uses Claude Code's own hook system to intercept tool calls. The result is something that behaves like an API but runs on your existing Claude subscription.
-
-The other thing it solves is context bloat. Letting a model loose on a whole codebase is expensive and usually counterproductive. Lemongrass builds a semantic map of your codebase -- descriptions of every symbol, searchable by meaning -- so the grooming model reasons from that instead of reading raw files. It only touches the code it actually needs.
+Lemongrass is a control plane that adds that structure. It orchestrates Claude Code through typed sessions with clear boundaries: a grooming session that produces a human-approved plan, and an executor session that implements it. It builds a semantic map of your codebase so the model reasons from symbol descriptions rather than reading the entire repo every time. And it keeps a human in the loop at the decision point that matters -- before any code gets written.
 
 ---
 
@@ -48,9 +46,15 @@ This is a clean RPC-like protocol where Claude is the client and lemongrass is t
 
 ## The semantic map
 
-When you add a project, lemongrass immediately runs a structural analysis pass on the codebase. Every meaningful symbol -- Go functions, methods, types, interfaces, Vue components, Pinia stores, TypeScript exports -- gets a node in the `semantic_nodes` table. All nodes start as `unexplored`.
+This is the core of lemongrass and what makes it different from just running Claude Code interactively.
 
-The analysis is deterministic and fast. It uses the AST of each language, not a model. For Go that is `go/parser`. For Vue it reads `<script setup>` blocks and extracts props and emits. For TypeScript it finds exported declarations. The whole thing runs in milliseconds.
+The fundamental problem with AI coding agents is context. Send too much and you burn tokens on irrelevant code. Send too little and the model misses the connections that matter -- that `getUserByID` joins the tenant table, that the auth handler calls into a service that touches three other packages. A model starting cold on a large codebase has to rediscover all of this every session.
+
+Lemongrass builds a persistent semantic map of your codebase. Every symbol -- functions, types, interfaces, Vue components, stores -- gets a node. A model that reads a method writes a natural language description of what it does and what it relates to. That description is embedded and stored. Next session, the grooming model searches the map by meaning rather than reading raw files. It already knows what `getUserByID` does. It already knows which modules touch the payment flow. It reasons from that knowledge to produce a precise implementation plan, touching only the code it actually needs.
+
+The map gets richer over time. Each grooming session explores more nodes and adds more descriptions. A codebase you have worked in before is dramatically cheaper and more accurate to groom than one the model is seeing for the first time.
+
+The structural layer is built automatically when you add a project -- pure AST parsing, no model, milliseconds. Framework parsers run first (Vue, Nuxt, Next, Laravel) and claim the files they understand. Language parsers handle the rest. Every symbol starts as `unexplored`.
 
 ```
   add project
@@ -61,20 +65,20 @@ The analysis is deterministic and fast. It uses the AST of each language, not a 
   language parsers on whatever is left (TypeScript, Go...)
         |
         v
-  semantic_nodes table populated
+  semantic_nodes populated -- all unexplored
   Go: 42 nodes · Vue: 11 nodes · TypeScript: 8 nodes · 0 explored
         |
         v
-  Reconnaissance page shows the full symbol map
+  Reconnaissance page shows the full symbol map and coverage
 ```
 
-Nodes become `explored` when a model reads the raw code and calls `#lg!.annotate` with a natural language description. That description gets embedded via a local embedding model (`lg-embed`) and stored alongside the node. From that point on, the grooming model can find the symbol by searching for its meaning rather than its name.
-
-The annotation format is compact and consistent. `#lg.recon.read` returns raw code in this shape, and `#lg!.annotate` accepts a description in the same shape:
+Nodes become `explored` as models read and annotate them. The annotation format is compact and consistent -- `#lg.recon.read` returns raw code in this shape, and `#lg!.annotate` accepts a description in the same shape:
 
 ```
 /modules/auth/handler/auth.go:LoginSSO:123-145:"validates SSO token, exchanges for internal JWT":*entity.User
 ```
+
+Descriptions are embedded locally via `lg-embed` (E5-base, runs on your machine, no external API) and stored in postgres alongside the node. `#lg.recon.search "user authentication"` runs a vector similarity search against those embeddings and returns the relevant nodes -- no file reading required.
 
 ---
 
