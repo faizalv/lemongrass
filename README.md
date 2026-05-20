@@ -184,4 +184,4 @@ lemongrass up
 
 ---
 
-MIT
+AGPL-3.0
