@@ -81,9 +81,17 @@ The second piece is hook interception. Claude Code fires shell scripts on tool u
   lg-redis: cache
 ```
 
-`~/.lemongrass/` is bind-mounted into all containers. No Docker volumes. Wipe Docker completely, run `lemongrass up`, everything is back.
+`lg-server` is the Go HTTP server. It manages sessions, spawns PTY processes into `lg-runner`, routes `#lg` calls to the right handlers, runs the worker that writes patches to files, and serves the frontend.
 
-Project folders are bind-mounted at `/projects/<alias>` inside the containers so both lg-server and lg-runner can reach the code.
+`lg-runner` is where Claude Code actually runs. It has the Claude CLI and the `lg-hook` binary installed. It holds no state of its own.
+
+`lg-postgres` stores everything that needs to persist: projects, workspaces, sessions, tasks, and the semantic analysis data.
+
+`lg-redis` is cache.
+
+`lg-embed` runs the local embedding model for semantic search.
+
+All data lives at `~/.lemongrass/` on the host. Everything in there is bind-mounted into the containers, so the containers themselves carry no state. Your project folders get mounted at `/projects/<alias>` so both the server and the runner can access them.
 
 ---
 
