@@ -1,26 +1,22 @@
 # Lemongrass
 
-A control plane for Claude Code. You point it at a codebase, describe what you want built, and it runs a structured session pipeline to plan and write the code. Strictly personal use.
+A control plane for Claude Code.
 
----
+The idea came from how I usually work with agentic coding. Drop a requirement, ask the model to plan for it, approve or reject the plan, then let it work. For small tasks this works fine. But I wondered how to push this into something more structured: you only deal with decisions, not with managing what the model reads or how it navigates the codebase.
 
-## The problem
+Lemongrass lets you add a project, scans the codebase and builds a semantic map using no model, then gives you a workspace to drop requirements into. The grooming model reads the semantic map, produces tasks with implementation details, and waits for your approval. You approve, reject, or amend. Once all tasks are accepted, the executor model reads them and writes the code. You are only involved at the approval step.
 
-Claude Code is a capable coding agent but it is designed for interactive, one-shot sessions. You describe something, it works on it, you review the result. There is no structure around that loop -- no approval gates before code gets written, no persistent semantic understanding of your codebase across sessions, no way to say "plan first, execute only after I agree with the plan."
-
-Lemongrass is a control plane that adds that structure. It orchestrates Claude Code through typed sessions with clear boundaries: a grooming session that produces a human-approved plan, and an executor session that implements it. It builds a semantic map of your codebase so the model reasons from symbol descriptions rather than reading the entire repo every time. And it keeps a human in the loop at the decision point that matters -- before any code gets written.
+Lemongrass has two levels of scope. A project holds the codebase, its semantic map, and its git branch. A workspace lives under a project. When you want to work on a new requirement, you create a workspace. Workspaces are logically separate from each other but share everything the project has.
 
 ---
 
 ## How it works
 
-The core mechanism is two things working together.
+The easier path would have been the API or `claude -p`. But Anthropic limits SDK usage on subscription plans, which gets in the way of building something more customized on top of Claude Code.
 
-**PTY control.** Claude Code runs inside a Docker container (`lg-runner`). The Go server spawns it via `docker exec` wrapped in a pty allocated through `script(1)`. This makes Claude think it has a real terminal. The server writes to stdin and reads from stdout. No API call involved.
+PTY worked, so that is what we use. Claude Code runs inside a Docker container (`lg-runner`). The Go server spawns it via `docker exec` wrapped in a pty allocated through `script(1)`. The pty makes Claude think it has a real terminal. The server writes to stdin to inject prompts and reads stdout to capture output. It is a bit flaky compared to a proper API, but it works.
 
-**Hook interception.** Claude Code has a hook system that fires shell scripts on tool use events. Lemongrass configures a `PreToolUse` hook that intercepts every Bash call Claude makes. If the command starts with `#lg.`, the hook POSTs it to the Go server and blocks until it gets a response. If it starts with `#lg!.`, it fires async and returns `ok` immediately. Everything else passes through `rtk` for output compression before going back to Claude.
-
-This is a clean RPC-like protocol where Claude is the client and lemongrass is the server. Claude just thinks it is running bash commands.
+The second piece is hook interception. Claude Code fires shell scripts on tool use events. Lemongrass writes a `PreToolUse` hook into each workspace before starting a session. Any Bash call Claude makes goes through this hook first. Commands prefixed with `#lg.` are POSTed to the Go server and block until a response comes back. Commands prefixed with `#lg!.` fire async and return ok immediately. Everything else passes through `rtk` for output compression before going back to Claude.
 
 ```
   Claude emits: Bash("#lg.recon.search 'user authentication'")
@@ -40,106 +36,8 @@ This is a clean RPC-like protocol where Claude is the client and lemongrass is t
         +-- anything else -> rtk exec <command>
                              print compressed output
                              Claude reads as tool result
-```
-
----
-
-## The semantic map
-
-This is the core of lemongrass and what makes it different from just running Claude Code interactively.
-
-The fundamental problem with AI coding agents is context. Send too much and you burn tokens on irrelevant code. Send too little and the model misses the connections that matter -- that `getUserByID` joins the tenant table, that the auth handler calls into a service that touches three other packages. A model starting cold on a large codebase has to rediscover all of this every session.
-
-Lemongrass builds a persistent semantic map of your codebase. Every symbol -- functions, types, interfaces, Vue components, stores -- gets a node. A model that reads a method writes a natural language description of what it does and what it relates to. That description is embedded and stored. Next session, the grooming model searches the map by meaning rather than reading raw files. It already knows what `getUserByID` does. It already knows which modules touch the payment flow. It reasons from that knowledge to produce a precise implementation plan, touching only the code it actually needs.
-
-The map gets richer over time. Each grooming session explores more nodes and adds more descriptions. A codebase you have worked in before is dramatically cheaper and more accurate to groom than one the model is seeing for the first time.
-
-The structural layer is built automatically when you add a project -- pure AST parsing, no model, milliseconds. Framework parsers run first (Vue, Nuxt, Next, Laravel) and claim the files they understand. Language parsers handle the rest. Every symbol starts as `unexplored`.
 
 ```
-  add project
-        |
-        v
-  mapping engine runs all language parsers
-  framework parsers first (Vue, Nuxt, Next, Laravel...)
-  language parsers on whatever is left (TypeScript, Go...)
-        |
-        v
-  semantic_nodes populated -- all unexplored
-  Go: 42 nodes · Vue: 11 nodes · TypeScript: 8 nodes · 0 explored
-        |
-        v
-  Reconnaissance page shows the full symbol map and coverage
-```
-
-Nodes become `explored` as models read and annotate them. The annotation format is compact and consistent -- `#lg.recon.read` returns raw code in this shape, and `#lg!.annotate` accepts a description in the same shape:
-
-```
-/modules/auth/handler/auth.go:LoginSSO:123-145:"validates SSO token, exchanges for internal JWT":*entity.User
-```
-
-Descriptions are embedded locally via `lg-embed` (E5-base, runs on your machine, no external API) and stored in postgres alongside the node. `#lg.recon.search "user authentication"` runs a vector similarity search against those embeddings and returns the relevant nodes -- no file reading required.
-
----
-
-## Session flow
-
-```
-  add project
-        |
-        v
-  mapping engine runs (AST parse, no model)
-  all symbols inserted as unexplored
-        |
-        v
-  open workspace --> Grooming session
-        |
-        |  model calls #lg.recon.tree
-        |  sees package map and annotation coverage per package
-        |
-        |  nodes already annotated?
-        |    yes --> #lg.recon.search "keyword"
-        |            gets matching nodes with descriptions
-        |            reasons from descriptions, no raw code needed
-        |
-        |    no  --> #lg.recon.read <file:symbol:start-end>
-        |            gets raw code in annotate format
-        |            #lg!.annotate <file:symbol:start-end>:"desc":return
-        |            fire and forget -- model already has the understanding
-        |            continues building the semantic map as a side effect
-        |
-        |  model writes task list with impl details
-        |  each task references specific symbols by file:symbol:line
-        |
-        |  #lg.tasks.checkpoint  ---------> UI shows task list to user
-        |  (blocks)              <--------- approve / reject + feedback
-        |       |
-        |       +-- rejected --> model revises, resubmits (loop)
-        |       |
-        |       +-- approved
-        |                 |
-        |                 v
-        |           #lg!.handover "summary"
-        |
-        v
-  Executor session (new pty, scoped prompt)
-        |
-        |  reads approved tasks
-        |  #lg.recon.read on each referenced symbol --> gets current code
-        |  generates patch
-        |  #lg!.patch <file:symbol:start-end>:"<new code>"
-        |  Worker applies patch to file asynchronously
-        |  #lg!.annotate any new symbols it wrote
-        |
-        v
-  #lg!.done
-```
-
-**Grooming** reasons entirely from descriptions, not raw code. It only reads raw files when it hits an unexplored node -- and when it does, it annotates it so the next session doesn't have to. No code is generated during grooming. The user approves a plan, not a diff.
-
-**Executor** takes the approved task list and generates actual code patches. It reads the raw code at exactly the symbols grooming referenced, produces replacements, and dispatches them to the Worker.
-
-**Worker** is not a model. It is a Go mechanism inside lg-server that receives patch jobs from the executor and writes them to the filesystem with per-file locking. One file at a time, no thinking, no retry.
 
 ---
 
@@ -189,25 +87,64 @@ Project folders are bind-mounted at `/projects/<alias>` inside the containers so
 
 ---
 
-## Go server module layout
-
-The server follows a strict module pattern. Every domain is a module implementing a two-method interface (`LoadMe` for wiring dependencies, `StartHTTPRouter` for registering routes). Modules do not import each other directly. Cross-module calls go through a client package or the event bus.
+## Session flow
 
 ```
-modules/
-  pty/      PTY session management, the core mechanism
-  lg/       #lg command routing and dispatch
-  recon/    semantic mapping engine -- multi-language, multi-framework
-  fs/       project management and filesystem browsing
+  add project
+        |
+        v
+  semantic analysis
+  all symbols inserted as unexplored
+        |
+        v
+  create a workspace --> Grooming session
+        |
+        |  model calls #lg.recon.tree
+        |  sees package map and annotation coverage per package
+        |
+        |  nodes already annotated?
+        |    yes --> #lg.recon.search "keyword"
+        |            gets matching nodes with descriptions
+        |            reasons from descriptions, no raw code needed
+        |
+        |    no  --> #lg.recon.read <file:symbol:start-end>
+        |            gets raw code in annotate format
+        |            #lg!.annotate <file:symbol:start-end>:"desc":return
+        |            fire and forget, model already has the understanding
+        |            continues building the semantic map as a side effect
+        |
+        |  model writes task list with impl details
+        |  each task references specific symbols by file:symbol:line
+        |
+        |  #lg.tasks.checkpoint  ---------> UI shows task list to user
+        |  (blocks)              <--------- approve / reject + feedback
+        |       |
+        |       +-- rejected --> model revises, resubmits (loop)
+        |       |
+        |       +-- approved
+        |                 |
+        |                 v
+        |           #lg!.handover "summary"
+        |
+        v
+  Executor session (new pty, scoped prompt)
+        |
+        |  reads approved tasks
+        |  #lg.recon.read on each referenced symbol --> gets current code
+        |  generates patch
+        |  #lg!.patch <file:symbol:start-end>:"<new code>"
+        |  Worker applies patch to file asynchronously
+        |  #lg!.annotate any new symbols it wrote
+        |
+        v
+  #lg!.done
 ```
-
-The `recon` module is worth explaining. It uses `go/parser` + `go/ast` for Go, and equivalent AST parsers for other languages. Parsers are registered behind a `lang.Parser` interface with a `Priority()` method. Framework parsers (Vue, Nuxt, Next, Laravel) run first and claim the files they understand. Language parsers (TypeScript, PHP) run on whatever is left. Adding a new language means implementing the interface and registering it -- nothing else changes.
 
 ---
 
-## Commands
+## #lg protocol
 
-Nine commands across two session types. `recon.read` and `annotate` are shared.
+These are the commands the model uses to talk to lemongrass, not CLI commands for the user. Nine total across two session types. `recon.read` and `annotate` are available in both.
 
 | Command | Session | Blocking | Purpose |
 |---|---|---|---|
@@ -235,7 +172,7 @@ lemongrass up
 
 `auth` opens the Claude Code auth flow inside `lg-runner` and writes credentials to `~/.lemongrass/claude/`. The host machine does not need Claude Code installed.
 
-`lemongrass up` generates a Docker Compose file from `~/.lemongrass/config.json` and starts all containers. The UI is at `http://localhost:9966`. Add a project from the UI -- lemongrass maps it immediately and the Reconnaissance page shows the full symbol tree.
+`lemongrass up` generates a Docker Compose file from `~/.lemongrass/config.json` and starts all containers. The UI is at `http://localhost:9966`. Add a project from the UI and the Reconnaissance page shows the full symbol tree.
 
 ---
 
