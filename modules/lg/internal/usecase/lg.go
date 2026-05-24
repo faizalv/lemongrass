@@ -27,13 +27,14 @@ func New(pty *ptyclient.PtyClient) *LgUsecase {
 	return uc
 }
 
-func (u *LgUsecase) RecordCall(cmd, args string) {
+func (u *LgUsecase) Handle(cmd, args string, blocking bool) string {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 	u.calls = append(u.calls, entity.Call{Cmd: cmd, Args: args, Timestamp: time.Now()})
 	if len(u.calls) > 200 {
 		u.calls = u.calls[len(u.calls)-200:]
 	}
+	u.mu.Unlock()
+	return ""
 }
 
 func (u *LgUsecase) ListCalls() []entity.Call {

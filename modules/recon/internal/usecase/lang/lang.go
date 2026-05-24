@@ -2,11 +2,15 @@ package lang
 
 import "github.com/faizalv/lemongrass/modules/recon/entity"
 
+type Ignorer interface {
+	Match(relPath string) bool
+}
+
 // Parser knows how to detect and parse a specific language's project structure.
 // Priority controls evaluation order: higher runs first.
 type Parser interface {
 	Name() string
 	Priority() int
 	Detect(dir string) bool
-	Parse(dir string) (*entity.ProjectTree, error)
+	Parse(dir string, ig Ignorer) (*entity.ProjectTree, error)
 }

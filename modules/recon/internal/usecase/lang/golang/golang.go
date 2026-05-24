@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/faizalv/lemongrass/modules/recon/entity"
+	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/lang"
 )
 
 type Parser struct{}
@@ -31,7 +32,7 @@ func (p *Parser) Detect(dir string) bool {
 	return err == nil
 }
 
-func (p *Parser) Parse(dir string) (*entity.ProjectTree, error) {
+func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -53,7 +54,9 @@ func (p *Parser) Parse(dir string) (*entity.ProjectTree, error) {
 		if !d.IsDir() {
 			return nil
 		}
-		if shouldSkip(d.Name()) {
+		rel, _ := filepath.Rel(dir, path)
+		rel = filepath.ToSlash(rel)
+		if rel != "." && ig.Match(rel+"/") {
 			return filepath.SkipDir
 		}
 		pkg := parseDir(path, dir, moduleName)
@@ -245,10 +248,3 @@ func readModuleName(dir string) (string, error) {
 	return "", fmt.Errorf("module directive not found in go.mod")
 }
 
-func shouldSkip(name string) bool {
-	switch name {
-	case "vendor", "testdata", "node_modules":
-		return true
-	}
-	return strings.HasPrefix(name, ".")
-}

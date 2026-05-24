@@ -18,15 +18,16 @@ func New(uc *usecase.LgUsecase) *LgHandler {
 
 func (h *LgHandler) Receive(c *gin.Context) {
 	var req struct {
-		Cmd  string `json:"cmd"`
-		Args string `json:"args"`
+		Cmd      string `json:"cmd"`
+		Args     string `json:"args"`
+		Blocking bool   `json:"blocking"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Cmd == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cmd is required"})
 		return
 	}
-	h.uc.RecordCall(req.Cmd, req.Args)
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	text := h.uc.Handle(req.Cmd, req.Args, req.Blocking)
+	c.JSON(http.StatusOK, gin.H{"text": text})
 }
 
 func (h *LgHandler) Calls(c *gin.Context) {

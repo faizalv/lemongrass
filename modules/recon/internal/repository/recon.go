@@ -68,6 +68,12 @@ func toEntity(r nodeRecord) entity.SemanticNode {
 	}
 }
 
+func (r *ReconRepository) ProjectDir(ctx context.Context, projectID int64) (string, error) {
+	var path string
+	err := r.db.QueryRowContext(ctx, `SELECT path FROM lg_projects WHERE id = $1`, projectID).Scan(&path)
+	return path, err
+}
+
 func (r *ReconRepository) DeleteByProject(ctx context.Context, projectID int64) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM lg_semantic_nodes WHERE project_id = $1`, projectID)
 	return err

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 )
 
 type repo interface {
+	ProjectDir(ctx context.Context, projectID int64) (string, error)
 	HasNodes(ctx context.Context, projectID int64) (bool, error)
 	UpsertNodes(ctx context.Context, nodes []entity.SemanticNode) error
 	MarkRemoved(ctx context.Context, projectID int64, activePaths []string) error
@@ -66,12 +68,26 @@ func (u *ReconUsecase) GetCoverage(ctx context.Context, projectID int64) ([]enti
 	return u.repo.GetCoverage(ctx, projectID)
 }
 
+func (u *ReconUsecase) GetLgIgnorePatterns(ctx context.Context, projectID int64) ([]string, error) {
+	rawPath, err := u.repo.ProjectDir(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	dir := "/projects/" + filepath.Base(rawPath)
+	patterns := readUserPatterns(dir)
+	if patterns == nil {
+		patterns = []string{}
+	}
+	return patterns, nil
+}
+
 // Build runs all matching parsers against dir and returns one tree per language.
 func (u *ReconUsecase) Build(dir string) ([]*entity.ProjectTree, error) {
+	ig := loadIgnore(dir)
 	var trees []*entity.ProjectTree
 	for _, p := range u.parsers {
 		if p.Detect(dir) {
-			tree, err := p.Parse(dir)
+			tree, err := p.Parse(dir, ig)
 			if err != nil {
 				return nil, fmt.Errorf("parser %s: %w", p.Name(), err)
 			}

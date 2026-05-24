@@ -40,6 +40,7 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g := rg.Group("/recon")
 	g.GET("/projects/:id/nodes", r.h.ListNodes)
 	g.GET("/projects/:id/coverage", r.h.GetCoverage)
+	g.GET("/projects/:id/lgignore", r.h.GetLgIgnore)
 }
 
 func (r *Recon) MapIfNeeded(ctx context.Context, projectID int64, dir string) error {

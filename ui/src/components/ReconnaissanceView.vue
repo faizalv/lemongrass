@@ -39,6 +39,29 @@
       </span>
     </div>
 
+    <!-- .lgignore section -->
+    <div :style="ignoreBar">
+      <button :style="ignoreToggle" @click="ignoreOpen = !ignoreOpen">
+        <AppIcon name="file" :size="11" color="#555" :extra-style="{ flexShrink: 0 }" />
+        <span style="color:#555;font-weight:700;letter-spacing:0.04em">.lgignore</span>
+        <span v-if="!loadingIgnore" style="color:#3A3A3A">
+          {{ ignorePatterns.length === 0 ? 'no file' : ignorePatterns.length + ' pattern' + (ignorePatterns.length === 1 ? '' : 's') }}
+        </span>
+        <svg
+          :style="{ transform: ignoreOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 140ms ease', display: 'block', marginLeft: 'auto', flexShrink: 0 }"
+          width="10" height="10" viewBox="0 0 24 24" fill="none"
+          stroke="#555" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </button>
+      <div v-if="ignoreOpen" :style="ignoreList">
+        <div v-if="loadingIgnore" style="color:#3A3A3A;font-size:12px">Loading…</div>
+        <div v-else-if="ignorePatterns.length === 0" style="color:#3A3A3A;font-size:12px;font-style:italic">No .lgignore file found — only defaults apply.</div>
+        <div v-else v-for="p in ignorePatterns" :key="p" :style="ignorePattern">{{ p }}</div>
+      </div>
+    </div>
+
     <!-- Body: tree | symbols | detail -->
     <div style="flex:1;display:flex;overflow:hidden">
 
@@ -170,6 +193,9 @@ const selected        = ref<SemanticNode | null>(null)
 const hovered         = ref('')
 const loadingCoverage = ref(true)
 const loadingNodes    = ref(true)
+const loadingIgnore   = ref(true)
+const ignorePatterns  = ref<string[]>([])
+const ignoreOpen      = ref(false)
 const treeFilter      = ref('')
 const selectedFile    = ref<string | null>(null)
 const activeKind      = ref('')
@@ -270,12 +296,13 @@ function onFileSelect(path: string) {
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
-onMounted(() => { Promise.all([fetchCoverage(), fetchNodes()]) })
+onMounted(() => { Promise.all([fetchCoverage(), fetchNodes(), fetchLgIgnore()]) })
 
 watch(() => props.project.id, () => {
   selected.value = null; selectedFile.value = null; treeFilter.value = ''
   activeKind.value = ''; activeStatus.value = ''
-  Promise.all([fetchCoverage(), fetchNodes()])
+  ignoreOpen.value = false
+  Promise.all([fetchCoverage(), fetchNodes(), fetchLgIgnore()])
 })
 
 async function fetchCoverage() {
@@ -294,6 +321,18 @@ async function fetchNodes() {
     if (r.ok) allNodes.value = await r.json()
   } catch { /* ignore */ }
   finally { loadingNodes.value = false }
+}
+
+async function fetchLgIgnore() {
+  loadingIgnore.value = true
+  try {
+    const r = await fetch(`/api/recon/projects/${props.project.id}/lgignore`)
+    if (r.ok) {
+      const data = await r.json()
+      ignorePatterns.value = data.patterns ?? []
+    }
+  } catch { /* ignore */ }
+  finally { loadingIgnore.value = false }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -414,4 +453,9 @@ const metaVal          = { fontFamily: "'JetBrains Mono','Courier Prime',monospa
 const descriptionBlock = { fontSize: '13px', color: '#C0C0C0', lineHeight: 1.6, fontFamily: "'DM Sans',sans-serif" }
 const signatureBlock   = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px', color: '#9A9A9A', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '10px 12px', lineHeight: 1.6, wordBreak: 'break-all' as const }
 const notAnnotated     = { marginTop: '16px', fontSize: '12px', color: '#3D3D3D', fontStyle: 'italic' }
+// .lgignore section
+const ignoreBar        = { borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }
+const ignoreToggle     = { display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 32px', background: 'transparent', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' as const, fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px' }
+const ignoreList       = { padding: '6px 32px 10px', display: 'flex', flexDirection: 'column' as const, gap: '3px' }
+const ignorePattern    = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11.5px', color: '#717171', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.03)' }
 </script>
