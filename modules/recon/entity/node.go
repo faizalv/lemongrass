@@ -28,3 +28,8 @@ type LangCoverage struct {
 	Total    int
 	Explored int
 }
+
+type FileHash struct {
+	Path string
+	Hash string
+}

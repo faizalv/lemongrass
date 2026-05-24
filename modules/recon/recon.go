@@ -3,6 +3,7 @@ package recon
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/faizalv/lemongrass/bus"
 	"github.com/faizalv/lemongrass/config"
@@ -41,6 +42,24 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/projects/:id/nodes", r.h.ListNodes)
 	g.GET("/projects/:id/coverage", r.h.GetCoverage)
 	g.GET("/projects/:id/lgignore", r.h.GetLgIgnore)
+	g.POST("/projects/:id/activate", r.h.Activate)
+	g.GET("/projects/:id/sync-status", r.h.SyncStatus)
+	g.PATCH("/projects/:id/sync-interval", r.h.UpdateSyncInterval)
+}
+
+func (r *Recon) StartScheduler(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				r.uc.TickScheduler(ctx)
+			}
+		}
+	}()
 }
 
 func (r *Recon) MapIfNeeded(ctx context.Context, projectID int64, dir string) error {

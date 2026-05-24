@@ -115,15 +115,70 @@ func (r *ReconRepository) UpsertNodes(ctx context.Context, nodes []entity.Semant
 	return nil
 }
 
-func (r *ReconRepository) MarkRemoved(ctx context.Context, projectID int64, activePaths []string) error {
+func (r *ReconRepository) MarkRemoved(ctx context.Context, projectID int64, parsedPaths []string, ignoredExisting []string) error {
+	alive := append(parsedPaths, ignoredExisting...)
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE lg_semantic_nodes
 		SET status = 'removed'
 		WHERE project_id = $1
 		  AND status != 'removed'
 		  AND NOT (file_path = ANY($2))`,
-		projectID, pq.StringArray(activePaths),
+		projectID, pq.StringArray(alive),
 	)
+	return err
+}
+
+func (r *ReconRepository) GetFileHashes(ctx context.Context, projectID int64) (map[string]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT file_path, hash FROM lg_file_hashes WHERE project_id = $1`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]string)
+	for rows.Next() {
+		var path, hash string
+		if err := rows.Scan(&path, &hash); err != nil {
+			return nil, err
+		}
+		out[path] = hash
+	}
+	return out, rows.Err()
+}
+
+func (r *ReconRepository) UpsertFileHashes(ctx context.Context, projectID int64, hashes []entity.FileHash) error {
+	for _, h := range hashes {
+		_, err := r.db.ExecContext(ctx, `
+			INSERT INTO lg_file_hashes (project_id, file_path, hash, updated_at)
+			VALUES ($1, $2, $3, NOW())
+			ON CONFLICT (project_id, file_path) DO UPDATE SET hash = EXCLUDED.hash, updated_at = NOW()`,
+			projectID, h.Path, h.Hash,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *ReconRepository) DeleteFileHashes(ctx context.Context, projectID int64, paths []string) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM lg_file_hashes WHERE project_id = $1 AND file_path = ANY($2)`,
+		projectID, pq.StringArray(paths),
+	)
+	return err
+}
+
+func (r *ReconRepository) GetSyncInterval(ctx context.Context, projectID int64) (string, error) {
+	var interval string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT sync_interval FROM lg_projects WHERE id = $1`, projectID).Scan(&interval)
+	return interval, err
+}
+
+func (r *ReconRepository) UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE lg_projects SET sync_interval = $1 WHERE id = $2`, interval, projectID)
 	return err
 }
 

@@ -61,6 +61,62 @@ func (h *ReconHandler) GetCoverage(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *ReconHandler) Activate(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	h.uc.Activate(projectID)
+	c.JSON(http.StatusAccepted, gin.H{"status": "syncing"})
+}
+
+func (h *ReconHandler) SyncStatus(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	syncing, lastNano := h.uc.SyncStatus(projectID)
+
+	interval, _ := h.uc.GetSyncInterval(c.Request.Context(), projectID)
+
+	resp := gin.H{
+		"syncing":       syncing,
+		"sync_interval": interval,
+	}
+	if lastNano > 0 {
+		resp["last_synced"] = lastNano
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ReconHandler) UpdateSyncInterval(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	var req struct {
+		Interval string `json:"sync_interval"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
+		return
+	}
+	switch req.Interval {
+	case "off", "5m", "15m", "30m", "1h":
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid interval"})
+		return
+	}
+	if err := h.uc.UpdateSyncInterval(c.Request.Context(), projectID, req.Interval); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"sync_interval": req.Interval})
+}
+
 func (h *ReconHandler) GetLgIgnore(c *gin.Context) {
 	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {

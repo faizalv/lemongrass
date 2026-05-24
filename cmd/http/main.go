@@ -30,7 +30,9 @@ const serverLogPath = "/var/log/lemongrass/server.log"
 func main() {
 	cfg := config.LoadOrDefault()
 
-	setupLogger(serverLogPath)
+	if lf := setupLogger(serverLogPath); lf != nil {
+		defer lf.Close()
+	}
 
 	db, err := infra.NewPostgres(cfg.PostgresDSN)
 	if err != nil {
@@ -111,6 +113,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	reconModule.StartScheduler(ctx)
+
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server: %v", err)
@@ -131,14 +135,15 @@ func main() {
 	log.Println("server stopped")
 }
 
-func setupLogger(logPath string) {
+func setupLogger(logPath string) *os.File {
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Printf("could not open log file %s: %v", logPath, err)
-		return
+		return nil
 	}
 	log.SetOutput(io.MultiWriter(os.Stderr, f))
 	log.SetFlags(log.LstdFlags)
+	return f
 }
 
 func spaHandler(distFS fs.FS) gin.HandlerFunc {

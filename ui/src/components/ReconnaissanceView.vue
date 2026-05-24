@@ -15,11 +15,34 @@
         <div :style="mainTitle">Semantic map</div>
       </div>
       <div :style="coverageRow">
+        <!-- Sync status -->
+        <div :style="syncStatus">
+          <template v-if="syncing">
+            <div class="spin" :style="spinnerSm" />
+            <span style="color:#555;font-size:11px;font-family:'DM Sans',sans-serif">Syncing filesystem…</span>
+          </template>
+          <template v-else-if="lastSyncedLabel">
+            <span style="color:#3A3A3A;font-size:11px;font-family:'DM Sans',sans-serif">{{ lastSyncedLabel }}</span>
+          </template>
+          <button :style="refreshBtn" title="Re-sync" @click="activate">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </button>
+          <select :style="filterSelect" v-model="syncInterval" @change="saveSyncInterval">
+            <option value="off">No auto-sync</option>
+            <option value="5m">Every 5 min</option>
+            <option value="15m">Every 15 min</option>
+            <option value="30m">Every 30 min</option>
+            <option value="1h">Every hour</option>
+          </select>
+        </div>
+
         <template v-if="loadingCoverage">
           <div v-for="i in 2" :key="i" :style="coverageSkeleton" />
         </template>
         <template v-else>
-          <div v-for="cov in coverage" :key="cov.language" :style="coveragePill">
+          <div v-for="cov in coverage" :key="cov.language" :style="{ ...coveragePill, opacity: syncing ? 0.4 : 1 }">
             <span :style="covLang">{{ cov.language }}</span>
             <span :style="covNumbers">
               <span :style="{ color: cov.explored > 0 ? '#4ADE80' : '#555', fontWeight: 600 }">{{ cov.explored }}</span>
@@ -66,7 +89,7 @@
     <div style="flex:1;display:flex;overflow:hidden">
 
       <!-- File tree panel -->
-      <div :style="treePanel">
+      <div :style="{ ...treePanel, opacity: syncing ? 0.4 : 1, pointerEvents: syncing ? 'none' : 'auto' }">
         <div :style="treeSearchWrap">
           <input :style="treeSearchInput" v-model="treeFilter" placeholder="Filter files…" spellcheck="false" />
         </div>
@@ -178,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { Project, SemanticNode, LangCoverage, ReconTreeNode } from '../types'
 import AppIcon from './AppIcon.vue'
 import ReconFileNode from './ReconFileNode.vue'
@@ -197,6 +220,10 @@ const loadingIgnore   = ref(true)
 const ignorePatterns  = ref<string[]>([])
 const ignoreOpen      = ref(false)
 const treeFilter      = ref('')
+const syncing         = ref(false)
+const lastSyncedNano  = ref<number | null>(null)
+const syncInterval    = ref('off')
+let   syncPollTimer   = 0
 const selectedFile    = ref<string | null>(null)
 const activeKind      = ref('')
 const activeStatus    = ref('')
@@ -296,13 +323,25 @@ function onFileSelect(path: string) {
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
-onMounted(() => { Promise.all([fetchCoverage(), fetchNodes(), fetchLgIgnore()]) })
+const lastSyncedLabel = computed(() => {
+  if (syncing.value) return ''
+  if (!lastSyncedNano.value) return ''
+  const ms = Date.now() - lastSyncedNano.value / 1e6
+  if (ms < 10000) return 'Synced just now'
+  if (ms < 60000) return `Synced ${Math.floor(ms / 1000)}s ago`
+  if (ms < 3600000) return `Synced ${Math.floor(ms / 60000)}m ago`
+  return 'Synced a while ago'
+})
+
+onMounted(() => { Promise.all([fetchCoverage(), fetchNodes(), fetchLgIgnore(), activate()]) })
+onUnmounted(() => { clearInterval(syncPollTimer) })
 
 watch(() => props.project.id, () => {
   selected.value = null; selectedFile.value = null; treeFilter.value = ''
   activeKind.value = ''; activeStatus.value = ''
-  ignoreOpen.value = false
-  Promise.all([fetchCoverage(), fetchNodes(), fetchLgIgnore()])
+  ignoreOpen.value = false; syncing.value = false; lastSyncedNano.value = null
+  clearInterval(syncPollTimer)
+  Promise.all([fetchCoverage(), fetchNodes(), fetchLgIgnore(), activate()])
 })
 
 async function fetchCoverage() {
@@ -323,6 +362,30 @@ async function fetchNodes() {
   finally { loadingNodes.value = false }
 }
 
+async function activate() {
+  try {
+    await fetch(`/api/recon/projects/${props.project.id}/activate`, { method: 'POST' })
+    syncing.value = true
+    clearInterval(syncPollTimer)
+    syncPollTimer = window.setInterval(pollSyncStatus, 1500)
+  } catch { /* ignore */ }
+}
+
+async function pollSyncStatus() {
+  try {
+    const r = await fetch(`/api/recon/projects/${props.project.id}/sync-status`)
+    if (!r.ok) return
+    const data = await r.json()
+    syncing.value = data.syncing
+    syncInterval.value = data.sync_interval ?? 'off'
+    if (data.last_synced) lastSyncedNano.value = data.last_synced
+    if (!data.syncing) {
+      clearInterval(syncPollTimer)
+      await Promise.all([fetchCoverage(), fetchNodes()])
+    }
+  } catch { /* ignore */ }
+}
+
 async function fetchLgIgnore() {
   loadingIgnore.value = true
   try {
@@ -333,6 +396,16 @@ async function fetchLgIgnore() {
     }
   } catch { /* ignore */ }
   finally { loadingIgnore.value = false }
+}
+
+async function saveSyncInterval() {
+  try {
+    await fetch(`/api/recon/projects/${props.project.id}/sync-interval`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sync_interval: syncInterval.value }),
+    })
+  } catch { /* ignore */ }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -420,6 +493,8 @@ const header           = { padding: '22px 32px 18px', borderBottom: '1px solid r
 const breadcrumb       = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#555', whiteSpace: 'nowrap' as const, overflow: 'hidden' }
 const mainTitle        = { fontFamily: "'Comfortaa',sans-serif", fontSize: '28px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }
 const coverageRow      = { display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }
+const syncStatus       = { display: 'flex', alignItems: 'center', gap: '6px' }
+const refreshBtn       = { background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: '#3A3A3A', display: 'flex', alignItems: 'center', borderRadius: '4px' }
 const coverageSkeleton = { width: '90px', height: '30px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }
 const coveragePill     = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '5px 12px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }
 const covLang          = { fontFamily: "'DM Sans',sans-serif", fontSize: '11px', fontWeight: 700, color: '#9A9A9A', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/faizalv/lemongrass/modules/recon/entity"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/lang"
@@ -15,15 +17,24 @@ type repo interface {
 	ProjectDir(ctx context.Context, projectID int64) (string, error)
 	HasNodes(ctx context.Context, projectID int64) (bool, error)
 	UpsertNodes(ctx context.Context, nodes []entity.SemanticNode) error
-	MarkRemoved(ctx context.Context, projectID int64, activePaths []string) error
+	MarkRemoved(ctx context.Context, projectID int64, parsedPaths []string, ignoredExisting []string) error
 	DeleteByProject(ctx context.Context, projectID int64) error
 	ListNodes(ctx context.Context, projectID int64, language, kind, status string) ([]entity.SemanticNode, error)
 	GetCoverage(ctx context.Context, projectID int64) ([]entity.LangCoverage, error)
+	GetFileHashes(ctx context.Context, projectID int64) (map[string]string, error)
+	UpsertFileHashes(ctx context.Context, projectID int64, hashes []entity.FileHash) error
+	DeleteFileHashes(ctx context.Context, projectID int64, paths []string) error
+	GetSyncInterval(ctx context.Context, projectID int64) (string, error)
+	UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error
 }
 
 type ReconUsecase struct {
-	parsers []lang.Parser
-	repo    repo
+	parsers    []lang.Parser
+	repo       repo
+	syncMu     sync.Mutex
+	syncing    map[int64]bool
+	lastSynced map[int64]int64 // unix nano
+	activeID   int64
 }
 
 func New(r repo, parsers ...lang.Parser) *ReconUsecase {
@@ -32,10 +43,15 @@ func New(r repo, parsers ...lang.Parser) *ReconUsecase {
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Priority() > sorted[j].Priority()
 	})
-	return &ReconUsecase{parsers: sorted, repo: r}
+	return &ReconUsecase{
+		parsers:    sorted,
+		repo:       r,
+		syncing:    make(map[int64]bool),
+		lastSynced: make(map[int64]int64),
+	}
 }
 
-// MapIfNeeded maps the project if it has no nodes yet. Safe to call on every startup.
+// MapIfNeeded maps the project if it has no nodes yet. Cold-start path only.
 func (u *ReconUsecase) MapIfNeeded(ctx context.Context, projectID int64, dir string) error {
 	has, err := u.repo.HasNodes(ctx, projectID)
 	if err != nil {
@@ -44,11 +60,12 @@ func (u *ReconUsecase) MapIfNeeded(ctx context.Context, projectID int64, dir str
 	if has {
 		return nil
 	}
-	return u.Map(ctx, projectID, dir)
+	return u.Map(ctx, projectID, dir, nil)
 }
 
-// Map (re)maps a project unconditionally. Preserves existing descriptions and embeddings.
-func (u *ReconUsecase) Map(ctx context.Context, projectID int64, dir string) error {
+// Map (re)maps a project unconditionally. ignoredExisting exempts present-but-ignored
+// files from being marked removed — pass nil when calling outside of Sync.
+func (u *ReconUsecase) Map(ctx context.Context, projectID int64, dir string, ignoredExisting []string) error {
 	trees, err := u.Build(dir)
 	if err != nil {
 		return err
@@ -57,7 +74,7 @@ func (u *ReconUsecase) Map(ctx context.Context, projectID int64, dir string) err
 	if err := u.repo.UpsertNodes(ctx, nodes); err != nil {
 		return err
 	}
-	return u.repo.MarkRemoved(ctx, projectID, u.ActiveFilePaths(trees))
+	return u.repo.MarkRemoved(ctx, projectID, u.ActiveFilePaths(trees), ignoredExisting)
 }
 
 func (u *ReconUsecase) ListNodes(ctx context.Context, projectID int64, language, kind, status string) ([]entity.SemanticNode, error) {
@@ -67,6 +84,88 @@ func (u *ReconUsecase) ListNodes(ctx context.Context, projectID int64, language,
 func (u *ReconUsecase) GetCoverage(ctx context.Context, projectID int64) ([]entity.LangCoverage, error) {
 	return u.repo.GetCoverage(ctx, projectID)
 }
+
+// ── Sync state ────────────────────────────────────────────────────────────────
+
+func (u *ReconUsecase) Activate(projectID int64) {
+	u.syncMu.Lock()
+	u.activeID = projectID
+	if u.syncing[projectID] {
+		u.syncMu.Unlock()
+		return
+	}
+	u.syncing[projectID] = true
+	u.syncMu.Unlock()
+
+	go func() {
+		defer func() {
+			u.syncMu.Lock()
+			u.syncing[projectID] = false
+			u.lastSynced[projectID] = time.Now().UnixNano()
+			u.syncMu.Unlock()
+		}()
+		rawPath, err := u.repo.ProjectDir(context.Background(), projectID)
+		if err != nil {
+			return
+		}
+		dir := "/projects/" + filepath.Base(rawPath)
+		u.Sync(context.Background(), projectID, dir)
+	}()
+}
+
+func (u *ReconUsecase) SyncStatus(projectID int64) (syncing bool, lastSyncedNano int64) {
+	u.syncMu.Lock()
+	defer u.syncMu.Unlock()
+	return u.syncing[projectID], u.lastSynced[projectID]
+}
+
+func (u *ReconUsecase) TickScheduler(ctx context.Context) {
+	u.syncMu.Lock()
+	activeID := u.activeID
+	u.syncMu.Unlock()
+	if activeID == 0 {
+		return
+	}
+	interval, err := u.repo.GetSyncInterval(ctx, activeID)
+	if err != nil || interval == "off" {
+		return
+	}
+	dur := intervalDuration(interval)
+	if dur == 0 {
+		return
+	}
+	u.syncMu.Lock()
+	lastNano := u.lastSynced[activeID]
+	u.syncMu.Unlock()
+	if lastNano > 0 && time.Since(time.Unix(0, lastNano)) < dur {
+		return
+	}
+	u.Activate(activeID)
+}
+
+func (u *ReconUsecase) UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error {
+	return u.repo.UpdateSyncInterval(ctx, projectID, interval)
+}
+
+func (u *ReconUsecase) GetSyncInterval(ctx context.Context, projectID int64) (string, error) {
+	return u.repo.GetSyncInterval(ctx, projectID)
+}
+
+func intervalDuration(s string) time.Duration {
+	switch s {
+	case "5m":
+		return 5 * time.Minute
+	case "15m":
+		return 15 * time.Minute
+	case "30m":
+		return 30 * time.Minute
+	case "1h":
+		return time.Hour
+	}
+	return 0
+}
+
+// ── LgIgnore ──────────────────────────────────────────────────────────────────
 
 func (u *ReconUsecase) GetLgIgnorePatterns(ctx context.Context, projectID int64) ([]string, error) {
 	rawPath, err := u.repo.ProjectDir(ctx, projectID)
