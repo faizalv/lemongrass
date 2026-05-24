@@ -10,6 +10,7 @@ import (
 	handler "github.com/faizalv/lemongrass/modules/recon/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/recon/internal/repository"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase"
+	configparser "github.com/faizalv/lemongrass/modules/recon/internal/usecase/lang/config"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/lang/golang"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
@@ -23,7 +24,7 @@ type Recon struct {
 
 func (r *Recon) LoadMe(_ config.Config, db *sqlx.DB, _ *redis.Client) {
 	repo := repository.New(db)
-	r.uc = usecase.New(repo, golang.New())
+	r.uc = usecase.New(repo, golang.New(), configparser.New())
 	r.h = handler.New(r.uc)
 
 	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
