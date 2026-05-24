@@ -38,6 +38,7 @@ type LangCoverageResponse struct {
 	Language string `json:"language"`
 	Total    int    `json:"total"`
 	Explored int    `json:"explored"`
+	Stale    int    `json:"stale"`
 }
 
 func CoverageToResponse(c entity.LangCoverage) LangCoverageResponse {
@@ -45,5 +46,6 @@ func CoverageToResponse(c entity.LangCoverage) LangCoverageResponse {
 		Language: c.Language,
 		Total:    c.Total,
 		Explored: c.Explored,
+		Stale:    c.Stale,
 	}
 }

@@ -10,7 +10,7 @@
     <div :style="desc">
       I need this module's semantic map to plan against it.
       <strong style="color:#fff">{{ pathInfo.fileCount }} files</strong>, est.
-      <strong style="color:#fff">{{ pathInfo.estTokens }}</strong>. One-time cost — it'll cache and only re-index when files change.
+      <strong style="color:#fff">{{ pathInfo.estTokens }}</strong>. One-time cost. It'll cache and only re-index when files change.
     </div>
 
     <div :style="preview">

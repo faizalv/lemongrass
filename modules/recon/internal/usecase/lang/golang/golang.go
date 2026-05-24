@@ -2,6 +2,8 @@ package golang
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -114,10 +116,12 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 
 	for filePath, astFile := range astPkg.Files {
 		relFile, _ := filepath.Rel(root, filePath)
+		src, _ := os.ReadFile(filePath)
+		srcLines := bytes.Split(src, []byte("\n"))
 		node := entity.FileNode{
 			Path:    filepath.ToSlash(relFile),
 			Package: astPkg.Name,
-			Exports: extractExports(fset, astFile),
+			Exports: extractExports(fset, astFile, srcLines),
 		}
 		for _, imp := range astFile.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
@@ -146,7 +150,18 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 	}
 }
 
-func extractExports(fset *token.FileSet, f *ast.File) []entity.Symbol {
+func hashLines(lines [][]byte, start, end int) string {
+	if start < 1 || end < start || end > len(lines) {
+		return ""
+	}
+	h := sha256.New()
+	for _, line := range lines[start-1 : end] {
+		h.Write(line)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func extractExports(fset *token.FileSet, f *ast.File, srcLines [][]byte) []entity.Symbol {
 	var symbols []entity.Symbol
 	for _, decl := range f.Decls {
 		switch d := decl.(type) {
@@ -160,6 +175,7 @@ func extractExports(fset *token.FileSet, f *ast.File) []entity.Symbol {
 				LineEnd:   fset.Position(d.End()).Line,
 				Signature: formatParams(fset, d.Type.Params),
 			}
+			sym.ContentHash = hashLines(srcLines, sym.LineStart, sym.LineEnd)
 			if d.Recv != nil {
 				sym.Kind = "method"
 				sym.Receiver = receiverTypeName(d.Recv)
@@ -182,11 +198,14 @@ func extractExports(fset *token.FileSet, f *ast.File) []entity.Symbol {
 					case *ast.InterfaceType:
 						kind = "interface"
 					}
+					ls := fset.Position(s.Pos()).Line
+					le := fset.Position(s.End()).Line
 					symbols = append(symbols, entity.Symbol{
-						Name:      s.Name.Name,
-						Kind:      kind,
-						LineStart: fset.Position(s.Pos()).Line,
-						LineEnd:   fset.Position(s.End()).Line,
+						Name:        s.Name.Name,
+						Kind:        kind,
+						LineStart:   ls,
+						LineEnd:     le,
+						ContentHash: hashLines(srcLines, ls, le),
 					})
 				case *ast.ValueSpec:
 					for _, name := range s.Names {
@@ -195,11 +214,14 @@ func extractExports(fset *token.FileSet, f *ast.File) []entity.Symbol {
 							if d.Tok == token.CONST {
 								kind = "const"
 							}
+							ls := fset.Position(name.Pos()).Line
+							le := fset.Position(name.End()).Line
 							symbols = append(symbols, entity.Symbol{
-								Name:      name.Name,
-								Kind:      kind,
-								LineStart: fset.Position(name.Pos()).Line,
-								LineEnd:   fset.Position(name.End()).Line,
+								Name:        name.Name,
+								Kind:        kind,
+								LineStart:   ls,
+								LineEnd:     le,
+								ContentHash: hashLines(srcLines, ls, le),
 							})
 						}
 					}

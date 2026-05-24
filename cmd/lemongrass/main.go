@@ -39,7 +39,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Print(`lemongrass — Claude Code orchestrator
+	fmt.Print(`lemongrass -- Claude Code orchestrator
 
 COMMANDS
   auth              Run Claude auth inside lg-runner container

@@ -16,7 +16,7 @@ func New() *Bus {
 }
 
 // Default is the process-wide event bus. Modules subscribe in LoadMe and emit
-// during their operations — no direct inter-module client wiring required.
+// during their operations with no direct inter-module client wiring required.
 var Default = New()
 
 func (b *Bus) On(event string, h Handler) {

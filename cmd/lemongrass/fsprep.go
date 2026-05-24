@@ -10,7 +10,7 @@ import (
 )
 
 var defaultFsExclusions = map[string]bool{
-	// system virtual filesystems — can hang or error on walk
+	// system virtual filesystems (can hang or error on walk)
 	"proc": true,
 	"sys":  true,
 	"dev":  true,

@@ -15,7 +15,7 @@ func cmdStatus() {
 	composePath := filepath.Join(config.Dir(), "docker-compose.yml")
 	if _, err := os.Stat(composePath); err != nil {
 		fmt.Println("=== Containers ===")
-		fmt.Println("  (not started — run: lemongrass up)")
+		fmt.Println("  (not started; run: lemongrass up)")
 		return
 	}
 

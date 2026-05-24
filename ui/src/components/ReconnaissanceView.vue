@@ -45,9 +45,14 @@
           <div v-for="cov in coverage" :key="cov.language" :style="{ ...coveragePill, opacity: syncing ? 0.4 : 1 }">
             <span :style="covLang">{{ cov.language }}</span>
             <span :style="covNumbers">
-              <span :style="{ color: cov.explored > 0 ? '#4ADE80' : '#555', fontWeight: 600 }">{{ cov.explored }}</span>
-              <span style="color:#3A3A3A"> / </span>
-              <span style="color:#717171">{{ cov.total }}</span>
+              <span :style="{ color: '#4ADE80', fontWeight: 600 }">{{ cov.explored }}</span>
+              <template v-if="cov.stale > 0">
+                <span style="color:#3A3A3A"> · </span>
+                <span style="color:#F59E0B;font-weight:600">{{ cov.stale }}</span>
+              </template>
+              <span style="color:#3A3A3A"> · </span>
+              <span style="color:#555">{{ cov.total - cov.explored - cov.stale }}</span>
+              <span style="color:#3A3A3A"> / {{ cov.total }}</span>
             </span>
           </div>
         </template>
@@ -58,7 +63,7 @@
     <div :style="infoBanner">
       <AppIcon name="info" :size="13" color="#60A5FA" :extra-style="{ flexShrink: 0 }" />
       <span>
-        Exploration happens inside <strong style="color:#E0E0E0;font-weight:600">Grooming</strong> — the model annotates symbols as a side effect of planning.
+        Exploration happens inside <strong style="color:#E0E0E0;font-weight:600">Grooming</strong>. The model annotates symbols as a side effect of planning.
       </span>
     </div>
 
@@ -232,6 +237,7 @@ const kinds = ['func','method','type','struct','interface','const','var','compon
 const statusOptions = [
   { label: 'All',        value: '' },
   { label: 'Unexplored', value: 'unexplored' },
+  { label: 'Stale',      value: 'stale' },
   { label: 'Explored',   value: 'explored' },
 ]
 
@@ -243,15 +249,17 @@ interface MutableNode {
   isDir:       boolean
   childrenMap: Map<string, MutableNode>
   explored:    number
+  stale:       number
   total:       number
 }
 
 function buildNestedTree(nodes: SemanticNode[]): ReconTreeNode[] {
-  const fileStats = new Map<string, { explored: number; total: number }>()
+  const fileStats = new Map<string, { explored: number; stale: number; total: number }>()
   for (const n of nodes) {
-    const s = fileStats.get(n.file_path) ?? { explored: 0, total: 0 }
+    const s = fileStats.get(n.file_path) ?? { explored: 0, stale: 0, total: 0 }
     s.total++
     if (n.status === 'explored') s.explored++
+    if (n.status === 'stale')    s.stale++
     fileStats.set(n.file_path, s)
   }
 
@@ -260,12 +268,12 @@ function buildNestedTree(nodes: SemanticNode[]): ReconTreeNode[] {
     const parts = filePath.split('/')
     let cur = rootMap
     for (let i = 0; i < parts.length; i++) {
-      const part    = parts[i]
-      const fp      = parts.slice(0, i + 1).join('/')
-      const isLast  = i === parts.length - 1
-      if (!cur.has(part)) cur.set(part, { name: part, path: fp, isDir: !isLast, childrenMap: new Map(), explored: 0, total: 0 })
+      const part   = parts[i]
+      const fp     = parts.slice(0, i + 1).join('/')
+      const isLast = i === parts.length - 1
+      if (!cur.has(part)) cur.set(part, { name: part, path: fp, isDir: !isLast, childrenMap: new Map(), explored: 0, stale: 0, total: 0 })
       const node = cur.get(part)!
-      if (isLast) { node.explored = stats.explored; node.total = stats.total }
+      if (isLast) { node.explored = stats.explored; node.stale = stats.stale; node.total = stats.total }
       cur = node.childrenMap
     }
   }
@@ -275,8 +283,9 @@ function buildNestedTree(nodes: SemanticNode[]): ReconTreeNode[] {
     for (const n of map.values()) {
       const children = toTree(n.childrenMap)
       const explored = n.isDir ? children.reduce((s, c) => s + c.explored, 0) : n.explored
+      const stale    = n.isDir ? children.reduce((s, c) => s + c.stale,    0) : n.stale
       const total    = n.isDir ? children.reduce((s, c) => s + c.total,    0) : n.total
-      result.push({ name: n.name, path: n.path, isDir: n.isDir, children, explored, total })
+      result.push({ name: n.name, path: n.path, isDir: n.isDir, children, explored, stale, total })
     }
     return result.sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1
@@ -444,7 +453,7 @@ function kindBadge(kind: string) {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
-const statusColors: Record<string, string> = { unexplored: '#555', explored: '#4ADE80', removed: '#F87171' }
+const statusColors: Record<string, string> = { unexplored: '#555', explored: '#4ADE80', stale: '#F59E0B', removed: '#F87171' }
 
 function statusPill(status: string) {
   const color = statusColors[status] ?? '#555'
@@ -480,7 +489,7 @@ function nodeRow(node: SemanticNode) {
     display: 'flex', alignItems: 'center', gap: '10px',
     padding: '7px 20px 7px 18px',
     border: 'none', borderRadius: 0, cursor: 'pointer', width: '100%', textAlign: 'left' as const,
-    borderLeft: `2px solid ${isSel ? '#F5C518' : node.status === 'explored' ? '#4ADE80' : 'transparent'}`,
+    borderLeft: `2px solid ${isSel ? '#F5C518' : node.status === 'explored' ? '#4ADE80' : node.status === 'stale' ? '#F59E0B' : 'transparent'}`,
     background: isSel ? 'rgba(245,197,24,0.06)' : isHov ? 'rgba(255,255,255,0.03)' : 'transparent',
     transition: 'background 80ms ease',
   }

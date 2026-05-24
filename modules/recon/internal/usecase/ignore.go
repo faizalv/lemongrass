@@ -53,8 +53,7 @@ func (f *ignoreFilter) Match(relPath string) bool {
 	return f.gi.MatchesPath(clean)
 }
 
-// readUserPatterns returns only the lines the user wrote in .lgignore —
-// no defaults, no comments, no blank lines.
+// readUserPatterns returns only user-written lines from .lgignore: no defaults, no comments, no blank lines.
 func readUserPatterns(dir string) []string {
 	data, err := os.ReadFile(filepath.Join(dir, ".lgignore"))
 	if err != nil {

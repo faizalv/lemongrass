@@ -95,25 +95,25 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 	// Detect it and press Enter to accept before sending the real prompt.
 	u.log.Printf("waiting for trust prompt (up to 10s)...")
 	if out.waitFor("trust", 10*time.Second) {
-		u.log.Printf("trust prompt detected — pressing Enter")
+		u.log.Printf("trust prompt detected, pressing Enter")
 		stdinPipe.Write([]byte("\r"))
 		time.Sleep(500 * time.Millisecond)
 	} else {
 		u.log.Printf("no trust prompt seen, continuing")
 	}
 
-	// Wait until claude's shell is ready — any of these strings means it's at
+	// Wait until claude's shell is ready; any of these strings means it's at
 	// the prompt and accepting input.
 	// Wait for all 3 signals so we inject only after the welcome screen has
 	// fully rendered. "forshortcuts" appears immediately on startup (too early
 	// alone); "Welcomeback" and "ClaudeCode" only appear once the welcome box
-	// draws — confirmed from log output.
+	// draws (confirmed from log output).
 	readySignals := []string{"forshortcuts", "Welcomeback", "ClaudeCode"}
 	u.log.Printf("waiting for claude ready (need all 3 signals)...")
 	if ok := out.waitForAll(readySignals, 30*time.Second); ok {
 		u.log.Printf("claude ready (all signals detected)")
 	} else {
-		u.log.Printf("ready signal timeout — injecting anyway")
+		u.log.Printf("ready signal timeout, injecting anyway")
 	}
 
 	u.log.Printf("injecting: %q", prompt)

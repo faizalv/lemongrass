@@ -19,6 +19,7 @@ type SemanticNode struct {
 	Status      string
 	Description string
 	ReturnType  string
+	ContentHash string
 	ExploredAt  *time.Time
 	CreatedAt   time.Time
 }
@@ -27,6 +28,7 @@ type LangCoverage struct {
 	Language string
 	Total    int
 	Explored int
+	Stale    int
 }
 
 type FileHash struct {

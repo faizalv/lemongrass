@@ -64,7 +64,7 @@ func (u *ReconUsecase) MapIfNeeded(ctx context.Context, projectID int64, dir str
 }
 
 // Map (re)maps a project unconditionally. ignoredExisting exempts present-but-ignored
-// files from being marked removed — pass nil when calling outside of Sync.
+// files from being marked removed. Pass nil when calling outside of Sync.
 func (u *ReconUsecase) Map(ctx context.Context, projectID int64, dir string, ignoredExisting []string) error {
 	trees, err := u.Build(dir)
 	if err != nil {
@@ -207,19 +207,20 @@ func (u *ReconUsecase) NodesToInsert(projectID int64, trees []*entity.ProjectTre
 			for _, file := range pkg.Files {
 				for _, sym := range file.Exports {
 					nodes = append(nodes, entity.SemanticNode{
-						ProjectID: projectID,
-						FilePath:  file.Path,
-						LineStart: sym.LineStart,
-						LineEnd:   sym.LineEnd,
-						Package:   pkg.ImportPath,
-						Symbol:    sym.Name,
-						Kind:      sym.Kind,
-						Language:  tree.Language,
-						Receiver:  sym.Receiver,
-						Signature: sym.Signature,
-						Exported:  true,
-						DependsOn: pkg.DependsOn,
-						Status:    "unexplored",
+						ProjectID:   projectID,
+						FilePath:    file.Path,
+						LineStart:   sym.LineStart,
+						LineEnd:     sym.LineEnd,
+						Package:     pkg.ImportPath,
+						Symbol:      sym.Name,
+						Kind:        sym.Kind,
+						Language:    tree.Language,
+						Receiver:    sym.Receiver,
+						Signature:   sym.Signature,
+						Exported:    true,
+						DependsOn:   pkg.DependsOn,
+						Status:      "unexplored",
+						ContentHash: sym.ContentHash,
 					})
 				}
 			}

@@ -2,7 +2,7 @@
   <div>
     <div :style="row" @click="onRowClick">
 
-      <!-- Chevron — identical SVG and animation to FolderNode -->
+      <!-- Chevron: identical SVG and animation to FolderNode -->
       <button :style="chevronBtn" @click.stop="toggle">
         <svg
           v-if="node.isDir && node.children.length > 0"
@@ -93,11 +93,13 @@ const nameStyle = computed(() => ({
 }))
 
 const fileDot = computed(() => {
-  const { explored, total } = props.node
-  const color = total === 0         ? '#2A2A2A'
-    : explored === total            ? '#4ADE80'
-    : explored > 0                  ? '#F5C518'
-    :                                 '#2A2A2A'
+  const { explored, stale, total } = props.node
+  const color = total === 0              ? '#2A2A2A'
+    : explored === total                 ? '#4ADE80'
+    : stale > 0 && explored + stale === total ? '#F59E0B'
+    : stale > 0                          ? '#F59E0B'
+    : explored > 0                       ? '#4ADE80'
+    :                                      '#2A2A2A'
   return { width: '6px', height: '6px', borderRadius: '50%', background: color, flexShrink: 0 }
 })
 

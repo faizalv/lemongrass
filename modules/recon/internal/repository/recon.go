@@ -34,6 +34,7 @@ type nodeRecord struct {
 	Status      string         `db:"status"`
 	Description *string        `db:"description"`
 	ReturnType  *string        `db:"return_type"`
+	ContentHash *string        `db:"content_hash"`
 	ExploredAt  *time.Time     `db:"explored_at"`
 	CreatedAt   time.Time      `db:"created_at"`
 }
@@ -63,6 +64,7 @@ func toEntity(r nodeRecord) entity.SemanticNode {
 		Status:      r.Status,
 		Description: deref(r.Description),
 		ReturnType:  deref(r.ReturnType),
+		ContentHash: deref(r.ContentHash),
 		ExploredAt:  r.ExploredAt,
 		CreatedAt:   r.CreatedAt,
 	}
@@ -94,19 +96,30 @@ func (r *ReconRepository) UpsertNodes(ctx context.Context, nodes []entity.Semant
 		if deps == nil {
 			deps = pq.StringArray{}
 		}
+		var hash *string
+		if n.ContentHash != "" {
+			hash = &n.ContentHash
+		}
 		_, err := r.db.ExecContext(ctx, `
 			INSERT INTO lg_semantic_nodes
 			  (project_id, file_path, line_start, line_end, package, symbol, kind, language,
-			   receiver, signature, exported, depends_on, status)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'unexplored')
+			   receiver, signature, exported, depends_on, status, content_hash)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'unexplored',$13)
 			ON CONFLICT (project_id, file_path, symbol, kind) DO UPDATE SET
-			  line_start  = EXCLUDED.line_start,
-			  line_end    = EXCLUDED.line_end,
-			  signature   = EXCLUDED.signature,
-			  depends_on  = EXCLUDED.depends_on`,
+			  line_start   = EXCLUDED.line_start,
+			  line_end     = EXCLUDED.line_end,
+			  signature    = EXCLUDED.signature,
+			  depends_on   = EXCLUDED.depends_on,
+			  content_hash = EXCLUDED.content_hash,
+			  status = CASE
+			    WHEN lg_semantic_nodes.content_hash IS NULL     THEN lg_semantic_nodes.status
+			    WHEN EXCLUDED.content_hash IS NULL              THEN lg_semantic_nodes.status
+			    WHEN lg_semantic_nodes.content_hash = EXCLUDED.content_hash THEN lg_semantic_nodes.status
+			    ELSE 'stale'
+			  END`,
 			n.ProjectID, n.FilePath, n.LineStart, n.LineEnd,
 			n.Package, n.Symbol, n.Kind, n.Language,
-			n.Receiver, n.Signature, n.Exported, deps,
+			n.Receiver, n.Signature, n.Exported, deps, hash,
 		)
 		if err != nil {
 			return err
@@ -185,7 +198,7 @@ func (r *ReconRepository) UpdateSyncInterval(ctx context.Context, projectID int6
 func (r *ReconRepository) ListNodes(ctx context.Context, projectID int64, language, kind, status string) ([]entity.SemanticNode, error) {
 	query := `SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
 	                 language, receiver, signature, exported, depends_on, status,
-	                 description, return_type, explored_at, created_at
+	                 description, return_type, content_hash, explored_at, created_at
 	          FROM lg_semantic_nodes
 	          WHERE project_id = $1 AND status != 'removed'`
 	args := []any{projectID}
@@ -219,7 +232,8 @@ func (r *ReconRepository) GetCoverage(ctx context.Context, projectID int64) ([]e
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT language,
 		       COUNT(*) AS total,
-		       COUNT(*) FILTER (WHERE status = 'explored') AS explored
+		       COUNT(*) FILTER (WHERE status = 'explored') AS explored,
+		       COUNT(*) FILTER (WHERE status = 'stale')    AS stale
 		FROM lg_semantic_nodes
 		WHERE project_id = $1 AND status != 'removed'
 		GROUP BY language
@@ -234,7 +248,7 @@ func (r *ReconRepository) GetCoverage(ctx context.Context, projectID int64) ([]e
 	var out []entity.LangCoverage
 	for rows.Next() {
 		var c entity.LangCoverage
-		if err := rows.Scan(&c.Language, &c.Total, &c.Explored); err != nil {
+		if err := rows.Scan(&c.Language, &c.Total, &c.Explored, &c.Stale); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

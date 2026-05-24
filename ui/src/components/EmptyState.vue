@@ -14,7 +14,7 @@
     <!-- Tagline -->
     <div :style="tagline">Your local AI coding agent.</div>
     <div :style="desc">
-      Groom requirements, plan patches, and run tests — all from your own machine.
+      Groom requirements, plan patches, and run tests. All from your own machine.
       Add a project to get started.
     </div>
 

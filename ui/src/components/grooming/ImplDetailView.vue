@@ -25,7 +25,7 @@
           <AppIcon :name="f.range === 'new file' ? 'file-plus' : 'file-pen-line'" :size="12" :extra-style="{ color: f.range === 'new file' ? '#4ADE80' : '#F5C518', flexShrink:0, marginTop:'2px' }" />
           <div style="flex:1;min-width:0">
             <div style="color:#E0E0E0">{{ f.path }}</div>
-            <div style="color:#555;font-size:10.5px;margin-top:2px">{{ f.range }} — <span style="font-family:'DM Sans',sans-serif;font-style:italic">{{ f.note }}</span></div>
+            <div style="color:#555;font-size:10.5px;margin-top:2px">{{ f.range }} · <span style="font-family:'DM Sans',sans-serif;font-style:italic">{{ f.note }}</span></div>
           </div>
         </div>
       </div>

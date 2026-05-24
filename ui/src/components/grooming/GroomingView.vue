@@ -1,7 +1,7 @@
 <template>
   <div style="flex:1;display:flex;overflow:hidden;background:#0A0A0A">
 
-    <!-- LEFT — Implementation Details panel -->
+    <!-- LEFT: Implementation Details panel -->
     <div v-if="tabHasLeftPanel" :style="leftPanel">
       <div :style="leftPanelHeader">
         <div :style="leftPanelTitle">Implementation details</div>

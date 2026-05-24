@@ -60,7 +60,7 @@ const inBatch = computed(() => props.batchMode || !!props.committing)
 
 const cta = computed(() => {
   if (inBatch.value) return `Distilling ${props.committedCount + (props.committing ? 1 : 0)}/${props.acceptedCount}`
-  if (props.acceptedCount === 0 && props.reviewedCount === props.total && props.total > 0) return 'Finish — nothing to plan'
+  if (props.acceptedCount === 0 && props.reviewedCount === props.total && props.total > 0) return 'Finish: nothing to plan'
   if (props.acceptedCount > 0) return `Make implementation detail${props.acceptedCount !== 1 ? 's' : ''} (${props.acceptedCount})`
   return 'Decide on each task first'
 })

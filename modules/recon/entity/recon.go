@@ -1,12 +1,13 @@
 package entity
 
 type Symbol struct {
-	Name      string
-	Kind      string // "func" | "method" | "type" | "struct" | "interface" | "const" | "var"
-	LineStart int
-	LineEnd   int
-	Receiver  string // method receiver type name; empty for non-methods
-	Signature string // parameter list, e.g. "(ctx context.Context, id int64)"
+	Name        string
+	Kind        string // "func" | "method" | "type" | "struct" | "interface" | "const" | "var"
+	LineStart   int
+	LineEnd     int
+	Receiver    string // method receiver type name; empty for non-methods
+	Signature   string // parameter list, e.g. "(ctx context.Context, id int64)"
+	ContentHash string // SHA-256 hex of raw source bytes for the symbol body
 }
 
 type FileNode struct {

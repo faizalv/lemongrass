@@ -83,6 +83,7 @@ export interface LangCoverage {
   language: string
   total: number
   explored: number
+  stale: number
 }
 
 export interface ReconTreeNode {
@@ -91,5 +92,6 @@ export interface ReconTreeNode {
   isDir:    boolean
   children: ReconTreeNode[]
   explored: number
+  stale:    number
   total:    number
 }
