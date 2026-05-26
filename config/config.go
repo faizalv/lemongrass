@@ -74,6 +74,7 @@ func EnsureScaffold() {
 		filepath.Join(Dir(), "postgres"),
 		filepath.Join(Dir(), "redis"),
 		filepath.Join(Dir(), "logs"),
+		filepath.Join(Dir(), "workspaces"),
 	}
 	for _, d := range dirs {
 		os.MkdirAll(d, 0755)

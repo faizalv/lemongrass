@@ -30,6 +30,7 @@ type ProjectResponse struct {
 	ID        int64  `json:"id"`
 	Path      string `json:"path"`
 	Status    string `json:"status"`
+	Branch    string `json:"branch"`
 	CreatedAt string `json:"created_at"`
 }
 
@@ -38,6 +39,7 @@ func ProjectToResponse(p entity.Project) ProjectResponse {
 		ID:        p.ID,
 		Path:      p.Path,
 		Status:    p.Status,
+		Branch:    p.Branch,
 		CreatedAt: p.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
 }

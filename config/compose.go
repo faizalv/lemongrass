@@ -38,6 +38,7 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
     image: lemongrass-runner:latest
     volumes:
       - {{.LGDir}}/claude:/home/lg/.lemongrass/claude
+      - {{.LGDir}}/workspaces:/home/lg/.lemongrass/workspaces:ro
       - {{.LGDir}}/logs:/var/log/lemongrass
     environment:
       - CLAUDE_CONFIG_DIR=/home/lg/.lemongrass/claude

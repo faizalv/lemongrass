@@ -92,10 +92,13 @@
         <template v-for="w in workspaces" :key="w.id">
           <button
             :style="s.wsItem(w.id === activeWorkspaceId)"
+            :title="wsTooltip(w)"
             @click="$emit('select-workspace', w.id)"
           >
             <AppIcon :name="w.id === 'reconnaissance' ? 'radar' : (w.icon || 'layers')" :size="14" :extra-style="{ color: w.id === activeWorkspaceId ? '#F5C518' : '#717171' }" />
             <span :style="s.wsItemLabel(w.id === activeWorkspaceId)">{{ w.name }}</span>
+            <AppIcon v-if="w.requirement_type === 'text'" name="file-text" :size="11" :extra-style="{ color: '#3D3D3D', flexShrink: 0 }" />
+            <AppIcon v-else-if="w.requirement_type === 'pdf' || w.requirement_type === 'image'" name="file" :size="11" :extra-style="{ color: '#3D3D3D', flexShrink: 0 }" />
             <span v-if="w.id !== 'reconnaissance'" :style="s.wsStatusPip(w.status || 'idle')"></span>
           </button>
           <div v-if="w.id === 'reconnaissance'" :style="s.wsDivider"></div>
@@ -196,9 +199,22 @@ onUnmounted(() => document.removeEventListener('mousedown', onClickOutside))
 const STATUS_COLORS: Record<string, string> = {
   idle: '#4A4A4A',
   grooming: '#F5C518',
+  awaiting_execution: '#60A5FA',
+  executing: '#4ADE80',
+  done: '#4ADE80',
   planning: '#60A5FA',
   testing: '#4ADE80',
   error: '#F87171',
+}
+
+function wsTooltip(w: Workspace): string {
+  if (w.requirement_type === 'text' && w.requirement_text) {
+    return w.requirement_text.slice(0, 120)
+  }
+  if ((w.requirement_type === 'pdf' || w.requirement_type === 'image') && w.requirement_file) {
+    return w.requirement_file
+  }
+  return ''
 }
 
 const s = {

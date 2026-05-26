@@ -21,6 +21,7 @@ import (
 	lglg "github.com/faizalv/lemongrass/modules/lg"
 	lgpty "github.com/faizalv/lemongrass/modules/pty"
 	lgrecon "github.com/faizalv/lemongrass/modules/recon"
+	lgworkspace "github.com/faizalv/lemongrass/modules/workspace"
 	lgui "github.com/faizalv/lemongrass/ui"
 	"github.com/gin-gonic/gin"
 )
@@ -77,6 +78,10 @@ func main() {
 	reconModule := &lgrecon.Recon{}
 	reconModule.LoadMe(cfg, db, rds)
 	reconModule.StartHTTPRouter(api)
+
+	workspaceModule := &lgworkspace.Workspace{}
+	workspaceModule.LoadMe(cfg, db, rds)
+	workspaceModule.StartHTTPRouter(api)
 
 	fsModule.Startup(context.Background())
 	log.Println("startup sanity check: ok")

@@ -38,9 +38,9 @@
 
     <AddWorkspaceModal
       v-if="addingWorkspace"
-      :branch="currentProject?.branch ?? 'main'"
+      :project-id="currentProjectId"
       @close="addingWorkspace = false"
-      @create="handleCreateWorkspace"
+      @created="handleWorkspaceCreated"
     />
 
     <DeleteProjectModal
@@ -104,25 +104,39 @@ onMounted(async () => {
     applyFsProjects(fsProjects)
 
     const pid = new URLSearchParams(location.search).get('project')
-    if (pid && projects.value.find(p => p.id === pid)) {
-      currentProjectId.value = pid
-      activeWorkspaceId.value = workspacesByProj.value[pid]?.[0]?.id ?? 'reconnaissance'
+    const target = pid && projects.value.find(p => p.id === pid) ? pid : currentProjectId.value
+    if (target) {
+      currentProjectId.value = target
+      await loadWorkspaces(target)
+      activeWorkspaceId.value = workspacesByProj.value[target]?.[0]?.id ?? 'reconnaissance'
     }
   } catch { /* server not reachable yet */ }
 })
 
-function handleSwitchProject(pid: string) {
+async function loadWorkspaces(pid: string) {
+  try {
+    const r = await fetch(`/api/workspaces?project_id=${pid}`)
+    if (!r.ok) return
+    const list: Workspace[] = await r.json()
+    const recon: Workspace = { id: 'reconnaissance', name: 'Reconnaissance', icon: 'radar' }
+    workspacesByProj.value = {
+      ...workspacesByProj.value,
+      [pid]: [recon, ...list],
+    }
+  } catch { /* ignore */ }
+}
+
+async function handleSwitchProject(pid: string) {
   currentProjectId.value = pid
+  await loadWorkspaces(pid)
   const list = workspacesByProj.value[pid] ?? []
-  activeWorkspaceId.value = list[1]?.id ?? list[0]?.id ?? ''
+  activeWorkspaceId.value = list[1]?.id ?? list[0]?.id ?? 'reconnaissance'
   setProjectParam(pid)
 }
 
 function handleAdded(fsProjects: FsProject[]) {
   const last = fsProjects[fsProjects.length - 1]
   if (last) {
-    // Full reload so Vue re-initialises against the restarted server.
-    // The ?project param is picked up in onMounted to restore the selection.
     const url = new URL(location.href)
     url.searchParams.set('project', String(last.id))
     location.href = url.toString()
@@ -139,7 +153,7 @@ function applyFsProjects(fsProjects: FsProject[]) {
     const project: Project = {
       id,
       name,
-      branch: 'main',
+      branch: (fp as any).branch ?? 'main',
       shortPath: fp.path.replace(/^\/home\/[^/]+/, '~'),
     }
     if (!projects.value.find(p => p.id === id)) {
@@ -154,7 +168,6 @@ function applyFsProjects(fsProjects: FsProject[]) {
   }
   if (!currentProjectId.value && projects.value.length > 0) {
     currentProjectId.value = projects.value[0].id
-    activeWorkspaceId.value = 'reconnaissance'
   }
 }
 
@@ -176,6 +189,16 @@ function handleDeleted(id: string) {
   deletingProjectId.value = ''
 }
 
+function handleWorkspaceCreated(ws: Workspace) {
+  const pid = currentProjectId.value
+  workspacesByProj.value = {
+    ...workspacesByProj.value,
+    [pid]: [...(workspacesByProj.value[pid] ?? []), ws],
+  }
+  activeWorkspaceId.value = ws.id
+  addingWorkspace.value = false
+}
+
 function setProjectParam(id: string) {
   const url = new URL(location.href)
   url.searchParams.set('project', id)
@@ -186,16 +209,5 @@ function removeProjectParam() {
   const url = new URL(location.href)
   url.searchParams.delete('project')
   history.replaceState(null, '', url)
-}
-
-function handleCreateWorkspace(name: string) {
-  const id = 'ws-' + Math.random().toString(36).slice(2, 7)
-  const pid = currentProjectId.value
-  workspacesByProj.value = {
-    ...workspacesByProj.value,
-    [pid]: [...(workspacesByProj.value[pid] ?? []), { id, name, icon: 'sparkles', status: 'idle' }],
-  }
-  activeWorkspaceId.value = id
-  addingWorkspace.value = false
 }
 </script>

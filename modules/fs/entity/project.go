@@ -6,6 +6,7 @@ type Project struct {
 	ID        int64
 	Path      string
 	Status    string
+	Branch    string
 	CreatedAt time.Time
 }
 

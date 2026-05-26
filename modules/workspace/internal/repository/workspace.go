@@ -1,0 +1,124 @@
+package repository
+
+import (
+	"context"
+	"time"
+
+	"github.com/faizalv/lemongrass/modules/workspace/entity"
+	"github.com/jmoiron/sqlx"
+)
+
+type workspaceRecord struct {
+	ID              string    `db:"id"`
+	ProjectID       int64     `db:"project_id"`
+	Name            string    `db:"name"`
+	Status          string    `db:"status"`
+	RequirementText *string   `db:"requirement_text"`
+	RequirementFile *string   `db:"requirement_file"`
+	RequirementType *string   `db:"requirement_type"`
+	CreatedAt       time.Time `db:"created_at"`
+	UpdatedAt       time.Time `db:"updated_at"`
+}
+
+func toEntity(r workspaceRecord) entity.Workspace {
+	ws := entity.Workspace{
+		ID:        r.ID,
+		ProjectID: r.ProjectID,
+		Name:      r.Name,
+		Status:    r.Status,
+		CreatedAt: r.CreatedAt,
+		UpdatedAt: r.UpdatedAt,
+	}
+	if r.RequirementText != nil {
+		ws.RequirementText = *r.RequirementText
+	}
+	if r.RequirementFile != nil {
+		ws.RequirementFile = *r.RequirementFile
+	}
+	if r.RequirementType != nil {
+		ws.RequirementType = *r.RequirementType
+	}
+	return ws
+}
+
+type WorkspaceRepository struct {
+	db *sqlx.DB
+}
+
+func New(db *sqlx.DB) *WorkspaceRepository {
+	return &WorkspaceRepository{db: db}
+}
+
+func (r *WorkspaceRepository) Create(ctx context.Context, ws entity.Workspace) (entity.Workspace, error) {
+	var rec workspaceRecord
+	err := r.db.QueryRowxContext(ctx,
+		`INSERT INTO lg_workspaces (project_id, name, requirement_text, requirement_file, requirement_type)
+		 VALUES ($1, $2, $3, $4, $5)
+		 RETURNING id, project_id, name, status, requirement_text, requirement_file, requirement_type, created_at, updated_at`,
+		ws.ProjectID,
+		ws.Name,
+		nullStr(ws.RequirementText),
+		nullStr(ws.RequirementFile),
+		nullStr(ws.RequirementType),
+	).StructScan(&rec)
+	if err != nil {
+		return entity.Workspace{}, err
+	}
+	return toEntity(rec), nil
+}
+
+func (r *WorkspaceRepository) Get(ctx context.Context, id string) (entity.Workspace, error) {
+	var rec workspaceRecord
+	err := r.db.QueryRowxContext(ctx,
+		`SELECT id, project_id, name, status, requirement_text, requirement_file, requirement_type, created_at, updated_at
+		 FROM lg_workspaces WHERE id = $1`,
+		id,
+	).StructScan(&rec)
+	if err != nil {
+		return entity.Workspace{}, err
+	}
+	return toEntity(rec), nil
+}
+
+func (r *WorkspaceRepository) ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error) {
+	var recs []workspaceRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, name, status, requirement_text, requirement_file, requirement_type, created_at, updated_at
+		 FROM lg_workspaces WHERE project_id = $1 ORDER BY created_at DESC`,
+		projectID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]entity.Workspace, len(recs))
+	for i, rec := range recs {
+		out[i] = toEntity(rec)
+	}
+	return out, nil
+}
+
+func (r *WorkspaceRepository) UpdateRequirement(ctx context.Context, id, text, file, reqType string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE lg_workspaces
+		 SET requirement_text = $1, requirement_file = $2, requirement_type = $3, updated_at = NOW()
+		 WHERE id = $4`,
+		nullStr(text), nullStr(file), nullStr(reqType), id,
+	)
+	return err
+}
+
+func (r *WorkspaceRepository) CountExecuting(ctx context.Context, projectID int64) (int, error) {
+	var count int
+	err := r.db.QueryRowxContext(ctx,
+		`SELECT COUNT(*) FROM lg_workspaces WHERE project_id = $1 AND status = 'executing'`,
+		projectID,
+	).Scan(&count)
+	return count, err
+}
+
+func nullStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}

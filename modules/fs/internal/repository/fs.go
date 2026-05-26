@@ -11,6 +11,7 @@ type projectRecord struct {
 	ID        int64     `db:"id"`
 	Path      string    `db:"path"`
 	Status    string    `db:"status"`
+	Branch    string    `db:"branch"`
 	CreatedAt time.Time `db:"created_at"`
 }
 
@@ -19,6 +20,7 @@ func toEntity(r projectRecord) entity.Project {
 		ID:        r.ID,
 		Path:      r.Path,
 		Status:    r.Status,
+		Branch:    r.Branch,
 		CreatedAt: r.CreatedAt,
 	}
 }
@@ -36,7 +38,7 @@ func (r *FsRepository) Save(path string) (entity.Project, error) {
 	err := r.db.QueryRowx(
 		`INSERT INTO lg_projects (path, status) VALUES ($1, 'pending')
 		 ON CONFLICT (path) DO UPDATE SET status = 'pending'
-		 RETURNING id, path, status, created_at`,
+		 RETURNING id, path, status, branch, created_at`,
 		path,
 	).StructScan(&rec)
 	if err != nil {
@@ -47,7 +49,7 @@ func (r *FsRepository) Save(path string) (entity.Project, error) {
 
 func (r *FsRepository) List() ([]entity.Project, error) {
 	var recs []projectRecord
-	if err := r.db.Select(&recs, `SELECT id, path, status, created_at FROM lg_projects ORDER BY created_at`); err != nil {
+	if err := r.db.Select(&recs, `SELECT id, path, status, branch, created_at FROM lg_projects ORDER BY created_at`); err != nil {
 		return nil, err
 	}
 	projects := make([]entity.Project, len(recs))
@@ -60,7 +62,7 @@ func (r *FsRepository) List() ([]entity.Project, error) {
 func (r *FsRepository) ListNonRemoved() ([]entity.Project, error) {
 	var recs []projectRecord
 	if err := r.db.Select(&recs,
-		`SELECT id, path, status, created_at FROM lg_projects WHERE status != 'removed' ORDER BY created_at`,
+		`SELECT id, path, status, branch, created_at FROM lg_projects WHERE status != 'removed' ORDER BY created_at`,
 	); err != nil {
 		return nil, err
 	}

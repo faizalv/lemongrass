@@ -18,13 +18,17 @@ export interface FsProject {
   created_at: string
 }
 
-export type WorkspaceStatus = 'idle' | 'grooming' | 'planning' | 'testing' | 'error'
+export type WorkspaceStatus = 'idle' | 'grooming' | 'awaiting_execution' | 'executing' | 'done' | 'planning' | 'testing' | 'error'
 
 export interface Workspace {
   id: string
+  project_id?: string
   name: string
-  icon: string
+  icon?: string
   status?: WorkspaceStatus
+  requirement_type?: 'text' | 'pdf' | 'image'
+  requirement_text?: string
+  requirement_file?: string
 }
 
 export type StepStatus = 'ok' | 'miss' | 'pending'

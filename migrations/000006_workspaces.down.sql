@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS lg_tasks;
+DROP TABLE IF EXISTS lg_workspaces;
+ALTER TABLE lg_projects DROP COLUMN IF EXISTS branch;
