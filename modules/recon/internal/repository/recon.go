@@ -2,6 +2,11 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/faizalv/lemongrass/modules/recon/entity"
@@ -35,6 +40,7 @@ type nodeRecord struct {
 	Description *string        `db:"description"`
 	ReturnType  *string        `db:"return_type"`
 	ContentHash *string        `db:"content_hash"`
+	Calls       pq.StringArray `db:"calls"`
 	ExploredAt  *time.Time     `db:"explored_at"`
 	CreatedAt   time.Time      `db:"created_at"`
 }
@@ -47,6 +53,10 @@ func deref(s *string) string {
 }
 
 func toEntity(r nodeRecord) entity.SemanticNode {
+	calls := []string(r.Calls)
+	if calls == nil {
+		calls = []string{}
+	}
 	return entity.SemanticNode{
 		ID:          r.ID,
 		ProjectID:   r.ProjectID,
@@ -65,6 +75,7 @@ func toEntity(r nodeRecord) entity.SemanticNode {
 		Description: deref(r.Description),
 		ReturnType:  deref(r.ReturnType),
 		ContentHash: deref(r.ContentHash),
+		Calls:       calls,
 		ExploredAt:  r.ExploredAt,
 		CreatedAt:   r.CreatedAt,
 	}
@@ -198,7 +209,7 @@ func (r *ReconRepository) UpdateSyncInterval(ctx context.Context, projectID int6
 func (r *ReconRepository) ListNodes(ctx context.Context, projectID int64, language, kind, status string) ([]entity.SemanticNode, error) {
 	query := `SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
 	                 language, receiver, signature, exported, depends_on, status,
-	                 description, return_type, content_hash, explored_at, created_at
+	                 description, return_type, content_hash, calls, explored_at, created_at
 	          FROM lg_semantic_nodes
 	          WHERE project_id = $1 AND status != 'removed'`
 	args := []any{projectID}
@@ -254,6 +265,213 @@ func (r *ReconRepository) GetCoverage(ctx context.Context, projectID int64) ([]e
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+func (r *ReconRepository) GetNode(ctx context.Context, projectID int64, filePath, symbol string) (entity.SemanticNode, error) {
+	var rec nodeRecord
+	err := r.db.QueryRowxContext(ctx,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1 AND file_path = $2 AND symbol = $3 AND status != 'removed'
+		 LIMIT 1`,
+		projectID, filePath, symbol,
+	).StructScan(&rec)
+	if err != nil {
+		return entity.SemanticNode{}, err
+	}
+	return toEntity(rec), nil
+}
+
+func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error {
+	c := pq.StringArray(calls)
+	if c == nil {
+		c = pq.StringArray{}
+	}
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE lg_semantic_nodes
+		 SET description = $1, return_type = $2, calls = $3, status = 'explored', explored_at = NOW()
+		 WHERE project_id = $4 AND file_path = $5 AND symbol = $6`,
+		nullStr(description), nullStr(returnType), c, projectID, filePath, symbol,
+	)
+	return err
+}
+
+func (r *ReconRepository) SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE lg_semantic_nodes SET embedding = $1::vector
+		 WHERE project_id = $2 AND file_path = $3 AND symbol = $4`,
+		formatVector(embedding), projectID, filePath, symbol,
+	)
+	return err
+}
+
+func (r *ReconRepository) GetTreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error) {
+	query := `SELECT file_path, status FROM lg_semantic_nodes WHERE project_id = $1 AND status != 'removed'`
+	args := []any{projectID}
+	if pathPrefix != "" {
+		args = append(args, pathPrefix+"%")
+		query += ` AND file_path LIKE $2`
+	}
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type counts struct{ total, explored, stale int }
+	dirs := make(map[string]*counts)
+	for rows.Next() {
+		var fp, st string
+		if err := rows.Scan(&fp, &st); err != nil {
+			return nil, err
+		}
+		dir := filepath.Dir(fp)
+		if dir == "." {
+			dir = fp
+		}
+		c, ok := dirs[dir]
+		if !ok {
+			c = &counts{}
+			dirs[dir] = c
+		}
+		c.total++
+		switch st {
+		case "explored":
+			c.explored++
+		case "stale":
+			c.stale++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]entity.DirectoryCoverage, 0, len(dirs))
+	for dir, c := range dirs {
+		out = append(out, entity.DirectoryCoverage{
+			Dir:        dir,
+			Total:      c.total,
+			Explored:   c.explored,
+			Stale:      c.stale,
+			Unexplored: c.total - c.explored - c.stale,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Dir < out[j].Dir })
+	return out, nil
+}
+
+func (r *ReconRepository) SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error) {
+	var recs []nodeRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1 AND status != 'removed' AND status != 'unexplored' AND embedding IS NOT NULL
+		 ORDER BY embedding <=> $2::vector
+		 LIMIT $3`,
+		projectID, formatVector(embedding), limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+	return nodes, nil
+}
+
+func (r *ReconRepository) SearchByFTS(ctx context.Context, projectID int64, query string, limit int) ([]entity.SemanticNode, error) {
+	var recs []nodeRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1 AND status != 'removed' AND description IS NOT NULL AND embedding IS NULL
+		   AND to_tsvector('english', description) @@ plainto_tsquery('english', $2)
+		 ORDER BY ts_rank(to_tsvector('english', description), plainto_tsquery('english', $2)) DESC
+		 LIMIT $3`,
+		projectID, query, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+	return nodes, nil
+}
+
+func (r *ReconRepository) GetRelated(ctx context.Context, projectID int64, symbol string) (callees, callers []entity.SemanticNode, err error) {
+	var callSymbols pq.StringArray
+	scanErr := r.db.QueryRowContext(ctx,
+		`SELECT calls FROM lg_semantic_nodes WHERE project_id = $1 AND symbol = $2 AND status = 'explored' LIMIT 1`,
+		projectID, symbol,
+	).Scan(&callSymbols)
+	if scanErr != nil && scanErr != sql.ErrNoRows {
+		err = scanErr
+		return
+	}
+
+	if len(callSymbols) > 0 {
+		var recs []nodeRecord
+		if err = r.db.SelectContext(ctx, &recs,
+			`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+			        language, receiver, signature, exported, depends_on, status,
+			        description, return_type, content_hash, calls, explored_at, created_at
+			 FROM lg_semantic_nodes
+			 WHERE project_id = $1 AND symbol = ANY($2) AND status = 'explored'`,
+			projectID, pq.Array(callSymbols),
+		); err != nil {
+			return
+		}
+		callees = make([]entity.SemanticNode, len(recs))
+		for i, rec := range recs {
+			callees[i] = toEntity(rec)
+		}
+	}
+
+	var callerRecs []nodeRecord
+	if err = r.db.SelectContext(ctx, &callerRecs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1 AND $2 = ANY(calls) AND status = 'explored'`,
+		projectID, symbol,
+	); err != nil {
+		return
+	}
+	callers = make([]entity.SemanticNode, len(callerRecs))
+	for i, rec := range callerRecs {
+		callers[i] = toEntity(rec)
+	}
+	return
+}
+
+func nullStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func formatVector(v []float32) string {
+	sb := strings.Builder{}
+	sb.WriteByte('[')
+	for i, f := range v {
+		if i > 0 {
+			sb.WriteByte(',')
+		}
+		sb.WriteString(strconv.FormatFloat(float64(f), 'f', 8, 32))
+	}
+	sb.WriteByte(']')
+	return sb.String()
 }
 
 func itoa(n int) string {

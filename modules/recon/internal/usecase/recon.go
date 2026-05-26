@@ -1,8 +1,10 @@
 package usecase
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/modules/recon/entity"
+	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/embed"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/lang"
 )
 
@@ -26,11 +29,19 @@ type repo interface {
 	DeleteFileHashes(ctx context.Context, projectID int64, paths []string) error
 	GetSyncInterval(ctx context.Context, projectID int64) (string, error)
 	UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error
+	GetNode(ctx context.Context, projectID int64, filePath, symbol string) (entity.SemanticNode, error)
+	AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error
+	SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error
+	GetTreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error)
+	SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error)
+	SearchByFTS(ctx context.Context, projectID int64, query string, limit int) ([]entity.SemanticNode, error)
+	GetRelated(ctx context.Context, projectID int64, symbol string) (callees, callers []entity.SemanticNode, err error)
 }
 
 type ReconUsecase struct {
 	parsers    []lang.Parser
 	repo       repo
+	embed      *embed.Client
 	syncMu     sync.Mutex
 	syncing    map[int64]bool
 	lastSynced map[int64]int64 // unix nano
@@ -46,6 +57,7 @@ func New(r repo, parsers ...lang.Parser) *ReconUsecase {
 	return &ReconUsecase{
 		parsers:    sorted,
 		repo:       r,
+		embed:      embed.New(),
 		syncing:    make(map[int64]bool),
 		lastSynced: make(map[int64]int64),
 	}
@@ -163,6 +175,103 @@ func intervalDuration(s string) time.Duration {
 		return time.Hour
 	}
 	return 0
+}
+
+// ── Grooming helpers ──────────────────────────────────────────────────────────
+
+func (u *ReconUsecase) TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error) {
+	return u.repo.GetTreeCoverage(ctx, projectID, pathPrefix)
+}
+
+func (u *ReconUsecase) ReadNode(ctx context.Context, projectID int64, filePath, symbol string) (entity.SemanticNode, string, error) {
+	node, err := u.repo.GetNode(ctx, projectID, filePath, symbol)
+	if err != nil {
+		return entity.SemanticNode{}, "", fmt.Errorf("node not found: %w", err)
+	}
+	rawPath, err := u.repo.ProjectDir(ctx, projectID)
+	if err != nil {
+		return entity.SemanticNode{}, "", err
+	}
+	diskPath := filepath.Join("/projects", filepath.Base(rawPath), filePath)
+	code, err := readLines(diskPath, node.LineStart, node.LineEnd)
+	if err != nil {
+		return entity.SemanticNode{}, "", fmt.Errorf("read file: %w", err)
+	}
+	return node, code, nil
+}
+
+func (u *ReconUsecase) Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error {
+	if err := u.repo.AnnotateNode(ctx, projectID, filePath, symbol, description, returnType, calls); err != nil {
+		return err
+	}
+	go func() {
+		vec, err := u.embed.Embed(context.Background(), description)
+		if err != nil {
+			return
+		}
+		u.repo.SetEmbedding(context.Background(), projectID, filePath, symbol, vec)
+	}()
+	return nil
+}
+
+func (u *ReconUsecase) Search(ctx context.Context, projectID int64, query string) ([]entity.SemanticNode, error) {
+	const limit = 10
+	var results []entity.SemanticNode
+
+	vec, err := u.embed.Embed(ctx, query)
+	if err == nil {
+		results, err = u.repo.SearchByVector(ctx, projectID, vec, limit)
+		if err != nil {
+			results = nil
+		}
+	}
+
+	fts, err := u.repo.SearchByFTS(ctx, projectID, query, limit)
+	if err == nil {
+		seen := make(map[string]bool, len(results))
+		for _, n := range results {
+			seen[n.ID] = true
+		}
+		for _, n := range fts {
+			if !seen[n.ID] {
+				results = append(results, n)
+			}
+		}
+	}
+
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	return results, nil
+}
+
+func (u *ReconUsecase) Related(ctx context.Context, projectID int64, symbol string) (callees, callers []entity.SemanticNode, err error) {
+	return u.repo.GetRelated(ctx, projectID, symbol)
+}
+
+func readLines(path string, start, end int) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	var sb strings.Builder
+	scanner := bufio.NewScanner(f)
+	line := 0
+	for scanner.Scan() {
+		line++
+		if line >= start {
+			if sb.Len() > 0 {
+				sb.WriteByte('\n')
+			}
+			sb.WriteString(scanner.Text())
+		}
+		if line >= end {
+			break
+		}
+	}
+	return sb.String(), scanner.Err()
 }
 
 // ── LgIgnore ──────────────────────────────────────────────────────────────────

@@ -47,7 +47,68 @@
           @start="handleStart"
           @attach="handleAttach"
           @use-sample="requirement = SAMPLE_REQUIREMENT"
-        />
+        >
+          <template v-if="groomError" #error>
+            <div style="font-size:12px;color:#F87171;margin-top:8px;font-family:'DM Sans',sans-serif">{{ groomError }}</div>
+          </template>
+        </IdlePanel>
+
+        <!-- Grooming live -->
+        <div v-else-if="phase === 'grooming_live'" class="fade-in" style="max-width:760px;margin:40px auto 0;padding:0 32px 40px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+            <Spinner :size="18" />
+            <div :style="phaseTitle">Claude is grooming…</div>
+          </div>
+          <div :style="phaseSub">The model is reading the semantic map and exploring the codebase. When it has a task list ready, it will appear here for your review.</div>
+        </div>
+
+        <!-- Checkpoint review -->
+        <div v-else-if="phase === 'checkpoint'" class="fade-in" style="max-width:760px;margin:24px auto 0;padding:0 32px 80px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+            <div :style="phaseTitle">Task proposal ready</div>
+            <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:#717171">{{ apiTasks.length }} task{{ apiTasks.length !== 1 ? 's' : '' }}</div>
+          </div>
+          <div :style="phaseSub">Review the plan below. Approve to let the model hand off to execution, or reject with feedback to have it revise.</div>
+
+          <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
+            <div v-for="(task, i) in apiTasks" :key="task.id" :style="checkpointCard">
+              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#555;flex-shrink:0">{{ i + 1 }}</span>
+                <div style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:#E0E0E0">{{ task.title }}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;padding-left:22px">
+                <div v-for="(item, j) in task.impl" :key="j" style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11.5px;color:#9A9A9A;line-height:1.6">{{ item }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;display:flex;flex-direction:column;gap:10px">
+            <button :disabled="checkpointLoading" :style="approveBtn" @click="handleApprove">
+              <AppIcon name="check" :size="14" />
+              {{ checkpointLoading ? 'Processing…' : 'Approve plan' }}
+            </button>
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <textarea
+                v-model="checkpointFeedback"
+                :style="feedbackArea"
+                placeholder="Describe what to change (required to reject)…"
+                rows="3"
+              />
+              <button
+                :disabled="checkpointLoading || !checkpointFeedback.trim()"
+                :style="rejectBtn(!!checkpointFeedback.trim())"
+                @click="handleReject"
+              >Reject</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Awaiting execution -->
+        <div v-else-if="phase === 'awaiting_execution'" class="fade-in" style="max-width:760px;margin:40px auto 0;padding:0 32px 40px;text-align:center">
+          <div :style="emptyIcon" style="margin:0 auto 18px"><AppIcon name="check-circle-2" :size="22" color="#4ADE80" /></div>
+          <div :style="phaseTitle" style="margin-bottom:8px">Plan approved</div>
+          <div :style="phaseSub">Tasks are locked in. Start the execution session when ready.</div>
+        </div>
 
         <!-- Reading recon -->
         <StepLog
@@ -150,8 +211,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import type { Decision, GroomingPhase, ReconStep } from '../../types'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import type { Decision, GroomingPhase, ReconStep, ApiTask } from '../../types'
 import { PROPOSED_TASKS, RECON_PATH_INFO } from '../../data/sampleData'
 import AppIcon from '../AppIcon.vue'
 import Spinner from './Spinner.vue'
@@ -165,6 +226,7 @@ import ImplementationDetailItem from './ImplementationDetailItem.vue'
 import ImplDetailView from './ImplDetailView.vue'
 import DoneBanner from './DoneBanner.vue'
 
+const props = defineProps<{ workspace: { id: string; status?: string; branch: string; commit: string; name: string; requirement_type?: string; requirement_text?: string; requirement_file?: string } }>()
 defineEmits<{ 'jump-tab': [tab: string] }>()
 
 const SAMPLE_REQUIREMENT = `Add per-user rate limiting to the public REST API.
@@ -175,7 +237,81 @@ const SAMPLE_REQUIREMENT = `Add per-user rate limiting to the public REST API.
 - Need an admin endpoint to inspect a user's current quota.
 - Surface limit headers (X-RateLimit-Remaining, etc.) on every response.`
 
-const phase = ref<GroomingPhase>('idle')
+type ExtendedPhase = GroomingPhase | 'grooming_live' | 'checkpoint' | 'awaiting_execution'
+const phase = ref<ExtendedPhase>('idle')
+
+// Real API state
+const apiTasks = ref<ApiTask[]>([])
+const groomError = ref('')
+const checkpointFeedback = ref('')
+const checkpointLoading = ref(false)
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  const st = props.workspace.status
+  if (st === 'grooming') { phase.value = 'grooming_live'; startPolling() }
+  else if (st === 'awaiting_execution') phase.value = 'awaiting_execution'
+})
+
+onUnmounted(stopPolling)
+
+function startPolling() {
+  stopPolling()
+  pollTimer = setInterval(pollTasks, 2000)
+  pollTasks()
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+}
+
+async function pollTasks() {
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks`)
+    if (!r.ok) return
+    const tasks: ApiTask[] = await r.json()
+    const pending = tasks.filter(t => t.status === 'pending')
+    if (pending.length > 0) {
+      apiTasks.value = pending
+      phase.value = 'checkpoint'
+      stopPolling()
+    }
+  } catch { /* ignore */ }
+}
+
+async function handleApprove() {
+  checkpointLoading.value = true
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks/approve`, { method: 'POST' })
+    if (r.ok) {
+      phase.value = 'awaiting_execution'
+      apiTasks.value = []
+    }
+  } finally {
+    checkpointLoading.value = false
+  }
+}
+
+async function handleReject() {
+  if (!checkpointFeedback.value.trim()) return
+  checkpointLoading.value = true
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback: checkpointFeedback.value }),
+    })
+    if (r.ok) {
+      checkpointFeedback.value = ''
+      apiTasks.value = []
+      phase.value = 'grooming_live'
+      startPolling()
+    }
+  } finally {
+    checkpointLoading.value = false
+  }
+}
+
 const requirement = ref('')
 const attachments = ref<{ name: string; icon: string }[]>([])
 const reconSteps = ref<ReconStep[]>([])
@@ -356,7 +492,21 @@ function reset() {
   batchMode.value = false
 }
 
-function handleStart() { phase.value = 'reading_recon' }
+async function handleStart() {
+  groomError.value = ''
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/groom`, { method: 'POST' })
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}))
+      groomError.value = body.error ?? `Error ${r.status}`
+      return
+    }
+    phase.value = 'grooming_live'
+    startPolling()
+  } catch {
+    groomError.value = 'Network error, please try again.'
+  }
+}
 
 function handleAttach() {
   if (attachments.value.length === 0) {
@@ -380,6 +530,11 @@ function handleGenerateAll() {
 }
 
 // Styles
+const emptyIcon   = { width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+const checkpointCard = { padding: '16px 18px', background: '#111', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px' }
+const approveBtn = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#4ADE80', color: '#0A0A0A', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 700 }
+const rejectBtn = (enabled: boolean) => ({ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? '#F87171' : '#555', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 600, flexShrink: 0 })
+const feedbackArea = { flex: 1, background: '#111', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '7px', color: '#D4D4D4', padding: '10px 14px', fontSize: '13px', fontFamily: "'DM Sans',sans-serif", outline: 'none', resize: 'vertical' }
 const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: '#0C0C0C' }
 const leftPanelHeader = { padding: '18px 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }
 const leftPanelTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#717171', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }

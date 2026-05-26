@@ -7,6 +7,7 @@ import (
 
 	"github.com/faizalv/lemongrass/bus"
 	"github.com/faizalv/lemongrass/config"
+	reconclient "github.com/faizalv/lemongrass/modules/recon/client"
 	handler "github.com/faizalv/lemongrass/modules/recon/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/recon/internal/repository"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase"
@@ -69,4 +70,8 @@ func (r *Recon) MapIfNeeded(ctx context.Context, projectID int64, dir string) er
 
 func (r *Recon) Usecase() *usecase.ReconUsecase {
 	return r.uc
+}
+
+func (r *Recon) Client() *reconclient.ReconClient {
+	return reconclient.New(r.uc)
 }

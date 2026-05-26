@@ -71,16 +71,18 @@ func main() {
 	fsModule.LoadMe(cfg, db, rds)
 	fsModule.StartHTTPRouter(api)
 
-	lgMod := &lglg.Lg{PtyClient: ptyMod.Client()}
-	lgMod.LoadMe(cfg, db, rds)
-	lgMod.StartHTTPRouter(api)
-
 	reconModule := &lgrecon.Recon{}
 	reconModule.LoadMe(cfg, db, rds)
 	reconModule.StartHTTPRouter(api)
 
-	workspaceModule := &lgworkspace.Workspace{}
+	lgMod := &lglg.Lg{PtyClient: ptyMod.Client(), ReconClient: reconModule.Client()}
+	lgMod.LoadMe(cfg, db, rds)
+	lgMod.StartHTTPRouter(api)
+
+	workspaceModule := &lgworkspace.Workspace{PtyClient: ptyMod.Client()}
 	workspaceModule.LoadMe(cfg, db, rds)
+	lgMod.SetWorkspaceTaskClient(workspaceModule.TaskClient())
+	workspaceModule.SetLgSession(lgMod.SessionManager())
 	workspaceModule.StartHTTPRouter(api)
 
 	fsModule.Startup(context.Background())

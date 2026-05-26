@@ -99,3 +99,13 @@ export interface ReconTreeNode {
   stale:    number
   total:    number
 }
+
+export interface ApiTask {
+  id: string
+  workspace_id: string
+  title: string
+  impl: string[]
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+  approved_at?: string
+}

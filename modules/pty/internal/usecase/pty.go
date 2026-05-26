@@ -37,12 +37,40 @@ func (u *PtyUsecase) Close() {
 	}
 }
 
-func (u *PtyUsecase) RunTest() (entity.Session, error) {
-	return u.Run("echo hello from lemongrass")
+type Session struct {
+	stdinPipe io.WriteCloser
+	cmd       *exec.Cmd
+	done      chan struct{}
+	readDone  chan struct{}
+	out       *outputBuffer
 }
 
-func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
-	u.log.Printf("session start prompt=%q", prompt)
+func (s *Session) Write(b []byte) (int, error) {
+	return s.stdinPipe.Write(b)
+}
+
+func (s *Session) WaitIdle(quiesce, max time.Duration) {
+	s.out.waitForIdle(quiesce, max)
+}
+
+func (s *Session) Output() string {
+	return s.out.clean()
+}
+
+func (s *Session) Close() {
+	s.stdinPipe.Write([]byte{3}) // Ctrl+C -- claude prompts "press again to exit"
+	time.Sleep(300 * time.Millisecond)
+	s.stdinPipe.Write([]byte{3}) // Ctrl+C -- confirms exit
+	time.Sleep(300 * time.Millisecond)
+	s.stdinPipe.Write([]byte{4}) // Ctrl+D -- EOF fallback
+	s.stdinPipe.Close()
+	s.cmd.Process.Kill()
+	<-s.done
+	<-s.readDone
+}
+
+func (u *PtyUsecase) Open(prompt string) (*Session, error) {
+	u.log.Printf("session open prompt=%q", prompt)
 
 	// script(1) allocates a pty for claude and bridges it to our stdin/stdout
 	// pipe using poll(2), so stdin writes reach claude regardless of whether
@@ -54,7 +82,7 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
-		return entity.Session{}, fmt.Errorf("stdin pipe: %w", err)
+		return nil, fmt.Errorf("stdin pipe: %w", err)
 	}
 
 	// Single pipe for stdout+stderr so we read one stream.
@@ -64,12 +92,13 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 
 	if err := cmd.Start(); err != nil {
 		pw.Close()
-		u.log.Printf("start error: %v", err)
-		return entity.Session{}, fmt.Errorf("start: %w", err)
+		return nil, fmt.Errorf("start: %w", err)
 	}
 
 	// Close the write end once the process exits so the reader gets EOF.
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		cmd.Wait()
 		pw.Close()
 	}()
@@ -85,7 +114,6 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 				out.write(buf[:n])
 			}
 			if readErr != nil {
-				u.log.Printf("reader exit: %v", readErr)
 				return
 			}
 		}
@@ -119,8 +147,8 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 	u.log.Printf("injecting: %q", prompt)
 	if _, err := stdinPipe.Write([]byte(prompt + "\r")); err != nil {
 		cmd.Process.Kill()
-		<-readDone
-		return entity.Session{}, fmt.Errorf("write prompt: %w", err)
+		<-done
+		return nil, fmt.Errorf("write prompt: %w", err)
 	}
 
 	// The PTY raw bytes arrive in a burst so waitForAll can fire before the
@@ -131,24 +159,26 @@ func (u *PtyUsecase) Run(prompt string) (entity.Session, error) {
 	u.log.Printf("sending confirmation \\r")
 	stdinPipe.Write([]byte("\r"))
 
-	u.log.Printf("waiting for response (idle 5s, max 5min)...")
-	out.waitForIdle(5*time.Second, 5*time.Minute)
-
-	u.log.Printf("terminating session")
-	stdinPipe.Write([]byte{3}) // Ctrl+C
-	time.Sleep(300 * time.Millisecond)
-	stdinPipe.Write([]byte{4}) // Ctrl+D
-	stdinPipe.Close()
-	cmd.Process.Kill()
-
-	<-readDone
-
-	result := out.clean()
-	u.log.Printf("session done, output=%d chars", len(result))
-	return entity.Session{ID: "test", Output: result}, nil
+	u.log.Printf("session open")
+	return &Session{
+		stdinPipe: stdinPipe,
+		cmd:       cmd,
+		done:      done,
+		readDone:  readDone,
+		out:       out,
+	}, nil
 }
 
-// outputBuffer accumulates raw output, logs clean lines, and supports polling.
+func (u *PtyUsecase) RunTest() (entity.Session, error) {
+	sess, err := u.Open("echo hello from lemongrass")
+	if err != nil {
+		return entity.Session{}, err
+	}
+	sess.WaitIdle(5*time.Second, 5*time.Minute)
+	sess.Close()
+	return entity.Session{ID: "test", Output: sess.Output()}, nil
+}
+
 type outputBuffer struct {
 	mu        sync.Mutex
 	raw       []byte
@@ -210,8 +240,6 @@ func (o *outputBuffer) waitForAll(signals []string, timeout time.Duration) bool 
 	return false
 }
 
-// waitForIdle returns true once no new bytes have arrived for quiesce duration,
-// or false if maxTimeout is reached first.
 func (o *outputBuffer) waitForIdle(quiesce, maxTimeout time.Duration) bool {
 	deadline := time.Now().Add(maxTimeout)
 	for time.Now().Before(deadline) {

@@ -2,22 +2,39 @@ package workspace
 
 import (
 	"github.com/faizalv/lemongrass/config"
+	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
+	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	handler "github.com/faizalv/lemongrass/modules/workspace/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/workspace/internal/repository"
 	"github.com/faizalv/lemongrass/modules/workspace/internal/usecase"
+	wsclient "github.com/faizalv/lemongrass/modules/workspace/client"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
 )
 
 type Workspace struct {
-	h *handler.WorkspaceHandler
+	PtyClient *ptyclient.PtyClient
+	repo      *repository.WorkspaceRepository
+	uc        *usecase.WorkspaceUsecase
+	h         *handler.WorkspaceHandler
 }
 
 func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB, _ *redis.Client) {
-	repo := repository.New(db)
-	uc := usecase.New(repo)
-	w.h = handler.New(uc)
+	w.repo = repository.New(db)
+	w.uc = usecase.New(w.repo)
+	if w.PtyClient != nil {
+		w.uc.SetPty(w.PtyClient)
+	}
+	w.h = handler.New(w.uc)
+}
+
+func (w *Workspace) SetLgSession(s *lgclient.SessionManager) {
+	w.uc.SetLgSession(s)
+}
+
+func (w *Workspace) TaskClient() *wsclient.WorkspaceTaskClient {
+	return wsclient.New(w.repo)
 }
 
 func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
@@ -26,4 +43,8 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("", w.h.ListByProject)
 	g.GET("/:id", w.h.Get)
 	g.POST("/:id/requirement", w.h.ReplaceRequirement)
+	g.POST("/:id/groom", w.h.StartGrooming)
+	g.GET("/:id/tasks", w.h.GetTasks)
+	g.POST("/:id/tasks/approve", w.h.ApproveCheckpoint)
+	g.POST("/:id/tasks/reject", w.h.RejectCheckpoint)
 }

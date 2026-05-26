@@ -2,9 +2,10 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/faizalv/lemongrass/modules/pty/internal/usecase"
+	"github.com/gin-gonic/gin"
 )
 
 type PtyHandler struct {
@@ -32,10 +33,12 @@ func (h *PtyHandler) Send(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prompt is required"})
 		return
 	}
-	session, err := h.uc.Run(req.Prompt)
+	sess, err := h.uc.Open(req.Prompt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"session_id": session.ID, "output": session.Output})
+	sess.WaitIdle(5*time.Second, 5*time.Minute)
+	sess.Close()
+	c.JSON(http.StatusOK, gin.H{"output": sess.Output()})
 }

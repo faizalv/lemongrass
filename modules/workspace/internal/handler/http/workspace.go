@@ -23,6 +23,10 @@ type usecase interface {
 	ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error)
 	ReplaceRequirement(ctx context.Context, id, text, file, reqType string) error
 	IsExecutionLocked(ctx context.Context, projectID int64) (bool, error)
+	StartGrooming(ctx context.Context, workspaceID string) error
+	GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error)
+	ApproveCheckpoint(ctx context.Context, workspaceID string) error
+	RejectCheckpoint(ctx context.Context, workspaceID, feedback string) error
 }
 
 type WorkspaceHandler struct {
@@ -201,6 +205,58 @@ func (h *WorkspaceHandler) ReplaceRequirement(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 			return
 		}
+	}
+	c.Status(http.StatusOK)
+}
+
+func (h *WorkspaceHandler) StartGrooming(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.uc.StartGrooming(c.Request.Context(), id); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "must be idle") || strings.Contains(err.Error(), "not found") {
+			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+func (h *WorkspaceHandler) GetTasks(c *gin.Context) {
+	id := c.Param("id")
+	tasks, err := h.uc.GetTasks(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	out := make([]transporter.TaskResponse, len(tasks))
+	for i, t := range tasks {
+		out[i] = transporter.ToTaskResponse(t)
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (h *WorkspaceHandler) ApproveCheckpoint(c *gin.Context) {
+	id := c.Param("id")
+	if err := h.uc.ApproveCheckpoint(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+func (h *WorkspaceHandler) RejectCheckpoint(c *gin.Context) {
+	id := c.Param("id")
+	var req struct {
+		Feedback string `json:"feedback"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "feedback is required"})
+		return
+	}
+	if err := h.uc.RejectCheckpoint(c.Request.Context(), id, req.Feedback); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
 	}
 	c.Status(http.StatusOK)
 }

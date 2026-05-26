@@ -20,6 +20,7 @@ type SemanticNode struct {
 	Description string
 	ReturnType  string
 	ContentHash string
+	Calls       []string
 	ExploredAt  *time.Time
 	CreatedAt   time.Time
 }
@@ -29,6 +30,14 @@ type LangCoverage struct {
 	Total    int
 	Explored int
 	Stale    int
+}
+
+type DirectoryCoverage struct {
+	Dir        string
+	Total      int
+	Explored   int
+	Stale      int
+	Unexplored int
 }
 
 type FileHash struct {
