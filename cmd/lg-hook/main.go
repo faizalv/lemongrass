@@ -80,6 +80,7 @@ func main() {
 		if err := json.NewDecoder(resp.Body).Decode(&r); err == nil && r.Text != "" {
 			fmt.Print(r.Text)
 		}
+		fmt.Fprint(os.Stderr, "ok")
 	}
 
 	os.Exit(2)

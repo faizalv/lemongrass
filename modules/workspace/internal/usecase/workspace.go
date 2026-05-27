@@ -89,11 +89,11 @@ func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string
 	if err != nil {
 		return fmt.Errorf("project not found: %w", err)
 	}
-	prompt := buildGroomingPrompt(ws, projectPath)
+	systemPrompt := buildGroomingPrompt(ws, projectPath)
 	if err := u.repo.UpdateStatus(ctx, workspaceID, "grooming"); err != nil {
 		return err
 	}
-	session, err := u.pty.Open(prompt)
+	session, err := u.pty.Open(systemPrompt)
 	if err != nil {
 		u.repo.UpdateStatus(ctx, workspaceID, "idle")
 		return fmt.Errorf("start grooming PTY: %w", err)

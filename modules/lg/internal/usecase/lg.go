@@ -50,6 +50,7 @@ type LgUsecase struct {
 	mu     sync.Mutex
 	calls  []entity.Call
 	active *activeSession
+	debug  *ptyclient.Session
 }
 
 func New(pty *ptyclient.PtyClient) *LgUsecase {
@@ -105,6 +106,10 @@ func (u *LgUsecase) Handle(cmd, args string, blocking bool) string {
 	}
 	s := u.active
 	u.mu.Unlock()
+
+	if cmd == "echo" {
+		return args
+	}
 
 	if s == nil || u.recon == nil {
 		return ""
@@ -270,15 +275,45 @@ func (u *LgUsecase) ListCalls() []entity.Call {
 	return result
 }
 
+const debugSystemPrompt = `Lemongrass debug PTY. Direct text invisible -- only hook responses reach user. To respond: invoke #lg.echo <message> as Bash tool call (# is hook trigger, not a comment). One call per message.`
+
 func (u *LgUsecase) Send(message string) {
-	const debugPrompt = `Inside Lemongrass debug session. One rule: respond by calling Bash with exactly "#lg.echo <your message>" -- one call, full response in that call. No direct text output. No other commands.`
 	go func() {
-		sess, err := u.pty.Open(debugPrompt + "\n\nThe user says: " + message)
-		if err != nil {
+		if message == "exit" {
+			u.mu.Lock()
+			s := u.debug
+			u.debug = nil
+			u.mu.Unlock()
+			if s != nil {
+				s.Close()
+			}
 			return
 		}
-		sess.WaitIdle(5*time.Second, 5*time.Minute)
-		sess.Close()
+
+		u.mu.Lock()
+		sess := u.debug
+		u.mu.Unlock()
+
+		if sess == nil {
+			newSess, err := u.pty.Open(debugSystemPrompt)
+			if err != nil {
+				return
+			}
+			u.mu.Lock()
+			if u.debug == nil {
+				u.debug = newSess
+				sess = newSess
+			} else {
+				// lost the open race -- another goroutine already opened one
+				go newSess.Close()
+				sess = u.debug
+			}
+			u.mu.Unlock()
+		}
+
+		sess.Write([]byte(message + "\r"))
+		time.Sleep(300 * time.Millisecond)
+		sess.Write([]byte("\r"))
 	}()
 }
 

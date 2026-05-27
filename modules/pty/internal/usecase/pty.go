@@ -38,11 +38,12 @@ func (u *PtyUsecase) Close() {
 }
 
 type Session struct {
-	stdinPipe io.WriteCloser
-	cmd       *exec.Cmd
-	done      chan struct{}
-	readDone  chan struct{}
-	out       *outputBuffer
+	stdinPipe  io.WriteCloser
+	cmd        *exec.Cmd
+	done       chan struct{}
+	readDone   chan struct{}
+	out        *outputBuffer
+	promptFile string // temp file in runner, cleaned up on Close
 }
 
 func (s *Session) Write(b []byte) (int, error) {
@@ -67,10 +68,29 @@ func (s *Session) Close() {
 	s.cmd.Process.Kill()
 	<-s.done
 	<-s.readDone
+	if s.promptFile != "" {
+		exec.Command("docker", "exec", "lg-runner", "rm", "-f", s.promptFile).Run()
+	}
 }
 
-func (u *PtyUsecase) Open(prompt string) (*Session, error) {
-	u.log.Printf("session open prompt=%q", prompt)
+func (u *PtyUsecase) Open(systemPrompt string) (*Session, error) {
+	u.log.Printf("session open")
+
+	// write system prompt to a temp file in the runner so we avoid shell
+	// escaping entirely, then reference it via $(cat ...) in the claude command.
+	// each session gets a unique file so concurrent sessions don't collide.
+	var promptFile string
+	claudeCmd := "claude"
+	if systemPrompt != "" {
+		promptFile = fmt.Sprintf("/tmp/lg-prompt-%d.txt", time.Now().UnixNano())
+		writeCmd := exec.Command("docker", "exec", "-i", "lg-runner",
+			"sh", "-c", fmt.Sprintf("cat > %s", promptFile))
+		writeCmd.Stdin = strings.NewReader(systemPrompt)
+		if err := writeCmd.Run(); err != nil {
+			return nil, fmt.Errorf("write system prompt: %w", err)
+		}
+		claudeCmd = fmt.Sprintf(`claude --append-system-prompt "$(cat %s)"`, promptFile)
+	}
 
 	// script(1) allocates a pty for claude and bridges it to our stdin/stdout
 	// pipe using poll(2), so stdin writes reach claude regardless of whether
@@ -78,7 +98,7 @@ func (u *PtyUsecase) Open(prompt string) (*Session, error) {
 	// silently drops input when stdin is a pipe, which is why it didn't work.
 	// -q: suppress start/end messages  -f: flush after every write (real-time)
 	cmd := exec.Command("docker", "exec", "-i", "lg-runner",
-		"script", "-qf", "-c", "claude", "/dev/null")
+		"script", "-qf", "-c", claudeCmd, "/dev/null")
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
@@ -144,13 +164,6 @@ func (u *PtyUsecase) Open(prompt string) (*Session, error) {
 		u.log.Printf("ready signal timeout, injecting anyway")
 	}
 
-	u.log.Printf("injecting: %q", prompt)
-	if _, err := stdinPipe.Write([]byte(prompt + "\r")); err != nil {
-		cmd.Process.Kill()
-		<-done
-		return nil, fmt.Errorf("write prompt: %w", err)
-	}
-
 	// The PTY raw bytes arrive in a burst so waitForAll can fire before the
 	// welcome screen finishes rendering. Wait until output goes quiet (input
 	// box is live) before sending the confirmation \r.
@@ -161,16 +174,17 @@ func (u *PtyUsecase) Open(prompt string) (*Session, error) {
 
 	u.log.Printf("session open")
 	return &Session{
-		stdinPipe: stdinPipe,
-		cmd:       cmd,
-		done:      done,
-		readDone:  readDone,
-		out:       out,
+		stdinPipe:  stdinPipe,
+		cmd:        cmd,
+		done:       done,
+		readDone:   readDone,
+		out:        out,
+		promptFile: promptFile,
 	}, nil
 }
 
 func (u *PtyUsecase) RunTest() (entity.Session, error) {
-	sess, err := u.Open("echo hello from lemongrass")
+	sess, err := u.Open("")
 	if err != nil {
 		return entity.Session{}, err
 	}
@@ -179,6 +193,7 @@ func (u *PtyUsecase) RunTest() (entity.Session, error) {
 	return entity.Session{ID: "test", Output: sess.Output()}, nil
 }
 
+// outputBuffer accumulates raw output, logs clean lines, and supports polling.
 type outputBuffer struct {
 	mu        sync.Mutex
 	raw       []byte
@@ -240,6 +255,8 @@ func (o *outputBuffer) waitForAll(signals []string, timeout time.Duration) bool 
 	return false
 }
 
+// waitForIdle returns true once no new bytes have arrived for quiesce duration,
+// or false if maxTimeout is reached first.
 func (o *outputBuffer) waitForIdle(quiesce, maxTimeout time.Duration) bool {
 	deadline := time.Now().Add(maxTimeout)
 	for time.Now().Before(deadline) {
