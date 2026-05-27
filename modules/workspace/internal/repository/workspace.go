@@ -210,6 +210,17 @@ func (r *WorkspaceRepository) ApproveTasks(ctx context.Context, workspaceID stri
 	return err
 }
 
+func (r *WorkspaceRepository) DeleteByProject(ctx context.Context, projectID int64) error {
+	if _, err := r.db.ExecContext(ctx,
+		`DELETE FROM lg_tasks WHERE workspace_id IN (SELECT id FROM lg_workspaces WHERE project_id = $1)`,
+		projectID,
+	); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM lg_workspaces WHERE project_id = $1`, projectID)
+	return err
+}
+
 func nullStr(s string) *string {
 	if s == "" {
 		return nil

@@ -1,6 +1,10 @@
 package workspace
 
 import (
+	"context"
+	"log"
+
+	"github.com/faizalv/lemongrass/bus"
 	"github.com/faizalv/lemongrass/config"
 	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
@@ -28,6 +32,15 @@ func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB, rds *redis.Client) {
 	}
 	w.uc.SetDraftStore(repository.NewDraft(rds))
 	w.h = handler.New(w.uc)
+	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
+		id, ok := payload.(int64)
+		if !ok {
+			return
+		}
+		if err := w.repo.DeleteByProject(context.Background(), id); err != nil {
+			log.Printf("workspace: delete by project %d: %v", id, err)
+		}
+	})
 }
 
 func (w *Workspace) SetLgSession(s *lgclient.SessionManager) {

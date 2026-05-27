@@ -108,7 +108,7 @@ func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string
 	if err := u.repo.UpdateStatus(ctx, workspaceID, "grooming"); err != nil {
 		return err
 	}
-	session, err := u.pty.Open(systemPrompt)
+	session, err := u.pty.Open(systemPrompt, workspaceID, "grooming")
 	if err != nil {
 		u.repo.UpdateStatus(ctx, workspaceID, "idle")
 		return fmt.Errorf("start grooming PTY: %w", err)

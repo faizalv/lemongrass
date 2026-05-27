@@ -33,7 +33,7 @@ func (h *PtyHandler) Send(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "prompt is required"})
 		return
 	}
-	sess, err := h.uc.Open(req.Prompt)
+	sess, err := h.uc.Open(req.Prompt, "", "")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -39,6 +39,8 @@ func (l *Lg) SessionManager() *lgclient.SessionManager {
 func (l *Lg) StartHTTPRouter(rg *gin.RouterGroup) {
 	g := rg.Group("/lg")
 	g.POST("", l.h.Receive)
+	g.POST("/write-trail", l.h.WriteTrail)
+	g.GET("/write-trail", l.h.GetWriteTrail)
 	g.GET("/debug/calls", l.h.Calls)
 	g.POST("/debug/send", l.h.Send)
 }

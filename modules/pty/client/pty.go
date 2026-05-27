@@ -34,8 +34,8 @@ func (s *Session) Close() {
 	s.inner.Close()
 }
 
-func (c *PtyClient) Open(prompt string) (*Session, error) {
-	s, err := c.uc.Open(prompt)
+func (c *PtyClient) Open(prompt, sessionID, sessionType string) (*Session, error) {
+	s, err := c.uc.Open(prompt, sessionID, sessionType)
 	if err != nil {
 		return nil, err
 	}

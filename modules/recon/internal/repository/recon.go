@@ -88,7 +88,10 @@ func (r *ReconRepository) ProjectDir(ctx context.Context, projectID int64) (stri
 }
 
 func (r *ReconRepository) DeleteByProject(ctx context.Context, projectID int64) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM lg_semantic_nodes WHERE project_id = $1`, projectID)
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM lg_semantic_nodes WHERE project_id = $1`, projectID); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM lg_file_hashes WHERE project_id = $1`, projectID)
 	return err
 }
 

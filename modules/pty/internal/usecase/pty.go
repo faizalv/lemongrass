@@ -73,7 +73,7 @@ func (s *Session) Close() {
 	}
 }
 
-func (u *PtyUsecase) Open(systemPrompt string) (*Session, error) {
+func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session, error) {
 	u.log.Printf("session open")
 
 	// write system prompt to a temp file in the runner so we avoid shell
@@ -97,8 +97,15 @@ func (u *PtyUsecase) Open(systemPrompt string) (*Session, error) {
 	// our caller has a real terminal. unbuffer uses Tcl's `interact` which
 	// silently drops input when stdin is a pipe, which is why it didn't work.
 	// -q: suppress start/end messages  -f: flush after every write (real-time)
-	cmd := exec.Command("docker", "exec", "-i", "lg-runner",
-		"script", "-qf", "-c", claudeCmd, "/dev/null")
+	execArgs := []string{"exec", "-i"}
+	if sessionID != "" {
+		execArgs = append(execArgs, "-e", "LG_SESSION_ID="+sessionID)
+	}
+	if sessionType != "" {
+		execArgs = append(execArgs, "-e", "LG_SESSION_TYPE="+sessionType)
+	}
+	execArgs = append(execArgs, "lg-runner", "script", "-qf", "-c", claudeCmd, "/dev/null")
+	cmd := exec.Command("docker", execArgs...)
 
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
@@ -184,7 +191,7 @@ func (u *PtyUsecase) Open(systemPrompt string) (*Session, error) {
 }
 
 func (u *PtyUsecase) RunTest() (entity.Session, error) {
-	sess, err := u.Open("")
+	sess, err := u.Open("", "", "")
 	if err != nil {
 		return entity.Session{}, err
 	}

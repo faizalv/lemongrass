@@ -58,10 +58,21 @@ func writeHookSettings(cfg config.Config) {
 		claudeDir = filepath.Join(config.Dir(), "claude")
 	}
 	settings := `{
+  "permissions": {
+    "allow": ["Write", "Edit"]
+  },
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
+        "hooks": [{"type": "command", "command": "lg-hook"}]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [{"type": "command", "command": "lg-hook"}]
+      },
+      {
+        "matcher": "Read",
         "hooks": [{"type": "command", "command": "lg-hook"}]
       }
     ]

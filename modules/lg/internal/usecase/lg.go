@@ -42,13 +42,14 @@ type activeSession struct {
 }
 
 type LgUsecase struct {
-	pty    *ptyclient.PtyClient
-	recon  reconUsecase
-	tasks  taskWriter
-	mu     sync.Mutex
-	calls  []entity.Call
-	active *activeSession
-	debug  *ptyclient.Session
+	pty        *ptyclient.PtyClient
+	recon      reconUsecase
+	tasks      taskWriter
+	mu         sync.Mutex
+	calls      []entity.Call
+	writeTrail []entity.WriteTrailEntry
+	active     *activeSession
+	debug      *ptyclient.Session
 }
 
 func New(pty *ptyclient.PtyClient) *LgUsecase {
@@ -273,6 +274,32 @@ func (u *LgUsecase) handleHandover(s *activeSession) {
 	u.mu.Unlock()
 }
 
+func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	u.writeTrail = append(u.writeTrail, entity.WriteTrailEntry{
+		SessionID: sessionID,
+		FilePath:  filePath,
+		ByteCount: byteCount,
+		Timestamp: time.Now(),
+	})
+	if len(u.writeTrail) > 200 {
+		u.writeTrail = u.writeTrail[len(u.writeTrail)-200:]
+	}
+}
+
+func (u *LgUsecase) GetWriteTrail(sessionID string) []entity.WriteTrailEntry {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	var out []entity.WriteTrailEntry
+	for _, e := range u.writeTrail {
+		if e.SessionID == sessionID {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 func (u *LgUsecase) ListCalls() []entity.Call {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -301,7 +328,7 @@ func (u *LgUsecase) Send(message string) {
 		u.mu.Unlock()
 
 		if sess == nil {
-			newSess, err := u.pty.Open(debugSystemPrompt)
+			newSess, err := u.pty.Open(debugSystemPrompt, "", "debug")
 			if err != nil {
 				return
 			}

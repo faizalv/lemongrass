@@ -71,15 +71,16 @@ func (h *WorkspaceHandler) createWithText(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
 		return
 	}
-	if strings.TrimSpace(req.Requirement) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "requirement is required"})
-		return
+	reqText := strings.TrimSpace(req.Requirement)
+	reqType := ""
+	if reqText != "" {
+		reqType = "text"
 	}
 	ws, err := h.uc.Create(c.Request.Context(), entity.Workspace{
 		ProjectID:       req.ProjectID,
 		Name:            strings.TrimSpace(req.Name),
-		RequirementText: req.Requirement,
-		RequirementType: "text",
+		RequirementText: reqText,
+		RequirementType: reqType,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
