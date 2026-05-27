@@ -48,6 +48,11 @@ type TaskResponse struct {
 	ApprovedAt  *string         `json:"approved_at,omitempty"`
 }
 
+type TaskDecisionRequest struct {
+	Approved bool   `json:"approved"`
+	Feedback string `json:"feedback"`
+}
+
 func ToTaskResponse(t entity.Task) TaskResponse {
 	r := TaskResponse{
 		ID:          t.ID,

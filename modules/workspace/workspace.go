@@ -20,12 +20,13 @@ type Workspace struct {
 	h         *handler.WorkspaceHandler
 }
 
-func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB, _ *redis.Client) {
+func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB, rds *redis.Client) {
 	w.repo = repository.New(db)
 	w.uc = usecase.New(w.repo)
 	if w.PtyClient != nil {
 		w.uc.SetPty(w.PtyClient)
 	}
+	w.uc.SetDraftStore(repository.NewDraft(rds))
 	w.h = handler.New(w.uc)
 }
 
@@ -46,5 +47,7 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("/:id/groom", w.h.StartGrooming)
 	g.GET("/:id/tasks", w.h.GetTasks)
 	g.POST("/:id/tasks/approve", w.h.ApproveCheckpoint)
-	g.POST("/:id/tasks/reject", w.h.RejectCheckpoint)
+	g.GET("/:id/checkpoint/review/draft", w.h.GetCheckpointDraft)
+	g.PUT("/:id/checkpoint/review/draft/:task_id", w.h.SaveTaskDecision)
+	g.POST("/:id/checkpoint/review", w.h.SubmitCheckpointReviews)
 }

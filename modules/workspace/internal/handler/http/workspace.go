@@ -26,7 +26,9 @@ type usecase interface {
 	StartGrooming(ctx context.Context, workspaceID string) error
 	GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error)
 	ApproveCheckpoint(ctx context.Context, workspaceID string) error
-	RejectCheckpoint(ctx context.Context, workspaceID, feedback string) error
+	SaveTaskDecision(ctx context.Context, workspaceID, taskID string, approved bool, feedback string) error
+	GetCheckpointDraft(ctx context.Context, workspaceID string) (map[string]entity.TaskDecision, error)
+	SubmitCheckpointReviews(ctx context.Context, workspaceID string) error
 }
 
 type WorkspaceHandler struct {
@@ -237,24 +239,42 @@ func (h *WorkspaceHandler) GetTasks(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) ApproveCheckpoint(c *gin.Context) {
-	id := c.Param("id")
-	if err := h.uc.ApproveCheckpoint(c.Request.Context(), id); err != nil {
+	if err := h.uc.ApproveCheckpoint(c.Request.Context(), c.Param("id")); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
 	c.Status(http.StatusOK)
 }
 
-func (h *WorkspaceHandler) RejectCheckpoint(c *gin.Context) {
-	id := c.Param("id")
-	var req struct {
-		Feedback string `json:"feedback"`
-	}
+func (h *WorkspaceHandler) SaveTaskDecision(c *gin.Context) {
+	var req transporter.TaskDecisionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "feedback is required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := h.uc.RejectCheckpoint(c.Request.Context(), id, req.Feedback); err != nil {
+	if !req.Approved && strings.TrimSpace(req.Feedback) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "feedback is required when rejecting"})
+		return
+	}
+	err := h.uc.SaveTaskDecision(c.Request.Context(), c.Param("id"), c.Param("task_id"), req.Approved, req.Feedback)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusOK)
+}
+
+func (h *WorkspaceHandler) GetCheckpointDraft(c *gin.Context) {
+	draft, err := h.uc.GetCheckpointDraft(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, draft)
+}
+
+func (h *WorkspaceHandler) SubmitCheckpointReviews(c *gin.Context) {
+	if err := h.uc.SubmitCheckpointReviews(c.Request.Context(), c.Param("id")); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}

@@ -157,7 +157,7 @@ func toTaskEntity(r taskRecord) entity.Task {
 
 func (r *WorkspaceRepository) CreateTasks(ctx context.Context, workspaceID string, tasks []entity.Task) ([]entity.Task, error) {
 	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM lg_tasks WHERE workspace_id = $1 AND status = 'pending'`,
+		`DELETE FROM lg_tasks WHERE workspace_id = $1`,
 		workspaceID,
 	)
 	if err != nil {
@@ -205,14 +205,6 @@ func (r *WorkspaceRepository) ApproveTasks(ctx context.Context, workspaceID stri
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE lg_tasks SET status = 'approved', approved_at = NOW()
 		 WHERE workspace_id = $1 AND status = 'pending'`,
-		workspaceID,
-	)
-	return err
-}
-
-func (r *WorkspaceRepository) DeletePendingTasks(ctx context.Context, workspaceID string) error {
-	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM lg_tasks WHERE workspace_id = $1 AND status = 'pending'`,
 		workspaceID,
 	)
 	return err

@@ -63,43 +63,52 @@
         </div>
 
         <!-- Checkpoint review -->
-        <div v-else-if="phase === 'checkpoint'" class="fade-in" style="max-width:760px;margin:24px auto 0;padding:0 32px 80px">
+        <div v-else-if="phase === 'checkpoint'" class="fade-in" style="max-width:760px;margin:24px auto 0;padding:0 32px 100px">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
             <div :style="phaseTitle">Task proposal ready</div>
-            <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:#717171">{{ apiTasks.length }} task{{ apiTasks.length !== 1 ? 's' : '' }}</div>
+            <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:#717171">{{ checkpointDecidedCount }}/{{ apiTasks.length }} decided</div>
           </div>
-          <div :style="phaseSub">Review the plan below. Approve to let the model hand off to execution, or reject with feedback to have it revise.</div>
+          <div :style="phaseSub">Approve or reject each task individually. All tasks need a decision before you can submit.</div>
 
           <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
-            <div v-for="(task, i) in apiTasks" :key="task.id" :style="checkpointCard">
+            <div v-for="(task, i) in apiTasks" :key="task.id" :style="checkpointTaskCard(task.id)">
               <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
                 <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#555;flex-shrink:0">{{ i + 1 }}</span>
-                <div style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:#E0E0E0">{{ task.title }}</div>
+                <div style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:#E0E0E0;flex:1">{{ task.title }}</div>
+                <div style="display:flex;gap:6px;flex-shrink:0">
+                  <button :style="taskDecisionBtn('approve', taskDecisions[task.id]?.approved === true)" @click="setTaskDecision(task.id, true, '')">
+                    <AppIcon name="check" :size="12" /> Approve
+                  </button>
+                  <button :style="taskDecisionBtn('reject', taskDecisions[task.id]?.approved === false)" @click="setTaskDecision(task.id, false, taskDecisions[task.id]?.feedback ?? '')">
+                    Reject
+                  </button>
+                </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;padding-left:22px">
                 <div v-for="(item, j) in task.impl" :key="j" style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11.5px;color:#9A9A9A;line-height:1.6">{{ item }}</div>
               </div>
+              <div v-if="taskDecisions[task.id]?.approved === false" style="padding-left:22px;margin-top:10px">
+                <textarea
+                  :value="taskDecisions[task.id]?.feedback ?? ''"
+                  :style="feedbackArea"
+                  placeholder="What should change? (required)"
+                  rows="2"
+                  @input="e => updateTaskFeedback(task.id, (e.target as HTMLTextAreaElement).value)"
+                />
+              </div>
             </div>
           </div>
 
-          <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;display:flex;flex-direction:column;gap:10px">
+          <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;display:flex;gap:10px">
             <button :disabled="checkpointLoading" :style="approveBtn" @click="handleApprove">
               <AppIcon name="check" :size="14" />
-              {{ checkpointLoading ? 'Processing…' : 'Approve plan' }}
+              {{ checkpointLoading ? 'Processing…' : 'Approve all' }}
             </button>
-            <div style="display:flex;gap:8px;align-items:flex-start">
-              <textarea
-                v-model="checkpointFeedback"
-                :style="feedbackArea"
-                placeholder="Describe what to change (required to reject)…"
-                rows="3"
-              />
-              <button
-                :disabled="checkpointLoading || !checkpointFeedback.trim()"
-                :style="rejectBtn(!!checkpointFeedback.trim())"
-                @click="handleReject"
-              >Reject</button>
-            </div>
+            <button
+              :disabled="checkpointLoading || !canSubmitReviews"
+              :style="submitReviewsBtn(canSubmitReviews)"
+              @click="handleSubmitReviews"
+            >Submit reviews</button>
           </div>
         </div>
 
@@ -243,8 +252,8 @@ const phase = ref<ExtendedPhase>('idle')
 // Real API state
 const apiTasks = ref<ApiTask[]>([])
 const groomError = ref('')
-const checkpointFeedback = ref('')
 const checkpointLoading = ref(false)
+const taskDecisions = ref<Record<string, { approved: boolean; feedback: string }>>({})
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
@@ -273,9 +282,46 @@ async function pollTasks() {
     const pending = tasks.filter(t => t.status === 'pending')
     if (pending.length > 0) {
       apiTasks.value = pending
+      taskDecisions.value = {}
+      await loadCheckpointDraft()
       phase.value = 'checkpoint'
       stopPolling()
     }
+  } catch { /* ignore */ }
+}
+
+async function loadCheckpointDraft() {
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/checkpoint/review/draft`)
+    if (!r.ok) return
+    const draft: Record<string, { Approved: boolean; Feedback: string }> = await r.json()
+    for (const [taskID, d] of Object.entries(draft)) {
+      taskDecisions.value[taskID] = { approved: d.Approved, feedback: d.Feedback }
+    }
+  } catch { /* ignore */ }
+}
+
+async function setTaskDecision(taskID: string, approved: boolean, feedback: string) {
+  taskDecisions.value = { ...taskDecisions.value, [taskID]: { approved, feedback } }
+  try {
+    await fetch(`/api/workspaces/${props.workspace.id}/checkpoint/review/draft/${taskID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved, feedback }),
+    })
+  } catch { /* ignore -- draft is best-effort */ }
+}
+
+async function updateTaskFeedback(taskID: string, feedback: string) {
+  const prev = taskDecisions.value[taskID]
+  if (!prev || prev.approved) return
+  taskDecisions.value = { ...taskDecisions.value, [taskID]: { approved: false, feedback } }
+  try {
+    await fetch(`/api/workspaces/${props.workspace.id}/checkpoint/review/draft/${taskID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved: false, feedback }),
+    })
   } catch { /* ignore */ }
 }
 
@@ -284,26 +330,23 @@ async function handleApprove() {
   try {
     const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks/approve`, { method: 'POST' })
     if (r.ok) {
-      phase.value = 'awaiting_execution'
       apiTasks.value = []
+      taskDecisions.value = {}
+      phase.value = 'awaiting_execution'
     }
   } finally {
     checkpointLoading.value = false
   }
 }
 
-async function handleReject() {
-  if (!checkpointFeedback.value.trim()) return
+async function handleSubmitReviews() {
+  if (!canSubmitReviews.value) return
   checkpointLoading.value = true
   try {
-    const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks/reject`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ feedback: checkpointFeedback.value }),
-    })
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/checkpoint/review`, { method: 'POST' })
     if (r.ok) {
-      checkpointFeedback.value = ''
       apiTasks.value = []
+      taskDecisions.value = {}
       phase.value = 'grooming_live'
       startPolling()
     }
@@ -433,6 +476,21 @@ watch([batchMode, committing, () => committed.value.length], () => {
   }
 })
 
+// ── Checkpoint derived ───────────────────────────────
+const checkpointDecidedCount = computed(() =>
+  apiTasks.value.filter(t => taskDecisions.value[t.id] !== undefined).length
+)
+
+const canSubmitReviews = computed(() => {
+  if (apiTasks.value.length === 0) return false
+  const allDecided = apiTasks.value.every(t => taskDecisions.value[t.id] !== undefined)
+  const anyRejected = apiTasks.value.some(t => taskDecisions.value[t.id]?.approved === false)
+  const rejectionsValid = apiTasks.value
+    .filter(t => taskDecisions.value[t.id]?.approved === false)
+    .every(t => taskDecisions.value[t.id].feedback.trim().length > 0)
+  return allDecided && anyRejected && rejectionsValid
+})
+
 // ── Derived ──────────────────────────────────────────
 const tabHasLeftPanel = computed(() => committed.value.length > 0 || !!committing.value)
 
@@ -531,10 +589,20 @@ function handleGenerateAll() {
 
 // Styles
 const emptyIcon   = { width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-const checkpointCard = { padding: '16px 18px', background: '#111', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px' }
+const checkpointTaskCard = (taskID: string) => {
+  const d = taskDecisions.value[taskID]
+  const border = d === undefined ? 'rgba(255,255,255,0.07)' : d.approved ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.25)'
+  return { padding: '16px 18px', background: '#111', border: `1px solid ${border}`, borderRadius: '10px', transition: 'border-color 0.15s' }
+}
 const approveBtn = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#4ADE80', color: '#0A0A0A', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 700 }
-const rejectBtn = (enabled: boolean) => ({ padding: '10px 16px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? '#F87171' : '#555', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 600, flexShrink: 0 })
-const feedbackArea = { flex: 1, background: '#111', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '7px', color: '#D4D4D4', padding: '10px 14px', fontSize: '13px', fontFamily: "'DM Sans',sans-serif", outline: 'none', resize: 'vertical' }
+const submitReviewsBtn = (enabled: boolean) => ({ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? '#F87171' : '#555', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 600 })
+const taskDecisionBtn = (type: 'approve' | 'reject', active: boolean) => ({
+  display: 'inline-flex', alignItems: 'center', gap: '5px',
+  padding: '4px 10px', borderRadius: '5px', fontSize: '12px', fontFamily: "'DM Sans',sans-serif", fontWeight: 600, cursor: 'pointer', border: 'none',
+  background: active ? (type === 'approve' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)') : 'rgba(255,255,255,0.05)',
+  color: active ? (type === 'approve' ? '#4ADE80' : '#F87171') : '#717171',
+})
+const feedbackArea = { width: '100%', boxSizing: 'border-box' as const, background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', color: '#D4D4D4', padding: '8px 12px', fontSize: '12.5px', fontFamily: "'DM Sans',sans-serif", outline: 'none', resize: 'vertical' as const }
 const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: '#0C0C0C' }
 const leftPanelHeader = { padding: '18px 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }
 const leftPanelTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#717171', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }

@@ -26,3 +26,8 @@ type Task struct {
 	CreatedAt   time.Time
 	ApprovedAt  *time.Time
 }
+
+type TaskDecision struct {
+	Approved bool
+	Feedback string
+}

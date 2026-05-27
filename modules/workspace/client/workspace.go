@@ -19,10 +19,6 @@ func (c *WorkspaceTaskClient) CreateTasks(ctx context.Context, workspaceID strin
 	return c.repo.CreateTasks(ctx, workspaceID, tasks)
 }
 
-func (c *WorkspaceTaskClient) DeletePendingTasks(ctx context.Context, workspaceID string) error {
-	return c.repo.DeletePendingTasks(ctx, workspaceID)
-}
-
 func (c *WorkspaceTaskClient) UpdateStatus(ctx context.Context, id, status string) error {
 	return c.repo.UpdateStatus(ctx, id, status)
 }

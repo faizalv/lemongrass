@@ -26,13 +26,11 @@ type reconUsecase interface {
 
 type taskWriter interface {
 	CreateTasks(ctx context.Context, workspaceID string, tasks []wsentity.Task) ([]wsentity.Task, error)
-	DeletePendingTasks(ctx context.Context, workspaceID string) error
 	UpdateStatus(ctx context.Context, id, status string) error
 }
 
 type checkpointResult struct {
-	approved bool
-	feedback string
+	rejections map[string]string // task UUID -> feedback; empty = all approved
 }
 
 type activeSession struct {
@@ -83,7 +81,7 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias string, projectID 
 	}
 }
 
-func (u *LgUsecase) RespondToCheckpoint(approved bool, feedback string) error {
+func (u *LgUsecase) RespondToCheckpoint(rejections map[string]string) error {
 	u.mu.Lock()
 	s := u.active
 	u.mu.Unlock()
@@ -91,7 +89,7 @@ func (u *LgUsecase) RespondToCheckpoint(approved bool, feedback string) error {
 		return fmt.Errorf("no active grooming session")
 	}
 	select {
-	case s.checkpointCh <- checkpointResult{approved: approved, feedback: feedback}:
+	case s.checkpointCh <- checkpointResult{rejections: rejections}:
 		return nil
 	default:
 		return fmt.Errorf("no pending checkpoint")
@@ -244,15 +242,23 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 			Impl:        implJSON,
 		}
 	}
-	if _, err := u.tasks.CreateTasks(ctx, s.workspaceID, tasks); err != nil {
+	created, err := u.tasks.CreateTasks(ctx, s.workspaceID, tasks)
+	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
 
 	result := <-s.checkpointCh
-	if result.approved {
+	if len(result.rejections) == 0 {
 		return "approved"
 	}
-	return "rejected: " + result.feedback
+	var sb strings.Builder
+	sb.WriteString("rejected:\n")
+	for i, t := range created {
+		if feedback, ok := result.rejections[t.ID]; ok {
+			sb.WriteString(fmt.Sprintf("%d: %q -- %s\n", i+1, t.Title, feedback))
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 func (u *LgUsecase) handleHandover(s *activeSession) {
