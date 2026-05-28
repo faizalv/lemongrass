@@ -6,15 +6,22 @@ import (
 )
 
 type Workspace struct {
-	ID              string
-	ProjectID       int64
-	Name            string
-	Status          string // idle | grooming | awaiting_execution | executing | done
-	RequirementText string
-	RequirementFile string
-	RequirementType string // text | pdf | image
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID        string
+	ProjectID int64
+	Name      string
+	Status    string // idle | grooming | awaiting_execution | executing | done
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type WorkspaceRequirement struct {
+	ID          string
+	WorkspaceID string
+	Type        string // text | pdf | image
+	TextContent string
+	FilePath    string
+	FileName    string
+	CreatedAt   time.Time
 }
 
 type Task struct {

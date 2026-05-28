@@ -110,8 +110,11 @@ func (u *LgUsecase) Handle(cmd, args string, blocking bool) string {
 		return args
 	}
 
-	if s == nil || u.recon == nil {
-		return ""
+	if s == nil {
+		return "error: no active grooming session"
+	}
+	if u.recon == nil {
+		return "error: recon not available"
 	}
 
 	ctx := context.Background()

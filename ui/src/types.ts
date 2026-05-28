@@ -26,9 +26,15 @@ export interface Workspace {
   name: string
   icon?: string
   status?: WorkspaceStatus
-  requirement_type?: 'text' | 'pdf' | 'image'
-  requirement_text?: string
-  requirement_file?: string
+}
+
+export interface WorkspaceRequirement {
+  id: string
+  workspace_id: string
+  type: 'text' | 'pdf' | 'image'
+  text_content?: string
+  file_name?: string
+  created_at: string
 }
 
 export type StepStatus = 'ok' | 'miss' | 'pending'

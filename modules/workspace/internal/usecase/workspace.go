@@ -15,13 +15,17 @@ type repo interface {
 	Create(ctx context.Context, ws entity.Workspace) (entity.Workspace, error)
 	Get(ctx context.Context, id string) (entity.Workspace, error)
 	ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error)
-	UpdateRequirement(ctx context.Context, id, text, file, reqType string) error
 	CountExecuting(ctx context.Context, projectID int64) (int, error)
 	UpdateStatus(ctx context.Context, id, status string) error
 	GetProjectPath(ctx context.Context, projectID int64) (string, error)
 	CreateTasks(ctx context.Context, workspaceID string, tasks []entity.Task) ([]entity.Task, error)
 	GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error)
 	ApproveTasks(ctx context.Context, workspaceID string) error
+	ListRequirements(ctx context.Context, workspaceID string) ([]entity.WorkspaceRequirement, error)
+	AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error)
+	AddFileRequirement(ctx context.Context, workspaceID, reqType, filePath, fileName string) (entity.WorkspaceRequirement, error)
+	DeleteRequirement(ctx context.Context, reqID string) error
+	CountRequirements(ctx context.Context, workspaceID string) (int, error)
 }
 
 type draftStore interface {
@@ -70,23 +74,49 @@ func (u *WorkspaceUsecase) ListByProject(ctx context.Context, projectID int64) (
 	return u.repo.ListByProject(ctx, projectID)
 }
 
-func (u *WorkspaceUsecase) ReplaceRequirement(ctx context.Context, id, text, file, reqType string) error {
-	ws, err := u.repo.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-	if ws.Status == "grooming" || ws.Status == "executing" {
-		return fmt.Errorf("cannot replace requirement while workspace is %s", ws.Status)
-	}
-	return u.repo.UpdateRequirement(ctx, id, text, file, reqType)
-}
-
 func (u *WorkspaceUsecase) IsExecutionLocked(ctx context.Context, projectID int64) (bool, error) {
 	n, err := u.repo.CountExecuting(ctx, projectID)
 	if err != nil {
 		return false, err
 	}
 	return n > 0, nil
+}
+
+func (u *WorkspaceUsecase) ListRequirements(ctx context.Context, workspaceID string) ([]entity.WorkspaceRequirement, error) {
+	return u.repo.ListRequirements(ctx, workspaceID)
+}
+
+func (u *WorkspaceUsecase) AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error) {
+	ws, err := u.repo.Get(ctx, workspaceID)
+	if err != nil {
+		return entity.WorkspaceRequirement{}, err
+	}
+	if ws.Status != "idle" {
+		return entity.WorkspaceRequirement{}, fmt.Errorf("requirements locked while workspace is %s", ws.Status)
+	}
+	return u.repo.AddTextRequirement(ctx, workspaceID, text)
+}
+
+func (u *WorkspaceUsecase) AddFileRequirement(ctx context.Context, workspaceID, reqType, filePath, fileName string) (entity.WorkspaceRequirement, error) {
+	ws, err := u.repo.Get(ctx, workspaceID)
+	if err != nil {
+		return entity.WorkspaceRequirement{}, err
+	}
+	if ws.Status != "idle" {
+		return entity.WorkspaceRequirement{}, fmt.Errorf("requirements locked while workspace is %s", ws.Status)
+	}
+	return u.repo.AddFileRequirement(ctx, workspaceID, reqType, filePath, fileName)
+}
+
+func (u *WorkspaceUsecase) DeleteRequirement(ctx context.Context, workspaceID, reqID string) error {
+	ws, err := u.repo.Get(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if ws.Status != "idle" {
+		return fmt.Errorf("requirements locked while workspace is %s", ws.Status)
+	}
+	return u.repo.DeleteRequirement(ctx, reqID)
 }
 
 func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string) error {
@@ -100,11 +130,22 @@ func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string
 	if ws.Status != "idle" {
 		return fmt.Errorf("workspace is %s, must be idle to start grooming", ws.Status)
 	}
+	count, err := u.repo.CountRequirements(ctx, workspaceID)
+	if err != nil {
+		return fmt.Errorf("check requirements: %w", err)
+	}
+	if count == 0 {
+		return fmt.Errorf("no requirements added; add at least one before grooming")
+	}
 	projectPath, err := u.repo.GetProjectPath(ctx, ws.ProjectID)
 	if err != nil {
 		return fmt.Errorf("project not found: %w", err)
 	}
-	systemPrompt := buildGroomingPrompt(ws, projectPath)
+	requirements, err := u.repo.ListRequirements(ctx, workspaceID)
+	if err != nil {
+		return fmt.Errorf("load requirements: %w", err)
+	}
+	systemPrompt := buildGroomingPrompt(requirements, projectPath)
 	if err := u.repo.UpdateStatus(ctx, workspaceID, "grooming"); err != nil {
 		return err
 	}
@@ -115,6 +156,7 @@ func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string
 	}
 	alias := filepath.Base(projectPath)
 	u.lgSess.RegisterSession(workspaceID, alias, ws.ProjectID, session)
+	session.Write([]byte("Begin grooming.\r"))
 	return nil
 }
 
@@ -185,7 +227,7 @@ func (u *WorkspaceUsecase) SubmitCheckpointReviews(ctx context.Context, workspac
 	return u.lgSess.RespondToCheckpoint(rejections)
 }
 
-func buildGroomingPrompt(ws entity.Workspace, projectPath string) string {
+func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath string) string {
 	const tmpl = `Grooming model inside Lemongrass. Understand requirements, reason about codebase using semantic map, produce task list for execution model. No code generation.
 
 Requirements:
@@ -219,16 +261,23 @@ Annotate every node you read -- semantic map shared across all sessions.
 #lg.echo <message> as Bash tool call to surface blockers to user (# is hook trigger, not a comment).
 #lg!.handover only after #lg.tasks.checkpoint returns approved.`
 
-	requirement := ws.RequirementText
-	if ws.RequirementType == "pdf" || ws.RequirementType == "image" {
-		alias := filepath.Base(projectPath)
-		_ = alias
-		runnerPath := "/home/lg/.lemongrass/workspaces/" + ws.ID + "/" + ws.RequirementFile
-		if ws.RequirementType == "pdf" {
-			requirement = "Your requirements are in the file at: " + runnerPath
-		} else {
-			requirement = "Your requirements are in the image file at: " + runnerPath
+	var sb strings.Builder
+	for i, r := range requirements {
+		if len(requirements) > 1 {
+			fmt.Fprintf(&sb, "[Requirement %d]\n", i+1)
+		}
+		switch r.Type {
+		case "text":
+			sb.WriteString(r.TextContent)
+		case "pdf":
+			sb.WriteString("Your requirements are in the file at: /home/lg/.lemongrass/workspaces/" + r.WorkspaceID + "/" + r.FilePath)
+		case "image":
+			sb.WriteString("Your requirements are in the image file at: /home/lg/.lemongrass/workspaces/" + r.WorkspaceID + "/" + r.FilePath)
+		}
+		if i < len(requirements)-1 {
+			sb.WriteString("\n\n")
 		}
 	}
-	return fmt.Sprintf(strings.TrimSpace(tmpl), requirement)
+
+	return fmt.Sprintf(strings.TrimSpace(tmpl), sb.String())
 }

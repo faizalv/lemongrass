@@ -178,8 +178,7 @@ func forwardToServer(rest string, blocking bool) {
 	resp, err := client.Post(lgServerURL(), "application/json", bytes.NewReader(body))
 	if err != nil {
 		if blocking {
-			fmt.Fprintf(os.Stderr, "lg-hook: %v", err)
-			fmt.Print("error: lg-server unreachable")
+			fmt.Printf("error: lg-server unreachable (%v)", err)
 		}
 		os.Exit(2)
 	}
@@ -187,10 +186,13 @@ func forwardToServer(rest string, blocking bool) {
 
 	if blocking {
 		var r lgResponse
-		if err := json.NewDecoder(resp.Body).Decode(&r); err == nil && r.Text != "" {
+		if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+			fmt.Printf("error: could not parse server response: %v", err)
+		} else if r.Text == "" {
+			fmt.Print("error: server returned empty response -- session may not be active")
+		} else {
 			fmt.Print(r.Text)
 		}
-		fmt.Fprint(os.Stderr, "ok")
 	}
 	os.Exit(2)
 }

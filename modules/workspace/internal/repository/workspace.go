@@ -10,19 +10,16 @@ import (
 )
 
 type workspaceRecord struct {
-	ID              string    `db:"id"`
-	ProjectID       int64     `db:"project_id"`
-	Name            string    `db:"name"`
-	Status          string    `db:"status"`
-	RequirementText *string   `db:"requirement_text"`
-	RequirementFile *string   `db:"requirement_file"`
-	RequirementType *string   `db:"requirement_type"`
-	CreatedAt       time.Time `db:"created_at"`
-	UpdatedAt       time.Time `db:"updated_at"`
+	ID        string    `db:"id"`
+	ProjectID int64     `db:"project_id"`
+	Name      string    `db:"name"`
+	Status    string    `db:"status"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
 
 func toEntity(r workspaceRecord) entity.Workspace {
-	ws := entity.Workspace{
+	return entity.Workspace{
 		ID:        r.ID,
 		ProjectID: r.ProjectID,
 		Name:      r.Name,
@@ -30,16 +27,6 @@ func toEntity(r workspaceRecord) entity.Workspace {
 		CreatedAt: r.CreatedAt,
 		UpdatedAt: r.UpdatedAt,
 	}
-	if r.RequirementText != nil {
-		ws.RequirementText = *r.RequirementText
-	}
-	if r.RequirementFile != nil {
-		ws.RequirementFile = *r.RequirementFile
-	}
-	if r.RequirementType != nil {
-		ws.RequirementType = *r.RequirementType
-	}
-	return ws
 }
 
 type WorkspaceRepository struct {
@@ -53,14 +40,11 @@ func New(db *sqlx.DB) *WorkspaceRepository {
 func (r *WorkspaceRepository) Create(ctx context.Context, ws entity.Workspace) (entity.Workspace, error) {
 	var rec workspaceRecord
 	err := r.db.QueryRowxContext(ctx,
-		`INSERT INTO lg_workspaces (project_id, name, requirement_text, requirement_file, requirement_type)
-		 VALUES ($1, $2, $3, $4, $5)
-		 RETURNING id, project_id, name, status, requirement_text, requirement_file, requirement_type, created_at, updated_at`,
+		`INSERT INTO lg_workspaces (project_id, name)
+		 VALUES ($1, $2)
+		 RETURNING id, project_id, name, status, created_at, updated_at`,
 		ws.ProjectID,
 		ws.Name,
-		nullStr(ws.RequirementText),
-		nullStr(ws.RequirementFile),
-		nullStr(ws.RequirementType),
 	).StructScan(&rec)
 	if err != nil {
 		return entity.Workspace{}, err
@@ -71,7 +55,7 @@ func (r *WorkspaceRepository) Create(ctx context.Context, ws entity.Workspace) (
 func (r *WorkspaceRepository) Get(ctx context.Context, id string) (entity.Workspace, error) {
 	var rec workspaceRecord
 	err := r.db.QueryRowxContext(ctx,
-		`SELECT id, project_id, name, status, requirement_text, requirement_file, requirement_type, created_at, updated_at
+		`SELECT id, project_id, name, status, created_at, updated_at
 		 FROM lg_workspaces WHERE id = $1`,
 		id,
 	).StructScan(&rec)
@@ -84,7 +68,7 @@ func (r *WorkspaceRepository) Get(ctx context.Context, id string) (entity.Worksp
 func (r *WorkspaceRepository) ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error) {
 	var recs []workspaceRecord
 	err := r.db.SelectContext(ctx, &recs,
-		`SELECT id, project_id, name, status, requirement_text, requirement_file, requirement_type, created_at, updated_at
+		`SELECT id, project_id, name, status, created_at, updated_at
 		 FROM lg_workspaces WHERE project_id = $1 ORDER BY created_at DESC`,
 		projectID,
 	)
@@ -96,16 +80,6 @@ func (r *WorkspaceRepository) ListByProject(ctx context.Context, projectID int64
 		out[i] = toEntity(rec)
 	}
 	return out, nil
-}
-
-func (r *WorkspaceRepository) UpdateRequirement(ctx context.Context, id, text, file, reqType string) error {
-	_, err := r.db.ExecContext(ctx,
-		`UPDATE lg_workspaces
-		 SET requirement_text = $1, requirement_file = $2, requirement_type = $3, updated_at = NOW()
-		 WHERE id = $4`,
-		nullStr(text), nullStr(file), nullStr(reqType), id,
-	)
-	return err
 }
 
 func (r *WorkspaceRepository) CountExecuting(ctx context.Context, projectID int64) (int, error) {
@@ -132,6 +106,98 @@ func (r *WorkspaceRepository) GetProjectPath(ctx context.Context, projectID int6
 	).Scan(&path)
 	return path, err
 }
+
+// -- Requirements --
+
+type requirementRecord struct {
+	ID          string    `db:"id"`
+	WorkspaceID string    `db:"workspace_id"`
+	Type        string    `db:"type"`
+	TextContent *string   `db:"text_content"`
+	FilePath    *string   `db:"file_path"`
+	FileName    *string   `db:"file_name"`
+	CreatedAt   time.Time `db:"created_at"`
+}
+
+func toRequirementEntity(r requirementRecord) entity.WorkspaceRequirement {
+	req := entity.WorkspaceRequirement{
+		ID:          r.ID,
+		WorkspaceID: r.WorkspaceID,
+		Type:        r.Type,
+		CreatedAt:   r.CreatedAt,
+	}
+	if r.TextContent != nil {
+		req.TextContent = *r.TextContent
+	}
+	if r.FilePath != nil {
+		req.FilePath = *r.FilePath
+	}
+	if r.FileName != nil {
+		req.FileName = *r.FileName
+	}
+	return req
+}
+
+func (r *WorkspaceRepository) ListRequirements(ctx context.Context, workspaceID string) ([]entity.WorkspaceRequirement, error) {
+	var recs []requirementRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, workspace_id, type, text_content, file_path, file_name, created_at
+		 FROM lg_workspace_requirements WHERE workspace_id = $1 ORDER BY created_at ASC`,
+		workspaceID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]entity.WorkspaceRequirement, len(recs))
+	for i, rec := range recs {
+		out[i] = toRequirementEntity(rec)
+	}
+	return out, nil
+}
+
+func (r *WorkspaceRepository) AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error) {
+	var rec requirementRecord
+	err := r.db.QueryRowxContext(ctx,
+		`INSERT INTO lg_workspace_requirements (workspace_id, type, text_content)
+		 VALUES ($1, 'text', $2)
+		 RETURNING id, workspace_id, type, text_content, file_path, file_name, created_at`,
+		workspaceID, text,
+	).StructScan(&rec)
+	if err != nil {
+		return entity.WorkspaceRequirement{}, err
+	}
+	return toRequirementEntity(rec), nil
+}
+
+func (r *WorkspaceRepository) AddFileRequirement(ctx context.Context, workspaceID, reqType, filePath, fileName string) (entity.WorkspaceRequirement, error) {
+	var rec requirementRecord
+	err := r.db.QueryRowxContext(ctx,
+		`INSERT INTO lg_workspace_requirements (workspace_id, type, file_path, file_name)
+		 VALUES ($1, $2, $3, $4)
+		 RETURNING id, workspace_id, type, text_content, file_path, file_name, created_at`,
+		workspaceID, reqType, filePath, fileName,
+	).StructScan(&rec)
+	if err != nil {
+		return entity.WorkspaceRequirement{}, err
+	}
+	return toRequirementEntity(rec), nil
+}
+
+func (r *WorkspaceRepository) DeleteRequirement(ctx context.Context, reqID string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM lg_workspace_requirements WHERE id = $1`, reqID)
+	return err
+}
+
+func (r *WorkspaceRepository) CountRequirements(ctx context.Context, workspaceID string) (int, error) {
+	var count int
+	err := r.db.QueryRowxContext(ctx,
+		`SELECT COUNT(*) FROM lg_workspace_requirements WHERE workspace_id = $1`,
+		workspaceID,
+	).Scan(&count)
+	return count, err
+}
+
+// -- Tasks --
 
 type taskRecord struct {
 	ID          string          `db:"id"`

@@ -74,7 +74,7 @@ func (s *Session) Close() {
 }
 
 func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session, error) {
-	u.log.Printf("session open")
+	u.log.Printf("open: sessionID=%q sessionType=%q promptLen=%d", sessionID, sessionType, len(systemPrompt))
 
 	// write system prompt to a temp file in the runner so we avoid shell
 	// escaping entirely, then reference it via $(cat ...) in the claude command.
@@ -83,12 +83,20 @@ func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session
 	claudeCmd := "claude"
 	if systemPrompt != "" {
 		promptFile = fmt.Sprintf("/tmp/lg-prompt-%d.txt", time.Now().UnixNano())
+		preview := systemPrompt
+		if len(preview) > 300 {
+			preview = preview[:300] + "…"
+		}
+		u.log.Printf("writing system prompt to %s (%d bytes)", promptFile, len(systemPrompt))
+		u.log.Printf("prompt preview: %s", strings.ReplaceAll(preview, "\n", "\\n"))
+		t0 := time.Now()
 		writeCmd := exec.Command("docker", "exec", "-i", "lg-runner",
 			"sh", "-c", fmt.Sprintf("cat > %s", promptFile))
 		writeCmd.Stdin = strings.NewReader(systemPrompt)
 		if err := writeCmd.Run(); err != nil {
 			return nil, fmt.Errorf("write system prompt: %w", err)
 		}
+		u.log.Printf("system prompt written OK (%.0fms)", float64(time.Since(t0).Milliseconds()))
 		claudeCmd = fmt.Sprintf(`claude --append-system-prompt "$(cat %s)"`, promptFile)
 	}
 
@@ -100,11 +108,14 @@ func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session
 	execArgs := []string{"exec", "-i"}
 	if sessionID != "" {
 		execArgs = append(execArgs, "-e", "LG_SESSION_ID="+sessionID)
+		u.log.Printf("env: LG_SESSION_ID=%s", sessionID)
 	}
 	if sessionType != "" {
 		execArgs = append(execArgs, "-e", "LG_SESSION_TYPE="+sessionType)
+		u.log.Printf("env: LG_SESSION_TYPE=%s", sessionType)
 	}
 	execArgs = append(execArgs, "lg-runner", "script", "-qf", "-c", claudeCmd, "/dev/null")
+	u.log.Printf("exec: docker %s", strings.Join(execArgs, " "))
 	cmd := exec.Command("docker", execArgs...)
 
 	stdinPipe, err := cmd.StdinPipe()
@@ -149,12 +160,13 @@ func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session
 	// Claude shows a "trust this folder" prompt on first run in a directory.
 	// Detect it and press Enter to accept before sending the real prompt.
 	u.log.Printf("waiting for trust prompt (up to 10s)...")
+	t1 := time.Now()
 	if out.waitFor("trust", 10*time.Second) {
-		u.log.Printf("trust prompt detected, pressing Enter")
+		u.log.Printf("trust prompt detected (%.0fms), pressing Enter", float64(time.Since(t1).Milliseconds()))
 		stdinPipe.Write([]byte("\r"))
 		time.Sleep(500 * time.Millisecond)
 	} else {
-		u.log.Printf("no trust prompt seen, continuing")
+		u.log.Printf("no trust prompt seen (%.0fms), continuing", float64(time.Since(t1).Milliseconds()))
 	}
 
 	// Wait until claude's shell is ready; any of these strings means it's at
@@ -165,21 +177,23 @@ func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session
 	// draws (confirmed from log output).
 	readySignals := []string{"forshortcuts", "Welcomeback", "ClaudeCode"}
 	u.log.Printf("waiting for claude ready (need all 3 signals)...")
+	t2 := time.Now()
 	if ok := out.waitForAll(readySignals, 30*time.Second); ok {
-		u.log.Printf("claude ready (all signals detected)")
+		u.log.Printf("claude ready (all signals detected, %.0fms)", float64(time.Since(t2).Milliseconds()))
 	} else {
-		u.log.Printf("ready signal timeout, injecting anyway")
+		u.log.Printf("ready signal timeout after %.0fms, injecting anyway", float64(time.Since(t2).Milliseconds()))
 	}
 
 	// The PTY raw bytes arrive in a burst so waitForAll can fire before the
 	// welcome screen finishes rendering. Wait until output goes quiet (input
 	// box is live) before sending the confirmation \r.
 	u.log.Printf("waiting for welcome screen to settle (idle 2s, max 20s)...")
+	t3 := time.Now()
 	out.waitForIdle(2*time.Second, 20*time.Second)
-	u.log.Printf("sending confirmation \\r")
+	u.log.Printf("screen settled (%.0fms), sending confirmation \\r", float64(time.Since(t3).Milliseconds()))
 	stdinPipe.Write([]byte("\r"))
 
-	u.log.Printf("session open")
+	u.log.Printf("session ready")
 	return &Session{
 		stdinPipe:  stdinPipe,
 		cmd:        cmd,

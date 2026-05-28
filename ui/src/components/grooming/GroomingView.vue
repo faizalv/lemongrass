@@ -27,7 +27,7 @@
     <!-- MAIN area -->
     <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#0A0A0A">
       <!-- Done banner -->
-      <DoneBanner v-if="phase === 'done'" @reset="reset" @continue="$emit('jump-tab', 'planning')" />
+      <DoneBanner v-if="phase === 'done'" @reset="reset" @continue="$emit('jump-tab', 'execution')" />
 
       <!-- Detail viewer when a detail is selected -->
       <ImplDetailView
@@ -42,11 +42,10 @@
         <!-- Idle -->
         <IdlePanel
           v-if="phase === 'idle'"
-          v-model="requirement"
-          :attachments="attachments"
+          :workspace-id="workspace.id"
+          :locked="false"
+          :starting="startPending"
           @start="handleStart"
-          @attach="handleAttach"
-          @use-sample="requirement = SAMPLE_REQUIREMENT"
         >
           <template v-if="groomError" #error>
             <div style="font-size:12px;color:#F87171;margin-top:8px;font-family:'DM Sans',sans-serif">{{ groomError }}</div>
@@ -71,32 +70,13 @@
           <div :style="phaseSub">Approve or reject each task individually. All tasks need a decision before you can submit.</div>
 
           <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
-            <div v-for="(task, i) in apiTasks" :key="task.id" :style="checkpointTaskCard(task.id)">
-              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
-                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#555;flex-shrink:0">{{ i + 1 }}</span>
-                <div style="font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;color:#E0E0E0;flex:1">{{ task.title }}</div>
-                <div style="display:flex;gap:6px;flex-shrink:0">
-                  <button :style="taskDecisionBtn('approve', taskDecisions[task.id]?.approved === true)" @click="setTaskDecision(task.id, true, '')">
-                    <AppIcon name="check" :size="12" /> Approve
-                  </button>
-                  <button :style="taskDecisionBtn('reject', taskDecisions[task.id]?.approved === false)" @click="setTaskDecision(task.id, false, taskDecisions[task.id]?.feedback ?? '')">
-                    Reject
-                  </button>
-                </div>
-              </div>
-              <div style="display:flex;flex-direction:column;gap:4px;padding-left:22px">
-                <div v-for="(item, j) in task.impl" :key="j" style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11.5px;color:#9A9A9A;line-height:1.6">{{ item }}</div>
-              </div>
-              <div v-if="taskDecisions[task.id]?.approved === false" style="padding-left:22px;margin-top:10px">
-                <textarea
-                  :value="taskDecisions[task.id]?.feedback ?? ''"
-                  :style="feedbackArea"
-                  placeholder="What should change? (required)"
-                  rows="2"
-                  @input="e => updateTaskFeedback(task.id, (e.target as HTMLTextAreaElement).value)"
-                />
-              </div>
-            </div>
+            <TaskCard
+              v-for="(task, i) in apiTasks"
+              :key="task.id"
+              :task="{ ...task, idx: i + 1 }"
+              :decision="taskDecisions[task.id] ?? null"
+              @decide="d => handleDecision(task.id, d)"
+            />
           </div>
 
           <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:18px;display:flex;gap:10px">
@@ -158,7 +138,7 @@
           <div :style="phaseSub">Reading the PRD against the recon map. Each task lands as it's finalized — review them inline.</div>
           <div style="display:flex;flex-direction:column;gap:14px">
             <div v-for="tid in streamedTasks" :key="tid" class="card-in">
-              <TaskCard
+              <TaskCardMock
                 :task="taskWithIdx(tid)"
                 :decision="decisions[tid] ?? null"
                 :correction="corrections[tid]"
@@ -186,7 +166,7 @@
           <div :style="phaseSub">Accept, reject, or push back with a correction on each task. Implementation details run once you've decided on all of them.</div>
 
           <div style="display:flex;flex-direction:column;gap:14px;padding-bottom:120px">
-            <TaskCard
+            <TaskCardMock
               v-for="task in PROPOSED_TASKS"
               :key="task.id"
               :task="taskWithIdx(task.id)"
@@ -230,21 +210,14 @@ import IdlePanel from './IdlePanel.vue'
 import StepLog from './StepLog.vue'
 import PermissionCard from './PermissionCard.vue'
 import TaskCard from './TaskCard.vue'
+import TaskCardMock from './TaskCardMock.vue'
 import ReviewActionBar from './ReviewActionBar.vue'
 import ImplementationDetailItem from './ImplementationDetailItem.vue'
 import ImplDetailView from './ImplDetailView.vue'
 import DoneBanner from './DoneBanner.vue'
 
-const props = defineProps<{ workspace: { id: string; status?: string; branch: string; commit: string; name: string; requirement_type?: string; requirement_text?: string; requirement_file?: string } }>()
+const props = defineProps<{ workspace: { id: string; status?: string; branch: string; commit: string; name: string } }>()
 defineEmits<{ 'jump-tab': [tab: string] }>()
-
-const SAMPLE_REQUIREMENT = `Add per-user rate limiting to the public REST API.
-
-- 60 requests/min for anonymous, 300/min for authenticated.
-- Return 429 with a Retry-After header.
-- Counters live in Redis, keyed by IP for anon and user_id for authed.
-- Need an admin endpoint to inspect a user's current quota.
-- Surface limit headers (X-RateLimit-Remaining, etc.) on every response.`
 
 type ExtendedPhase = GroomingPhase | 'grooming_live' | 'checkpoint' | 'awaiting_execution'
 const phase = ref<ExtendedPhase>('idle')
@@ -252,6 +225,7 @@ const phase = ref<ExtendedPhase>('idle')
 // Real API state
 const apiTasks = ref<ApiTask[]>([])
 const groomError = ref('')
+const startPending = ref(false)
 const checkpointLoading = ref(false)
 const taskDecisions = ref<Record<string, { approved: boolean; feedback: string }>>({})
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -312,17 +286,13 @@ async function setTaskDecision(taskID: string, approved: boolean, feedback: stri
   } catch { /* ignore -- draft is best-effort */ }
 }
 
-async function updateTaskFeedback(taskID: string, feedback: string) {
-  const prev = taskDecisions.value[taskID]
-  if (!prev || prev.approved) return
-  taskDecisions.value = { ...taskDecisions.value, [taskID]: { approved: false, feedback } }
-  try {
-    await fetch(`/api/workspaces/${props.workspace.id}/checkpoint/review/draft/${taskID}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ approved: false, feedback }),
-    })
-  } catch { /* ignore */ }
+function handleDecision(taskID: string, d: { approved: boolean; feedback: string } | null) {
+  if (d === null) {
+    const { [taskID]: _, ...rest } = taskDecisions.value
+    taskDecisions.value = rest
+    return
+  }
+  setTaskDecision(taskID, d.approved, d.feedback)
 }
 
 async function handleApprove() {
@@ -355,8 +325,6 @@ async function handleSubmitReviews() {
   }
 }
 
-const requirement = ref('')
-const attachments = ref<{ name: string; icon: string }[]>([])
 const reconSteps = ref<ReconStep[]>([])
 const reconRunSteps = ref<ReconStep[]>([])
 const streamedTasks = ref<string[]>([])
@@ -537,8 +505,6 @@ function commitStatusOf(id: string) {
 function reset() {
   clearTimer()
   phase.value = 'idle'
-  requirement.value = ''
-  attachments.value = []
   reconSteps.value = []
   reconRunSteps.value = []
   streamedTasks.value = []
@@ -552,6 +518,7 @@ function reset() {
 
 async function handleStart() {
   groomError.value = ''
+  startPending.value = true
   try {
     const r = await fetch(`/api/workspaces/${props.workspace.id}/groom`, { method: 'POST' })
     if (!r.ok) {
@@ -563,15 +530,8 @@ async function handleStart() {
     startPolling()
   } catch {
     groomError.value = 'Network error, please try again.'
-  }
-}
-
-function handleAttach() {
-  if (attachments.value.length === 0) {
-    attachments.value = [
-      { name: 'PRD-rate-limit.md', icon: 'file-text' },
-      { name: 'rfc-bucket-design.pdf', icon: 'file' },
-    ]
+  } finally {
+    startPending.value = false
   }
 }
 
@@ -589,20 +549,8 @@ function handleGenerateAll() {
 
 // Styles
 const emptyIcon   = { width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-const checkpointTaskCard = (taskID: string) => {
-  const d = taskDecisions.value[taskID]
-  const border = d === undefined ? 'rgba(255,255,255,0.07)' : d.approved ? 'rgba(74,222,128,0.25)' : 'rgba(248,113,113,0.25)'
-  return { padding: '16px 18px', background: '#111', border: `1px solid ${border}`, borderRadius: '10px', transition: 'border-color 0.15s' }
-}
 const approveBtn = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#4ADE80', color: '#0A0A0A', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 700 }
 const submitReviewsBtn = (enabled: boolean) => ({ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? '#F87171' : '#555', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 600 })
-const taskDecisionBtn = (type: 'approve' | 'reject', active: boolean) => ({
-  display: 'inline-flex', alignItems: 'center', gap: '5px',
-  padding: '4px 10px', borderRadius: '5px', fontSize: '12px', fontFamily: "'DM Sans',sans-serif", fontWeight: 600, cursor: 'pointer', border: 'none',
-  background: active ? (type === 'approve' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)') : 'rgba(255,255,255,0.05)',
-  color: active ? (type === 'approve' ? '#4ADE80' : '#F87171') : '#717171',
-})
-const feedbackArea = { width: '100%', boxSizing: 'border-box' as const, background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', color: '#D4D4D4', padding: '8px 12px', fontSize: '12.5px', fontFamily: "'DM Sans',sans-serif", outline: 'none', resize: 'vertical' as const }
 const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: '#0C0C0C' }
 const leftPanelHeader = { padding: '18px 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }
 const leftPanelTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#717171', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }

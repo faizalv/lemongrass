@@ -7,35 +7,52 @@ import (
 )
 
 type CreateJSONRequest struct {
-	ProjectID   int64  `json:"project_id"`
-	Name        string `json:"name"`
-	Requirement string `json:"requirement"`
+	ProjectID int64  `json:"project_id"`
+	Name      string `json:"name"`
 }
 
 type WorkspaceResponse struct {
-	ID              string `json:"id"`
-	ProjectID       int64  `json:"project_id"`
-	Name            string `json:"name"`
-	Status          string `json:"status"`
-	RequirementType string `json:"requirement_type,omitempty"`
-	RequirementText string `json:"requirement_text,omitempty"`
-	RequirementFile string `json:"requirement_file,omitempty"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
+	ID        string `json:"id"`
+	ProjectID int64  `json:"project_id"`
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 func ToResponse(ws entity.Workspace) WorkspaceResponse {
 	return WorkspaceResponse{
-		ID:              ws.ID,
-		ProjectID:       ws.ProjectID,
-		Name:            ws.Name,
-		Status:          ws.Status,
-		RequirementType: ws.RequirementType,
-		RequirementText: ws.RequirementText,
-		RequirementFile: ws.RequirementFile,
-		CreatedAt:       ws.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:       ws.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		ID:        ws.ID,
+		ProjectID: ws.ProjectID,
+		Name:      ws.Name,
+		Status:    ws.Status,
+		CreatedAt: ws.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		UpdatedAt: ws.UpdatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 	}
+}
+
+type WorkspaceRequirementResponse struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	Type        string `json:"type"`
+	TextContent string `json:"text_content,omitempty"`
+	FileName    string `json:"file_name,omitempty"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func ToRequirementResponse(r entity.WorkspaceRequirement) WorkspaceRequirementResponse {
+	return WorkspaceRequirementResponse{
+		ID:          r.ID,
+		WorkspaceID: r.WorkspaceID,
+		Type:        r.Type,
+		TextContent: r.TextContent,
+		FileName:    r.FileName,
+		CreatedAt:   r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+	}
+}
+
+type AddTextRequirementRequest struct {
+	TextContent string `json:"text_content"`
 }
 
 type TaskResponse struct {

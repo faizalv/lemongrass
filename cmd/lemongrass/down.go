@@ -29,6 +29,14 @@ func teardown() error {
 		if err := cmd.Run(); err != nil {
 			return err
 		}
+	} else {
+		// compose file missing (e.g. fresh install after .lemongrass was deleted);
+		// stop known containers by name so they don't conflict on the next up
+		known := []string{"lg-server", "lg-runner", "lg-embed", "lg-postgres", "lg-redis"}
+		cmd := exec.Command("docker", append([]string{"rm", "-f"}, known...)...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		_ = cmd.Run() // best-effort; containers may not exist
 	}
 	stopFsDaemon()
 	return nil

@@ -76,7 +76,7 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
     image: redis:7
     volumes:
       - {{.LGDir}}/redis:/data
-    command: redis-server --save 60 1
+    command: redis-server --save "" --appendonly no
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
