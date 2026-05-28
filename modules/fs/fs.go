@@ -11,7 +11,6 @@ import (
 	"github.com/faizalv/lemongrass/modules/fs/internal/usecase"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 )
 
 type Fs struct {
@@ -19,7 +18,7 @@ type Fs struct {
 	uc *usecase.FsUsecase
 }
 
-func (f *Fs) LoadMe(cfg config.Config, db *sqlx.DB, rds *redis.Client) {
+func (f *Fs) LoadMe(cfg config.Config, db *sqlx.DB) {
 	repo := repository.New(db)
 	sockPath := filepath.Join(config.Dir(), "fs.sock")
 	f.uc = usecase.New(repo, sockPath)

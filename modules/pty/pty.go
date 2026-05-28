@@ -3,7 +3,6 @@ package pty
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 	"github.com/faizalv/lemongrass/config"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	handler "github.com/faizalv/lemongrass/modules/pty/internal/handler/http"
@@ -15,7 +14,7 @@ type Pty struct {
 	h  *handler.PtyHandler
 }
 
-func (p *Pty) LoadMe(cfg config.Config, db *sqlx.DB, rds *redis.Client) {
+func (p *Pty) LoadMe(cfg config.Config, db *sqlx.DB) {
 	p.uc = usecase.New("/var/log/lemongrass/runner.log")
 	p.h = handler.New(p.uc)
 }

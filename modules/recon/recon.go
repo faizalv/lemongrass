@@ -15,7 +15,6 @@ import (
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/lang/golang"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 )
 
 type Recon struct {
@@ -23,7 +22,7 @@ type Recon struct {
 	h  *handler.ReconHandler
 }
 
-func (r *Recon) LoadMe(_ config.Config, db *sqlx.DB, _ *redis.Client) {
+func (r *Recon) LoadMe(_ config.Config, db *sqlx.DB) {
 	repo := repository.New(db)
 	r.uc = usecase.New(repo, golang.New(), configparser.New())
 	r.h = handler.New(r.uc)

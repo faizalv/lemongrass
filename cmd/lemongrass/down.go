@@ -32,7 +32,7 @@ func teardown() error {
 	} else {
 		// compose file missing (e.g. fresh install after .lemongrass was deleted);
 		// stop known containers by name so they don't conflict on the next up
-		known := []string{"lg-server", "lg-runner", "lg-embed", "lg-postgres", "lg-redis"}
+		known := []string{"lg-server", "lg-runner", "lg-embed", "lg-postgres"}
 		cmd := exec.Command("docker", append([]string{"rm", "-f"}, known...)...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

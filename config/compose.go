@@ -23,8 +23,6 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
     depends_on:
       lg-postgres:
         condition: service_healthy
-      lg-redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:9966/api/health"]
       interval: 10s
@@ -66,19 +64,6 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
       - POSTGRES_DB=lemongrass
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lemongrass"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  lg-redis:
-    container_name: lg-redis
-    image: redis:7
-    volumes:
-      - {{.LGDir}}/redis:/data
-    command: redis-server --save "" --appendonly no
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5

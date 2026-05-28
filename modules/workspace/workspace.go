@@ -14,7 +14,6 @@ import (
 	wsclient "github.com/faizalv/lemongrass/modules/workspace/client"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 )
 
 type Workspace struct {
@@ -24,13 +23,13 @@ type Workspace struct {
 	h         *handler.WorkspaceHandler
 }
 
-func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB, rds *redis.Client) {
+func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB) {
 	w.repo = repository.New(db)
 	w.uc = usecase.New(w.repo)
 	if w.PtyClient != nil {
 		w.uc.SetPty(w.PtyClient)
 	}
-	w.uc.SetDraftStore(repository.NewDraft(rds))
+	w.uc.SetDraftStore(repository.NewDraft())
 	w.h = handler.New(w.uc)
 	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
 		id, ok := payload.(int64)

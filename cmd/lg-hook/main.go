@@ -77,13 +77,6 @@ var destructiveCommands = map[string]bool{
 	"rmdir": true,
 }
 
-func lgServerURL() string {
-	if u := os.Getenv("LG_SERVER_URL"); u != "" {
-		return u
-	}
-	return defaultServerURL
-}
-
 func main() {
 	var event hookEvent
 	if err := json.NewDecoder(os.Stdin).Decode(&event); err != nil {
@@ -114,7 +107,7 @@ func handleWrite(raw json.RawMessage) {
 		"byte_count": len(input.Content),
 	})
 	client := &http.Client{Timeout: 5 * time.Second}
-	client.Post(lgServerURL()+"/write-trail", "application/json", bytes.NewReader(body))
+	client.Post(defaultServerURL+"/write-trail", "application/json", bytes.NewReader(body))
 	os.Exit(0)
 }
 
@@ -175,7 +168,7 @@ func forwardToServer(rest string, blocking bool) {
 	}
 
 	client := &http.Client{Timeout: timeout}
-	resp, err := client.Post(lgServerURL(), "application/json", bytes.NewReader(body))
+	resp, err := client.Post(defaultServerURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		if blocking {
 			fmt.Printf("error: lg-server unreachable (%v)", err)

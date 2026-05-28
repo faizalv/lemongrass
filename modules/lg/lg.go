@@ -10,7 +10,6 @@ import (
 	wsclient "github.com/faizalv/lemongrass/modules/workspace/client"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 )
 
 type Lg struct {
@@ -20,7 +19,7 @@ type Lg struct {
 	h           *handler.LgHandler
 }
 
-func (l *Lg) LoadMe(_ config.Config, _ *sqlx.DB, _ *redis.Client) {
+func (l *Lg) LoadMe(_ config.Config, _ *sqlx.DB) {
 	l.uc = usecase.New(l.PtyClient)
 	if l.ReconClient != nil {
 		l.uc.SetRecon(l.ReconClient)

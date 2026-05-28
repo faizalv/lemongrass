@@ -11,7 +11,6 @@ type Config struct {
 	Host           string   `json:"host"`
 	Port           int      `json:"port"`
 	PostgresDSN    string   `json:"postgres_dsn"`
-	RedisAddr      string   `json:"redis_addr"`
 	LogLevel       string   `json:"log_level"`
 	FsExtraExclude []string `json:"fs_extra_exclude"`
 	HomeDir        string   `json:"home_dir"`
@@ -23,7 +22,6 @@ var defaults = Config{
 	Host:           "localhost",
 	Port:           9966,
 	PostgresDSN:    "postgres://lemongrass:lemongrass@lg-postgres:5432/lemongrass?sslmode=disable",
-	RedisAddr:      "lg-redis:6379",
 	LogLevel:       "info",
 	FsExtraExclude: []string{},
 }
@@ -72,7 +70,6 @@ func EnsureScaffold() {
 		filepath.Join(Dir(), "claude"),
 		filepath.Join(Dir(), "projects"),
 		filepath.Join(Dir(), "postgres"),
-		filepath.Join(Dir(), "redis"),
 		filepath.Join(Dir(), "logs"),
 		filepath.Join(Dir(), "workspaces"),
 	}

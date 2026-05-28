@@ -46,15 +46,6 @@ func main() {
 	}
 	log.Println("migrations: ok")
 
-	rds := infra.NewRedis(cfg.RedisAddr)
-	defer rds.Close()
-
-	if err := infra.PingRedis(context.Background(), rds); err != nil {
-		log.Printf("redis ping failed: %v", err)
-	} else {
-		log.Println("redis: ok")
-	}
-
 	r := gin.Default()
 
 	api := r.Group("/api")
@@ -63,24 +54,24 @@ func main() {
 	})
 
 	ptyMod := &lgpty.Pty{}
-	ptyMod.LoadMe(cfg, db, rds)
+	ptyMod.LoadMe(cfg, db)
 	defer ptyMod.Close()
 	ptyMod.StartHTTPRouter(api)
 
 	fsModule := &lgfs.Fs{}
-	fsModule.LoadMe(cfg, db, rds)
+	fsModule.LoadMe(cfg, db)
 	fsModule.StartHTTPRouter(api)
 
 	reconModule := &lgrecon.Recon{}
-	reconModule.LoadMe(cfg, db, rds)
+	reconModule.LoadMe(cfg, db)
 	reconModule.StartHTTPRouter(api)
 
 	lgMod := &lglg.Lg{PtyClient: ptyMod.Client(), ReconClient: reconModule.Client()}
-	lgMod.LoadMe(cfg, db, rds)
+	lgMod.LoadMe(cfg, db)
 	lgMod.StartHTTPRouter(api)
 
 	workspaceModule := &lgworkspace.Workspace{PtyClient: ptyMod.Client()}
-	workspaceModule.LoadMe(cfg, db, rds)
+	workspaceModule.LoadMe(cfg, db)
 	lgMod.SetWorkspaceTaskClient(workspaceModule.TaskClient())
 	workspaceModule.SetLgSession(lgMod.SessionManager())
 	workspaceModule.StartHTTPRouter(api)
