@@ -29,13 +29,14 @@ type repo interface {
 	DeleteFileHashes(ctx context.Context, projectID int64, paths []string) error
 	GetSyncInterval(ctx context.Context, projectID int64) (string, error)
 	UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error
-	GetNode(ctx context.Context, projectID int64, filePath, symbol string) (entity.SemanticNode, error)
+	GetNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, error)
 	AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error
+	ListByPathPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error)
 	SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error
 	GetTreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error)
 	SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error)
 	SearchByFTS(ctx context.Context, projectID int64, query string, limit int) ([]entity.SemanticNode, error)
-	GetRelated(ctx context.Context, projectID int64, symbol string) (callees, callers []entity.SemanticNode, err error)
+	GetRelated(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error)
 }
 
 type ReconUsecase struct {
@@ -183,8 +184,8 @@ func (u *ReconUsecase) TreeCoverage(ctx context.Context, projectID int64, pathPr
 	return u.repo.GetTreeCoverage(ctx, projectID, pathPrefix)
 }
 
-func (u *ReconUsecase) ReadNode(ctx context.Context, projectID int64, filePath, symbol string) (entity.SemanticNode, string, error) {
-	node, err := u.repo.GetNode(ctx, projectID, filePath, symbol)
+func (u *ReconUsecase) ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, string, error) {
+	node, err := u.repo.GetNode(ctx, projectID, filePath, symbol, kind)
 	if err != nil {
 		return entity.SemanticNode{}, "", fmt.Errorf("node not found: %w", err)
 	}
@@ -245,8 +246,12 @@ func (u *ReconUsecase) Search(ctx context.Context, projectID int64, query string
 	return results, nil
 }
 
-func (u *ReconUsecase) Related(ctx context.Context, projectID int64, symbol string) (callees, callers []entity.SemanticNode, err error) {
-	return u.repo.GetRelated(ctx, projectID, symbol)
+func (u *ReconUsecase) Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error) {
+	return u.repo.GetRelated(ctx, projectID, filePath, symbol, kind)
+}
+
+func (u *ReconUsecase) PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+	return u.repo.ListByPathPrefix(ctx, projectID, pathPrefix)
 }
 
 func readLines(path string, start, end int) (string, error) {

@@ -19,8 +19,8 @@ func (c *ReconClient) TreeCoverage(ctx context.Context, projectID int64, pathPre
 	return c.uc.TreeCoverage(ctx, projectID, pathPrefix)
 }
 
-func (c *ReconClient) ReadNode(ctx context.Context, projectID int64, filePath, symbol string) (entity.SemanticNode, string, error) {
-	return c.uc.ReadNode(ctx, projectID, filePath, symbol)
+func (c *ReconClient) ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, string, error) {
+	return c.uc.ReadNode(ctx, projectID, filePath, symbol, kind)
 }
 
 func (c *ReconClient) Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error {
@@ -31,6 +31,10 @@ func (c *ReconClient) Search(ctx context.Context, projectID int64, query string)
 	return c.uc.Search(ctx, projectID, query)
 }
 
-func (c *ReconClient) Related(ctx context.Context, projectID int64, symbol string) (callees, callers []entity.SemanticNode, err error) {
-	return c.uc.Related(ctx, projectID, symbol)
+func (c *ReconClient) Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error) {
+	return c.uc.Related(ctx, projectID, filePath, symbol, kind)
+}
+
+func (c *ReconClient) PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+	return c.uc.PeekDir(ctx, projectID, pathPrefix)
 }

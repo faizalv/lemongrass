@@ -38,7 +38,7 @@
           <input
             v-model="command"
             :style="s.input"
-            placeholder="#lg.recon.tree"
+            placeholder="#lg.recon.peek <dir>  |  #lg.recon.read <path:symbol:kind>"
             @keydown.enter="sendCommand"
           />
           <button
@@ -68,7 +68,27 @@
               <span :style="s.badge(lastResult.ok)">{{ lastResult.ok ? 'ok' : 'error' }}</span>
             </span>
           </div>
-          <pre :style="s.pre">{{ lastResult.text }}</pre>
+          <!-- parsed peek view -->
+          <div v-if="peekFiles.length > 0" :style="s.peekScroll">
+            <div v-for="f in peekFiles" :key="f.path" style="margin-bottom:12px">
+              <div :style="s.peekFile">{{ f.path }}</div>
+              <div
+                v-for="row in f.rows"
+                :key="row.kind + row.symbol"
+                :style="s.peekRow"
+              >
+                <span :style="s.peekKind(row.kind)">{{ row.kind }}</span>
+                <span :style="s.peekSym">{{ row.symbol }}</span>
+                <span :style="s.peekLines">{{ row.lines }}</span>
+                <span v-if="row.status" :style="s.peekStatus(row.status)">{{ row.status }}</span>
+                <span style="margin-left:auto;display:flex;gap:4px;flex-shrink:0">
+                  <button :style="s.drillBtn" @click="peekDrillRead(row)" title="read">read</button>
+                  <button :style="s.drillBtn" @click="peekDrillRelated(row)" title="related">related</button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <pre v-else :style="s.pre">{{ lastResult.text }}</pre>
         </div>
         <div v-else :style="s.emptyResult">
           Send a command to see the response.
@@ -151,7 +171,7 @@ const ptySending = ref(false)
 const calls = ref<Call[]>([])
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-const quickCommands = ['recon.tree', 'recon.search handlers', 'recon.search routes', 'echo ping']
+const quickCommands = ['recon.tree', 'recon.peek modules/', 'recon.search handlers', 'echo ping']
 
 const testableWorkspaces = computed(() =>
   props.workspaces.filter(w => w.id !== 'reconnaissance')
@@ -162,6 +182,46 @@ const selectedWorkspace = computed(() =>
 )
 
 const sessionType = ref<'grooming' | 'execution'>('grooming')
+
+interface PeekRow {
+  filePath: string
+  kind: string
+  symbol: string
+  rawSymbol: string  // symbol name without receiver prefix
+  lines: string
+  status: string
+}
+
+interface PeekFile {
+  path: string
+  rows: PeekRow[]
+}
+
+const peekFiles = computed<PeekFile[]>(() => {
+  if (!lastResult.value || lastResult.value.cmd !== 'recon.peek') return []
+  const lines = lastResult.value.text.split('\n')
+  const files: PeekFile[] = []
+  let current: PeekFile | null = null
+  // peek output lines: file headers have no leading spaces; symbol rows start with 2 spaces
+  for (const line of lines) {
+    if (!line.startsWith(' ') && line.trim() !== '') {
+      current = { path: line.trim(), rows: [] }
+      files.push(current)
+    } else if (current && line.startsWith('  ')) {
+      // "  kind     symbol                                       start-end   ?marker"
+      const parts = line.trim().split(/\s+/)
+      if (parts.length < 3) continue
+      const kind = parts[0]
+      const displaySymbol = parts[1]
+      const lines = parts[2]
+      const status = parts[3] ?? ''
+      // rawSymbol: strip Receiver. prefix for method nodes
+      const rawSymbol = displaySymbol.includes('.') ? displaySymbol.split('.').pop()! : displaySymbol
+      current.rows.push({ filePath: current.path, kind, symbol: displaySymbol, rawSymbol, lines, status })
+    }
+  }
+  return files
+})
 
 async function sendCommand() {
   const raw = command.value.trim()
@@ -203,6 +263,14 @@ async function sendCommand() {
 function fireQuick(q: string) {
   command.value = '#lg.' + q
   sendCommand()
+}
+
+function peekDrillRead(row: PeekRow) {
+  command.value = `#lg.recon.read ${row.filePath}:${row.rawSymbol}:${row.kind}`
+}
+
+function peekDrillRelated(row: PeekRow) {
+  command.value = `#lg.recon.related ${row.filePath}:${row.rawSymbol}:${row.kind}`
 }
 
 function restoreHistory(h: Result) {
@@ -373,6 +441,43 @@ const s = {
   callTime: {
     fontFamily: "'JetBrains Mono','Courier Prime',monospace",
     fontSize: '10px', color: '#3D3D3D', flexShrink: 0,
+  },
+  peekScroll: {
+    maxHeight: '260px', overflowY: 'auto',
+  } as Record<string, any>,
+  peekFile: {
+    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontSize: '11px', color: '#717171', marginBottom: '4px', paddingBottom: '2px',
+    borderBottom: '1px solid rgba(255,255,255,0.04)',
+  },
+  peekRow: {
+    display: 'flex', alignItems: 'center', gap: '10px',
+    padding: '3px 4px', borderRadius: '3px',
+    cursor: 'default',
+  } as Record<string, any>,
+  peekKind: (kind: string) => ({
+    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontSize: '10px', width: '52px', flexShrink: 0,
+    color: kind === 'imports' ? '#555' : kind === 'method' || kind === 'func' ? '#7DD3FC' : '#A78BFA',
+  }),
+  peekSym: {
+    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontSize: '11px', color: '#C4C4C4', flex: 1, minWidth: 0,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+  },
+  peekLines: {
+    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontSize: '10px', color: '#3D3D3D', flexShrink: 0,
+  },
+  peekStatus: (s: string) => ({
+    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontSize: '10px', flexShrink: 0,
+    color: s.startsWith('*') ? '#F59E0B' : '#555',
+  }),
+  drillBtn: {
+    padding: '1px 6px', borderRadius: '3px', border: '1px solid rgba(255,255,255,0.07)',
+    background: 'transparent', color: '#555', fontSize: '10px',
+    fontFamily: "'DM Sans',sans-serif", cursor: 'pointer',
   },
 }
 </script>

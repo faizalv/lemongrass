@@ -18,10 +18,11 @@ import (
 
 type reconClient interface {
 	TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.DirectoryCoverage, error)
-	ReadNode(ctx context.Context, projectID int64, filePath, symbol string) (reconentity.SemanticNode, string, error)
+	ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (reconentity.SemanticNode, string, error)
 	Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error
 	Search(ctx context.Context, projectID int64, query string) ([]reconentity.SemanticNode, error)
-	Related(ctx context.Context, projectID int64, symbol string) (callees, callers []reconentity.SemanticNode, err error)
+	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
+	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 }
 
 type taskWriter interface {
@@ -119,6 +120,8 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 	switch cmd {
 	case "recon.tree":
 		return u.handleTree(ctx, s, args)
+	case "recon.peek":
+		return u.handlePeek(ctx, s, args)
 	case "recon.search":
 		return u.handleSearch(ctx, s, args)
 	case "recon.read":
@@ -153,6 +156,67 @@ func (u *LgUsecase) handleTree(ctx context.Context, s *activeSession, args strin
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args string) string {
+	pathPrefix := strings.TrimSpace(args)
+	if pathPrefix == "" {
+		return "error: recon.peek requires a directory path"
+	}
+	nodes, err := u.recon.PeekDir(ctx, s.projectID, pathPrefix)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	if len(nodes) == 0 {
+		return "no symbols found under " + pathPrefix
+	}
+
+	// group by file, preserving order (nodes already sorted by file_path, line_start)
+	type fileGroup struct {
+		path    string
+		regular []reconentity.SemanticNode
+		imports []reconentity.SemanticNode
+	}
+	var files []fileGroup
+	fileIdx := map[string]int{}
+	for _, n := range nodes {
+		idx, ok := fileIdx[n.FilePath]
+		if !ok {
+			idx = len(files)
+			files = append(files, fileGroup{path: n.FilePath})
+			fileIdx[n.FilePath] = idx
+		}
+		if n.Kind == "imports" {
+			files[idx].imports = append(files[idx].imports, n)
+		} else {
+			files[idx].regular = append(files[idx].regular, n)
+		}
+	}
+
+	var sb strings.Builder
+	for i, f := range files {
+		if i > 0 {
+			sb.WriteByte('\n')
+		}
+		sb.WriteString(f.path + "\n")
+		all := append(f.regular, f.imports...)
+		for _, n := range all {
+			sym := n.Symbol
+			if n.Kind == "method" && n.Receiver != "" {
+				sym = n.Receiver + "." + n.Symbol
+			}
+			marker := ""
+			switch n.Status {
+			case "stale":
+				marker = "   *stale"
+			case "unexplored":
+				marker = "   ?unexplored"
+			}
+			sb.WriteString(fmt.Sprintf("  %-8s %-44s %d-%d%s\n",
+				n.Kind, sym, n.LineStart, n.LineEnd, marker))
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query string) string {
 	nodes, err := u.recon.Search(ctx, s.projectID, strings.TrimSpace(query))
 	if err != nil {
@@ -170,11 +234,11 @@ func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query st
 }
 
 func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args string) string {
-	filePath, symbol, lineStart, lineEnd, err := parseRef(strings.TrimSpace(args))
+	filePath, symbol, kind, err := parseRef(strings.TrimSpace(args))
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
-	node, code, err := u.recon.ReadNode(ctx, s.projectID, filePath, symbol)
+	node, code, err := u.recon.ReadNode(ctx, s.projectID, filePath, symbol, kind)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
@@ -182,12 +246,15 @@ func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args strin
 	if node.Status == "stale" && node.Description != "" {
 		hint = "[STALE] " + node.Description + "\n\n"
 	}
-	return fmt.Sprintf("%s:%s:%d-%d:\n%s%s",
-		filePath, symbol, lineStart, lineEnd, hint, code)
+	return fmt.Sprintf("%s:%s:%s:\n%s%s", filePath, symbol, kind, hint, code)
 }
 
-func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, symbol string) string {
-	callees, callers, err := u.recon.Related(ctx, s.projectID, strings.TrimSpace(symbol))
+func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, args string) string {
+	filePath, symbol, kind, err := parseRef(strings.TrimSpace(args))
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	callees, callers, err := u.recon.Related(ctx, s.projectID, filePath, symbol, kind)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
@@ -326,15 +393,13 @@ func formatAnnotate(n reconentity.SemanticNode) string {
 		n.FilePath, n.Symbol, n.LineStart, n.LineEnd, desc, n.ReturnType, calls)
 }
 
-func parseRef(s string) (filePath, symbol string, lineStart, lineEnd int, err error) {
+func parseRef(s string) (filePath, symbol, kind string, err error) {
 	parts := strings.SplitN(s, ":", 3)
 	if len(parts) < 3 {
-		err = fmt.Errorf("expected file:symbol:start-end, got %q", s)
+		err = fmt.Errorf("expected path:symbol:kind, got %q", s)
 		return
 	}
-	filePath = parts[0]
-	symbol = parts[1]
-	lineStart, lineEnd, err = parseLineRange(parts[2])
+	filePath, symbol, kind = parts[0], parts[1], parts[2]
 	return
 }
 

@@ -270,16 +270,15 @@ func (r *ReconRepository) GetCoverage(ctx context.Context, projectID int64) ([]e
 	return out, rows.Err()
 }
 
-func (r *ReconRepository) GetNode(ctx context.Context, projectID int64, filePath, symbol string) (entity.SemanticNode, error) {
+func (r *ReconRepository) GetNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, error) {
 	var rec nodeRecord
 	err := r.db.QueryRowxContext(ctx,
 		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
 		        language, receiver, signature, exported, depends_on, status,
 		        description, return_type, content_hash, calls, explored_at, created_at
 		 FROM lg_semantic_nodes
-		 WHERE project_id = $1 AND file_path = $2 AND symbol = $3 AND status != 'removed'
-		 LIMIT 1`,
-		projectID, filePath, symbol,
+		 WHERE project_id = $1 AND file_path = $2 AND symbol = $3 AND kind = $4 AND status != 'removed'`,
+		projectID, filePath, symbol, kind,
 	).StructScan(&rec)
 	if err != nil {
 		return entity.SemanticNode{}, err
@@ -410,11 +409,32 @@ func (r *ReconRepository) SearchByFTS(ctx context.Context, projectID int64, quer
 	return nodes, nil
 }
 
-func (r *ReconRepository) GetRelated(ctx context.Context, projectID int64, symbol string) (callees, callers []entity.SemanticNode, err error) {
+func (r *ReconRepository) ListByPathPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+	var recs []nodeRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1 AND file_path LIKE $2 AND status != 'removed'
+		 ORDER BY file_path, line_start`,
+		projectID, pathPrefix+"%",
+	)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+	return nodes, nil
+}
+
+func (r *ReconRepository) GetRelated(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error) {
 	var callSymbols pq.StringArray
 	scanErr := r.db.QueryRowContext(ctx,
-		`SELECT calls FROM lg_semantic_nodes WHERE project_id = $1 AND symbol = $2 AND status = 'explored' LIMIT 1`,
-		projectID, symbol,
+		`SELECT calls FROM lg_semantic_nodes WHERE project_id = $1 AND file_path = $2 AND symbol = $3 AND kind = $4`,
+		projectID, filePath, symbol, kind,
 	).Scan(&callSymbols)
 	if scanErr != nil && scanErr != sql.ErrNoRows {
 		err = scanErr
