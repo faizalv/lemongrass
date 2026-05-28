@@ -8,16 +8,28 @@ import (
 	"os/exec"
 	"time"
 
+	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	"github.com/faizalv/lemongrass/modules/debug/internal/usecase"
 	"github.com/gin-gonic/gin"
 )
 
-type DebugHandler struct {
-	uc *usecase.DebugUsecase
+type ptyProvider interface {
+	OpenNoop() ptyclient.Session
 }
 
-func New(uc *usecase.DebugUsecase) *DebugHandler {
-	return &DebugHandler{uc: uc}
+type sessionRegistrar interface {
+	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+	UnregisterSession(workspaceID string)
+}
+
+type DebugHandler struct {
+	uc        *usecase.DebugUsecase
+	pty       ptyProvider
+	registrar sessionRegistrar
+}
+
+func New(uc *usecase.DebugUsecase, pty ptyProvider, registrar sessionRegistrar) *DebugHandler {
+	return &DebugHandler{uc: uc, pty: pty, registrar: registrar}
 }
 
 func (h *DebugHandler) Send(c *gin.Context) {
@@ -35,6 +47,7 @@ func (h *DebugHandler) Send(c *gin.Context) {
 func (h *DebugHandler) ExecHook(c *gin.Context) {
 	var req struct {
 		WorkspaceID string `json:"workspace_id"`
+		ProjectID   int64  `json:"project_id"`
 		Command     string `json:"command"`
 		SessionType string `json:"session_type"`
 	}
@@ -42,10 +55,18 @@ func (h *DebugHandler) ExecHook(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "command is required"})
 		return
 	}
+	if req.WorkspaceID == "" || req.ProjectID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace_id and project_id are required"})
+		return
+	}
 	sessionType := req.SessionType
 	if sessionType == "" {
 		sessionType = "grooming"
 	}
+
+	noop := h.pty.OpenNoop()
+	h.registrar.RegisterSession(req.WorkspaceID, "", req.ProjectID, noop)
+	defer h.registrar.UnregisterSession(req.WorkspaceID)
 
 	event, _ := json.Marshal(map[string]any{
 		"tool_name":  "Bash",

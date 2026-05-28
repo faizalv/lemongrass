@@ -263,6 +263,12 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+func (u *LgUsecase) UnregisterSession(workspaceID string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	delete(u.sessions, workspaceID)
+}
+
 func (u *LgUsecase) handleHandover(s *activeSession) {
 	if u.tasks != nil {
 		u.tasks.UpdateStatus(context.Background(), s.workspaceID, "awaiting_execution")
@@ -270,9 +276,7 @@ func (u *LgUsecase) handleHandover(s *activeSession) {
 	if s.ptySession != nil {
 		s.ptySession.Close()
 	}
-	u.mu.Lock()
-	delete(u.sessions, s.workspaceID)
-	u.mu.Unlock()
+	u.UnregisterSession(s.workspaceID)
 }
 
 func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {

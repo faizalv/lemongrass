@@ -20,3 +20,7 @@ func (s *SessionManager) RegisterSession(workspaceID, projectAlias string, proje
 func (s *SessionManager) RespondToCheckpoint(workspaceID string, rejections map[string]string) error {
 	return s.uc.RespondToCheckpoint(workspaceID, rejections)
 }
+
+func (s *SessionManager) UnregisterSession(workspaceID string) {
+	s.uc.UnregisterSession(workspaceID)
+}

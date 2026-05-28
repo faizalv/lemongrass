@@ -71,7 +71,7 @@ func main() {
 	lgMod.LoadMe(cfg, db)
 	lgMod.StartHTTPRouter(api)
 
-	debugMod := &lgdebug.Debug{PtyClient: ptyMod.Client()}
+	debugMod := &lgdebug.Debug{PtyClient: ptyMod.Client(), SessionRegistrar: lgMod.SessionManager()}
 	debugMod.LoadMe(cfg, db)
 	debugMod.StartHTTPRouter(api)
 

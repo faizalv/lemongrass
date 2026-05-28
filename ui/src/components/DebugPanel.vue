@@ -175,6 +175,7 @@ async function sendCommand() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         workspace_id: selectedWorkspaceId.value,
+        project_id: selectedWorkspace.value?.project_id ? Number(selectedWorkspace.value.project_id) : 0,
         command: raw,
         session_type: sessionType.value,
       }),

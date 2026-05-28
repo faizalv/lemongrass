@@ -11,15 +11,22 @@ import (
 
 type ptyProvider interface {
 	Open(prompt, sessionID, sessionType string) (ptyclient.Session, error)
+	OpenNoop() ptyclient.Session
+}
+
+type sessionRegistrar interface {
+	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+	UnregisterSession(workspaceID string)
 }
 
 type Debug struct {
-	PtyClient ptyProvider
-	h         *handler.DebugHandler
+	PtyClient        ptyProvider
+	SessionRegistrar sessionRegistrar
+	h                *handler.DebugHandler
 }
 
 func (d *Debug) LoadMe(_ config.Config, _ *sqlx.DB) {
-	d.h = handler.New(usecase.New(d.PtyClient))
+	d.h = handler.New(usecase.New(d.PtyClient), d.PtyClient, d.SessionRegistrar)
 }
 
 func (d *Debug) StartHTTPRouter(rg *gin.RouterGroup) {

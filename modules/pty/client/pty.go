@@ -36,3 +36,12 @@ func (c *PtyClient) Open(prompt, sessionID, sessionType string) (Session, error)
 	}
 	return &session{inner: s}, nil
 }
+
+type noopSession struct{}
+
+func (n *noopSession) Write(b []byte) (int, error) { return len(b), nil }
+func (n *noopSession) Close()                       {}
+
+func (c *PtyClient) OpenNoop() Session {
+	return &noopSession{}
+}
