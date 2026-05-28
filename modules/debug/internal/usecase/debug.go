@@ -9,13 +9,17 @@ import (
 
 const systemPrompt = `Lemongrass debug PTY. Direct text invisible -- only hook responses reach user. To respond: invoke #lg!.echo <message> as Bash tool call (# is hook trigger, not a comment). ! means fire-and-forget. One call per message.`
 
-type DebugUsecase struct {
-	pty  *ptyclient.PtyClient
-	mu   sync.Mutex
-	sess *ptyclient.Session
+type ptyProvider interface {
+	Open(prompt, sessionID, sessionType string) (ptyclient.Session, error)
 }
 
-func New(pty *ptyclient.PtyClient) *DebugUsecase {
+type DebugUsecase struct {
+	pty  ptyProvider
+	mu   sync.Mutex
+	sess ptyclient.Session
+}
+
+func New(pty ptyProvider) *DebugUsecase {
 	return &DebugUsecase{pty: pty}
 }
 

@@ -9,8 +9,12 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+type ptyProvider interface {
+	Open(prompt, sessionID, sessionType string) (ptyclient.Session, error)
+}
+
 type Debug struct {
-	PtyClient *ptyclient.PtyClient
+	PtyClient ptyProvider
 	h         *handler.DebugHandler
 }
 

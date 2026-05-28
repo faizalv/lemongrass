@@ -1,18 +1,33 @@
 package lg
 
 import (
+	"context"
+
 	"github.com/faizalv/lemongrass/config"
 	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
 	handler "github.com/faizalv/lemongrass/modules/lg/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/lg/internal/usecase"
-	reconclient "github.com/faizalv/lemongrass/modules/recon/client"
-	wsclient "github.com/faizalv/lemongrass/modules/workspace/client"
+	reconentity "github.com/faizalv/lemongrass/modules/recon/entity"
+	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 )
 
+type reconProvider interface {
+	TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.DirectoryCoverage, error)
+	ReadNode(ctx context.Context, projectID int64, filePath, symbol string) (reconentity.SemanticNode, string, error)
+	Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error
+	Search(ctx context.Context, projectID int64, query string) ([]reconentity.SemanticNode, error)
+	Related(ctx context.Context, projectID int64, symbol string) (callees, callers []reconentity.SemanticNode, err error)
+}
+
+type taskProvider interface {
+	CreateTasks(ctx context.Context, workspaceID string, tasks []wsentity.Task) ([]wsentity.Task, error)
+	UpdateStatus(ctx context.Context, id, status string) error
+}
+
 type Lg struct {
-	ReconClient *reconclient.ReconClient
+	ReconClient reconProvider
 	uc          *usecase.LgUsecase
 	h           *handler.LgHandler
 }
@@ -25,7 +40,7 @@ func (l *Lg) LoadMe(_ config.Config, _ *sqlx.DB) {
 	l.h = handler.New(l.uc)
 }
 
-func (l *Lg) SetWorkspaceTaskClient(c *wsclient.WorkspaceTaskClient) {
+func (l *Lg) SetWorkspaceTaskClient(c taskProvider) {
 	l.uc.SetTaskWriter(c)
 }
 

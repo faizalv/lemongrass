@@ -16,7 +16,7 @@ import (
 	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
 )
 
-type reconUsecase interface {
+type reconClient interface {
 	TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.DirectoryCoverage, error)
 	ReadNode(ctx context.Context, projectID int64, filePath, symbol string) (reconentity.SemanticNode, string, error)
 	Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error
@@ -37,12 +37,12 @@ type activeSession struct {
 	workspaceID  string
 	projectID    int64
 	projectAlias string
-	ptySession   *ptyclient.Session
+	ptySession   ptyclient.Session
 	checkpointCh chan checkpointResult
 }
 
 type LgUsecase struct {
-	recon      reconUsecase
+	recon      reconClient
 	tasks      taskWriter
 	mu         sync.Mutex
 	calls      []entity.Call
@@ -60,7 +60,7 @@ func New() *LgUsecase {
 	return uc
 }
 
-func (u *LgUsecase) SetRecon(r reconUsecase) {
+func (u *LgUsecase) SetRecon(r reconClient) {
 	u.recon = r
 }
 
@@ -68,7 +68,7 @@ func (u *LgUsecase) SetTaskWriter(tw taskWriter) {
 	u.tasks = tw
 }
 
-func (u *LgUsecase) RegisterSession(workspaceID, projectAlias string, projectID int64, session *ptyclient.Session) {
+func (u *LgUsecase) RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.sessions[workspaceID] = &activeSession{

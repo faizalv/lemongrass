@@ -13,7 +13,7 @@ func New(uc *usecase.LgUsecase) *SessionManager {
 	return &SessionManager{uc: uc}
 }
 
-func (s *SessionManager) RegisterSession(workspaceID, projectAlias string, projectID int64, session *ptyclient.Session) {
+func (s *SessionManager) RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session) {
 	s.uc.RegisterSession(workspaceID, projectAlias, projectID, session)
 }
 

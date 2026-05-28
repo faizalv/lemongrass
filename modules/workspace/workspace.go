@@ -6,7 +6,6 @@ import (
 
 	"github.com/faizalv/lemongrass/bus"
 	"github.com/faizalv/lemongrass/config"
-	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	handler "github.com/faizalv/lemongrass/modules/workspace/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/workspace/internal/repository"
@@ -16,8 +15,17 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+type ptyProvider interface {
+	Open(prompt, sessionID, sessionType string) (ptyclient.Session, error)
+}
+
+type lgSessionProvider interface {
+	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+	RespondToCheckpoint(workspaceID string, rejections map[string]string) error
+}
+
 type Workspace struct {
-	PtyClient *ptyclient.PtyClient
+	PtyClient ptyProvider
 	repo      *repository.WorkspaceRepository
 	uc        *usecase.WorkspaceUsecase
 	h         *handler.WorkspaceHandler
@@ -42,7 +50,7 @@ func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB) {
 	})
 }
 
-func (w *Workspace) SetLgSession(s *lgclient.SessionManager) {
+func (w *Workspace) SetLgSession(s lgSessionProvider) {
 	w.uc.SetLgSession(s)
 }
 

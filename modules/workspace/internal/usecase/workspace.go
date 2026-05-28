@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	"github.com/faizalv/lemongrass/modules/workspace/entity"
 )
@@ -34,14 +33,18 @@ type draftStore interface {
 	ClearDraft(ctx context.Context, workspaceID string) error
 }
 
+type ptyProvider interface {
+	Open(prompt, sessionID, sessionType string) (ptyclient.Session, error)
+}
+
 type lgSession interface {
-	RegisterSession(workspaceID, projectAlias string, projectID int64, session *ptyclient.Session)
+	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
 	RespondToCheckpoint(workspaceID string, rejections map[string]string) error
 }
 
 type WorkspaceUsecase struct {
 	repo   repo
-	pty    *ptyclient.PtyClient
+	pty    ptyProvider
 	lgSess lgSession
 	draft  draftStore
 }
@@ -50,11 +53,11 @@ func New(r repo) *WorkspaceUsecase {
 	return &WorkspaceUsecase{repo: r}
 }
 
-func (u *WorkspaceUsecase) SetPty(p *ptyclient.PtyClient) {
+func (u *WorkspaceUsecase) SetPty(p ptyProvider) {
 	u.pty = p
 }
 
-func (u *WorkspaceUsecase) SetLgSession(s *lgclient.SessionManager) {
+func (u *WorkspaceUsecase) SetLgSession(s lgSession) {
 	u.lgSess = s
 }
 
