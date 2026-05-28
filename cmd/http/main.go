@@ -17,6 +17,7 @@ import (
 	"github.com/faizalv/lemongrass/config"
 	"github.com/faizalv/lemongrass/infra"
 	"github.com/faizalv/lemongrass/migrations"
+	lgdebug "github.com/faizalv/lemongrass/modules/debug"
 	lgfs "github.com/faizalv/lemongrass/modules/fs"
 	lglg "github.com/faizalv/lemongrass/modules/lg"
 	lgpty "github.com/faizalv/lemongrass/modules/pty"
@@ -66,9 +67,13 @@ func main() {
 	reconModule.LoadMe(cfg, db)
 	reconModule.StartHTTPRouter(api)
 
-	lgMod := &lglg.Lg{PtyClient: ptyMod.Client(), ReconClient: reconModule.Client()}
+	lgMod := &lglg.Lg{ReconClient: reconModule.Client()}
 	lgMod.LoadMe(cfg, db)
 	lgMod.StartHTTPRouter(api)
+
+	debugMod := &lgdebug.Debug{PtyClient: ptyMod.Client()}
+	debugMod.LoadMe(cfg, db)
+	debugMod.StartHTTPRouter(api)
 
 	workspaceModule := &lgworkspace.Workspace{PtyClient: ptyMod.Client()}
 	workspaceModule.LoadMe(cfg, db)

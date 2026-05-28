@@ -31,9 +31,10 @@ type writeInput struct {
 }
 
 type lgRequest struct {
-	Cmd      string `json:"cmd"`
-	Args     string `json:"args"`
-	Blocking bool   `json:"blocking"`
+	Cmd       string `json:"cmd"`
+	Args      string `json:"args"`
+	Blocking  bool   `json:"blocking"`
+	SessionID string `json:"session_id"`
 }
 
 type lgResponse struct {
@@ -160,7 +161,7 @@ func handleBash(raw json.RawMessage) {
 
 func forwardToServer(rest string, blocking bool) {
 	lgCmd, args := splitCmd(rest)
-	body, _ := json.Marshal(lgRequest{Cmd: lgCmd, Args: args, Blocking: blocking})
+	body, _ := json.Marshal(lgRequest{Cmd: lgCmd, Args: args, Blocking: blocking, SessionID: os.Getenv("LG_SESSION_ID")})
 
 	timeout := 5 * time.Second
 	if blocking {

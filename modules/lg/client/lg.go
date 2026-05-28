@@ -17,6 +17,6 @@ func (s *SessionManager) RegisterSession(workspaceID, projectAlias string, proje
 	s.uc.RegisterSession(workspaceID, projectAlias, projectID, session)
 }
 
-func (s *SessionManager) RespondToCheckpoint(rejections map[string]string) error {
-	return s.uc.RespondToCheckpoint(rejections)
+func (s *SessionManager) RespondToCheckpoint(workspaceID string, rejections map[string]string) error {
+	return s.uc.RespondToCheckpoint(workspaceID, rejections)
 }

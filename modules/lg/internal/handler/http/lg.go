@@ -18,15 +18,16 @@ func New(uc *usecase.LgUsecase) *LgHandler {
 
 func (h *LgHandler) Receive(c *gin.Context) {
 	var req struct {
-		Cmd      string `json:"cmd"`
-		Args     string `json:"args"`
-		Blocking bool   `json:"blocking"`
+		Cmd       string `json:"cmd"`
+		Args      string `json:"args"`
+		Blocking  bool   `json:"blocking"`
+		SessionID string `json:"session_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Cmd == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cmd is required"})
 		return
 	}
-	text := h.uc.Handle(req.Cmd, req.Args, req.Blocking)
+	text := h.uc.Handle(req.SessionID, req.Cmd, req.Args, req.Blocking)
 	c.JSON(http.StatusOK, gin.H{"text": text})
 }
 
@@ -65,16 +66,4 @@ func (h *LgHandler) GetWriteTrail(c *gin.Context) {
 		resp[i] = transporter.ToWriteTrailResponse(e)
 	}
 	c.JSON(http.StatusOK, resp)
-}
-
-func (h *LgHandler) Send(c *gin.Context) {
-	var req struct {
-		Message string `json:"message"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil || req.Message == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "message is required"})
-		return
-	}
-	h.uc.Send(req.Message)
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

@@ -36,7 +36,7 @@ type draftStore interface {
 
 type lgSession interface {
 	RegisterSession(workspaceID, projectAlias string, projectID int64, session *ptyclient.Session)
-	RespondToCheckpoint(rejections map[string]string) error
+	RespondToCheckpoint(workspaceID string, rejections map[string]string) error
 }
 
 type WorkspaceUsecase struct {
@@ -188,7 +188,7 @@ func (u *WorkspaceUsecase) ApproveCheckpoint(ctx context.Context, workspaceID st
 	if u.draft != nil {
 		u.draft.ClearDraft(ctx, workspaceID)
 	}
-	return u.lgSess.RespondToCheckpoint(nil)
+	return u.lgSess.RespondToCheckpoint(workspaceID, nil)
 }
 
 func (u *WorkspaceUsecase) SubmitCheckpointReviews(ctx context.Context, workspaceID string) error {
@@ -224,7 +224,7 @@ func (u *WorkspaceUsecase) SubmitCheckpointReviews(ctx context.Context, workspac
 			return err
 		}
 	}
-	return u.lgSess.RespondToCheckpoint(rejections)
+	return u.lgSess.RespondToCheckpoint(workspaceID, rejections)
 }
 
 func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath string) string {

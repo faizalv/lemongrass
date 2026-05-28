@@ -42,18 +42,16 @@ type activeSession struct {
 }
 
 type LgUsecase struct {
-	pty        *ptyclient.PtyClient
 	recon      reconUsecase
 	tasks      taskWriter
 	mu         sync.Mutex
 	calls      []entity.Call
 	writeTrail []entity.WriteTrailEntry
-	active     *activeSession
-	debug      *ptyclient.Session
+	sessions   map[string]*activeSession
 }
 
-func New(pty *ptyclient.PtyClient) *LgUsecase {
-	uc := &LgUsecase{pty: pty}
+func New() *LgUsecase {
+	uc := &LgUsecase{sessions: make(map[string]*activeSession)}
 	bus.Default.On(bus.EventProjectRemoved, func(_ any) {
 		uc.mu.Lock()
 		uc.calls = nil
@@ -73,7 +71,7 @@ func (u *LgUsecase) SetTaskWriter(tw taskWriter) {
 func (u *LgUsecase) RegisterSession(workspaceID, projectAlias string, projectID int64, session *ptyclient.Session) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	u.active = &activeSession{
+	u.sessions[workspaceID] = &activeSession{
 		workspaceID:  workspaceID,
 		projectID:    projectID,
 		projectAlias: projectAlias,
@@ -82,12 +80,12 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias string, projectID 
 	}
 }
 
-func (u *LgUsecase) RespondToCheckpoint(rejections map[string]string) error {
+func (u *LgUsecase) RespondToCheckpoint(workspaceID string, rejections map[string]string) error {
 	u.mu.Lock()
-	s := u.active
+	s := u.sessions[workspaceID]
 	u.mu.Unlock()
 	if s == nil {
-		return fmt.Errorf("no active grooming session")
+		return fmt.Errorf("no active session for workspace %s", workspaceID)
 	}
 	select {
 	case s.checkpointCh <- checkpointResult{rejections: rejections}:
@@ -97,13 +95,13 @@ func (u *LgUsecase) RespondToCheckpoint(rejections map[string]string) error {
 	}
 }
 
-func (u *LgUsecase) Handle(cmd, args string, blocking bool) string {
+func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 	u.mu.Lock()
 	u.calls = append(u.calls, entity.Call{Cmd: cmd, Args: args, Timestamp: time.Now()})
 	if len(u.calls) > 200 {
 		u.calls = u.calls[len(u.calls)-200:]
 	}
-	s := u.active
+	s := u.sessions[sessionID]
 	u.mu.Unlock()
 
 	if cmd == "echo" {
@@ -111,7 +109,7 @@ func (u *LgUsecase) Handle(cmd, args string, blocking bool) string {
 	}
 
 	if s == nil {
-		return "error: no active grooming session"
+		return "error: no active session for this workspace"
 	}
 	if u.recon == nil {
 		return "error: recon not available"
@@ -269,11 +267,11 @@ func (u *LgUsecase) handleHandover(s *activeSession) {
 	if u.tasks != nil {
 		u.tasks.UpdateStatus(context.Background(), s.workspaceID, "awaiting_execution")
 	}
-	s.ptySession.Close()
-	u.mu.Lock()
-	if u.active == s {
-		u.active = nil
+	if s.ptySession != nil {
+		s.ptySession.Close()
 	}
+	u.mu.Lock()
+	delete(u.sessions, s.workspaceID)
 	u.mu.Unlock()
 }
 
@@ -309,48 +307,6 @@ func (u *LgUsecase) ListCalls() []entity.Call {
 	result := make([]entity.Call, len(u.calls))
 	copy(result, u.calls)
 	return result
-}
-
-const debugSystemPrompt = `Lemongrass debug PTY. Direct text invisible -- only hook responses reach user. To respond: invoke #lg.echo <message> as Bash tool call (# is hook trigger, not a comment). One call per message.`
-
-func (u *LgUsecase) Send(message string) {
-	go func() {
-		if message == "exit" {
-			u.mu.Lock()
-			s := u.debug
-			u.debug = nil
-			u.mu.Unlock()
-			if s != nil {
-				s.Close()
-			}
-			return
-		}
-
-		u.mu.Lock()
-		sess := u.debug
-		u.mu.Unlock()
-
-		if sess == nil {
-			newSess, err := u.pty.Open(debugSystemPrompt, "", "debug")
-			if err != nil {
-				return
-			}
-			u.mu.Lock()
-			if u.debug == nil {
-				u.debug = newSess
-				sess = newSess
-			} else {
-				// lost the open race -- another goroutine already opened one
-				go newSess.Close()
-				sess = u.debug
-			}
-			u.mu.Unlock()
-		}
-
-		sess.Write([]byte(message + "\r"))
-		time.Sleep(300 * time.Millisecond)
-		sess.Write([]byte("\r"))
-	}()
 }
 
 func formatAnnotate(n reconentity.SemanticNode) string {

@@ -5,7 +5,6 @@ import (
 	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
 	handler "github.com/faizalv/lemongrass/modules/lg/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/lg/internal/usecase"
-	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	reconclient "github.com/faizalv/lemongrass/modules/recon/client"
 	wsclient "github.com/faizalv/lemongrass/modules/workspace/client"
 	"github.com/gin-gonic/gin"
@@ -13,14 +12,13 @@ import (
 )
 
 type Lg struct {
-	PtyClient   *ptyclient.PtyClient
 	ReconClient *reconclient.ReconClient
 	uc          *usecase.LgUsecase
 	h           *handler.LgHandler
 }
 
 func (l *Lg) LoadMe(_ config.Config, _ *sqlx.DB) {
-	l.uc = usecase.New(l.PtyClient)
+	l.uc = usecase.New()
 	if l.ReconClient != nil {
 		l.uc.SetRecon(l.ReconClient)
 	}
@@ -40,6 +38,5 @@ func (l *Lg) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("", l.h.Receive)
 	g.POST("/write-trail", l.h.WriteTrail)
 	g.GET("/write-trail", l.h.GetWriteTrail)
-	g.GET("/debug/calls", l.h.Calls)
-	g.POST("/debug/send", l.h.Send)
+	g.GET("/calls", l.h.Calls)
 }

@@ -58,6 +58,7 @@
 
     <DebugPanel
       v-if="debugOpen"
+      :workspaces="workspaces"
       @close="debugOpen = false"
     />
   </div>
