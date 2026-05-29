@@ -118,10 +118,28 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 		relFile, _ := filepath.Rel(root, filePath)
 		src, _ := os.ReadFile(filePath)
 		srcLines := bytes.Split(src, []byte("\n"))
+		exports := extractExports(fset, astFile, srcLines)
+		// emit one imports node per file that has an import block
+		for _, decl := range astFile.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.IMPORT || len(genDecl.Specs) == 0 {
+				continue
+			}
+			ls := fset.Position(genDecl.Pos()).Line
+			le := fset.Position(genDecl.End()).Line
+			exports = append(exports, entity.Symbol{
+				Name:        "imports",
+				Kind:        "imports",
+				LineStart:   ls,
+				LineEnd:     le,
+				ContentHash: hashLines(srcLines, ls, le),
+			})
+			break
+		}
 		node := entity.FileNode{
 			Path:    filepath.ToSlash(relFile),
 			Package: astPkg.Name,
-			Exports: extractExports(fset, astFile, srcLines),
+			Exports: exports,
 		}
 		for _, imp := range astFile.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)

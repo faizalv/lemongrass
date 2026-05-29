@@ -23,8 +23,12 @@ func (c *ReconClient) ReadNode(ctx context.Context, projectID int64, filePath, s
 	return c.uc.ReadNode(ctx, projectID, filePath, symbol, kind)
 }
 
-func (c *ReconClient) Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error {
-	return c.uc.Annotate(ctx, projectID, filePath, symbol, description, returnType, calls)
+func (c *ReconClient) Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error {
+	return c.uc.Annotate(ctx, projectID, filePath, symbol, kind, description, returnType, calls)
+}
+
+func (c *ReconClient) GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error) {
+	return c.uc.GetProjectCoverage(ctx, projectID)
 }
 
 func (c *ReconClient) Search(ctx context.Context, projectID int64, query string) ([]entity.SemanticNode, error) {

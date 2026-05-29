@@ -30,13 +30,14 @@ type repo interface {
 	GetSyncInterval(ctx context.Context, projectID int64) (string, error)
 	UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error
 	GetNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, error)
-	AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error
+	AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error
 	ListByPathPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error)
 	SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error
 	GetTreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error)
 	SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error)
 	SearchByFTS(ctx context.Context, projectID int64, query string, limit int) ([]entity.SemanticNode, error)
 	GetRelated(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error)
+	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
 }
 
 type ReconUsecase struct {
@@ -201,8 +202,8 @@ func (u *ReconUsecase) ReadNode(ctx context.Context, projectID int64, filePath, 
 	return node, code, nil
 }
 
-func (u *ReconUsecase) Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error {
-	if err := u.repo.AnnotateNode(ctx, projectID, filePath, symbol, description, returnType, calls); err != nil {
+func (u *ReconUsecase) Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error {
+	if err := u.repo.AnnotateNode(ctx, projectID, filePath, symbol, kind, description, returnType, calls); err != nil {
 		return err
 	}
 	go func() {
@@ -213,6 +214,10 @@ func (u *ReconUsecase) Annotate(ctx context.Context, projectID int64, filePath, 
 		u.repo.SetEmbedding(context.Background(), projectID, filePath, symbol, vec)
 	}()
 	return nil
+}
+
+func (u *ReconUsecase) GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error) {
+	return u.repo.GetProjectCoverage(ctx, projectID)
 }
 
 func (u *ReconUsecase) Search(ctx context.Context, projectID int64, query string) ([]entity.SemanticNode, error) {

@@ -238,11 +238,21 @@ Requirements:
 
 --- Navigation ---
 
-#lg.recon.tree -- package map with annotation coverage. Start here.
-#lg.recon.search <query> -- keyword search across explored nodes; faster than raw code.
-#lg.recon.read <file:symbol:start-end> -- raw code for unexplored or stale nodes.
-#lg.recon.related <symbol> -- callees and callers for explored symbols.
-After #lg.recon.read, immediately call #lg!.annotate <file:symbol:start-end>:"desc":return_type (# is hook trigger, not a comment; ! = non-blocking fire-and-forget).
+#lg.recon.tree [dir] -- directory map with annotation coverage per directory. Start here.
+#lg.recon.peek <dir> -- all symbols under a directory: kind, name, lines, status. Use after tree to decide what to read.
+#lg.recon.search <query> -- vector search across annotated nodes. Rejected when code coverage is below 80 percent -- use peek and read to build the map first.
+#lg.recon.read <path:symbol:kind> -- raw source for a symbol. Server resolves current lines from the map. Use for unexplored or stale nodes.
+#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol.
+
+Navigation flow: tree shows which directories need attention. peek shows what symbols are inside. read and annotate what matters for this requirement.
+
+After reading any node, immediately fire (non-blocking):
+  #lg!.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil
+  # is a hook trigger, not a comment. ! means fire-and-forget. nil means field is absent.
+  Example: modules/user/repo/user.go:GetByID:method:"fetches user by primary key; no tenant check":*entity.User:db.QueryRowx,db.Get
+
+Config nodes (Dockerfiles, CI pipelines, Compose files, Makefiles) appear in peek, are readable, and are annotatable. Annotating them makes them searchable -- useful for queries like "gitlab deployment config" or "build process".
+Imports nodes appear last in peek output per file. Reading one shows the file's import block. Annotate with a summary of what the file depends on.
 
 --- Tasks ---
 

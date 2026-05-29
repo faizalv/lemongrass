@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,10 +18,11 @@ import (
 type reconClient interface {
 	TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.DirectoryCoverage, error)
 	ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (reconentity.SemanticNode, string, error)
-	Annotate(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error
+	Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error
 	Search(ctx context.Context, projectID int64, query string) ([]reconentity.SemanticNode, error)
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
 	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
+	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
 }
 
 type taskWriter interface {
@@ -218,6 +218,13 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 }
 
 func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query string) string {
+	total, explored, err := u.recon.GetProjectCoverage(ctx, s.projectID)
+	if err == nil && total > 0 {
+		pct := explored * 100 / total
+		if pct < 80 {
+			return fmt.Sprintf("error: coverage too low to search (%d%% explored) -- use recon.peek + recon.read to build the map first", pct)
+		}
+	}
 	nodes, err := u.recon.Search(ctx, s.projectID, strings.TrimSpace(query))
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
@@ -281,11 +288,11 @@ func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, args st
 }
 
 func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) {
-	filePath, symbol, _, _, description, returnType, calls, err := parseAnnotateFormat(args)
+	filePath, symbol, kind, description, returnType, calls, err := parseAnnotateFormat(args)
 	if err != nil {
 		return
 	}
-	u.recon.Annotate(ctx, s.projectID, filePath, symbol, description, returnType, calls)
+	u.recon.Annotate(ctx, s.projectID, filePath, symbol, kind, description, returnType, calls)
 }
 
 func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args string) string {
@@ -403,21 +410,7 @@ func parseRef(s string) (filePath, symbol, kind string, err error) {
 	return
 }
 
-func parseLineRange(s string) (start, end int, err error) {
-	idx := strings.Index(s, "-")
-	if idx < 0 {
-		err = fmt.Errorf("invalid line range %q", s)
-		return
-	}
-	start, err = strconv.Atoi(s[:idx])
-	if err != nil {
-		return
-	}
-	end, err = strconv.Atoi(s[idx+1:])
-	return
-}
-
-func parseAnnotateFormat(s string) (filePath, symbol string, lineStart, lineEnd int, description, returnType string, calls []string, err error) {
+func parseAnnotateFormat(s string) (filePath, symbol, kind, description, returnType string, calls []string, err error) {
 	parts := strings.SplitN(s, ":", 4)
 	if len(parts) < 4 {
 		err = fmt.Errorf("invalid annotate format")
@@ -425,10 +418,7 @@ func parseAnnotateFormat(s string) (filePath, symbol string, lineStart, lineEnd 
 	}
 	filePath = parts[0]
 	symbol = parts[1]
-	lineStart, lineEnd, err = parseLineRange(parts[2])
-	if err != nil {
-		return
-	}
+	kind = parts[2]
 
 	rest := parts[3]
 	if !strings.HasPrefix(rest, `"`) {
@@ -449,23 +439,25 @@ func parseAnnotateFormat(s string) (filePath, symbol string, lineStart, lineEnd 
 	}
 	rest = rest[1:]
 
-	if bracketIdx := strings.LastIndex(rest, ":["); bracketIdx >= 0 {
-		returnType = rest[:bracketIdx]
-		callStr := strings.TrimSuffix(rest[bracketIdx+2:], "]")
-		for _, c := range strings.Split(callStr, ",") {
-			if t := strings.TrimSpace(c); t != "" {
-				calls = append(calls, t)
-			}
+	// returnType:deps -- split on last ":"
+	colonIdx := strings.LastIndex(rest, ":")
+	if colonIdx >= 0 {
+		rt := rest[:colonIdx]
+		depsStr := rest[colonIdx+1:]
+		if rt != "nil" {
+			returnType = rt
 		}
-	} else if strings.HasPrefix(rest, "[") {
-		callStr := strings.TrimSuffix(strings.TrimPrefix(rest, "["), "]")
-		for _, c := range strings.Split(callStr, ",") {
-			if t := strings.TrimSpace(c); t != "" {
-				calls = append(calls, t)
+		if depsStr != "nil" {
+			for _, d := range strings.Split(depsStr, ",") {
+				if t := strings.TrimSpace(d); t != "" {
+					calls = append(calls, t)
+				}
 			}
 		}
 	} else {
-		returnType = rest
+		if rest != "nil" {
+			returnType = rest
+		}
 	}
 	return
 }

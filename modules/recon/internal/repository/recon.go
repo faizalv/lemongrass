@@ -286,7 +286,7 @@ func (r *ReconRepository) GetNode(ctx context.Context, projectID int64, filePath
 	return toEntity(rec), nil
 }
 
-func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, description, returnType string, calls []string) error {
+func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error {
 	c := pq.StringArray(calls)
 	if c == nil {
 		c = pq.StringArray{}
@@ -294,10 +294,24 @@ func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, fil
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE lg_semantic_nodes
 		 SET description = $1, return_type = $2, calls = $3, status = 'explored', explored_at = NOW()
-		 WHERE project_id = $4 AND file_path = $5 AND symbol = $6`,
-		nullStr(description), nullStr(returnType), c, projectID, filePath, symbol,
+		 WHERE project_id = $4 AND file_path = $5 AND symbol = $6 AND kind = $7`,
+		nullStr(description), nullStr(returnType), c, projectID, filePath, symbol, kind,
 	)
 	return err
+}
+
+func (r *ReconRepository) GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error) {
+	err = r.db.QueryRowContext(ctx,
+		`SELECT
+		   COUNT(*),
+		   COUNT(*) FILTER (WHERE status = 'explored')
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1
+		   AND status != 'removed'
+		   AND kind NOT IN ('imports','dockerfile','makefile','ci-github','ci-gitlab','compose','config-yaml')`,
+		projectID,
+	).Scan(&total, &explored)
+	return
 }
 
 func (r *ReconRepository) SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error {
