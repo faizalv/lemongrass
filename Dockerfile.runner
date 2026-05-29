@@ -20,7 +20,7 @@ RUN usermod -l lg -d /home/lg node && \
 USER lg
 WORKDIR /home/lg
 
-RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN curl -fsSL https://claude.ai/install.sh | bash -s 2.1.156
 
 ENV PATH="/home/lg/.local/bin:${PATH}"
 ENV CLAUDE_CONFIG_DIR=/home/lg/.lemongrass/claude
