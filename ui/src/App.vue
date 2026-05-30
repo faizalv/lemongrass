@@ -145,10 +145,10 @@ function handleSwitchProject(pid: string) {
 
 function handleAdded(fsProjects: FsProject[]) {
   const last = fsProjects[fsProjects.length - 1]
+  applyFsProjects(fsProjects)
+  addProjectOpen.value = false
   if (last) {
     router.push('/project/' + String(last.id) + '/reconnaissance')
-  } else {
-    addProjectOpen.value = false
   }
 }
 
