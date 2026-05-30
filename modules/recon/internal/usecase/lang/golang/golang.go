@@ -130,24 +130,45 @@ func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, error)
 }
 
 func parseDir(dir, root, moduleName string) *entity.PackageNode {
-	fset := token.NewFileSet()
-	pkgMap, _ := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
-		return !strings.HasSuffix(fi.Name(), "_test.go")
-	}, 0)
-	if len(pkgMap) == 0 {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
 		return nil
 	}
 
-	var astPkg *ast.Package
-	for name, p := range pkgMap {
-		if !strings.HasSuffix(name, "_test") {
-			astPkg = p
-			break
-		}
+	fset := token.NewFileSet()
+
+	type parsedFile struct {
+		path    string
+		pkgName string
+		astFile *ast.File
 	}
-	if astPkg == nil {
+	var parsed []parsedFile
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		filePath := filepath.Join(dir, name)
+		f, err := parser.ParseFile(fset, filePath, nil, 0)
+		if err != nil {
+			continue
+		}
+		pkgName := f.Name.Name
+		if strings.HasSuffix(pkgName, "_test") {
+			continue
+		}
+		parsed = append(parsed, parsedFile{path: filePath, pkgName: pkgName, astFile: f})
+	}
+
+	if len(parsed) == 0 {
 		return nil
 	}
+
+	pkgName := parsed[0].pkgName
 
 	rel, _ := filepath.Rel(root, dir)
 	rel = filepath.ToSlash(rel)
@@ -159,13 +180,12 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 	importSet := make(map[string]bool)
 	var files []entity.FileNode
 
-	for filePath, astFile := range astPkg.Files {
-		relFile, _ := filepath.Rel(root, filePath)
-		src, _ := os.ReadFile(filePath)
+	for _, pf := range parsed {
+		relFile, _ := filepath.Rel(root, pf.path)
+		src, _ := os.ReadFile(pf.path)
 		srcLines := bytes.Split(src, []byte("\n"))
-		exports := extractExports(fset, astFile, srcLines)
-		// emit one imports node per file that has an import block
-		for _, decl := range astFile.Decls {
+		exports := extractExports(fset, pf.astFile, srcLines)
+		for _, decl := range pf.astFile.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.IMPORT || len(genDecl.Specs) == 0 {
 				continue
@@ -183,10 +203,10 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 		}
 		node := entity.FileNode{
 			Path:    filepath.ToSlash(relFile),
-			Package: astPkg.Name,
+			Package: pkgName,
 			Exports: exports,
 		}
-		for _, imp := range astFile.Imports {
+		for _, imp := range pf.astFile.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
 			node.Imports = append(node.Imports, path)
 			importSet[path] = true
