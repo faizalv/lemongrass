@@ -23,6 +23,7 @@ type reconClient interface {
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
 	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
+	SyncGitProject(projectID int64)
 }
 
 type taskWriter interface {
@@ -251,7 +252,7 @@ func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args strin
 	}
 	hint := ""
 	if node.Status == "stale" && node.Description != "" {
-		hint = "[STALE] " + node.Description + "\n\n"
+		hint = "[STALE] " + node.Description + "\nLast annotated before code change. Re-read and re-annotate.\n---\n"
 	}
 	return fmt.Sprintf("%s:%s:%s:\n%s%s", filePath, symbol, kind, hint, code)
 }
@@ -355,7 +356,6 @@ func (u *LgUsecase) handleHandover(s *activeSession) {
 
 func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 	u.mu.Lock()
-	defer u.mu.Unlock()
 	u.writeTrail = append(u.writeTrail, entity.WriteTrailEntry{
 		SessionID: sessionID,
 		FilePath:  filePath,
@@ -364,6 +364,12 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 	})
 	if len(u.writeTrail) > 200 {
 		u.writeTrail = u.writeTrail[len(u.writeTrail)-200:]
+	}
+	s := u.sessions[sessionID]
+	u.mu.Unlock()
+
+	if s != nil && u.recon != nil {
+		u.recon.SyncGitProject(s.projectID)
 	}
 }
 

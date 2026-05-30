@@ -13,4 +13,5 @@ type Parser interface {
 	Priority() int
 	Detect(dir string) bool
 	Parse(dir string, ig Ignorer) (*entity.ProjectTree, error)
+	ParseFiles(dir string, ig Ignorer, paths []string) (*entity.ProjectTree, error)
 }

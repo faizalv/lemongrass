@@ -258,6 +258,10 @@ After reading any node, immediately fire (non-blocking):
 Config nodes (Dockerfiles, CI pipelines, Compose files, Makefiles) appear in peek, are readable, and are annotatable. Annotating them makes them searchable -- useful for queries like "gitlab deployment config" or "build process".
 Imports nodes appear last in peek output per file. Reading one shows the file's import block. Annotate with a summary of what the file depends on.
 
+--- Stale nodes ---
+
+Nodes marked [STALE] in recon.read output have descriptions that predate a code change. Treat the stored description as a hint only -- the code has changed since it was written. Re-read and re-annotate before using the node in planning.
+
 --- Tasks ---
 
 After enough understanding, call #lg.tasks.checkpoint with:

@@ -49,3 +49,52 @@ func CoverageToResponse(c entity.LangCoverage) LangCoverageResponse {
 		Stale:    c.Stale,
 	}
 }
+
+type ChangedFileResponse struct {
+	Path   string `json:"path"`
+	Status string `json:"status"`
+}
+
+type CommitInfoResponse struct {
+	Hash      string `json:"hash"`
+	Message   string `json:"message"`
+	Author    string `json:"author"`
+	Timestamp string `json:"timestamp"`
+}
+
+type GitStatusResponse struct {
+	IsGitRepo     bool                  `json:"is_git_repo"`
+	Branch        string                `json:"branch,omitempty"`
+	HeadCommit    string                `json:"head_commit,omitempty"`
+	HeadMessage   string                `json:"head_message,omitempty"`
+	ChangedFiles  []ChangedFileResponse `json:"changed_files,omitempty"`
+	StaleCount    int                   `json:"stale_count"`
+	RecentCommits []CommitInfoResponse  `json:"recent_commits,omitempty"`
+}
+
+func GitStatusToResponse(s entity.GitStatus) GitStatusResponse {
+	resp := GitStatusResponse{
+		IsGitRepo:  s.IsGitRepo,
+		StaleCount: s.StaleCount,
+	}
+	if !s.IsGitRepo {
+		return resp
+	}
+	resp.Branch = s.Branch
+	resp.HeadCommit = s.HeadCommit
+	resp.HeadMessage = s.HeadMessage
+	resp.ChangedFiles = make([]ChangedFileResponse, len(s.ChangedFiles))
+	for i, f := range s.ChangedFiles {
+		resp.ChangedFiles[i] = ChangedFileResponse{Path: f.Path, Status: f.Status}
+	}
+	resp.RecentCommits = make([]CommitInfoResponse, len(s.RecentCommits))
+	for i, c := range s.RecentCommits {
+		resp.RecentCommits[i] = CommitInfoResponse{
+			Hash:      c.Hash,
+			Message:   c.Message,
+			Author:    c.Author,
+			Timestamp: c.Timestamp,
+		}
+	}
+	return resp
+}

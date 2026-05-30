@@ -42,3 +42,7 @@ func (c *ReconClient) Related(ctx context.Context, projectID int64, filePath, sy
 func (c *ReconClient) PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
 	return c.uc.PeekDir(ctx, projectID, pathPrefix)
 }
+
+func (c *ReconClient) SyncGitProject(projectID int64) {
+	c.uc.ActivateGitSync(projectID)
+}

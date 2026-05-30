@@ -34,6 +34,51 @@ func (p *Parser) Detect(dir string) bool {
 	return err == nil
 }
 
+func (p *Parser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entity.ProjectTree, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+	dir = abs
+
+	moduleName, err := readModuleName(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	pathSet := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		pathSet[filepath.ToSlash(p)] = true
+	}
+
+	dirSet := make(map[string]bool)
+	for _, p := range paths {
+		dirSet[filepath.ToSlash(filepath.Dir(p))] = true
+	}
+
+	var packages []entity.PackageNode
+	for relDir := range dirSet {
+		absDir := filepath.Join(dir, relDir)
+		pkg := parseDir(absDir, dir, moduleName)
+		if pkg == nil {
+			continue
+		}
+		var filtered []entity.FileNode
+		for _, f := range pkg.Files {
+			if pathSet[f.Path] {
+				filtered = append(filtered, f)
+			}
+		}
+		if len(filtered) == 0 {
+			continue
+		}
+		pkg.Files = filtered
+		packages = append(packages, *pkg)
+	}
+
+	return &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}, nil
+}
+
 func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {

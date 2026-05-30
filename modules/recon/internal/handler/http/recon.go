@@ -117,6 +117,20 @@ func (h *ReconHandler) UpdateSyncInterval(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"sync_interval": req.Interval})
 }
 
+func (h *ReconHandler) GitStatus(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	status, err := h.uc.GitStatus(c.Request.Context(), projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, transporter.GitStatusToResponse(status))
+}
+
 func (h *ReconHandler) GetLgIgnore(c *gin.Context) {
 	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {

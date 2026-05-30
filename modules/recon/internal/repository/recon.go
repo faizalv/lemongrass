@@ -511,6 +511,37 @@ func formatVector(v []float32) string {
 	return sb.String()
 }
 
+func (r *ReconRepository) GetLastSyncedCommit(ctx context.Context, projectID int64) (string, error) {
+	var commit sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`SELECT last_synced_commit FROM lg_projects WHERE id = $1`, projectID).Scan(&commit)
+	if err != nil {
+		return "", err
+	}
+	return commit.String, nil
+}
+
+func (r *ReconRepository) SetLastSyncedCommit(ctx context.Context, projectID int64, commit string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE lg_projects SET last_synced_commit = $1 WHERE id = $2`, commit, projectID)
+	return err
+}
+
+func (r *ReconRepository) DeleteNodesByFilePaths(ctx context.Context, projectID int64, filePaths []string) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM lg_semantic_nodes WHERE project_id = $1 AND file_path = ANY($2)`,
+		projectID, pq.StringArray(filePaths))
+	return err
+}
+
+func (r *ReconRepository) GetStaleCount(ctx context.Context, projectID int64) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(1) FROM lg_semantic_nodes WHERE project_id = $1 AND status = 'stale'`,
+		projectID).Scan(&count)
+	return count, err
+}
+
 func itoa(n int) string {
 	const digits = "0123456789"
 	if n < 10 {

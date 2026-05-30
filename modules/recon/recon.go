@@ -46,18 +46,23 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("/projects/:id/activate", r.h.Activate)
 	g.GET("/projects/:id/sync-status", r.h.SyncStatus)
 	g.PATCH("/projects/:id/sync-interval", r.h.UpdateSyncInterval)
+	g.GET("/projects/:id/git-status", r.h.GitStatus)
 }
 
 func (r *Recon) StartScheduler(ctx context.Context) {
 	go func() {
-		ticker := time.NewTicker(60 * time.Second)
-		defer ticker.Stop()
+		ticker60 := time.NewTicker(60 * time.Second)
+		ticker5 := time.NewTicker(5 * time.Second)
+		defer ticker60.Stop()
+		defer ticker5.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-ticker60.C:
 				r.uc.TickScheduler(ctx)
+			case <-ticker5.C:
+				r.uc.TickGitPoller(ctx)
 			}
 		}
 	}()

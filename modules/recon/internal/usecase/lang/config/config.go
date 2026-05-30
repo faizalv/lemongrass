@@ -37,6 +37,52 @@ func (p *configParser) Detect(dir string) bool {
 	return found
 }
 
+func (p *configParser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entity.ProjectTree, error) {
+	pkgMap := make(map[string]*entity.PackageNode)
+
+	for _, relPath := range paths {
+		relPath = filepath.ToSlash(relPath)
+		if ig.Match(relPath) {
+			continue
+		}
+		name := filepath.Base(relPath)
+		k := fileKind(relPath, name)
+		if k == "" {
+			continue
+		}
+		absPath := filepath.Join(dir, relPath)
+		info, err := os.Stat(absPath)
+		if err != nil || info.Size() > maxSize {
+			continue
+		}
+		lineCount, hash := scanFile(absPath)
+		dirRel := filepath.ToSlash(filepath.Dir(relPath))
+		if dirRel == "." {
+			dirRel = ""
+		}
+		if pkgMap[dirRel] == nil {
+			pkgMap[dirRel] = &entity.PackageNode{ImportPath: dirRel, Dir: dirRel}
+		}
+		pkg := pkgMap[dirRel]
+		pkg.Files = append(pkg.Files, entity.FileNode{
+			Path: relPath,
+			Exports: []entity.Symbol{{
+				Name:        name,
+				Kind:        k,
+				LineStart:   1,
+				LineEnd:     lineCount,
+				ContentHash: hash,
+			}},
+		})
+	}
+
+	var packages []entity.PackageNode
+	for _, pkg := range pkgMap {
+		packages = append(packages, *pkg)
+	}
+	return &entity.ProjectTree{Language: "config", Packages: packages}, nil
+}
+
 func (p *configParser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, error) {
 	pkgMap := make(map[string]*entity.PackageNode)
 

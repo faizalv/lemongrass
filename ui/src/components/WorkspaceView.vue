@@ -26,6 +26,9 @@
         </div>
       </div>
 
+      <!-- Git panel -->
+      <GitPanel :project-id="projectId" />
+
       <!-- Tabs -->
       <div style="display:flex;gap:4px;padding:0 28px;margin-top:12px">
         <button
@@ -74,6 +77,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { Workspace } from '../types'
 import AppIcon from './AppIcon.vue'
 import GroomingView from './grooming/GroomingView.vue'
+import GitPanel from './GitPanel.vue'
 
 defineProps<{ workspace: Workspace & { branch: string; commit: string } }>()
 
@@ -81,6 +85,7 @@ const route = useRoute()
 const router = useRouter()
 
 const activeTab = computed(() => route.path.endsWith('/execution') ? 'execution' : 'grooming')
+const projectId = computed(() => route.params.projectId as string)
 
 function switchTab(tabId: string) {
   const base = '/project/' + route.params.projectId + '/workspace/' + route.params.workspaceId
