@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,6 +69,19 @@ func readUserPatterns(dir string) []string {
 		out = append(out, line)
 	}
 	return out
+}
+
+func (u *ReconUsecase) GetLgIgnorePatterns(ctx context.Context, projectID int64) ([]string, error) {
+	rawPath, err := u.repo.ProjectDir(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	dir := "/projects/" + filepath.Base(rawPath)
+	patterns := readUserPatterns(dir)
+	if patterns == nil {
+		patterns = []string{}
+	}
+	return patterns, nil
 }
 
 func loadIgnore(dir string) lang.Ignorer {
