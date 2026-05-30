@@ -5,8 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
-	"time"
 
 	"github.com/faizalv/lemongrass/config"
 )
@@ -33,7 +31,7 @@ func cmdUp() {
 	config.Save(cfg)
 
 	writeHookSettings(cfg)
-	startFsDaemon()
+	installAndStartDaemon(cfg.BinPath)
 
 	composePath := filepath.Join(config.Dir(), "docker-compose.yml")
 	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, nil), 0644); err != nil {
@@ -79,26 +77,4 @@ func writeHookSettings(cfg config.Config) {
   }
 }`
 	os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(settings), 0644)
-}
-
-func startFsDaemon() {
-	sockPath := filepath.Join(config.Dir(), "fs.sock")
-
-	cmd := exec.Command("lemongrass", "fs-daemon")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not start fs-daemon: %v\n", err)
-		return
-	}
-
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat(sockPath); err == nil {
-			return
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	fmt.Fprintln(os.Stderr, "warning: fs-daemon did not start in time")
 }

@@ -20,7 +20,7 @@ type Fs struct {
 
 func (f *Fs) LoadMe(cfg config.Config, db *sqlx.DB) {
 	repo := repository.New(db)
-	sockPath := filepath.Join(config.Dir(), "fs.sock")
+	sockPath := filepath.Join(config.Dir(), "lemongrass.sock")
 	f.uc = usecase.New(repo, sockPath)
 	f.h = handler.New(f.uc)
 }

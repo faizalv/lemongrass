@@ -22,10 +22,8 @@ func main() {
 		cmdDown()
 	case "status":
 		cmdStatus()
-	case "fs-prep":
-		cmdFsPrep()
-	case "fs-daemon":
-		cmdFsDaemon()
+	case "start-daemon":
+		cmdStartDaemon()
 	case "remount":
 		cmdRemount(os.Args[2:])
 	case "_scaffold":
@@ -46,7 +44,6 @@ COMMANDS
   up                Start all containers
   down              Stop all containers
   status            Show container status
-  fs-prep           Walk home directory and print all directory paths (used by server)
-  remount <paths>   Recreate server container with given project paths mounted
+  remount <paths>      Recreate server container with given project paths mounted
 `)
 }
