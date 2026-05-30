@@ -85,35 +85,35 @@ const row = computed(() => ({
 
 const nameStyle = computed(() => ({
   flex: 1,
-  fontFamily: "'DM Sans',sans-serif",
+  fontFamily: 'var(--font-body)',
   fontSize: '13px',
-  color:      isSelected.value ? '#F5C518' : props.node.isDir ? '#9A9A9A' : '#D4D4D4',
+  color:      isSelected.value ? 'var(--color-amber)' : props.node.isDir ? 'var(--color-gray-300)' : 'var(--color-gray-100)',
   fontWeight: isSelected.value || props.node.isDir ? 600 : 400,
   whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis',
 }))
 
 const fileDot = computed(() => {
   const { explored, stale, total } = props.node
-  const color = total === 0              ? '#2A2A2A'
-    : explored === total                 ? '#4ADE80'
+  const color = total === 0              ? 'var(--color-gray-700)'
+    : explored === total                 ? 'var(--color-success)'
     : stale > 0 && explored + stale === total ? '#F59E0B'
     : stale > 0                          ? '#F59E0B'
-    : explored > 0                       ? '#4ADE80'
-    :                                      '#2A2A2A'
+    : explored > 0                       ? 'var(--color-success)'
+    :                                      'var(--color-gray-700)'
   return { width: '6px', height: '6px', borderRadius: '50%', background: color, flexShrink: 0 }
 })
 
 const covStyle = computed(() => {
   const pct   = props.node.total > 0 ? props.node.explored / props.node.total : 0
-  const color = pct === 1 ? '#4ADE80' : pct > 0 ? '#F5C518' : '#333'
-  return { marginLeft: 'auto', flexShrink: 0, paddingRight: '4px', fontFamily: "'JetBrains Mono',monospace", fontSize: '10px', color }
+  const color = pct === 1 ? 'var(--color-success)' : pct > 0 ? 'var(--color-amber)' : 'var(--color-gray-600)'
+  return { marginLeft: 'auto', flexShrink: 0, paddingRight: '4px', fontFamily: 'var(--font-mono)', fontSize: '10px', color }
 })
 
 const chevronBtn = {
   background: 'transparent', border: 'none', cursor: 'pointer',
   padding: '0', width: '16px', height: '16px', flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: '#555',
+  color: 'var(--color-gray-500)',
 }
 
 const childWrap = { paddingLeft: '18px' }

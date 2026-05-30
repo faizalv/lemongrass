@@ -223,6 +223,28 @@ const peekFiles = computed<PeekFile[]>(() => {
   return files
 })
 
+interface HookParsed { text: string; decision: 'allow' | 'deny' | 'raw' }
+
+function parseHookOutput(raw: string): HookParsed {
+  try {
+    const parsed = JSON.parse(raw)
+    const hso = parsed?.hookSpecificOutput
+    if (!hso) return { text: raw, decision: 'raw' }
+    if (hso.permissionDecision === 'allow') {
+      const cmd: string = hso.updatedInput?.command ?? ''
+      const prefix = "printf '%s' "
+      if (!cmd.startsWith(prefix)) return { text: raw, decision: 'allow' }
+      const escaped = cmd.slice(prefix.length)
+      const text = escaped.replace(/'\\''/g, "'").replace(/^'|'$/g, '')
+      return { text, decision: 'allow' }
+    }
+    if (hso.permissionDecision === 'deny') {
+      return { text: hso.permissionDecisionReason ?? '', decision: 'deny' }
+    }
+  } catch { /* not JSON, return as-is */ }
+  return { text: raw, decision: 'raw' }
+}
+
 async function sendCommand() {
   const raw = command.value.trim()
   if (!raw || !selectedWorkspaceId.value || running.value) return
@@ -243,8 +265,8 @@ async function sendCommand() {
     const body = await r.json().catch(() => ({ output: '', exit_code: -1 }))
     const ms = Date.now() - t0
     const exitCode: number = body.exit_code ?? -1
-    const text: string = body.output || body.error || ''
-    const ok = exitCode !== -1 && !text.startsWith('error:')
+    const { text, decision } = parseHookOutput(body.output || body.error || '')
+    const ok = decision !== 'deny' && exitCode !== -1 && !text.startsWith('error:')
     const displayCmd = raw.replace(/^#lg[!]?\./, '').split(' ')[0]
     const displayArgs = raw.replace(/^#lg[!]?\./, '').split(' ').slice(1).join(' ')
     const result: Result = { cmd: displayCmd, args: displayArgs, text, ms, ok, exitCode }
@@ -312,9 +334,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 const s = {
   root: {
     position: 'fixed', inset: 0, zIndex: 200,
-    background: '#080808',
+    background: 'var(--color-surface-0)',
     display: 'flex', flexDirection: 'column',
-    fontFamily: "'DM Sans', sans-serif",
+    fontFamily: 'var(--font-body)',
   } as Record<string, any>,
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -322,10 +344,10 @@ const s = {
     borderBottom: '1px solid rgba(255,255,255,0.07)',
     flexShrink: 0,
   },
-  title: { fontSize: '14px', fontWeight: 600, color: '#E0E0E0', fontFamily: "'DM Sans',sans-serif" },
+  title: { fontSize: '14px', fontWeight: 600, color: 'var(--color-gray-100)', fontFamily: 'var(--font-body)' },
   closeBtn: {
     background: 'transparent', border: 'none', cursor: 'pointer',
-    color: '#555', fontSize: '16px', padding: '4px 8px', borderRadius: '4px',
+    color: 'var(--color-gray-500)', fontSize: '16px', padding: '4px 8px', borderRadius: '4px',
   },
   body: {
     flex: 1, display: 'flex', overflow: 'hidden',
@@ -340,114 +362,114 @@ const s = {
   },
   sectionLabel: {
     fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase',
-    color: '#555', fontFamily: "'DM Sans',sans-serif", marginBottom: '12px', display: 'block',
+    color: 'var(--color-gray-500)', fontFamily: 'var(--font-body)', marginBottom: '12px', display: 'block',
   } as Record<string, any>,
   fieldLabel: {
-    fontSize: '11px', color: '#717171', fontFamily: "'DM Sans',sans-serif",
+    fontSize: '11px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)',
     marginBottom: '5px', fontWeight: 500,
   },
   select: {
     width: '100%', padding: '9px 12px',
-    background: '#111', border: '1px solid rgba(255,255,255,0.10)',
-    borderRadius: '6px', color: '#E0E0E0', fontSize: '13px',
-    fontFamily: "'DM Sans',sans-serif", outline: 'none', cursor: 'pointer',
+    background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
+    borderRadius: '6px', color: 'var(--color-gray-100)', fontSize: '13px',
+    fontFamily: 'var(--font-body)', outline: 'none', cursor: 'pointer',
   },
   hint: {
     fontSize: '11px', color: '#F59E0B', marginTop: '5px',
-    fontFamily: "'DM Sans',sans-serif",
+    fontFamily: 'var(--font-body)',
   },
   input: {
-    flex: 1, background: '#111', border: '1px solid rgba(255,255,255,0.10)',
+    flex: 1, background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
     borderRadius: '6px', padding: '9px 13px',
-    color: '#E0E0E0', fontSize: '13px', outline: 'none',
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    color: 'var(--color-gray-100)', fontSize: '13px', outline: 'none',
+    fontFamily: 'var(--font-mono)',
   },
   sendBtn: (disabled: boolean) => ({
     padding: '9px 18px', borderRadius: '6px', border: 'none',
-    background: disabled ? '#1A1A1A' : '#F5C518',
-    color: disabled ? '#555' : '#0A0A0A',
+    background: disabled ? 'var(--color-gray-800)' : 'var(--color-amber)',
+    color: disabled ? 'var(--color-gray-500)' : 'var(--color-surface-0)',
     fontSize: '13px', fontWeight: 700, cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: "'DM Sans',sans-serif", flexShrink: 0,
+    fontFamily: 'var(--font-body)', flexShrink: 0,
   }),
   quickBtn: {
     padding: '5px 10px', borderRadius: '4px',
     background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-    color: '#9A9A9A', fontSize: '11px', cursor: 'pointer',
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    color: 'var(--color-gray-300)', fontSize: '11px', cursor: 'pointer',
+    fontFamily: 'var(--font-mono)',
     transition: 'all 100ms ease',
   },
   resultBox: {
-    background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.08)',
+    background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: '8px', padding: '14px 16px',
   },
   pre: {
-    margin: 0, color: '#C4C4C4', fontSize: '12px', lineHeight: 1.7,
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    margin: 0, color: 'var(--color-gray-100)', fontSize: '12px', lineHeight: 1.7,
+    fontFamily: 'var(--font-mono)',
     whiteSpace: 'pre-wrap', wordBreak: 'break-all' as const,
     maxHeight: '260px', overflowY: 'auto',
   },
   emptyResult: {
-    fontSize: '12px', color: '#3D3D3D', fontFamily: "'DM Sans',sans-serif",
+    fontSize: '12px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)',
     padding: '16px 0',
   },
   elapsed: {
-    fontSize: '11px', color: '#555',
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontSize: '11px', color: 'var(--color-gray-500)',
+    fontFamily: 'var(--font-mono)',
   },
   exitCode: {
-    fontSize: '11px', color: '#3D3D3D',
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontSize: '11px', color: 'var(--color-gray-600)',
+    fontFamily: 'var(--font-mono)',
   },
   typeBtn: (active: boolean) => ({
     padding: '4px 12px', borderRadius: '4px', border: 'none',
     background: active ? 'rgba(245,197,24,0.12)' : 'rgba(255,255,255,0.04)',
-    color: active ? '#F5C518' : '#717171',
+    color: active ? 'var(--color-amber)' : 'var(--color-gray-400)',
     fontSize: '11px', fontWeight: active ? 600 : 400,
-    fontFamily: "'DM Sans',sans-serif", cursor: 'pointer',
+    fontFamily: 'var(--font-body)', cursor: 'pointer',
     letterSpacing: '0.02em',
   }),
   badge: (ok: boolean) => ({
     fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em',
     padding: '2px 7px', borderRadius: '999px',
     background: ok ? 'rgba(74,222,128,0.10)' : 'rgba(248,113,113,0.10)',
-    color: ok ? '#4ADE80' : '#F87171',
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    color: ok ? 'var(--color-success)' : 'var(--color-error)',
+    fontFamily: 'var(--font-mono)',
   }),
   historyItem: {
     display: 'flex', alignItems: 'center', gap: '10px',
     padding: '7px 10px', borderRadius: '5px',
-    background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.05)',
+    background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.05)',
     cursor: 'pointer',
   },
   historyCmd: {
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-    fontSize: '11px', color: '#F5C518', flexShrink: 0,
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px', color: 'var(--color-amber)', flexShrink: 0,
   },
-  historyArgs: { fontSize: '12px', color: '#555', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
-  callCount: { fontSize: '11px', color: '#3D3D3D', fontFamily: "'JetBrains Mono','Courier Prime',monospace" },
+  historyArgs: { fontSize: '12px', color: 'var(--color-gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  callCount: { fontSize: '11px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-mono)' },
   callList: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' },
-  empty: { fontSize: '12px', color: '#3D3D3D', paddingTop: '4px' },
+  empty: { fontSize: '12px', color: 'var(--color-gray-600)', paddingTop: '4px' },
   callItem: {
     display: 'flex', alignItems: 'baseline', gap: '12px',
     padding: '9px 12px',
-    background: '#0D0D0D', border: '1px solid rgba(255,255,255,0.05)',
+    background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.05)',
     borderRadius: '5px',
   },
   callCmd: {
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-    fontSize: '11px', color: '#F5C518', flexShrink: 0,
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px', color: 'var(--color-amber)', flexShrink: 0,
   },
-  callArgs: { fontSize: '12px', color: '#717171', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
+  callArgs: { fontSize: '12px', color: 'var(--color-gray-400)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   callTime: {
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-    fontSize: '10px', color: '#3D3D3D', flexShrink: 0,
+    fontFamily: 'var(--font-mono)',
+    fontSize: '10px', color: 'var(--color-gray-600)', flexShrink: 0,
   },
   peekScroll: {
     maxHeight: '260px', overflowY: 'auto',
   } as Record<string, any>,
   peekFile: {
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-    fontSize: '11px', color: '#717171', marginBottom: '4px', paddingBottom: '2px',
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px', color: 'var(--color-gray-400)', marginBottom: '4px', paddingBottom: '2px',
     borderBottom: '1px solid rgba(255,255,255,0.04)',
   },
   peekRow: {
@@ -456,28 +478,28 @@ const s = {
     cursor: 'default',
   } as Record<string, any>,
   peekKind: (kind: string) => ({
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontFamily: 'var(--font-mono)',
     fontSize: '10px', width: '52px', flexShrink: 0,
-    color: kind === 'imports' ? '#555' : kind === 'method' || kind === 'func' ? '#7DD3FC' : '#A78BFA',
+    color: kind === 'imports' ? 'var(--color-gray-500)' : kind === 'method' || kind === 'func' ? 'var(--color-info)' : 'var(--color-violet)',
   }),
   peekSym: {
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-    fontSize: '11px', color: '#C4C4C4', flex: 1, minWidth: 0,
+    fontFamily: 'var(--font-mono)',
+    fontSize: '11px', color: 'var(--color-gray-100)', flex: 1, minWidth: 0,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
   },
   peekLines: {
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-    fontSize: '10px', color: '#3D3D3D', flexShrink: 0,
+    fontFamily: 'var(--font-mono)',
+    fontSize: '10px', color: 'var(--color-gray-600)', flexShrink: 0,
   },
   peekStatus: (s: string) => ({
-    fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+    fontFamily: 'var(--font-mono)',
     fontSize: '10px', flexShrink: 0,
-    color: s.startsWith('*') ? '#F59E0B' : '#555',
+    color: s.startsWith('*') ? '#F59E0B' : 'var(--color-gray-500)',
   }),
   drillBtn: {
     padding: '1px 6px', borderRadius: '3px', border: '1px solid rgba(255,255,255,0.07)',
-    background: 'transparent', color: '#555', fontSize: '10px',
-    fontFamily: "'DM Sans',sans-serif", cursor: 'pointer',
+    background: 'transparent', color: 'var(--color-gray-500)', fontSize: '10px',
+    fontFamily: 'var(--font-body)', cursor: 'pointer',
   },
 }
 </script>

@@ -4,17 +4,17 @@
       <!-- Progress + counts -->
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-family:'DM Sans',sans-serif">
-          <span style="font-size:12.5px;font-weight:600;color:#E0E0E0">Review progress</span>
-          <span style="font-size:11px;color:#717171;font-family:'JetBrains Mono','Courier Prime',monospace">{{ reviewedCount }}/{{ total }}</span>
+          <span style="font-size:12.5px;font-weight:600;color:var(--color-gray-100)">Review progress</span>
+          <span style="font-size:11px;color:var(--color-gray-400);font-family:'JetBrains Mono','Courier Prime',monospace">{{ reviewedCount }}/{{ total }}</span>
           <span style="flex:1" />
-          <span v-if="acceptedCount > 0" :style="countChip('#4ADE80')">▲ {{ acceptedCount }}</span>
-          <span v-if="rejectedCount > 0" :style="countChip('#F87171')">▼ {{ rejectedCount }}</span>
+          <span v-if="acceptedCount > 0" :style="countChip('var(--color-success)')">▲ {{ acceptedCount }}</span>
+          <span v-if="rejectedCount > 0" :style="countChip('var(--color-error)')">▼ {{ rejectedCount }}</span>
         </div>
 
         <!-- Progress bar -->
-        <div style="height:4px;border-radius:99px;background:#1A1A1A;display:flex;overflow:hidden">
-          <div :style="{ width: `${(acceptedCount/total)*100}%`, background:'#4ADE80', transition:'width 200ms ease' }" />
-          <div :style="{ width: `${(rejectedCount/total)*100}%`, background:'#F87171', transition:'width 200ms ease' }" />
+        <div style="height:4px;border-radius:99px;background:var(--color-gray-800);display:flex;overflow:hidden">
+          <div :style="{ width: `${(acceptedCount/total)*100}%`, background:'var(--color-success)', transition:'width 200ms ease' }" />
+          <div :style="{ width: `${(rejectedCount/total)*100}%`, background:'var(--color-error)', transition:'width 200ms ease' }" />
         </div>
 
         <!-- Hint / blocker -->
@@ -69,11 +69,11 @@ const stickyWrap = {
   position: 'sticky', bottom: 0,
   marginTop: '-100px', marginLeft: '-32px', marginRight: '-32px',
   padding: '14px 32px 20px',
-  background: 'linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.95) 25%, #0A0A0A 60%)',
+  background: 'linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.95) 25%, var(--color-surface-0) 60%)',
   zIndex: 5,
 }
 const barStyle = computed(() => ({
-  background: '#111',
+  background: 'var(--color-gray-900)',
   border: `1px solid ${props.canGenerate ? 'rgba(245,197,24,0.30)' : 'rgba(255,255,255,0.08)'}`,
   borderRadius: '10px', padding: '14px 18px',
   display: 'flex', alignItems: 'center', gap: '16px',
@@ -83,18 +83,18 @@ const barStyle = computed(() => ({
 const genBtn = computed(() => ({
   display: 'inline-flex', alignItems: 'center', gap: '8px',
   padding: '11px 18px', borderRadius: '8px',
-  background: inBatch.value ? 'rgba(245,197,24,0.10)' : props.canGenerate ? '#F5C518' : '#1A1A1A',
-  color: inBatch.value ? '#F5C518' : props.canGenerate ? '#0A0A0A' : '#555',
+  background: inBatch.value ? 'rgba(245,197,24,0.10)' : props.canGenerate ? 'var(--color-amber)' : 'var(--color-gray-800)',
+  color: inBatch.value ? 'var(--color-amber)' : props.canGenerate ? 'var(--color-surface-0)' : 'var(--color-gray-500)',
   border: inBatch.value ? '1px solid rgba(245,197,24,0.25)' : 'none',
   cursor: props.canGenerate ? 'pointer' : 'not-allowed',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '13px',
   whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 150ms ease',
 }))
 
 const hintStyle = computed(() => ({
   marginTop: '8px', fontSize: '11.5px',
-  color: props.blocker ? '#F5C518' : '#3D3D3D',
-  fontFamily: "'DM Sans',sans-serif",
+  color: props.blocker ? 'var(--color-amber)' : 'var(--color-gray-600)',
+  fontFamily: 'var(--font-body)',
   lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: '6px',
 }))
 

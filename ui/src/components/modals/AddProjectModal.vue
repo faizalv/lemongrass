@@ -75,7 +75,7 @@
 
       <!-- RESTARTING -->
       <div v-else-if="phase === 'restarting'" :style="centeredBody">
-        <div class="spin" :style="{ ...spinner, borderTopColor: '#60A5FA' }"></div>
+        <div class="spin" :style="{ ...spinner, borderTopColor: 'var(--color-info)' }"></div>
         <span :style="hint">Server is restarting…</span>
         <span :style="subHint">This takes about 10–15 seconds</span>
       </div>
@@ -87,7 +87,7 @@
           <line x1="12" y1="8" x2="12" y2="12"/>
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
-        <span :style="{ ...hint, color: '#F87171' }">{{ restartError }}</span>
+        <span :style="{ ...hint, color: 'var(--color-error)' }">{{ restartError }}</span>
         <button :style="retryBtn" @click="$emit('close')">Close</button>
       </div>
 
@@ -214,7 +214,7 @@ const overlay = {
   padding: '24px', animation: 'lgFadeIn 160ms ease',
 }
 const panel = {
-  background: '#111', border: '1px solid rgba(255,255,255,0.10)',
+  background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '14px', width: '100%', maxWidth: '520px',
   boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
   display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -226,17 +226,17 @@ const header = {
 }
 const iconWrap = {
   width: '40px', height: '40px', borderRadius: '10px',
-  background: '#F5C518', flexShrink: 0,
+  background: 'var(--color-amber)', flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 const eyebrow = {
   fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em',
-  textTransform: 'uppercase', color: '#F5C518',
-  fontFamily: "'DM Sans',sans-serif", marginBottom: '3px',
+  textTransform: 'uppercase', color: 'var(--color-amber)',
+  fontFamily: 'var(--font-body)', marginBottom: '3px',
 }
 const titleStyle = {
-  fontFamily: "'Comfortaa',sans-serif", fontSize: '20px', fontWeight: 700,
-  color: '#fff', letterSpacing: '-0.02em',
+  fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700,
+  color: 'var(--color-fg-primary)', letterSpacing: '-0.02em',
 }
 const body = { padding: '16px 20px 12px' }
 const centeredBody = {
@@ -246,15 +246,15 @@ const centeredBody = {
 const spinner = {
   width: '28px', height: '28px', borderRadius: '50%',
   border: '2.5px solid rgba(255,255,255,0.08)',
-  borderTopColor: '#F5C518',
+  borderTopColor: 'var(--color-amber)',
 }
 const hint = {
-  fontSize: '14px', fontFamily: "'DM Sans',sans-serif",
-  color: '#9A9A9A', fontWeight: 500,
+  fontSize: '14px', fontFamily: 'var(--font-body)',
+  color: 'var(--color-gray-300)', fontWeight: 500,
 }
 const subHint = {
-  fontSize: '12px', fontFamily: "'DM Sans',sans-serif",
-  color: '#555', marginTop: '-4px',
+  fontSize: '12px', fontFamily: 'var(--font-body)',
+  color: 'var(--color-gray-500)', marginTop: '-4px',
 }
 const treeHeader = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -262,37 +262,37 @@ const treeHeader = {
 }
 const treeLabel = {
   fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em',
-  textTransform: 'uppercase', color: '#3D3D3D',
-  fontFamily: "'DM Sans',sans-serif",
+  textTransform: 'uppercase', color: 'var(--color-gray-600)',
+  fontFamily: 'var(--font-body)',
 }
 const refreshBtn = {
   display: 'inline-flex', alignItems: 'center', gap: '5px',
   padding: '4px 10px', borderRadius: '5px', border: 'none',
-  background: 'rgba(255,255,255,0.06)', color: '#9A9A9A',
-  cursor: 'pointer', fontSize: '11px', fontFamily: "'DM Sans',sans-serif",
+  background: 'rgba(255,255,255,0.06)', color: 'var(--color-gray-300)',
+  cursor: 'pointer', fontSize: '11px', fontFamily: 'var(--font-body)',
   fontWeight: 500, transition: 'background 120ms',
 }
 const treeWrap = {
-  background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.08)',
+  background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: '8px', padding: '8px', overflowY: 'auto',
   maxHeight: '320px', minHeight: '120px',
 }
 const selectionBar = {
   marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px',
   padding: '8px 10px',
-  background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.06)',
+  background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.06)',
   borderRadius: '6px',
 }
 const selectionText = {
-  flex: 1, fontSize: '12px', fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-  color: '#9A9A9A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  flex: 1, fontSize: '12px', fontFamily: 'var(--font-mono)',
+  color: 'var(--color-gray-300)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 }
 const errBox = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   gap: '12px', padding: '10px 12px',
   background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.20)',
-  borderRadius: '7px', fontSize: '13px', color: '#F87171',
-  fontFamily: "'DM Sans',sans-serif",
+  borderRadius: '7px', fontSize: '13px', color: 'var(--color-error)',
+  fontFamily: 'var(--font-body)',
 }
 const footer = {
   padding: '14px 20px',
@@ -301,23 +301,23 @@ const footer = {
 }
 const btnGhost = {
   padding: '9px 16px', borderRadius: '6px',
-  background: 'transparent', color: '#B0B0B0',
+  background: 'transparent', color: 'var(--color-gray-200)',
   border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 500, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: '13px',
 }
 const btnPrimary = (enabled: boolean) => ({
   display: 'inline-flex', alignItems: 'center', gap: '7px',
   padding: '9px 18px', borderRadius: '6px',
-  background: enabled ? '#F5C518' : '#1E1E1E',
-  color: enabled ? '#0A0A0A' : '#444',
+  background: enabled ? 'var(--color-amber)' : 'var(--color-surface-2)',
+  color: enabled ? 'var(--color-surface-0)' : 'var(--color-gray-500)',
   border: 'none', cursor: enabled ? 'pointer' : 'not-allowed',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '13px',
   transition: 'background 150ms',
 })
 const retryBtn = {
   padding: '5px 12px', borderRadius: '5px', border: 'none',
-  background: 'rgba(255,255,255,0.08)', color: '#D4D4D4',
-  cursor: 'pointer', fontSize: '12px', fontFamily: "'DM Sans',sans-serif",
+  background: 'rgba(255,255,255,0.08)', color: 'var(--color-gray-100)',
+  cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)',
   flexShrink: 0,
 }
 </script>

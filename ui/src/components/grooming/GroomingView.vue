@@ -1,11 +1,11 @@
 <template>
-  <div style="flex:1;display:flex;overflow:hidden;background:#0A0A0A">
+  <div style="flex:1;display:flex;overflow:hidden;background:var(--color-surface-0)">
 
     <!-- LEFT: Implementation Details panel -->
     <div v-if="tabHasLeftPanel" :style="leftPanel">
       <div :style="leftPanelHeader">
         <div :style="leftPanelTitle">Implementation details</div>
-        <div style="font-size:13px;color:#9A9A9A;font-family:'DM Sans',sans-serif">
+        <div style="font-size:13px;color:var(--color-gray-300);font-family:'DM Sans',sans-serif">
           {{ committed.length }} ready{{ committing ? ' · 1 distilling' : '' }}
         </div>
       </div>
@@ -25,7 +25,7 @@
     </div>
 
     <!-- MAIN area -->
-    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:#0A0A0A">
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--color-surface-0)">
       <!-- Done banner -->
       <DoneBanner v-if="phase === 'done'" @reset="reset" @continue="$emit('jump-tab', 'execution')" />
 
@@ -48,7 +48,7 @@
           @start="handleStart"
         >
           <template v-if="groomError" #error>
-            <div style="font-size:12px;color:#F87171;margin-top:8px;font-family:'DM Sans',sans-serif">{{ groomError }}</div>
+            <div style="font-size:12px;color:var(--color-error);margin-top:8px;font-family:'DM Sans',sans-serif">{{ groomError }}</div>
           </template>
         </IdlePanel>
 
@@ -65,7 +65,7 @@
         <div v-else-if="phase === 'checkpoint'" class="fade-in" style="max-width:760px;margin:24px auto 0;padding:0 32px 100px">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
             <div :style="phaseTitle">Task proposal ready</div>
-            <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:#717171">{{ checkpointDecidedCount }}/{{ apiTasks.length }} decided</div>
+            <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:var(--color-gray-400)">{{ checkpointDecidedCount }}/{{ apiTasks.length }} decided</div>
           </div>
           <div :style="phaseSub">Approve or reject each task individually. All tasks need a decision before you can submit.</div>
 
@@ -94,7 +94,7 @@
 
         <!-- Awaiting execution -->
         <div v-else-if="phase === 'awaiting_execution'" class="fade-in" style="max-width:760px;margin:40px auto 0;padding:0 32px 40px;text-align:center">
-          <div :style="emptyIcon" style="margin:0 auto 18px"><AppIcon name="check-circle-2" :size="22" color="#4ADE80" /></div>
+          <div :style="emptyIcon" style="margin:0 auto 18px"><AppIcon name="check-circle-2" :size="22" color="var(--color-success)" /></div>
           <div :style="phaseTitle" style="margin-bottom:8px">Plan approved</div>
           <div :style="phaseSub">Tasks are locked in. Start the execution session when ready.</div>
         </div>
@@ -110,7 +110,7 @@
         <!-- Permission -->
         <div v-else-if="phase === 'permission'" class="fade-in" style="max-width:760px;margin:32px auto 0;padding:0 32px 40px">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-            <AppIcon name="check-circle-2" :size="16" color="#4ADE80" />
+            <AppIcon name="check-circle-2" :size="16" color="var(--color-success)" />
             <div :style="phaseTitle">Recon mostly hits — one module missing</div>
           </div>
           <div :style="phaseSub">4 of 5 modules already indexed. I need permission for the last one before I can plan safely.</div>
@@ -159,7 +159,7 @@
         <div v-else-if="phase === 'reviewing' || phase === 'done'" class="fade-in" style="max-width:760px;margin:24px auto 0;padding:0 32px 0">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
             <div :style="phaseTitle">Proposed tasks</div>
-            <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:#717171;white-space:nowrap;flex-shrink:0">
+            <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:var(--color-gray-400);white-space:nowrap;flex-shrink:0">
               {{ reviewedCount }}/{{ streamedTasks.length }} reviewed
             </div>
           </div>
@@ -549,13 +549,13 @@ function handleGenerateAll() {
 
 // Styles
 const emptyIcon   = { width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-const approveBtn = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#4ADE80', color: '#0A0A0A', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 700 }
-const submitReviewsBtn = (enabled: boolean) => ({ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? '#F87171' : '#555', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', fontWeight: 600 })
-const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: '#0C0C0C' }
+const approveBtn = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'var(--color-success)', color: 'var(--color-surface-0)', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 700 }
+const submitReviewsBtn = (enabled: boolean) => ({ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? 'var(--color-error)' : 'var(--color-gray-500)', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600 })
+const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: 'var(--color-surface-0)' }
 const leftPanelHeader = { padding: '18px 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }
-const leftPanelTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#717171', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }
-const distillingItem = { padding: '12px 14px', margin: '4px 12px', background: 'rgba(245,197,24,0.04)', border: '1px dashed rgba(245,197,24,0.25)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', color: '#F5C518' }
-const phaseTitle = { fontFamily: "'Comfortaa', sans-serif", fontSize: '22px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }
-const phaseSub = { fontSize: '13.5px', color: '#9A9A9A', marginBottom: '20px', fontFamily: "'DM Sans',sans-serif", lineHeight: 1.6 }
-const draftingCard = { padding: '14px 18px', border: '1px dashed rgba(255,255,255,0.10)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', color: '#717171', fontFamily: "'DM Sans',sans-serif", fontSize: '13px' }
+const leftPanelTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)', marginBottom: '4px' }
+const distillingItem = { padding: '12px 14px', margin: '4px 12px', background: 'rgba(245,197,24,0.04)', border: '1px dashed rgba(245,197,24,0.25)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-amber)' }
+const phaseTitle = { fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em' }
+const phaseSub = { fontSize: '13.5px', color: 'var(--color-gray-300)', marginBottom: '20px', fontFamily: 'var(--font-body)', lineHeight: 1.6 }
+const draftingCard = { padding: '14px 18px', border: '1px dashed rgba(255,255,255,0.10)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)', fontSize: '13px' }
 </script>

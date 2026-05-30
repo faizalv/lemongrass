@@ -5,11 +5,11 @@
     <div :style="header">
       <div style="flex:1;min-width:0">
         <div :style="breadcrumb">
-          <AppIcon name="radar" :size="11" color="#F5C518" :extra-style="{ flexShrink: 0 }" />
+          <AppIcon name="radar" :size="11" color="var(--color-amber)" :extra-style="{ flexShrink: 0 }" />
           <span>Reconnaissance</span>
-          <span style="color:#2A2A2A">·</span>
+          <span style="color:var(--color-gray-700)">·</span>
           <span>{{ project.shortPath }}</span>
-          <span style="color:#2A2A2A">·</span>
+          <span style="color:var(--color-gray-700)">·</span>
           <span>{{ project.branch }}</span>
         </div>
         <div :style="mainTitle">Semantic map</div>
@@ -19,10 +19,10 @@
         <div :style="syncStatus">
           <template v-if="syncing">
             <div class="spin" :style="spinnerSm" />
-            <span style="color:#555;font-size:11px;font-family:'DM Sans',sans-serif">Syncing filesystem…</span>
+            <span style="color:var(--color-gray-500);font-size:11px;font-family:'DM Sans',sans-serif">Syncing filesystem…</span>
           </template>
           <template v-else-if="lastSyncedLabel">
-            <span style="color:#3A3A3A;font-size:11px;font-family:'DM Sans',sans-serif">{{ lastSyncedLabel }}</span>
+            <span style="color:var(--color-gray-600);font-size:11px;font-family:'DM Sans',sans-serif">{{ lastSyncedLabel }}</span>
           </template>
           <button :style="refreshBtn" title="Re-sync" @click="activate">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -45,14 +45,14 @@
           <div v-for="cov in coverage" :key="cov.language" :style="{ ...coveragePill, opacity: syncing ? 0.4 : 1 }">
             <span :style="covLang">{{ cov.language }}</span>
             <span :style="covNumbers">
-              <span :style="{ color: '#4ADE80', fontWeight: 600 }">{{ cov.explored }}</span>
+              <span :style="{ color: 'var(--color-success)', fontWeight: 600 }">{{ cov.explored }}</span>
               <template v-if="cov.stale > 0">
-                <span style="color:#3A3A3A"> · </span>
+                <span style="color:var(--color-gray-600)"> · </span>
                 <span style="color:#F59E0B;font-weight:600">{{ cov.stale }}</span>
               </template>
-              <span style="color:#3A3A3A"> · </span>
-              <span style="color:#555">{{ cov.total - cov.explored - cov.stale }}</span>
-              <span style="color:#3A3A3A"> / {{ cov.total }}</span>
+              <span style="color:var(--color-gray-600)"> · </span>
+              <span style="color:var(--color-gray-500)">{{ cov.total - cov.explored - cov.stale }}</span>
+              <span style="color:var(--color-gray-600)"> / {{ cov.total }}</span>
             </span>
           </div>
         </template>
@@ -61,31 +61,31 @@
 
     <!-- Info banner -->
     <div :style="infoBanner">
-      <AppIcon name="info" :size="13" color="#60A5FA" :extra-style="{ flexShrink: 0 }" />
+      <AppIcon name="info" :size="13" color="var(--color-info)" :extra-style="{ flexShrink: 0 }" />
       <span>
-        Exploration happens inside <strong style="color:#E0E0E0;font-weight:600">Grooming</strong>. The model annotates symbols as a side effect of planning.
+        Exploration happens inside <strong style="color:var(--color-gray-100);font-weight:600">Grooming</strong>. The model annotates symbols as a side effect of planning.
       </span>
     </div>
 
     <!-- .lgignore section -->
     <div :style="ignoreBar">
       <button :style="ignoreToggle" @click="ignoreOpen = !ignoreOpen">
-        <AppIcon name="file" :size="11" color="#555" :extra-style="{ flexShrink: 0 }" />
-        <span style="color:#555;font-weight:700;letter-spacing:0.04em">.lgignore</span>
-        <span v-if="!loadingIgnore" style="color:#3A3A3A">
+        <AppIcon name="file" :size="11" color="var(--color-gray-500)" :extra-style="{ flexShrink: 0 }" />
+        <span style="color:var(--color-gray-500);font-weight:700;letter-spacing:0.04em">.lgignore</span>
+        <span v-if="!loadingIgnore" style="color:var(--color-gray-600)">
           {{ ignorePatterns.length === 0 ? 'no file' : ignorePatterns.length + ' pattern' + (ignorePatterns.length === 1 ? '' : 's') }}
         </span>
         <svg
           :style="{ transform: ignoreOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 140ms ease', display: 'block', marginLeft: 'auto', flexShrink: 0 }"
           width="10" height="10" viewBox="0 0 24 24" fill="none"
-          stroke="#555" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+          stroke="var(--color-gray-500)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
         >
           <polyline points="9 18 15 12 9 6" />
         </svg>
       </button>
       <div v-if="ignoreOpen" :style="ignoreList">
-        <div v-if="loadingIgnore" style="color:#3A3A3A;font-size:12px">Loading…</div>
-        <div v-else-if="ignorePatterns.length === 0" style="color:#3A3A3A;font-size:12px;font-style:italic">No .lgignore file found — only defaults apply.</div>
+        <div v-if="loadingIgnore" style="color:var(--color-gray-600);font-size:12px">Loading…</div>
+        <div v-else-if="ignorePatterns.length === 0" style="color:var(--color-gray-600);font-size:12px;font-style:italic">No .lgignore file found — only defaults apply.</div>
         <div v-else v-for="p in ignorePatterns" :key="p" :style="ignorePattern">{{ p }}</div>
       </div>
     </div>
@@ -158,7 +158,7 @@
           >
             <span :style="nodeName">
               {{ node.symbol }}
-              <span v-if="node.receiver" style="color:#3D3D3D;font-weight:400"> · {{ node.receiver }}</span>
+              <span v-if="node.receiver" style="color:var(--color-gray-600);font-weight:400"> · {{ node.receiver }}</span>
             </span>
             <span :style="kindBadge(node.kind)">{{ node.kind }}</span>
             <span :style="nodeLines">:{{ node.line_start }}–{{ node.line_end }}</span>
@@ -424,24 +424,24 @@ function lastName(path: string): string { return path.split('/').pop() ?? path }
 // ── Kind badges ───────────────────────────────────────────────────────────────
 
 const kindColors: Record<string, { bg: string; color: string }> = {
-  func:       { bg: 'rgba(96,165,250,0.12)',  color: '#60A5FA' },
-  method:     { bg: 'rgba(96,165,250,0.12)',  color: '#60A5FA' },
-  type:       { bg: 'rgba(167,139,250,0.12)', color: '#A78BFA' },
-  struct:     { bg: 'rgba(167,139,250,0.12)', color: '#A78BFA' },
-  interface:  { bg: 'rgba(167,139,250,0.12)', color: '#A78BFA' },
-  const:      { bg: 'rgba(245,197,24,0.10)',  color: '#F5C518' },
-  var:        { bg: 'rgba(245,197,24,0.10)',  color: '#F5C518' },
-  component:  { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
-  store:      { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
-  composable: { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
-  plugin:     { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
-  class:      { bg: 'rgba(251,146,60,0.10)',  color: '#FB923C' },
-  hook:       { bg: 'rgba(74,222,128,0.10)',  color: '#4ADE80' },
-  route:      { bg: 'rgba(251,146,60,0.10)',  color: '#FB923C' },
+  func:       { bg: 'rgba(96,165,250,0.12)',  color: 'var(--color-info)' },
+  method:     { bg: 'rgba(96,165,250,0.12)',  color: 'var(--color-info)' },
+  type:       { bg: 'rgba(167,139,250,0.12)', color: 'var(--color-violet)' },
+  struct:     { bg: 'rgba(167,139,250,0.12)', color: 'var(--color-violet)' },
+  interface:  { bg: 'rgba(167,139,250,0.12)', color: 'var(--color-violet)' },
+  const:      { bg: 'rgba(245,197,24,0.10)',  color: 'var(--color-amber)' },
+  var:        { bg: 'rgba(245,197,24,0.10)',  color: 'var(--color-amber)' },
+  component:  { bg: 'rgba(74,222,128,0.10)',  color: 'var(--color-success)' },
+  store:      { bg: 'rgba(74,222,128,0.10)',  color: 'var(--color-success)' },
+  composable: { bg: 'rgba(74,222,128,0.10)',  color: 'var(--color-success)' },
+  plugin:     { bg: 'rgba(74,222,128,0.10)',  color: 'var(--color-success)' },
+  class:      { bg: 'rgba(251,146,60,0.10)',  color: 'var(--color-coral)' },
+  hook:       { bg: 'rgba(74,222,128,0.10)',  color: 'var(--color-success)' },
+  route:      { bg: 'rgba(251,146,60,0.10)',  color: 'var(--color-coral)' },
 }
 
 function kindBadge(kind: string) {
-  const c = kindColors[kind] ?? { bg: 'rgba(255,255,255,0.06)', color: '#9A9A9A' }
+  const c = kindColors[kind] ?? { bg: 'rgba(255,255,255,0.06)', color: 'var(--color-gray-300)' }
   return {
     display: 'inline-flex', alignItems: 'center',
     padding: '2px 7px', borderRadius: '4px',
@@ -453,10 +453,10 @@ function kindBadge(kind: string) {
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
-const statusColors: Record<string, string> = { unexplored: '#555', explored: '#4ADE80', stale: '#F59E0B', removed: '#F87171' }
+const statusColors: Record<string, string> = { unexplored: 'var(--color-gray-500)', explored: 'var(--color-success)', stale: '#F59E0B', removed: 'var(--color-error)' }
 
 function statusPill(status: string) {
-  const color = statusColors[status] ?? '#555'
+  const color = statusColors[status] ?? 'var(--color-gray-500)'
   return {
     display: 'inline-flex', alignItems: 'center', gap: '5px',
     padding: '3px 9px', borderRadius: '999px',
@@ -467,14 +467,14 @@ function statusPill(status: string) {
 }
 
 function statusDot(status: string) {
-  return { width: '5px', height: '5px', borderRadius: '50%', background: statusColors[status] ?? '#555', display: 'inline-block' }
+  return { width: '5px', height: '5px', borderRadius: '50%', background: statusColors[status] ?? 'var(--color-gray-500)', display: 'inline-block' }
 }
 
 function statusTab(active: boolean) {
   return {
     padding: '4px 8px', borderRadius: '5px', border: 'none', cursor: 'pointer',
     background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
-    color: active ? '#D4D4D4' : '#555',
+    color: active ? 'var(--color-gray-100)' : 'var(--color-gray-500)',
     fontFamily: "'DM Sans',sans-serif", fontSize: '11px', fontWeight: 600,
     transition: 'all 100ms',
   }
@@ -489,7 +489,7 @@ function nodeRow(node: SemanticNode) {
     display: 'flex', alignItems: 'center', gap: '10px',
     padding: '7px 20px 7px 18px',
     border: 'none', borderRadius: 0, cursor: 'pointer', width: '100%', textAlign: 'left' as const,
-    borderLeft: `2px solid ${isSel ? '#F5C518' : node.status === 'explored' ? '#4ADE80' : node.status === 'stale' ? '#F59E0B' : 'transparent'}`,
+    borderLeft: `2px solid ${isSel ? 'var(--color-amber)' : node.status === 'explored' ? 'var(--color-success)' : node.status === 'stale' ? '#F59E0B' : 'transparent'}`,
     background: isSel ? 'rgba(245,197,24,0.06)' : isHov ? 'rgba(255,255,255,0.03)' : 'transparent',
     transition: 'background 80ms ease',
   }
@@ -497,49 +497,49 @@ function nodeRow(node: SemanticNode) {
 
 // ── Static styles ─────────────────────────────────────────────────────────────
 
-const root             = { flex: 1, display: 'flex', flexDirection: 'column' as const, overflow: 'hidden', background: '#0A0A0A' }
+const root             = { flex: 1, display: 'flex', flexDirection: 'column' as const, overflow: 'hidden', background: 'var(--color-surface-0)' }
 const header           = { padding: '22px 32px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'flex-end', gap: '24px', flexShrink: 0 }
-const breadcrumb       = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#555', whiteSpace: 'nowrap' as const, overflow: 'hidden' }
-const mainTitle        = { fontFamily: "'Comfortaa',sans-serif", fontSize: '28px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }
+const breadcrumb       = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-500)', whiteSpace: 'nowrap' as const, overflow: 'hidden' }
+const mainTitle        = { fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em' }
 const coverageRow      = { display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }
 const syncStatus       = { display: 'flex', alignItems: 'center', gap: '6px' }
-const refreshBtn       = { background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: '#3A3A3A', display: 'flex', alignItems: 'center', borderRadius: '4px' }
+const refreshBtn       = { background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--color-gray-600)', display: 'flex', alignItems: 'center', borderRadius: '4px' }
 const coverageSkeleton = { width: '90px', height: '30px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }
 const coveragePill     = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '5px 12px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }
-const covLang          = { fontFamily: "'DM Sans',sans-serif", fontSize: '11px', fontWeight: 700, color: '#9A9A9A', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }
-const covNumbers       = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px' }
-const infoBanner       = { padding: '10px 32px', background: 'rgba(96,165,250,0.04)', borderBottom: '1px solid rgba(96,165,250,0.12)', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', color: '#9A9A9A', flexShrink: 0 }
+const covLang          = { fontFamily: 'var(--font-body)', fontSize: '11px', fontWeight: 700, color: 'var(--color-gray-300)', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }
+const covNumbers       = { fontFamily: 'var(--font-mono)', fontSize: '12px' }
+const infoBanner       = { padding: '10px 32px', background: 'rgba(96,165,250,0.04)', borderBottom: '1px solid rgba(96,165,250,0.12)', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-gray-300)', flexShrink: 0 }
 // Tree panel
-const treePanel        = { width: '260px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden', background: '#0D0D0D' }
+const treePanel        = { width: '260px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden', background: 'var(--color-surface-0)' }
 const treeSearchWrap   = { padding: '10px 10px 6px', flexShrink: 0 }
-const treeSearchInput  = { width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)', background: '#0A0A0A', color: '#9A9A9A', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', outline: 'none', boxSizing: 'border-box' as const }
+const treeSearchInput  = { width: '100%', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)', background: 'var(--color-surface-0)', color: 'var(--color-gray-300)', fontFamily: 'var(--font-body)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' as const }
 // treeWrap matches AddProjectModal exactly
-const treeWrap         = { background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px' }
+const treeWrap         = { background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px' }
 const treeLoading      = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80px' }
-const spinnerSm        = { width: '16px', height: '16px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.06)', borderTopColor: '#F5C518' }
+const spinnerSm        = { width: '16px', height: '16px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.06)', borderTopColor: 'var(--color-amber)' }
 // Symbol list
 const symFilterBar     = { display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }
-const symFileLabel     = { fontFamily: "'JetBrains Mono',monospace", fontSize: '12px', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, minWidth: 0 }
+const symFileLabel     = { fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-gray-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, minWidth: 0 }
 const filterGroup      = { display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }
-const filterSelect     = { padding: '4px 8px', borderRadius: '5px', border: '1px solid rgba(255,255,255,0.08)', background: '#111', color: '#9A9A9A', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', cursor: 'pointer', outline: 'none', flexShrink: 0 }
+const filterSelect     = { padding: '4px 8px', borderRadius: '5px', border: '1px solid rgba(255,255,255,0.08)', background: 'var(--color-gray-900)', color: 'var(--color-gray-300)', fontFamily: 'var(--font-body)', fontSize: '12px', cursor: 'pointer', outline: 'none', flexShrink: 0 }
 const centerState      = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px' }
-const stateHint        = { fontSize: '13px', fontFamily: "'DM Sans',sans-serif", color: '#3D3D3D' }
-const nodeName         = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '13px', color: '#D4D4D4', fontWeight: 600, flexShrink: 0 }
-const nodeLines        = { marginLeft: 'auto', fontFamily: "'JetBrains Mono',monospace", fontSize: '11px', color: '#3A3A3A', flexShrink: 0, whiteSpace: 'nowrap' as const }
+const stateHint        = { fontSize: '13px', fontFamily: 'var(--font-body)', color: 'var(--color-gray-600)' }
+const nodeName         = { fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--color-gray-100)', fontWeight: 600, flexShrink: 0 }
+const nodeLines        = { marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-600)', flexShrink: 0, whiteSpace: 'nowrap' as const }
 // Detail panel
-const detailPanel      = { width: '320px', flexShrink: 0, background: '#0C0C0C', overflow: 'auto', padding: '20px 22px 28px', fontFamily: "'DM Sans',sans-serif" }
-const detailEmpty      = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '12px', color: '#3D3D3D' }
-const detailSymbol     = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '16px', fontWeight: 700, color: '#E0E0E0', marginBottom: '4px', wordBreak: 'break-all' as const }
-const detailReceiver   = { fontFamily: "'DM Sans',sans-serif", fontSize: '11px', color: '#555', marginBottom: '12px' }
+const detailPanel      = { width: '320px', flexShrink: 0, background: 'var(--color-surface-0)', overflow: 'auto', padding: '20px 22px 28px', fontFamily: 'var(--font-body)' }
+const detailEmpty      = { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '12px', color: 'var(--color-gray-600)' }
+const detailSymbol     = { fontFamily: 'var(--font-mono)', fontSize: '16px', fontWeight: 700, color: 'var(--color-gray-100)', marginBottom: '4px', wordBreak: 'break-all' as const }
+const detailReceiver   = { fontFamily: 'var(--font-body)', fontSize: '11px', color: 'var(--color-gray-500)', marginBottom: '12px' }
 const detailMeta       = { paddingBottom: '10px', marginBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }
-const metaLabel        = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase' as const, color: '#3D3D3D', marginBottom: '3px' }
-const metaVal          = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px', color: '#9A9A9A', wordBreak: 'break-all' as const }
-const descriptionBlock = { fontSize: '13px', color: '#C0C0C0', lineHeight: 1.6, fontFamily: "'DM Sans',sans-serif" }
-const signatureBlock   = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px', color: '#9A9A9A', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '10px 12px', lineHeight: 1.6, wordBreak: 'break-all' as const }
-const notAnnotated     = { marginTop: '16px', fontSize: '12px', color: '#3D3D3D', fontStyle: 'italic' }
+const metaLabel        = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase' as const, color: 'var(--color-gray-600)', marginBottom: '3px' }
+const metaVal          = { fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-gray-300)', wordBreak: 'break-all' as const }
+const descriptionBlock = { fontSize: '13px', color: 'var(--color-gray-100)', lineHeight: 1.6, fontFamily: 'var(--font-body)' }
+const signatureBlock   = { fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-gray-300)', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '6px', padding: '10px 12px', lineHeight: 1.6, wordBreak: 'break-all' as const }
+const notAnnotated     = { marginTop: '16px', fontSize: '12px', color: 'var(--color-gray-600)', fontStyle: 'italic' }
 // .lgignore section
 const ignoreBar        = { borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }
-const ignoreToggle     = { display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 32px', background: 'transparent', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' as const, fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px' }
+const ignoreToggle     = { display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 32px', background: 'transparent', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' as const, fontFamily: 'var(--font-mono)', fontSize: '11px' }
 const ignoreList       = { padding: '6px 32px 10px', display: 'flex', flexDirection: 'column' as const, gap: '3px' }
-const ignorePattern    = { fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11.5px', color: '#717171', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.03)' }
+const ignorePattern    = { fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: 'var(--color-gray-400)', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.03)' }
 </script>

@@ -9,7 +9,7 @@
 <script setup lang="ts">
 function dot(delay: number) {
   return {
-    width: '4px', height: '4px', borderRadius: '50%', background: '#F5C518',
+    width: '4px', height: '4px', borderRadius: '50%', background: 'var(--color-amber)',
     animation: `dots 1.2s ease-in-out ${delay}s infinite`,
     display: 'inline-block',
   }

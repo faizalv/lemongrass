@@ -22,11 +22,11 @@
 
     <!-- Action row -->
     <div style="display:flex;align-items:center;gap:8px">
-      <button :style="thumbBtn('#4ADE80', decision?.approved === true)" @click="toggleApprove">
+      <button :style="thumbBtn('var(--color-success)', decision?.approved === true)" @click="toggleApprove">
         <AppIcon name="thumbs-up" :size="12" />
         Approve
       </button>
-      <button :style="thumbBtn('#F87171', decision?.approved === false)" @click="toggleReject">
+      <button :style="thumbBtn('var(--color-error)', decision?.approved === false)" @click="toggleReject">
         <AppIcon name="thumbs-down" :size="12" />
         Reject
       </button>
@@ -72,7 +72,7 @@ function onFeedback(e: Event) {
 }
 
 const cardStyle = computed(() => ({
-  background: '#141414',
+  background: 'var(--color-surface-1)',
   border: `1px solid ${
     props.decision?.approved === true  ? 'rgba(74,222,128,0.30)' :
     props.decision?.approved === false ? 'rgba(248,113,113,0.30)' :
@@ -87,14 +87,14 @@ const thumbBtn = (color: string, active: boolean) => ({
   padding: '6px 11px', borderRadius: '999px',
   background: active ? `${color}15` : 'transparent',
   border: `1px solid ${active ? color : 'rgba(255,255,255,0.10)'}`,
-  color: active ? color : '#9A9A9A',
+  color: active ? color : 'var(--color-gray-300)',
   fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 600,
   cursor: 'pointer', transition: 'all 120ms ease',
 })
-const idxBadge      = { width: '22px', height: '22px', borderRadius: '5px', background: 'rgba(245,197,24,0.10)', color: '#F5C518', fontWeight: 700, fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }
-const titleStyle    = { fontSize: '15.5px', fontWeight: 600, color: '#fff', fontFamily: "'DM Sans',sans-serif", letterSpacing: '-0.005em', lineHeight: 1.4 }
-const sectionLabel  = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#717171', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }
-const filesBox      = { background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }
-const implRow       = { padding: '6px 12px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11.5px', color: '#9A9A9A', lineHeight: 1.6 }
-const correctionInput = { width: '100%', minHeight: '70px', padding: '10px 12px', background: '#0A0A0A', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '6px', color: '#E0E0E0', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', lineHeight: 1.6, outline: 'none', resize: 'vertical' as const }
+const idxBadge      = { width: '22px', height: '22px', borderRadius: '5px', background: 'rgba(245,197,24,0.10)', color: 'var(--color-amber)', fontWeight: 700, fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }
+const titleStyle    = { fontSize: '15.5px', fontWeight: 600, color: 'var(--color-fg-primary)', fontFamily: "'DM Sans',sans-serif", letterSpacing: '-0.005em', lineHeight: 1.4 }
+const sectionLabel  = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--color-gray-400)', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }
+const filesBox      = { background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }
+const implRow       = { padding: '6px 12px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11.5px', color: 'var(--color-gray-300)', lineHeight: 1.6 }
+const correctionInput = { width: '100%', minHeight: '70px', padding: '10px 12px', background: 'var(--color-surface-0)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '6px', color: 'var(--color-gray-100)', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', lineHeight: 1.6, outline: 'none', resize: 'vertical' as const }
 </script>

@@ -6,13 +6,13 @@
       <div style="flex:1">
         <div :style="titleStyle">{{ task.title }}</div>
       </div>
-      <span v-if="decision === 'accept' && commitStatus === 'open'" :style="pill('#4ADE80','rgba(74,222,128,0.10)')">Accepted</span>
-      <span v-if="decision === 'reject'" :style="pill('#F87171','rgba(248,113,113,0.10)')">Rejected</span>
-      <span v-if="decision === 'correction'" :style="pill('#F5C518','rgba(245,197,24,0.10)')">Correction</span>
+      <span v-if="decision === 'accept' && commitStatus === 'open'" :style="pill('var(--color-success)','rgba(74,222,128,0.10)')">Accepted</span>
+      <span v-if="decision === 'reject'" :style="pill('var(--color-error)','rgba(248,113,113,0.10)')">Rejected</span>
+      <span v-if="decision === 'correction'" :style="pill('var(--color-amber)','rgba(245,197,24,0.10)')">Correction</span>
       <span v-if="commitStatus === 'committing'" :style="committingPill">
         <Spinner :size="10" /> Making detail…
       </span>
-      <span v-if="commitStatus === 'committed'" :style="pill('#9A9A9A','rgba(255,255,255,0.05)')">Detailed</span>
+      <span v-if="commitStatus === 'committed'" :style="pill('var(--color-gray-300)','rgba(255,255,255,0.05)')">Detailed</span>
     </div>
 
     <!-- PRD reference -->
@@ -39,10 +39,10 @@
           <AppIcon
             :name="f.range === 'new file' ? 'file-plus' : 'file-pen-line'"
             :size="11"
-            :extra-style="{ color: f.range === 'new file' ? '#4ADE80' : '#F5C518', flexShrink: 0 }"
+            :extra-style="{ color: f.range === 'new file' ? 'var(--color-success)' : 'var(--color-amber)', flexShrink: 0 }"
           />
-          <span style="color:#D4D4D4;flex-shrink:0;white-space:nowrap">{{ f.path }}</span>
-          <span style="color:#555;white-space:nowrap;flex-shrink:0">{{ f.range }}</span>
+          <span style="color:var(--color-gray-100);flex-shrink:0;white-space:nowrap">{{ f.path }}</span>
+          <span style="color:var(--color-gray-500);white-space:nowrap;flex-shrink:0">{{ f.range }}</span>
           <span style="flex:1" />
           <span :style="fileNote">{{ f.note }}</span>
         </div>
@@ -51,7 +51,7 @@
 
     <!-- Correction textarea -->
     <div v-if="showCorrection && commitStatus !== 'committed'" style="margin-bottom:14px">
-      <div :style="{ ...sectionLabel, color: '#F5C518' }">Your correction</div>
+      <div :style="{ ...sectionLabel, color: 'var(--color-amber)' }">Your correction</div>
       <textarea
         :value="correction"
         :style="correctionInput"
@@ -62,15 +62,15 @@
 
     <!-- Action row -->
     <div v-if="commitStatus !== 'committed' && commitStatus !== 'committing'" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <button :style="thumbBtn('#4ADE80', decision === 'accept')" @click="toggleDecide('accept')">
+      <button :style="thumbBtn('var(--color-success)', decision === 'accept')" @click="toggleDecide('accept')">
         <AppIcon name="thumbs-up" :size="12" />
         Accept
       </button>
-      <button :style="thumbBtn('#F87171', decision === 'reject')" @click="toggleDecide('reject')">
+      <button :style="thumbBtn('var(--color-error)', decision === 'reject')" @click="toggleDecide('reject')">
         <AppIcon name="thumbs-down" :size="12" />
         Reject
       </button>
-      <button :style="thumbBtn('#F5C518', decision === 'correction')" @click="toggleCorrection">
+      <button :style="thumbBtn('var(--color-amber)', decision === 'correction')" @click="toggleCorrection">
         <AppIcon name="message-square-warning" :size="12" />
         Correction
       </button>
@@ -130,7 +130,7 @@ function toggleCorrection() {
 }
 
 const cardStyle = computed(() => ({
-  background: props.commitStatus === 'committed' ? '#101010' : '#141414',
+  background: props.commitStatus === 'committed' ? 'var(--color-surface-0)' : 'var(--color-surface-1)',
   border: `1px solid ${
     props.decision === 'accept' ? 'rgba(74,222,128,0.30)' :
     props.decision === 'reject' ? 'rgba(248,113,113,0.30)' :
@@ -148,7 +148,7 @@ const pill = (color: string, bg: string) => ({
   fontFamily: "'DM Sans',sans-serif", letterSpacing: '0.04em', textTransform: 'uppercase',
 })
 const committingPill = computed(() => ({
-  ...pill('#F5C518', 'rgba(245,197,24,0.10)'),
+  ...pill('var(--color-amber)', 'rgba(245,197,24,0.10)'),
   display: 'inline-flex', alignItems: 'center', gap: '6px',
 }))
 const thumbBtn = (color: string, active: boolean) => ({
@@ -156,19 +156,19 @@ const thumbBtn = (color: string, active: boolean) => ({
   padding: '6px 11px', borderRadius: '999px',
   background: active ? `${color}15` : 'transparent',
   border: `1px solid ${active ? color : 'rgba(255,255,255,0.10)'}`,
-  color: active ? color : '#9A9A9A',
-  fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 600,
+  color: active ? color : 'var(--color-gray-300)',
+  fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 600,
   cursor: 'pointer', transition: 'all 120ms ease',
 })
-const idxBadge = { width: '22px', height: '22px', borderRadius: '5px', background: 'rgba(245,197,24,0.10)', color: '#F5C518', fontWeight: 700, fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }
-const titleStyle = { fontSize: '15.5px', fontWeight: 600, color: '#fff', fontFamily: "'DM Sans',sans-serif", letterSpacing: '-0.005em', lineHeight: 1.4 }
-const sectionLabel = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: '#717171', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }
-const prdText = { fontSize: '12.5px', color: '#B0B0B0', lineHeight: 1.6, fontStyle: 'italic', fontFamily: "'DM Sans',sans-serif" }
-const howToText = { fontSize: '13px', color: '#D4D4D4', lineHeight: 1.65, fontFamily: "'DM Sans',sans-serif" }
-const filesBox = { background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }
-const fileRow = { display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 12px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11.5px' }
-const fileNote = { color: '#717171', fontStyle: 'italic', fontFamily: "'DM Sans',sans-serif", fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '40%' }
-const correctionInput = { width: '100%', minHeight: '70px', padding: '10px 12px', background: '#0A0A0A', border: '1px solid rgba(245,197,24,0.25)', borderRadius: '6px', color: '#E0E0E0', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', lineHeight: 1.6, outline: 'none', resize: 'vertical' }
-const amendBtn = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '6px', background: '#F5C518', color: '#0A0A0A', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: '12.5px' }
-const committingBar = { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.20)', borderRadius: '6px', fontFamily: "'DM Sans',sans-serif", fontSize: '12.5px', color: '#F5C518' }
+const idxBadge = { width: '22px', height: '22px', borderRadius: '5px', background: 'rgba(245,197,24,0.10)', color: 'var(--color-amber)', fontWeight: 700, fontFamily: 'var(--font-mono)', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }
+const titleStyle = { fontSize: '15.5px', fontWeight: 600, color: 'var(--color-fg-primary)', fontFamily: 'var(--font-body)', letterSpacing: '-0.005em', lineHeight: 1.4 }
+const sectionLabel = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)', marginBottom: '4px' }
+const prdText = { fontSize: '12.5px', color: 'var(--color-gray-200)', lineHeight: 1.6, fontStyle: 'italic', fontFamily: 'var(--font-body)' }
+const howToText = { fontSize: '13px', color: 'var(--color-gray-100)', lineHeight: 1.65, fontFamily: 'var(--font-body)' }
+const filesBox = { background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }
+const fileRow = { display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 12px', fontFamily: 'var(--font-mono)', fontSize: '11.5px' }
+const fileNote = { color: 'var(--color-gray-400)', fontStyle: 'italic', fontFamily: 'var(--font-body)', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '40%' }
+const correctionInput = { width: '100%', minHeight: '70px', padding: '10px 12px', background: 'var(--color-surface-0)', border: '1px solid rgba(245,197,24,0.25)', borderRadius: '6px', color: 'var(--color-gray-100)', fontFamily: 'var(--font-body)', fontSize: '13px', lineHeight: 1.6, outline: 'none', resize: 'vertical' }
+const amendBtn = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '6px', background: 'var(--color-amber)', color: 'var(--color-surface-0)', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '12.5px' }
+const committingBar = { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', background: 'rgba(245,197,24,0.06)', border: '1px solid rgba(245,197,24,0.20)', borderRadius: '6px', fontFamily: 'var(--font-body)', fontSize: '12.5px', color: 'var(--color-amber)' }
 </script>

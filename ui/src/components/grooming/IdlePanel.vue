@@ -51,7 +51,7 @@
       </div>
 
       <!-- Upload / add error -->
-      <div v-if="uploadError" style="font-size:11px;color:#F87171;margin-top:6px;font-family:'DM Sans',sans-serif">
+      <div v-if="uploadError" style="font-size:11px;color:var(--color-error);margin-top:6px;font-family:'DM Sans',sans-serif">
         {{ uploadError }}
       </div>
 
@@ -64,7 +64,7 @@
           <AppIcon
             :name="r.type === 'text' ? 'file-text' : r.type === 'image' ? 'image' : 'file'"
             :size="14"
-            :extra-style="{ color: '#717171', flexShrink: 0 }"
+            :extra-style="{ color: 'var(--color-gray-400)', flexShrink: 0 }"
           />
           <span :style="reqCardText">
             {{ r.type === 'text' ? (r.text_content ?? '').slice(0, 120) : r.file_name }}
@@ -91,7 +91,7 @@
 
     <!-- Info box -->
     <div :style="infoBox">
-      <AppIcon name="info" :size="14" color="#60A5FA" :extra-style="{ flexShrink: 0, marginTop: '2px' }" />
+      <AppIcon name="info" :size="14" color="var(--color-info)" :extra-style="{ flexShrink: 0, marginTop: '2px' }" />
       <div :style="infoText">
         Grooming reads your recon map and proposes a task breakdown based on your requirements. No code is touched in this phase.
       </div>
@@ -204,70 +204,70 @@ const wrap = {
   display: 'flex', flexDirection: 'column', gap: '18px',
 }
 const heading = {
-  fontFamily: "'Comfortaa', sans-serif", fontSize: '26px', fontWeight: 700,
-  color: '#fff', letterSpacing: '-0.02em', marginBottom: '8px',
+  fontFamily: 'var(--font-display)', fontSize: '26px', fontWeight: 700,
+  color: 'var(--color-fg-primary)', letterSpacing: '-0.02em', marginBottom: '8px',
 }
-const sub = { fontSize: '14px', color: '#9A9A9A', fontFamily: "'DM Sans',sans-serif", lineHeight: 1.6 }
+const sub = { fontSize: '14px', color: 'var(--color-gray-300)', fontFamily: 'var(--font-body)', lineHeight: 1.6 }
 const sectionLabel = {
   fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase',
-  color: '#717171', fontFamily: "'DM Sans',sans-serif",
+  color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)',
 }
 const toolBtn = {
   display: 'inline-flex', alignItems: 'center', gap: '6px',
   padding: '6px 10px', background: 'transparent',
   border: '1px solid rgba(255,255,255,0.10)', borderRadius: '5px',
-  color: '#B0B0B0', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 500,
+  color: 'var(--color-gray-200)', fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 500,
   cursor: 'pointer',
 }
 const inputBox = {
-  background: '#111', border: '1px solid rgba(255,255,255,0.08)',
+  background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: '10px', overflow: 'hidden',
 }
 const textarea = {
   width: '100%', minHeight: '120px', padding: '14px 16px',
   background: 'transparent', border: 'none', outline: 'none', resize: 'vertical' as const,
-  color: '#E0E0E0', fontFamily: "'DM Sans',sans-serif", fontSize: '14px', lineHeight: 1.7,
+  color: 'var(--color-gray-100)', fontFamily: 'var(--font-body)', fontSize: '14px', lineHeight: 1.7,
 }
 const toolbar = {
   display: 'flex', alignItems: 'center', gap: '8px',
-  padding: '8px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0E0E0E',
+  padding: '8px 12px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'var(--color-surface-0)',
 }
 const charCount = {
-  fontSize: '11px', color: '#555', fontFamily: "'JetBrains Mono','Courier Prime',monospace", flex: 1,
+  fontSize: '11px', color: 'var(--color-gray-500)', fontFamily: 'var(--font-mono)', flex: 1,
 }
 const emptyState = {
-  fontSize: '13px', color: '#717171', fontFamily: "'DM Sans',sans-serif",
+  fontSize: '13px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)',
   padding: '20px 0', textAlign: 'center' as const,
 }
 const reqCard = {
-  background: '#111', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px',
+  background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px',
   padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '10px',
 }
 const reqCardText = {
   flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
-  fontSize: '13px', color: '#D4D4D4', fontFamily: "'DM Sans',sans-serif",
+  fontSize: '13px', color: 'var(--color-gray-100)', fontFamily: 'var(--font-body)',
 }
 const deleteBtn = {
   padding: '3px 8px', borderRadius: '4px', background: 'transparent',
-  border: '1px solid rgba(255,255,255,0.10)', color: '#555',
-  fontFamily: "'DM Sans',sans-serif", fontSize: '12px', cursor: 'pointer',
+  border: '1px solid rgba(255,255,255,0.10)', color: 'var(--color-gray-500)',
+  fontFamily: 'var(--font-body)', fontSize: '12px', cursor: 'pointer',
   flexShrink: 0,
 }
 const startBtn = (enabled: boolean) => ({
   display: 'inline-flex', alignItems: 'center', gap: '7px',
   padding: '8px 16px', borderRadius: '6px',
-  background: enabled ? '#F5C518' : '#2A2A2A',
-  color: enabled ? '#0A0A0A' : '#555',
+  background: enabled ? 'var(--color-amber)' : 'var(--color-gray-700)',
+  color: enabled ? 'var(--color-surface-0)' : 'var(--color-gray-500)',
   border: 'none', cursor: enabled ? 'pointer' : 'not-allowed',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '13px',
 })
 const disabledHint = {
-  fontSize: '12px', color: '#717171', fontFamily: "'DM Sans',sans-serif",
+  fontSize: '12px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)',
 }
 const infoBox = {
   marginTop: '4px', padding: '12px 16px',
   background: 'rgba(96,165,250,0.05)', border: '1px solid rgba(96,165,250,0.18)',
   borderRadius: '8px', display: 'flex', gap: '10px',
 }
-const infoText = { fontSize: '12.5px', color: '#9A9A9A', lineHeight: 1.6, fontFamily: "'DM Sans',sans-serif" }
+const infoText = { fontSize: '12.5px', color: 'var(--color-gray-300)', lineHeight: 1.6, fontFamily: 'var(--font-body)' }
 </script>

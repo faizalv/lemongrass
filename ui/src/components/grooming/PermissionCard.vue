@@ -1,21 +1,21 @@
 <template>
   <div class="fade-in" :style="card">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <AppIcon name="key-round" :size="14" color="#F5C518" />
+      <AppIcon name="key-round" :size="14" color="var(--color-amber)" />
       <span :style="eyebrow">Permission needed</span>
     </div>
     <div :style="title">
-      Run recon for <span style="color:#F5C518">{{ pathInfo.path }}</span>?
+      Run recon for <span style="color:var(--color-amber)">{{ pathInfo.path }}</span>?
     </div>
     <div :style="desc">
       I need this module's semantic map to plan against it.
-      <strong style="color:#fff">{{ pathInfo.fileCount }} files</strong>, est.
-      <strong style="color:#fff">{{ pathInfo.estTokens }}</strong>. One-time cost. It'll cache and only re-index when files change.
+      <strong style="color:var(--color-fg-primary)">{{ pathInfo.fileCount }} files</strong>, est.
+      <strong style="color:var(--color-fg-primary)">{{ pathInfo.estTokens }}</strong>. One-time cost. It'll cache and only re-index when files change.
     </div>
 
     <div :style="preview">
       <div v-for="(f, i) in pathInfo.preview" :key="i">
-        <span style="color:#555">·</span> {{ f }}
+        <span style="color:var(--color-gray-500)">·</span> {{ f }}
       </div>
     </div>
 
@@ -44,33 +44,33 @@ const card = {
 }
 const eyebrow = {
   fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em',
-  textTransform: 'uppercase', color: '#F5C518', fontFamily: "'DM Sans',sans-serif",
+  textTransform: 'uppercase', color: 'var(--color-amber)', fontFamily: 'var(--font-body)',
 }
 const title = {
-  fontFamily: "'Comfortaa', sans-serif", fontSize: '17px', fontWeight: 700,
-  color: '#fff', marginBottom: '6px', letterSpacing: '-0.01em',
+  fontFamily: 'var(--font-display)', fontSize: '17px', fontWeight: 700,
+  color: 'var(--color-fg-primary)', marginBottom: '6px', letterSpacing: '-0.01em',
 }
 const desc = {
-  fontSize: '13px', color: '#B0B0B0', lineHeight: 1.6, marginBottom: '14px',
-  fontFamily: "'DM Sans',sans-serif",
+  fontSize: '13px', color: 'var(--color-gray-200)', lineHeight: 1.6, marginBottom: '14px',
+  fontFamily: 'var(--font-body)',
 }
 const preview = {
-  background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.06)',
+  background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.06)',
   borderRadius: '6px', padding: '10px 12px', marginBottom: '14px',
-  fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-  fontSize: '11.5px', color: '#9A9A9A', lineHeight: 1.8,
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11.5px', color: 'var(--color-gray-300)', lineHeight: 1.8,
 }
 const btnPrimary = {
   display: 'inline-flex', alignItems: 'center', gap: '6px',
   padding: '8px 16px', borderRadius: '6px',
-  background: '#F5C518', color: '#0A0A0A',
+  background: 'var(--color-amber)', color: 'var(--color-surface-0)',
   border: 'none', cursor: 'pointer',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '13px',
 }
 const btnGhost = {
   padding: '8px 16px', borderRadius: '6px',
-  background: 'transparent', color: '#B0B0B0',
+  background: 'transparent', color: 'var(--color-gray-200)',
   border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 500, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: '13px',
 }
 </script>

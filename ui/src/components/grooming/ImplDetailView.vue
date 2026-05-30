@@ -1,15 +1,15 @@
 <template>
   <div v-if="!task" :style="empty">
-    <AppIcon name="file-text" :size="24" color="#2A2A2A" :extra-style="{ marginBottom: '10px' }" />
+    <AppIcon name="file-text" :size="24" color="var(--color-gray-700)" :extra-style="{ marginBottom: '10px' }" />
     Pick a detail on the left.
   </div>
   <div v-else class="fade-in" style="flex:1;overflow:auto;padding:24px 32px 40px">
     <div :style="heading">{{ task.title }}</div>
     <div :style="metaRow">
       <span :style="detailReadyPill">Detail ready</span>
-      <span style="color:#2A2A2A">·</span>
+      <span style="color:var(--color-gray-700)">·</span>
       <span style="white-space:nowrap">~{{ task.estTokens }} tokens budgeted</span>
-      <span style="color:#2A2A2A">·</span>
+      <span style="color:var(--color-gray-700)">·</span>
       <span style="white-space:nowrap">task #{{ task.idx }}</span>
     </div>
 
@@ -22,16 +22,16 @@
           :key="j"
           :style="{ ...fileRow, borderBottom: j < task.files.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }"
         >
-          <AppIcon :name="f.range === 'new file' ? 'file-plus' : 'file-pen-line'" :size="12" :extra-style="{ color: f.range === 'new file' ? '#4ADE80' : '#F5C518', flexShrink:0, marginTop:'2px' }" />
+          <AppIcon :name="f.range === 'new file' ? 'file-plus' : 'file-pen-line'" :size="12" :extra-style="{ color: f.range === 'new file' ? 'var(--color-success)' : 'var(--color-amber)', flexShrink:0, marginTop:'2px' }" />
           <div style="flex:1;min-width:0">
-            <div style="color:#E0E0E0">{{ f.path }}</div>
-            <div style="color:#555;font-size:10.5px;margin-top:2px">{{ f.range }} · <span style="font-family:'DM Sans',sans-serif;font-style:italic">{{ f.note }}</span></div>
+            <div style="color:var(--color-gray-100)">{{ f.path }}</div>
+            <div style="color:var(--color-gray-500);font-size:10.5px;margin-top:2px">{{ f.range }} · <span style="font-family:'DM Sans',sans-serif;font-style:italic">{{ f.note }}</span></div>
           </div>
         </div>
       </div>
       <ul v-if="s.list" style="padding-left:0;list-style:none;display:flex;flex-direction:column;gap:7px">
         <li v-for="(it, j) in s.list" :key="j" :style="listItem">
-          <span style="color:#F5C518;margin-top:8px;width:4px;height:4px;border-radius:50%;background:#F5C518;flex-shrink:0;display:inline-block"></span>
+          <span style="color:var(--color-amber);margin-top:8px;width:4px;height:4px;border-radius:50%;background:var(--color-amber);flex-shrink:0;display:inline-block"></span>
           {{ it }}
         </li>
       </ul>
@@ -69,13 +69,13 @@ const sections = computed(() => {
   ]
 })
 
-const empty = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#3D3D3D', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', padding: '40px', textAlign: 'center' }
-const heading = { fontFamily: "'Comfortaa', sans-serif", fontSize: '22px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', marginBottom: '6px' }
-const metaRow = { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '22px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#717171', flexWrap: 'wrap' }
-const detailReadyPill = { display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '999px', background: 'rgba(74,222,128,0.10)', color: '#4ADE80', fontFamily: "'DM Sans',sans-serif", letterSpacing: 0, textTransform: 'none' }
-const sectionTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#F5C518', fontFamily: "'DM Sans',sans-serif", marginBottom: '8px' }
-const bodyText = { fontSize: '13.5px', color: '#D4D4D4', lineHeight: 1.7, fontFamily: "'DM Sans',sans-serif" }
-const filesBox = { background: '#0A0A0A', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }
-const fileRow = { display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '12px' }
-const listItem = { display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: '#B0B0B0', lineHeight: 1.6, fontFamily: "'DM Sans',sans-serif" }
+const empty = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)', fontSize: '13px', padding: '40px', textAlign: 'center' }
+const heading = { fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em', marginBottom: '6px' }
+const metaRow = { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '22px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-400)', flexWrap: 'wrap' }
+const detailReadyPill = { display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '999px', background: 'rgba(74,222,128,0.10)', color: 'var(--color-success)', fontFamily: 'var(--font-body)', letterSpacing: 0, textTransform: 'none' }
+const sectionTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-amber)', fontFamily: 'var(--font-body)', marginBottom: '8px' }
+const bodyText = { fontSize: '13.5px', color: 'var(--color-gray-100)', lineHeight: 1.7, fontFamily: 'var(--font-body)' }
+const filesBox = { background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }
+const fileRow = { display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: '12px' }
+const listItem = { display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: 'var(--color-gray-200)', lineHeight: 1.6, fontFamily: 'var(--font-body)' }
 </script>

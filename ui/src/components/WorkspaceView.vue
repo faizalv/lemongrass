@@ -7,9 +7,9 @@
           <div :style="breadcrumb">
             <AppIcon name="layers" :size="11" :extra-style="{ flexShrink: 0 }" />
             <span>Workspace</span>
-            <span style="color:#2A2A2A">·</span>
+            <span style="color:var(--color-gray-700)">·</span>
             <span>{{ workspace.branch }}</span>
-            <span style="color:#2A2A2A">·</span>
+            <span style="color:var(--color-gray-700)">·</span>
             <span>pinned @ {{ workspace.commit }}</span>
           </div>
           <div :style="wsTitle">{{ workspace.name }}</div>
@@ -46,7 +46,7 @@
       <GroomingView v-if="activeTab === 'grooming'" :workspace="workspace" @jump-tab="activeTab = $event" />
 
       <div v-else-if="activeTab === 'execution'" class="fade-in" :style="emptyWrap">
-        <div :style="emptyIcon"><AppIcon name="route" :size="22" color="#555" /></div>
+        <div :style="emptyIcon"><AppIcon name="route" :size="22" color="var(--color-gray-500)" /></div>
         <div :style="emptyTitle">Execution hasn't started yet</div>
         <div :style="emptyBody">Finish grooming first to unlock this phase.</div>
         <div :style="lockedBadge">
@@ -56,7 +56,7 @@
       </div>
 
       <div v-else-if="activeTab === 'testing'" class="fade-in" :style="emptyWrap">
-        <div :style="emptyIcon"><AppIcon name="flask-conical" :size="22" color="#555" /></div>
+        <div :style="emptyIcon"><AppIcon name="flask-conical" :size="22" color="var(--color-gray-500)" /></div>
         <div :style="emptyTitle">Nothing to test yet</div>
         <div :style="emptyBody">REST endpoints pre-populated from your Swagger map will land here after the build phase.</div>
         <div :style="lockedBadge">
@@ -84,15 +84,15 @@ const tabs = [
   { id: 'testing',    label: 'Testing',   icon: 'flask-conical' },
 ]
 
-const topBar      = { borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0A0A0A', flexShrink: 0 }
-const breadcrumb  = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', color: '#555', whiteSpace: 'nowrap', overflow: 'hidden' }
-const wsTitle     = { fontFamily: "'Comfortaa', sans-serif", fontSize: '28px', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
-const btnGhost    = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 11px', borderRadius: '6px', background: 'transparent', border: '1px solid rgba(255,255,255,0.10)', color: '#B0B0B0', cursor: 'pointer', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 500 }
-const tabBtn      = (active: boolean) => ({ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 14px 12px', background: 'transparent', border: 'none', cursor: 'pointer', color: active ? '#F5C518' : '#9A9A9A', fontFamily: "'DM Sans',sans-serif", fontSize: '13.5px', fontWeight: active ? 600 : 500 })
-const tabUnderline = { position: 'absolute', left: '8px', right: '8px', bottom: '-1px', height: '2px', background: '#F5C518', borderRadius: '2px' }
+const topBar      = { borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'var(--color-surface-0)', flexShrink: 0 }
+const breadcrumb  = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-500)', whiteSpace: 'nowrap', overflow: 'hidden' }
+const wsTitle     = { fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+const btnGhost    = { display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 11px', borderRadius: '6px', background: 'transparent', border: '1px solid rgba(255,255,255,0.10)', color: 'var(--color-gray-200)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 500 }
+const tabBtn      = (active: boolean) => ({ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 14px 12px', background: 'transparent', border: 'none', cursor: 'pointer', color: active ? 'var(--color-amber)' : 'var(--color-gray-300)', fontFamily: 'var(--font-body)', fontSize: '13.5px', fontWeight: active ? 600 : 500 })
+const tabUnderline = { position: 'absolute', left: '8px', right: '8px', bottom: '-1px', height: '2px', background: 'var(--color-amber)', borderRadius: '2px' }
 const emptyWrap   = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center' }
 const emptyIcon   = { width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '18px' }
-const emptyTitle  = { fontFamily: "'Comfortaa',sans-serif", fontSize: '22px', fontWeight: 700, color: '#E0E0E0', letterSpacing: '-0.01em', marginBottom: '8px' }
-const emptyBody   = { fontSize: '13.5px', color: '#717171', lineHeight: 1.7, maxWidth: '420px', fontFamily: "'DM Sans',sans-serif" }
-const lockedBadge = { marginTop: '18px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: '#717171', fontSize: '11.5px', fontFamily: "'DM Sans',sans-serif", fontWeight: 600 }
+const emptyTitle  = { fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-gray-100)', letterSpacing: '-0.01em', marginBottom: '8px' }
+const emptyBody   = { fontSize: '13.5px', color: 'var(--color-gray-400)', lineHeight: 1.7, maxWidth: '420px', fontFamily: 'var(--font-body)' }
+const lockedBadge = { marginTop: '18px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: 'var(--color-gray-400)', fontSize: '11.5px', fontFamily: 'var(--font-body)', fontWeight: 600 }
 </script>

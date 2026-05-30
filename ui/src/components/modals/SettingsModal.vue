@@ -4,7 +4,7 @@
       <!-- Header -->
       <div :style="header">
         <div :style="iconWrap">
-          <AppIcon name="settings" :size="16" :extra-style="{ color: '#F5C518' }" />
+          <AppIcon name="settings" :size="16" :extra-style="{ color: 'var(--color-amber)' }" />
         </div>
         <div style="flex:1">
           <div :style="titleStyle">Settings</div>
@@ -45,7 +45,7 @@
 
         <SettingsRow label="Authentication" sub="Riding on your existing subscription. 5-hour refresh window.">
           <span :style="connectedPill">
-            <AppIcon name="check-circle-2" :size="11" :extra-style="{ color: '#4ADE80' }" />
+            <AppIcon name="check-circle-2" :size="11" :extra-style="{ color: 'var(--color-success)' }" />
             Connected
           </span>
         </SettingsRow>
@@ -55,9 +55,9 @@
         </SettingsRow>
 
         <div :style="footerBox">
-          <strong style="color:#9A9A9A">Lemongrass · v0.3.0-rc2</strong><br/>
+          <strong style="color:var(--color-gray-300)">Lemongrass · v0.3.0-rc2</strong><br/>
           MIT licensed.
-          <a href="#" style="color:#F5C518;text-decoration:none">github.com/faizalv/lemongrass</a>
+          <a href="#" style="color:var(--color-amber);text-decoration:none">github.com/faizalv/lemongrass</a>
         </div>
       </div>
     </div>
@@ -80,7 +80,7 @@ const overlay = {
   padding: '24px', animation: 'lgFadeIn 160ms ease',
 }
 const panel = {
-  background: '#111', border: '1px solid rgba(255,255,255,0.10)',
+  background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '12px', width: '100%', maxWidth: '540px',
   boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
   display: 'flex', flexDirection: 'column', maxHeight: '85vh',
@@ -91,54 +91,54 @@ const header = {
 }
 const iconWrap = {
   width: '32px', height: '32px', borderRadius: '8px',
-  background: 'rgba(245,197,24,0.10)', color: '#F5C518',
+  background: 'rgba(245,197,24,0.10)', color: 'var(--color-amber)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 const titleStyle = {
-  fontFamily: "'Comfortaa',sans-serif", fontSize: '20px', fontWeight: 700,
-  color: '#fff', letterSpacing: '-0.02em',
+  fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700,
+  color: 'var(--color-fg-primary)', letterSpacing: '-0.02em',
 }
-const subStyle = { fontSize: '12px', color: '#717171', fontFamily: "'DM Sans',sans-serif" }
+const subStyle = { fontSize: '12px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)' }
 const closeBtn = {
-  background: 'transparent', border: 'none', color: '#717171', cursor: 'pointer', padding: '6px',
+  background: 'transparent', border: 'none', color: 'var(--color-gray-400)', cursor: 'pointer', padding: '6px',
 }
 const body = { padding: '4px 26px 18px', overflow: 'auto' }
 const sectionLabel = {
   fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em',
-  textTransform: 'uppercase', color: '#555', fontFamily: "'DM Sans',sans-serif",
+  textTransform: 'uppercase', color: 'var(--color-gray-500)', fontFamily: 'var(--font-body)',
   marginTop: '14px', marginBottom: '2px',
 }
 const segBtn = (active: boolean) => ({
   width: '32px', height: '28px', borderRadius: '5px',
-  background: active ? '#F5C518' : 'transparent',
-  color: active ? '#0A0A0A' : '#9A9A9A',
-  border: `1px solid ${active ? '#F5C518' : 'rgba(255,255,255,0.10)'}`,
-  fontFamily: "'JetBrains Mono','Courier Prime',monospace",
+  background: active ? 'var(--color-amber)' : 'transparent',
+  color: active ? 'var(--color-surface-0)' : 'var(--color-gray-300)',
+  border: `1px solid ${active ? 'var(--color-amber)' : 'rgba(255,255,255,0.10)'}`,
+  fontFamily: 'var(--font-mono)',
   fontSize: '12px', fontWeight: 700, cursor: 'pointer',
 })
 const themeBtn = (active: boolean) => ({
   padding: '5px 11px', borderRadius: '5px',
-  background: active ? '#F5C518' : 'transparent',
-  color: active ? '#0A0A0A' : '#9A9A9A',
-  border: `1px solid ${active ? '#F5C518' : 'rgba(255,255,255,0.10)'}`,
-  fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 600,
+  background: active ? 'var(--color-amber)' : 'transparent',
+  color: active ? 'var(--color-surface-0)' : 'var(--color-gray-300)',
+  border: `1px solid ${active ? 'var(--color-amber)' : 'rgba(255,255,255,0.10)'}`,
+  fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 600,
   cursor: 'pointer', textTransform: 'capitalize',
 })
 const connectedPill = {
   display: 'inline-flex', alignItems: 'center', gap: '5px',
   padding: '4px 10px', borderRadius: '999px',
-  background: 'rgba(74,222,128,0.10)', color: '#4ADE80',
-  fontSize: '11px', fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
+  background: 'rgba(74,222,128,0.10)', color: 'var(--color-success)',
+  fontSize: '11px', fontWeight: 700, fontFamily: 'var(--font-body)',
 }
 const tokenVal = {
-  fontFamily: "'JetBrains Mono','Courier Prime',monospace",
-  fontSize: '13px', color: '#fff', fontWeight: 600,
+  fontFamily: 'var(--font-mono)',
+  fontSize: '13px', color: 'var(--color-fg-primary)', fontWeight: 600,
 }
 const footerBox = {
   marginTop: '24px', padding: '12px 14px',
   background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
-  borderRadius: '8px', fontSize: '11.5px', color: '#717171', lineHeight: 1.6,
-  fontFamily: "'DM Sans',sans-serif",
+  borderRadius: '8px', fontSize: '11.5px', color: 'var(--color-gray-400)', lineHeight: 1.6,
+  fontFamily: 'var(--font-body)',
 }
 
 const SettingsRow = defineComponent({
@@ -151,8 +151,8 @@ const SettingsRow = defineComponent({
       },
     }, [
       h('div', { style: { flex: 1, minWidth: 0 } }, [
-        h('div', { style: { fontSize: '13.5px', fontWeight: 600, color: '#E0E0E0', fontFamily: "'DM Sans',sans-serif" } }, props.label),
-        props.sub ? h('div', { style: { fontSize: '12px', color: '#717171', marginTop: '2px', lineHeight: 1.5, fontFamily: "'DM Sans',sans-serif" } }, props.sub) : null,
+        h('div', { style: { fontSize: '13.5px', fontWeight: 600, color: 'var(--color-gray-100)', fontFamily: 'var(--font-body)' } }, props.label),
+        props.sub ? h('div', { style: { fontSize: '12px', color: 'var(--color-gray-400)', marginTop: '2px', lineHeight: 1.5, fontFamily: 'var(--font-body)' } }, props.sub) : null,
       ]),
       slots.default?.(),
     ])
@@ -167,7 +167,7 @@ const Toggle = defineComponent({
       onClick: () => emit('click'),
       style: {
         position: 'relative', width: '34px', height: '19px', borderRadius: '999px',
-        background: props.on ? '#F5C518' : '#2A2A2A',
+        background: props.on ? 'var(--color-amber)' : 'var(--color-gray-700)',
         border: 'none', cursor: 'pointer', flexShrink: 0,
         transition: 'background 150ms ease',
       },
@@ -176,7 +176,7 @@ const Toggle = defineComponent({
         style: {
           position: 'absolute', top: '2.5px', left: props.on ? '17.5px' : '2.5px',
           width: '14px', height: '14px', borderRadius: '50%',
-          background: props.on ? '#0A0A0A' : '#B0B0B0',
+          background: props.on ? 'var(--color-surface-0)' : 'var(--color-gray-200)',
           transition: 'left 160ms cubic-bezier(0.4,0,0.2,1)',
         },
       }),

@@ -20,7 +20,7 @@
 
       <div :style="body">
         <p :style="desc">
-          Remove <strong style="color:#E0E0E0">{{ projectName }}</strong> from Lemongrass?
+          Remove <strong style="color:var(--color-gray-100)">{{ projectName }}</strong> from Lemongrass?
           All associated workspaces will be closed.
         </p>
         <p :style="note">Files on disk are not affected.</p>
@@ -75,7 +75,7 @@ const overlay = {
   padding: '24px', animation: 'lgFadeIn 160ms ease',
 }
 const panel = {
-  background: '#111', border: '1px solid rgba(255,255,255,0.10)',
+  background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '14px', width: '100%', maxWidth: '420px',
   boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
   display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -87,32 +87,32 @@ const header = {
 }
 const iconWrap = {
   width: '40px', height: '40px', borderRadius: '10px',
-  background: '#F87171', flexShrink: 0,
+  background: 'var(--color-error)', flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 const eyebrow = {
   fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em',
-  textTransform: 'uppercase', color: '#F87171',
-  fontFamily: "'DM Sans',sans-serif", marginBottom: '3px',
+  textTransform: 'uppercase', color: 'var(--color-error)',
+  fontFamily: 'var(--font-body)', marginBottom: '3px',
 }
 const titleStyle = {
-  fontFamily: "'Comfortaa',sans-serif", fontSize: '20px', fontWeight: 700,
-  color: '#fff', letterSpacing: '-0.02em',
+  fontFamily: 'var(--font-display)', fontSize: '20px', fontWeight: 700,
+  color: 'var(--color-fg-primary)', letterSpacing: '-0.02em',
 }
 const body = { padding: '20px 24px 8px' }
 const desc = {
-  fontFamily: "'DM Sans',sans-serif", fontSize: '14px', color: '#9A9A9A',
+  fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--color-gray-300)',
   margin: '0 0 8px', lineHeight: 1.6,
 }
 const note = {
-  fontFamily: "'DM Sans',sans-serif", fontSize: '12px', color: '#4A4A4A',
+  fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-gray-500)',
   margin: 0, lineHeight: 1.5,
 }
 const errBox = {
   marginTop: '14px', padding: '10px 12px',
   background: 'rgba(248,113,113,0.06)', border: '1px solid rgba(248,113,113,0.20)',
-  borderRadius: '7px', fontSize: '13px', color: '#F87171',
-  fontFamily: "'DM Sans',sans-serif",
+  borderRadius: '7px', fontSize: '13px', color: 'var(--color-error)',
+  fontFamily: 'var(--font-body)',
 }
 const footer = {
   padding: '18px 24px',
@@ -121,17 +121,17 @@ const footer = {
 }
 const btnGhost = {
   padding: '9px 16px', borderRadius: '6px',
-  background: 'transparent', color: '#B0B0B0',
+  background: 'transparent', color: 'var(--color-gray-200)',
   border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 500, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: '13px',
 }
 const btnDanger = (loading: boolean) => ({
   display: 'inline-flex', alignItems: 'center', gap: '7px',
   padding: '9px 18px', borderRadius: '6px',
-  background: loading ? '#7F1D1D' : '#EF4444',
-  color: '#fff', border: 'none',
+  background: loading ? '#7F1D1D' : 'var(--color-error)',
+  color: 'var(--color-fg-primary)', border: 'none',
   cursor: loading ? 'not-allowed' : 'pointer',
-  fontFamily: "'DM Sans',sans-serif", fontWeight: 700, fontSize: '13px',
+  fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '13px',
   transition: 'background 150ms',
 })
 </script>

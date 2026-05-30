@@ -1,18 +1,127 @@
+/* ============================================================
+   Lemongrass UI — built on the Sankasten design system DNA.
+   Colors, type stack, surface scale, and component wiring
+   all follow Sankasten conventions.
+   ============================================================ */
+
+:root {
+  /* Brand */
+  --color-black:        #0A0A0A;
+  --color-white:        #FFFFFF;
+
+  /* Amber — primary CTA accent (the Sankasten yellow) */
+  --color-amber:        #F5C518;
+  --color-amber-dim:    #C9A012;
+  --color-amber-muted:  oklch(0.844 0.176 89 / 0.14);
+
+  /* Coral */
+  --color-coral:        oklch(0.73 0.18 28);
+  --color-coral-dim:    oklch(0.66 0.18 28);
+  --color-coral-muted:  oklch(0.73 0.18 28 / 0.14);
+
+  /* Jade */
+  --color-jade:         oklch(0.78 0.155 155);
+  --color-jade-muted:   oklch(0.78 0.155 155 / 0.14);
+
+  /* Sapphire */
+  --color-sapphire:     oklch(0.70 0.155 240);
+  --color-sapphire-muted: oklch(0.70 0.155 240 / 0.14);
+
+  /* Violet */
+  --color-violet:       oklch(0.72 0.185 295);
+  --color-violet-muted: oklch(0.72 0.185 295 / 0.14);
+
+  /* Surfaces */
+  --color-surface-0:    #0A0A0A;   /* page background */
+  --color-surface-1:    #141414;   /* card base */
+  --color-surface-2:    #1E1E1E;   /* elevated card */
+  --color-surface-3:    #2A2A2A;   /* hovered card / input bg */
+
+  /* Neutrals */
+  --color-gray-900:     #111111;
+  --color-gray-800:     #1A1A1A;
+  --color-gray-700:     #2A2A2A;
+  --color-gray-600:     #3D3D3D;
+  --color-gray-500:     #4A4A4A;
+  --color-gray-400:     #717171;
+  --color-gray-300:     #9A9A9A;
+  --color-gray-200:     #B0B0B0;
+  --color-gray-100:     #D4D4D4;
+  --color-gray-50:      #F2F0EA;
+
+  /* Borders */
+  --color-border-subtle:  rgba(255, 255, 255, 0.07);
+  --color-border-default: rgba(255, 255, 255, 0.12);
+  --color-border-strong:  rgba(255, 255, 255, 0.22);
+
+  /* Semantic foreground */
+  --color-fg-primary:   #FFFFFF;
+  --color-fg-secondary: #9A9A9A;
+  --color-fg-muted:     #4A4A4A;
+  --color-fg-disabled:  #3D3D3D;
+  --color-fg-accent:    #F5C518;
+
+  /* Semantic background */
+  --color-bg-primary:   #0A0A0A;
+  --color-bg-elevated:  #1E1E1E;
+  --color-bg-overlay:   rgba(0, 0, 0, 0.72);
+
+  /* Status */
+  --color-success:      #4ADE80;
+  --color-warning:      #F5C518;
+  --color-error:        #F87171;
+  --color-info:         #60A5FA;
+
+  /* Shadows */
+  --shadow-sm:         0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md:         0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg:         0 8px 24px rgba(0,0,0,0.6);
+  --shadow-xl:         0 16px 48px rgba(0,0,0,0.7);
+  --shadow-glow-amber: 0 0 20px rgba(245,197,24,0.25);
+
+  /* Animation */
+  --ease-default:    cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:        cubic-bezier(0, 0, 0.2, 1);
+  --ease-in:         cubic-bezier(0.4, 0, 1, 1);
+  --duration-fast:   100ms;
+  --duration-base:   150ms;
+  --duration-slow:   250ms;
+  --duration-slower: 400ms;
+
+  /* Spacing */
+  --space-1: 4px;  --space-2: 8px;   --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px;  --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* Border radius */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-2xl:  16px;
+  --radius-pill: 999px;
+
+  /* Type */
+  --font-display: 'Comfortaa', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'JetBrains Mono', 'Courier Prime', monospace;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body, #app { height: 100%; background: #0A0A0A; }
+html, body, #app { height: 100%; background: var(--color-surface-0); }
 body {
-  font-family: 'DM Sans', sans-serif;
-  color: #fff;
+  font-family: var(--font-body);
+  color: var(--color-fg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1E1E1E; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #2A2A2A; }
+::-webkit-scrollbar-thumb { background: var(--color-surface-2); border-radius: var(--radius-pill); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-surface-3); }
 
-::selection { background: rgba(245,197,24,0.30); color: #fff; }
+::selection { background: rgba(245,197,24,0.30); color: var(--color-fg-primary); }
 
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 @keyframes lgFadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
@@ -36,7 +145,7 @@ body {
   display: inline-block;
   width: 6px;
   height: 13px;
-  background: #F5C518;
+  background: var(--color-amber);
   vertical-align: middle;
   margin-left: 2px;
   animation: blink 1s steps(1) infinite;

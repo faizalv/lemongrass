@@ -1,5 +1,5 @@
 <template>
-  <div style="display:flex;height:100vh;overflow:hidden;background:#0A0A0A">
+  <div style="display:flex;height:100vh;overflow:hidden;background:var(--color-surface-0)">
     <AppSidebar
       :projects="projects"
       :current-project-id="currentProjectId"

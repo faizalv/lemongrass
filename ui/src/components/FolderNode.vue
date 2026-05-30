@@ -13,7 +13,7 @@
       </button>
 
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-        :stroke="isSelected ? '#F5C518' : '#717171'"
+        :stroke="isSelected ? 'var(--color-amber)' : 'var(--color-gray-400)'"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
         style="flex-shrink:0"
       >
@@ -70,8 +70,8 @@ const row = computed(() => ({
 }))
 
 const label = computed(() => ({
-  flex: 1, fontSize: '13px', fontFamily: "'DM Sans', sans-serif",
-  color: isSelected.value ? '#F5C518' : '#D4D4D4',
+  flex: 1, fontSize: '13px', fontFamily: 'var(--font-body)',
+  color: isSelected.value ? 'var(--color-amber)' : 'var(--color-gray-100)',
   fontWeight: isSelected.value ? 600 : 400,
   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
 }))
@@ -80,7 +80,7 @@ const chevronBtn = {
   background: 'transparent', border: 'none', cursor: 'pointer',
   padding: '0', width: '16px', height: '16px', flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  color: '#555',
+  color: 'var(--color-gray-500)',
 }
 
 const children = { paddingLeft: '18px' }
