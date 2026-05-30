@@ -41,6 +41,17 @@ type lgResponse struct {
 	Text string `json:"text"`
 }
 
+type hookOutput struct {
+	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
+}
+
+type hookSpecificOutput struct {
+	HookEventName            string            `json:"hookEventName"`
+	PermissionDecision       string            `json:"permissionDecision"`
+	PermissionDecisionReason string            `json:"permissionDecisionReason,omitempty"`
+	UpdatedInput             map[string]string `json:"updatedInput,omitempty"`
+}
+
 var hashRe = regexp.MustCompile(`[0-9a-f]{40}`)
 var indexLineRe = regexp.MustCompile(`(?m)^index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?$\n?`)
 
@@ -172,23 +183,27 @@ func forwardToServer(rest string, blocking bool) {
 	resp, err := client.Post(defaultServerURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		if blocking {
-			fmt.Printf("error: lg-server unreachable (%v)", err)
+			deliver(fmt.Sprintf("error: lg-server unreachable (%v)", err))
+		} else {
+			deliver("ok")
 		}
-		os.Exit(2)
+		return
 	}
 	defer resp.Body.Close()
 
-	if blocking {
-		var r lgResponse
-		if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-			fmt.Printf("error: could not parse server response: %v", err)
-		} else if r.Text == "" {
-			fmt.Print("error: server returned empty response -- session may not be active")
-		} else {
-			fmt.Print(r.Text)
-		}
+	if !blocking {
+		deliver("ok")
+		return
 	}
-	os.Exit(2)
+
+	var r lgResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		deliver(fmt.Sprintf("error: could not parse server response: %v", err))
+	} else if r.Text == "" {
+		deliver("error: server returned empty response -- session may not be active")
+	} else {
+		deliver(r.Text)
+	}
 }
 
 func handlePermitted(cmd string) {
@@ -238,13 +253,11 @@ func runLocal(cmd, leading, sub string) {
 	if err != nil && len(out) == 0 {
 		result = fmt.Sprintf("error: %v", err)
 	}
-	fmt.Print(result)
-	os.Exit(2)
+	deliver(result)
 }
 
 func reject(reason, guidance string) {
-	fmt.Printf("Rejected: %s.\n%s", reason, guidance)
-	os.Exit(2)
+	deny(fmt.Sprintf("Rejected: %s.\n%s", reason, guidance))
 }
 
 func leadingToken(cmd string) string {
@@ -319,4 +332,32 @@ func splitCmd(s string) (cmd, args string) {
 		return s[:i], strings.TrimSpace(s[i+1:])
 	}
 	return s, ""
+}
+
+func shellEscape(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func deliver(content string) {
+	out := hookOutput{
+		HookSpecificOutput: hookSpecificOutput{
+			HookEventName:      "PreToolUse",
+			PermissionDecision: "allow",
+			UpdatedInput:       map[string]string{"command": "printf '%s' " + shellEscape(content)},
+		},
+	}
+	json.NewEncoder(os.Stdout).Encode(out)
+	os.Exit(0)
+}
+
+func deny(reason string) {
+	out := hookOutput{
+		HookSpecificOutput: hookSpecificOutput{
+			HookEventName:            "PreToolUse",
+			PermissionDecision:       "deny",
+			PermissionDecisionReason: reason,
+		},
+	}
+	json.NewEncoder(os.Stdout).Encode(out)
+	os.Exit(0)
 }
