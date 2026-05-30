@@ -6,7 +6,7 @@
       :workspaces="workspaces"
       :active-workspace-id="activeWorkspaceId"
       @switch-project="handleSwitchProject"
-      @select-workspace="activeWorkspaceId = $event"
+      @select-workspace="handleSelectWorkspace"
       @add-workspace="addingWorkspace = true"
       @add-project="addProjectOpen = true"
       @open-settings="settingsOpen = true"
@@ -19,8 +19,8 @@
 
       <template v-else>
         <ReconnaissanceView
-          v-if="activeWorkspace?.id === 'reconnaissance'"
-          :project="currentProject!"
+          v-if="currentProject && !route.params.workspaceId"
+          :project="currentProject"
         />
         <WorkspaceView
           v-else-if="activeWorkspace"
@@ -65,7 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import type { Project, Workspace, FsProject } from './types'
 import AppSidebar from './components/AppSidebar.vue'
 import EmptyState from './components/EmptyState.vue'
@@ -77,25 +78,35 @@ import DeleteProjectModal from './components/modals/DeleteProjectModal.vue'
 import SettingsModal from './components/modals/SettingsModal.vue'
 import DebugPanel from './components/DebugPanel.vue'
 
+const route = useRoute()
+const router = useRouter()
+
 const projects = ref<Project[]>([])
-const currentProjectId = ref('')
 const workspacesByProj = ref<Record<string, Workspace[]>>({})
-const activeWorkspaceId = ref('')
 const settingsOpen = ref(false)
 const debugOpen = ref(false)
 const addingWorkspace = ref(false)
 const addProjectOpen = ref(false)
 const deletingProjectId = ref('')
 
+const currentProjectId = computed(() => route.params.projectId as string || '')
+const activeWorkspaceId = computed(() => (route.params.workspaceId as string) || 'reconnaissance')
+
 const workspaces = computed(() => workspacesByProj.value[currentProjectId.value] ?? [])
 const currentProject = computed(() => projects.value.find(p => p.id === currentProjectId.value))
 const deletingProject = computed(() => projects.value.find(p => p.id === deletingProjectId.value))
-const activeWorkspace = computed(() => workspaces.value.find(w => w.id === activeWorkspaceId.value) ?? workspaces.value[0])
+const activeWorkspace = computed(() => {
+  const wsId = route.params.workspaceId as string
+  if (!wsId) return null
+  return workspaces.value.find(w => w.id === wsId) ?? null
+})
 const workspaceWithMeta = computed(() => ({
   ...activeWorkspace.value!,
   branch: currentProject.value?.branch ?? 'main',
   commit: '7c3d1a8',
 }))
+
+watch(currentProjectId, pid => { if (pid) loadWorkspaces(pid) })
 
 onMounted(async () => {
   try {
@@ -105,11 +116,12 @@ onMounted(async () => {
     applyFsProjects(fsProjects)
 
     const pid = new URLSearchParams(location.search).get('project')
-    const target = pid && projects.value.find(p => p.id === pid) ? pid : currentProjectId.value
-    if (target) {
-      currentProjectId.value = target
-      await loadWorkspaces(target)
-      activeWorkspaceId.value = workspacesByProj.value[target]?.[0]?.id ?? 'reconnaissance'
+    if (pid && projects.value.find(p => p.id === pid)) {
+      router.push('/project/' + pid + '/reconnaissance')
+    } else if (!route.params.projectId && projects.value.length > 0) {
+      router.push('/project/' + projects.value[0].id + '/reconnaissance')
+    } else if (route.params.projectId) {
+      await loadWorkspaces(currentProjectId.value)
     }
   } catch { /* server not reachable yet */ }
 })
@@ -127,20 +139,14 @@ async function loadWorkspaces(pid: string) {
   } catch { /* ignore */ }
 }
 
-async function handleSwitchProject(pid: string) {
-  currentProjectId.value = pid
-  await loadWorkspaces(pid)
-  const list = workspacesByProj.value[pid] ?? []
-  activeWorkspaceId.value = list[1]?.id ?? list[0]?.id ?? 'reconnaissance'
-  setProjectParam(pid)
+function handleSwitchProject(pid: string) {
+  router.push('/project/' + pid + '/reconnaissance')
 }
 
 function handleAdded(fsProjects: FsProject[]) {
   const last = fsProjects[fsProjects.length - 1]
   if (last) {
-    const url = new URL(location.href)
-    url.searchParams.set('project', String(last.id))
-    location.href = url.toString()
+    router.push('/project/' + String(last.id) + '/reconnaissance')
   } else {
     addProjectOpen.value = false
   }
@@ -167,9 +173,6 @@ function applyFsProjects(fsProjects: FsProject[]) {
       }
     }
   }
-  if (!currentProjectId.value && projects.value.length > 0) {
-    currentProjectId.value = projects.value[0].id
-  }
 }
 
 function handleDeleteProject(id: string) {
@@ -182,10 +185,7 @@ function handleDeleted(id: string) {
   workspacesByProj.value = rest
   if (currentProjectId.value === id) {
     const next = projects.value[0]
-    currentProjectId.value = next?.id ?? ''
-    activeWorkspaceId.value = next ? 'reconnaissance' : ''
-    if (next) setProjectParam(next.id)
-    else removeProjectParam()
+    router.push(next ? '/project/' + next.id + '/reconnaissance' : '/')
   }
   deletingProjectId.value = ''
 }
@@ -196,19 +196,15 @@ function handleWorkspaceCreated(ws: Workspace) {
     ...workspacesByProj.value,
     [pid]: [...(workspacesByProj.value[pid] ?? []), ws],
   }
-  activeWorkspaceId.value = ws.id
   addingWorkspace.value = false
+  router.push('/project/' + pid + '/workspace/' + ws.id)
 }
 
-function setProjectParam(id: string) {
-  const url = new URL(location.href)
-  url.searchParams.set('project', id)
-  history.replaceState(null, '', url)
-}
-
-function removeProjectParam() {
-  const url = new URL(location.href)
-  url.searchParams.delete('project')
-  history.replaceState(null, '', url)
+function handleSelectWorkspace(wsId: string) {
+  if (wsId === 'reconnaissance') {
+    router.push('/project/' + currentProjectId.value + '/reconnaissance')
+  } else {
+    router.push('/project/' + currentProjectId.value + '/workspace/' + wsId)
+  }
 }
 </script>

@@ -32,7 +32,7 @@
           v-for="tab in tabs"
           :key="tab.id"
           :style="tabBtn(tab.id === activeTab)"
-          @click="activeTab = tab.id"
+          @click="switchTab(tab.id)"
         >
           <AppIcon :name="tab.icon" :size="13" />
           {{ tab.label }}
@@ -43,7 +43,7 @@
 
     <!-- Tab content -->
     <div style="flex:1;display:flex;overflow:hidden">
-      <GroomingView v-if="activeTab === 'grooming'" :workspace="workspace" @jump-tab="activeTab = $event" />
+      <GroomingView v-if="activeTab === 'grooming'" :workspace="workspace" @jump-tab="switchTab($event)" />
 
       <div v-else-if="activeTab === 'execution'" class="fade-in" :style="emptyWrap">
         <div :style="emptyIcon"><AppIcon name="route" :size="22" color="var(--color-gray-500)" /></div>
@@ -69,14 +69,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import type { Workspace } from '../types'
 import AppIcon from './AppIcon.vue'
 import GroomingView from './grooming/GroomingView.vue'
 
 defineProps<{ workspace: Workspace & { branch: string; commit: string } }>()
 
-const activeTab = ref('grooming')
+const route = useRoute()
+const router = useRouter()
+
+const activeTab = computed(() => route.path.endsWith('/execution') ? 'execution' : 'grooming')
+
+function switchTab(tabId: string) {
+  const base = '/project/' + route.params.projectId + '/workspace/' + route.params.workspaceId
+  router.push(tabId === 'execution' ? base + '/execution' : base)
+}
 
 const tabs = [
   { id: 'grooming',   label: 'Grooming',  icon: 'message-square-text' },

@@ -21,7 +21,7 @@
     </div>
 
     <!-- Action row -->
-    <div style="display:flex;align-items:center;gap:8px">
+    <div v-if="!readonly" style="display:flex;align-items:center;gap:8px">
       <button :style="thumbBtn('var(--color-success)', decision?.approved === true)" @click="toggleApprove">
         <AppIcon name="thumbs-up" :size="12" />
         Approve
@@ -33,7 +33,7 @@
     </div>
 
     <!-- Feedback textarea -->
-    <div v-if="decision?.approved === false" style="margin-top:10px">
+    <div v-if="!readonly && decision?.approved === false" style="margin-top:10px">
       <textarea
         :value="decision.feedback"
         :style="correctionInput"
@@ -53,6 +53,7 @@ import AppIcon from '../AppIcon.vue'
 const props = defineProps<{
   task: ApiTask & { idx: number }
   decision: { approved: boolean; feedback: string } | null
+  readonly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -74,6 +75,7 @@ function onFeedback(e: Event) {
 const cardStyle = computed(() => ({
   background: 'var(--color-surface-1)',
   border: `1px solid ${
+    props.readonly               ? 'rgba(255,255,255,0.07)' :
     props.decision?.approved === true  ? 'rgba(74,222,128,0.30)' :
     props.decision?.approved === false ? 'rgba(248,113,113,0.30)' :
     'rgba(255,255,255,0.07)'

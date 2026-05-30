@@ -93,10 +93,19 @@
         </div>
 
         <!-- Awaiting execution -->
-        <div v-else-if="phase === 'awaiting_execution'" class="fade-in" style="max-width:760px;margin:40px auto 0;padding:0 32px 40px;text-align:center">
+        <div v-else-if="phase === 'awaiting_execution'" class="fade-in" style="max-width:760px;margin:24px auto 0;padding:0 32px 40px">
           <div :style="emptyIcon" style="margin:0 auto 18px"><AppIcon name="check-circle-2" :size="22" color="var(--color-success)" /></div>
           <div :style="phaseTitle" style="margin-bottom:8px">Plan approved</div>
           <div :style="phaseSub">Tasks are locked in. Start the execution session when ready.</div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <TaskCard
+              v-for="(task, i) in approvedTasks"
+              :key="task.id"
+              :task="{ ...task, idx: i + 1 }"
+              :decision="null"
+              :readonly="true"
+            />
+          </div>
         </div>
 
         <!-- Reading recon -->
@@ -224,6 +233,7 @@ const phase = ref<ExtendedPhase>('idle')
 
 // Real API state
 const apiTasks = ref<ApiTask[]>([])
+const approvedTasks = ref<ApiTask[]>([])
 const groomError = ref('')
 const startPending = ref(false)
 const checkpointLoading = ref(false)
@@ -233,7 +243,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 onMounted(() => {
   const st = props.workspace.status
   if (st === 'grooming') { phase.value = 'grooming_live'; startPolling() }
-  else if (st === 'awaiting_execution') phase.value = 'awaiting_execution'
+  else if (st === 'awaiting_execution') { phase.value = 'awaiting_execution'; loadApprovedTasks() }
 })
 
 onUnmounted(stopPolling)
@@ -300,6 +310,7 @@ async function handleApprove() {
   try {
     const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks/approve`, { method: 'POST' })
     if (r.ok) {
+      approvedTasks.value = [...apiTasks.value]
       apiTasks.value = []
       taskDecisions.value = {}
       phase.value = 'awaiting_execution'
@@ -307,6 +318,15 @@ async function handleApprove() {
   } finally {
     checkpointLoading.value = false
   }
+}
+
+async function loadApprovedTasks() {
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks`)
+    if (!r.ok) return
+    const tasks: ApiTask[] = await r.json()
+    approvedTasks.value = tasks.filter(t => t.status === 'approved')
+  } catch { /* ignore */ }
 }
 
 async function handleSubmitReviews() {
