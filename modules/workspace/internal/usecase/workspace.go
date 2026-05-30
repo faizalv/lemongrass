@@ -236,9 +236,13 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 Requirements:
 %s
 
+--- Environment ---
+
+You are inside the lg-runner Docker container. Your working directory /home/lg is the container filesystem, not the project. Navigate the project exclusively through #lg.* commands -- do not use filesystem paths.
+
 --- Navigation ---
 
-#lg.recon.tree [dir] -- directory map with annotation coverage per directory. Start here.
+#lg.recon.tree [subpath] -- full project map with annotation coverage per directory. Pass a project-relative subpath to filter (e.g. modules/user). No argument = full map. Start here.
 #lg.recon.peek <dir> -- all symbols under a directory: kind, name, lines, status. Use after tree to decide what to read.
 #lg.recon.search <query> -- vector search across annotated nodes. Rejected when code coverage is below 80 percent -- use peek and read to build the map first.
 #lg.recon.read <path:symbol:kind> -- raw source for a symbol. Server resolves current lines from the map. Use for unexplored or stale nodes.
