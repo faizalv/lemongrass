@@ -462,7 +462,6 @@ const canSubmitReviews = computed(() => {
 // ── Derived ──────────────────────────────────────────
 const tabHasLeftPanel = computed(() => committed.value.length > 0 || !!committing.value)
 
-const acceptedIds = computed(() => Object.entries(decisions.value).filter(([, v]) => v === 'accept').map(([k]) => k))
 const acceptedCount = computed(() => streamedTasks.value.filter(id => decisions.value[id] === 'accept').length)
 const rejectedCount = computed(() => streamedTasks.value.filter(id => decisions.value[id] === 'reject').length)
 const reviewedCount = computed(() => streamedTasks.value.filter(id => decisions.value[id] && decisions.value[id] !== 'correction').length)
@@ -551,7 +550,7 @@ function handleGenerateAll() {
 const emptyIcon   = { width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const approveBtn = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'var(--color-success)', color: 'var(--color-surface-0)', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 700 }
 const submitReviewsBtn = (enabled: boolean) => ({ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? 'var(--color-error)' : 'var(--color-gray-500)', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600 })
-const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: 'var(--color-surface-0)' }
+const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: 'var(--color-surface-0)' } as Record<string, any>
 const leftPanelHeader = { padding: '18px 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }
 const leftPanelTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)', marginBottom: '4px' }
 const distillingItem = { padding: '12px 14px', margin: '4px 12px', background: 'rgba(245,197,24,0.04)', border: '1px dashed rgba(245,197,24,0.25)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--color-amber)' }

@@ -202,7 +202,7 @@ async function deleteReq(id: string) {
 const wrap = {
   maxWidth: '760px', margin: '40px auto 0', padding: '0 32px 40px',
   display: 'flex', flexDirection: 'column', gap: '18px',
-}
+} as Record<string, any>
 const heading = {
   fontFamily: 'var(--font-display)', fontSize: '26px', fontWeight: 700,
   color: 'var(--color-fg-primary)', letterSpacing: '-0.02em', marginBottom: '8px',

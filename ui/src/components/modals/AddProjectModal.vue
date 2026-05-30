@@ -212,13 +212,13 @@ const overlay = {
   backdropFilter: 'blur(8px)', zIndex: 300,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: '24px', animation: 'lgFadeIn 160ms ease',
-}
+} as Record<string, any>
 const panel = {
   background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '14px', width: '100%', maxWidth: '520px',
   boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
   display: 'flex', flexDirection: 'column', overflow: 'hidden',
-}
+} as Record<string, any>
 const header = {
   padding: '22px 24px 18px',
   borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -242,7 +242,7 @@ const body = { padding: '16px 20px 12px' }
 const centeredBody = {
   padding: '40px 24px', display: 'flex', flexDirection: 'column',
   alignItems: 'center', gap: '12px',
-}
+} as Record<string, any>
 const spinner = {
   width: '28px', height: '28px', borderRadius: '50%',
   border: '2.5px solid rgba(255,255,255,0.08)',
@@ -276,7 +276,7 @@ const treeWrap = {
   background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: '8px', padding: '8px', overflowY: 'auto',
   maxHeight: '320px', minHeight: '120px',
-}
+} as Record<string, any>
 const selectionBar = {
   marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px',
   padding: '8px 10px',

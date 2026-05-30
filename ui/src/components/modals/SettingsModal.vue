@@ -78,13 +78,13 @@ const overlay = {
   backdropFilter: 'blur(6px)', zIndex: 300,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: '24px', animation: 'lgFadeIn 160ms ease',
-}
+} as Record<string, any>
 const panel = {
   background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '12px', width: '100%', maxWidth: '540px',
   boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
   display: 'flex', flexDirection: 'column', maxHeight: '85vh',
-}
+} as Record<string, any>
 const header = {
   padding: '22px 26px 18px', borderBottom: '1px solid rgba(255,255,255,0.07)',
   display: 'flex', alignItems: 'center', gap: '12px',
@@ -159,28 +159,4 @@ const SettingsRow = defineComponent({
   },
 })
 
-const Toggle = defineComponent({
-  props: ['on'],
-  emits: ['click'],
-  setup(props, { emit }) {
-    return () => h('button', {
-      onClick: () => emit('click'),
-      style: {
-        position: 'relative', width: '34px', height: '19px', borderRadius: '999px',
-        background: props.on ? 'var(--color-amber)' : 'var(--color-gray-700)',
-        border: 'none', cursor: 'pointer', flexShrink: 0,
-        transition: 'background 150ms ease',
-      },
-    }, [
-      h('span', {
-        style: {
-          position: 'absolute', top: '2.5px', left: props.on ? '17.5px' : '2.5px',
-          width: '14px', height: '14px', borderRadius: '50%',
-          background: props.on ? 'var(--color-surface-0)' : 'var(--color-gray-200)',
-          transition: 'left 160ms cubic-bezier(0.4,0,0.2,1)',
-        },
-      }),
-    ])
-  },
-})
 </script>

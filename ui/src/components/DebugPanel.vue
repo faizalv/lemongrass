@@ -356,10 +356,10 @@ const s = {
     width: '520px', flexShrink: 0,
     borderRight: '1px solid rgba(255,255,255,0.06)',
     padding: '20px 24px', overflowY: 'auto',
-  },
+  } as Record<string, any>,
   right: {
     flex: 1, padding: '20px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-  },
+  } as Record<string, any>,
   sectionLabel: {
     fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase',
     color: 'var(--color-gray-500)', fontFamily: 'var(--font-body)', marginBottom: '12px', display: 'block',
@@ -407,7 +407,7 @@ const s = {
     fontFamily: 'var(--font-mono)',
     whiteSpace: 'pre-wrap', wordBreak: 'break-all' as const,
     maxHeight: '260px', overflowY: 'auto',
-  },
+  } as Record<string, any>,
   emptyResult: {
     fontSize: '12px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)',
     padding: '16px 0',
@@ -447,7 +447,7 @@ const s = {
   },
   historyArgs: { fontSize: '12px', color: 'var(--color-gray-500)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const },
   callCount: { fontSize: '11px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-mono)' },
-  callList: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' },
+  callList: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' } as Record<string, any>,
   empty: { fontSize: '12px', color: 'var(--color-gray-600)', paddingTop: '4px' },
   callItem: {
     display: 'flex', alignItems: 'baseline', gap: '12px',

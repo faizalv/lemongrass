@@ -71,7 +71,7 @@ const stickyWrap = {
   padding: '14px 32px 20px',
   background: 'linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.95) 25%, var(--color-surface-0) 60%)',
   zIndex: 5,
-}
+} as Record<string, any>
 const barStyle = computed(() => ({
   background: 'var(--color-gray-900)',
   border: `1px solid ${props.canGenerate ? 'rgba(245,197,24,0.30)' : 'rgba(255,255,255,0.08)'}`,

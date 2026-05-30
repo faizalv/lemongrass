@@ -69,9 +69,9 @@ const sections = computed(() => {
   ]
 })
 
-const empty = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)', fontSize: '13px', padding: '40px', textAlign: 'center' }
+const empty = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)', fontSize: '13px', padding: '40px', textAlign: 'center' } as Record<string, any>
 const heading = { fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em', marginBottom: '6px' }
-const metaRow = { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '22px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-400)', flexWrap: 'wrap' }
+const metaRow = { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '22px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-400)', flexWrap: 'wrap' } as Record<string, any>
 const detailReadyPill = { display: 'inline-block', fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '999px', background: 'rgba(74,222,128,0.10)', color: 'var(--color-success)', fontFamily: 'var(--font-body)', letterSpacing: 0, textTransform: 'none' }
 const sectionTitle = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-amber)', fontFamily: 'var(--font-body)', marginBottom: '8px' }
 const bodyText = { fontSize: '13.5px', color: 'var(--color-gray-100)', lineHeight: 1.7, fontFamily: 'var(--font-body)' }

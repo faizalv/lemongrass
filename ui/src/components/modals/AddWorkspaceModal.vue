@@ -75,7 +75,7 @@ const overlay = {
   backdropFilter: 'blur(6px)', zIndex: 300,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: '24px', animation: 'lgFadeIn 160ms ease',
-}
+} as Record<string, any>
 const panel = {
   background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '12px', width: '100%', maxWidth: '480px',

@@ -63,7 +63,7 @@ const wrap = {
   padding: '40px 24px', textAlign: 'center', gap: '0',
   background: 'var(--color-surface-0)',
   userSelect: 'none' as const,
-}
+} as Record<string, any>
 const logoMark = {
   width: '56px', height: '56px', borderRadius: '14px',
   background: 'var(--color-amber)',

@@ -230,7 +230,7 @@ const s = {
     fontSize: '18px', fontWeight: 700, color: 'var(--color-fg-primary)',
     letterSpacing: '-0.01em',
   },
-  projWrap: { padding: '0 12px 14px', position: 'relative' },
+  projWrap: { padding: '0 12px 14px', position: 'relative' } as Record<string, any>,
   projBtn: (open: boolean) => ({
     width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
     padding: '9px 11px',
@@ -238,7 +238,7 @@ const s = {
     border: `1px solid ${open ? 'rgba(245,197,24,0.30)' : 'rgba(255,255,255,0.07)'}`,
     borderRadius: '6px', cursor: 'pointer', textAlign: 'left',
     transition: 'all 150ms ease', fontFamily: 'var(--font-body)',
-  }),
+  } as Record<string, any>),
   projLabel: {
     flex: 1, minWidth: 0, fontSize: '12.5px', color: 'var(--color-gray-100)', fontWeight: 500,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -253,7 +253,7 @@ const s = {
     background: 'var(--color-surface-2)', border: '1px solid rgba(255,255,255,0.13)',
     borderRadius: '8px', boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
     overflow: 'hidden', zIndex: 80, animation: 'lgFadeIn 120ms ease',
-  },
+  } as Record<string, any>,
   projMenuItem: (active: boolean) => ({
     flex: 1, display: 'flex', alignItems: 'center', gap: '8px',
     padding: '10px 12px', paddingRight: '36px',
@@ -261,24 +261,24 @@ const s = {
     color: active ? 'var(--color-amber)' : 'var(--color-gray-100)',
     fontSize: '12.5px', fontFamily: 'var(--font-body)', fontWeight: 500,
     textAlign: 'left',
-  }),
+  } as Record<string, any>),
   projMenuItemWrap: {
     position: 'relative', display: 'flex', alignItems: 'center',
-  },
+  } as Record<string, any>,
   trashBtn: {
     position: 'absolute', right: '8px',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: '24px', height: '24px', borderRadius: '4px',
     background: 'rgba(248,113,113,0.12)', border: 'none',
     color: 'var(--color-error)', cursor: 'pointer', flexShrink: 0,
-  },
+  } as Record<string, any>,
   projMenuDivider: { height: '1px', background: 'rgba(255,255,255,0.06)' },
   projMenuFoot: {
     width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
     padding: '10px 12px', background: 'transparent', border: 'none', cursor: 'pointer',
     color: 'var(--color-gray-300)', fontSize: '12px', fontFamily: 'var(--font-body)', fontWeight: 500,
     textAlign: 'left',
-  },
+  } as Record<string, any>,
   wsLabel: {
     fontSize: '10px', fontWeight: 700, color: 'var(--color-gray-600)',
     letterSpacing: '0.12em', textTransform: 'uppercase',
@@ -289,7 +289,7 @@ const s = {
   wsList: {
     flex: 1, overflowY: 'auto', overflowX: 'hidden',
     padding: '0 10px', display: 'flex', flexDirection: 'column', gap: '1px',
-  },
+  } as Record<string, any>,
   wsItem: (active: boolean) => ({
     width: '100%', display: 'flex', alignItems: 'center', gap: '9px',
     padding: '8px 10px',
@@ -297,7 +297,7 @@ const s = {
     border: 'none', borderRadius: '6px', cursor: 'pointer',
     textAlign: 'left', transition: 'background 120ms ease',
     fontFamily: 'var(--font-body)',
-  }),
+  } as Record<string, any>),
   wsItemLabel: (active: boolean) => ({
     flex: 1, minWidth: 0, fontSize: '13px',
     fontWeight: active ? 600 : 500,
@@ -324,7 +324,7 @@ const s = {
     borderRadius: '6px', cursor: 'pointer', textAlign: 'left',
     fontFamily: 'var(--font-body)',
     transition: 'border-color 150ms ease',
-  },
+  } as Record<string, any>,
   addBtn: (hovered: boolean) => ({
     width: '100%', display: 'flex', alignItems: 'center', gap: '9px',
     padding: '8px 10px', marginTop: '4px',
@@ -334,13 +334,13 @@ const s = {
     transition: 'all 120ms ease',
     color: hovered ? 'var(--color-amber)' : 'var(--color-gray-400)',
     fontFamily: 'var(--font-body)', fontSize: '12.5px', fontWeight: 500,
-  }),
+  } as Record<string, any>),
   bottomSection: { padding: '12px 12px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' },
   settingsBtn: {
     width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
     padding: '9px 11px', border: 'none', borderRadius: '6px',
     cursor: 'pointer', textAlign: 'left',
     fontFamily: 'var(--font-body)', transition: 'background 120ms ease',
-  },
+  } as Record<string, any>,
 }
 </script>

@@ -67,7 +67,7 @@ const row = computed(() => ({
   border: isSelected.value ? '1px solid rgba(245,197,24,0.20)' : '1px solid transparent',
   transition: 'background 100ms',
   userSelect: 'none',
-}))
+} as Record<string, any>))
 
 const label = computed(() => ({
   flex: 1, fontSize: '13px', fontFamily: 'var(--font-body)',

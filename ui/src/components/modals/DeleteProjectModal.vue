@@ -73,13 +73,13 @@ const overlay = {
   backdropFilter: 'blur(8px)', zIndex: 300,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: '24px', animation: 'lgFadeIn 160ms ease',
-}
+} as Record<string, any>
 const panel = {
   background: 'var(--color-gray-900)', border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: '14px', width: '100%', maxWidth: '420px',
   boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
   display: 'flex', flexDirection: 'column', overflow: 'hidden',
-}
+} as Record<string, any>
 const header = {
   padding: '22px 24px 18px',
   borderBottom: '1px solid rgba(255,255,255,0.06)',

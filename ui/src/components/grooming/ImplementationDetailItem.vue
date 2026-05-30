@@ -29,7 +29,7 @@ const itemStyle = {
   borderLeft: props.active ? '2px solid var(--color-amber)' : '2px solid transparent',
   padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '6px',
   transition: 'background 120ms ease', fontFamily: 'var(--font-body)',
-}
+} as Record<string, any>
 const idxBadge = { width: '18px', height: '18px', borderRadius: '4px', background: 'rgba(74,222,128,0.10)', color: 'var(--color-success)', fontWeight: 700, fontFamily: 'var(--font-mono)', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }
 const meta = { fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-gray-500)', display: 'flex', alignItems: 'center', gap: '6px' }
 </script>
