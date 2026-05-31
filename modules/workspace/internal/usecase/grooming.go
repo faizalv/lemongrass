@@ -136,12 +136,18 @@ Nodes marked [STALE] in recon.read output have descriptions that predate a code 
 
 --- Tasks ---
 
-After enough understanding, call #lg.tasks.checkpoint with:
-{"tasks":[{"title":"...","reason":"...","impl":["symbol at file -- directive",...]},...]}
+After enough understanding, call #lg.tasks.checkpoint:
+{"tasks":[{"title":"...","reason":"...","impl":["...",...]},...]}
 
-reason: one to three sentences explaining what this task achieves and why it is needed now. Do not restate the directives -- explain the motivation and context.
-impl entry: symbol, file, what changes -- directional, not a patch.
-Example: "getByJob at modules/user/repo.go -- add tenant_id filter to WHERE clause"
+All three fields required per task. reason is 1-3 sentences -- motivation and what this achieves, not a restatement of impl directives.
+Example reason: "Job queries return rows across all tenants -- any authenticated user reads another tenant's data. Scopes every query to caller's tenant_id at DB level."
+
+impl entry formats:
+  symbol at file -- directive        (modify existing)
+  new: path/to/file.go -- contents   (create new file)
+  delete: path/to/file.go -- reason  (remove file)
+
+Creative decisions are in scope. If the requirement implies new files, new data, new content -- propose it. Do not defer; invent what is missing.
 
 On rejection, receive per-task list:
   rejected:

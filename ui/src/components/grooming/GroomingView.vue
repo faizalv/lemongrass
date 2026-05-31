@@ -260,15 +260,27 @@ function stopPolling() {
 
 async function pollTasks() {
   try {
-    const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks`)
-    if (!r.ok) return
-    const tasks: ApiTask[] = await r.json()
+    const [tasksR, wsR] = await Promise.all([
+      fetch(`/api/workspaces/${props.workspace.id}/tasks`),
+      fetch(`/api/workspaces/${props.workspace.id}`),
+    ])
+    if (!tasksR.ok) return
+    const tasks: ApiTask[] = await tasksR.json()
+    const ws = wsR.ok ? await wsR.json() : null
+
     const pending = tasks.filter(t => t.status === 'pending')
     if (pending.length > 0) {
       apiTasks.value = pending
       taskDecisions.value = {}
       await loadCheckpointDraft()
       phase.value = 'checkpoint'
+      stopPolling()
+      return
+    }
+
+    if (ws?.status === 'awaiting_execution') {
+      approvedTasks.value = tasks.filter(t => t.status === 'approved')
+      phase.value = 'awaiting_execution'
       stopPolling()
     }
   } catch { /* ignore */ }

@@ -170,8 +170,9 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 	}
 	var payload struct {
 		Tasks []struct {
-			Title string   `json:"title"`
-			Impl  []string `json:"impl"`
+			Title  string   `json:"title"`
+			Reason string   `json:"reason"`
+			Impl   []string `json:"impl"`
 		} `json:"tasks"`
 	}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(args)), &payload); err != nil {
@@ -184,6 +185,7 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 		tasks[i] = wsentity.Task{
 			WorkspaceID: s.workspaceID,
 			Title:       t.Title,
+			Reason:      t.Reason,
 			Impl:        implJSON,
 		}
 	}

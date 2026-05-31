@@ -32,6 +32,9 @@ func (u *WorkspaceUsecase) ApproveCheckpoint(ctx context.Context, workspaceID st
 	if err := u.repo.ApproveTasks(ctx, workspaceID); err != nil {
 		return err
 	}
+	if err := u.repo.UpdateStatus(ctx, workspaceID, "awaiting_execution"); err != nil {
+		return err
+	}
 	if u.draft != nil {
 		u.draft.ClearDraft(ctx, workspaceID)
 	}
@@ -68,6 +71,9 @@ func (u *WorkspaceUsecase) SubmitCheckpointReviews(ctx context.Context, workspac
 	u.draft.ClearDraft(ctx, workspaceID)
 	if len(rejections) == 0 {
 		if err := u.repo.ApproveTasks(ctx, workspaceID); err != nil {
+			return err
+		}
+		if err := u.repo.UpdateStatus(ctx, workspaceID, "awaiting_execution"); err != nil {
 			return err
 		}
 	}

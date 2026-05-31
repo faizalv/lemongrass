@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,7 +30,7 @@ func teardown() error {
 		known := []string{"lg-server", "lg-runner", "lg-embed", "lg-postgres"}
 		cmd := exec.Command("docker", append([]string{"rm", "-f"}, known...)...)
 		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stderr = io.Discard
 		_ = cmd.Run()
 	}
 	uninstallDaemon()
