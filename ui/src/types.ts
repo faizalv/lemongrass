@@ -18,7 +18,7 @@ export interface FsProject {
   created_at: string
 }
 
-export type WorkspaceStatus = 'idle' | 'grooming' | 'awaiting_execution' | 'executing' | 'done' | 'planning' | 'testing' | 'error'
+export type WorkspaceStatus = 'idle' | 'grooming' | 'awaiting_execution' | 'executing' | 'done' | 'deleted' | 'planning' | 'testing' | 'error'
 
 export interface Workspace {
   id: string
@@ -110,8 +110,19 @@ export interface ApiTask {
   id: string
   workspace_id: string
   title: string
+  reason: string
   impl: string[]
   status: 'pending' | 'approved' | 'rejected'
   created_at: string
   approved_at?: string
+}
+
+export interface WorkspaceWithRequirements {
+  id: string
+  project_id: number
+  name: string
+  status: WorkspaceStatus
+  created_at: string
+  updated_at: string
+  requirements: WorkspaceRequirement[]
 }

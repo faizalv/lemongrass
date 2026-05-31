@@ -1,8 +1,11 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"path/filepath"
 	"strings"
 
@@ -35,6 +38,7 @@ func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string
 	if err != nil {
 		return fmt.Errorf("load requirements: %w", err)
 	}
+	requirements = convertRequirements(ctx, requirements)
 	systemPrompt := buildGroomingPrompt(requirements, projectPath)
 	if err := u.repo.UpdateStatus(ctx, workspaceID, "grooming"); err != nil {
 		return err
@@ -48,6 +52,54 @@ func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string
 	u.lgSess.RegisterSession(workspaceID, alias, ws.ProjectID, session)
 	session.Write([]byte("Begin grooming.\r"))
 	return nil
+}
+
+func convertRequirements(ctx context.Context, reqs []entity.WorkspaceRequirement) []entity.WorkspaceRequirement {
+	out := make([]entity.WorkspaceRequirement, len(reqs))
+	copy(out, reqs)
+	for i, r := range out {
+		if r.Type != "pdf" && r.Type != "image" {
+			continue
+		}
+		md, err := callMarkitdown(ctx, "/home/lg/.lemongrass/workspaces/"+r.WorkspaceID+"/"+r.FilePath)
+		if err != nil {
+			continue
+		}
+		out[i] = entity.WorkspaceRequirement{
+			ID:          r.ID,
+			WorkspaceID: r.WorkspaceID,
+			Type:        "text",
+			TextContent: md,
+			FilePath:    r.FilePath,
+			FileName:    r.FileName,
+			CreatedAt:   r.CreatedAt,
+		}
+	}
+	return out
+}
+
+func callMarkitdown(ctx context.Context, path string) (string, error) {
+	body, _ := json.Marshal(map[string]string{"path": path})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://lg-embed:8080/convert", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("convert: status %d", resp.StatusCode)
+	}
+	var result struct {
+		Markdown string `json:"markdown"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	return result.Markdown, nil
 }
 
 func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath string) string {
@@ -85,8 +137,9 @@ Nodes marked [STALE] in recon.read output have descriptions that predate a code 
 --- Tasks ---
 
 After enough understanding, call #lg.tasks.checkpoint with:
-{"tasks":[{"title":"...","impl":["symbol at file -- directive",...]},...]}
+{"tasks":[{"title":"...","reason":"...","impl":["symbol at file -- directive",...]},...]}
 
+reason: one to three sentences explaining what this task achieves and why it is needed now. Do not restate the directives -- explain the motivation and context.
 impl entry: symbol, file, what changes -- directional, not a patch.
 Example: "getByJob at modules/user/repo.go -- add tenant_id filter to WHERE clause"
 
@@ -122,3 +175,4 @@ Annotate every node you read -- semantic map shared across all sessions.
 
 	return fmt.Sprintf(strings.TrimSpace(tmpl), sb.String())
 }
+

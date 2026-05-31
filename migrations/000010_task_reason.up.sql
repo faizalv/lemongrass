@@ -1,0 +1,1 @@
+ALTER TABLE lg_tasks ADD COLUMN reason TEXT NOT NULL DEFAULT '';

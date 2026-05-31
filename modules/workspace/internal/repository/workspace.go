@@ -64,13 +64,15 @@ func (r *WorkspaceRepository) Get(ctx context.Context, id string) (entity.Worksp
 	return toEntity(rec), nil
 }
 
-func (r *WorkspaceRepository) ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error) {
+func (r *WorkspaceRepository) ListByProject(ctx context.Context, projectID int64, includeDeleted bool) ([]entity.Workspace, error) {
 	var recs []workspaceRecord
-	err := r.db.SelectContext(ctx, &recs,
-		`SELECT id, project_id, name, status, created_at, updated_at
-		 FROM lg_workspaces WHERE project_id = $1 ORDER BY created_at DESC`,
-		projectID,
-	)
+	query := `SELECT id, project_id, name, status, created_at, updated_at
+	          FROM lg_workspaces WHERE project_id = $1`
+	if !includeDeleted {
+		query += ` AND status != 'deleted'`
+	}
+	query += ` ORDER BY created_at DESC`
+	err := r.db.SelectContext(ctx, &recs, query, projectID)
 	if err != nil {
 		return nil, err
 	}

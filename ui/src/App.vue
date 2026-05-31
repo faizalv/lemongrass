@@ -19,8 +19,12 @@
 
       <template v-else>
         <ReconnaissanceView
-          v-if="currentProject && !route.params.workspaceId"
+          v-if="currentProject && !route.params.workspaceId && !route.path.endsWith('/artifacts')"
           :project="currentProject"
+        />
+        <ArtifactsView
+          v-else-if="currentProject && route.path.endsWith('/artifacts')"
+          :project-id="currentProjectId"
         />
         <WorkspaceView
           v-else-if="activeWorkspace"
@@ -72,6 +76,7 @@ import AppSidebar from './components/AppSidebar.vue'
 import EmptyState from './components/EmptyState.vue'
 import ReconnaissanceView from './components/ReconnaissanceView.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
+import ArtifactsView from './components/ArtifactsView.vue'
 import AddProjectModal from './components/modals/AddProjectModal.vue'
 import AddWorkspaceModal from './components/modals/AddWorkspaceModal.vue'
 import DeleteProjectModal from './components/modals/DeleteProjectModal.vue'
@@ -132,9 +137,10 @@ async function loadWorkspaces(pid: string) {
     if (!r.ok) return
     const list: Workspace[] = await r.json()
     const recon: Workspace = { id: 'reconnaissance', name: 'Reconnaissance', icon: 'radar' }
+    const artifacts: Workspace = { id: 'artifacts', name: 'Artifacts', icon: 'archive' }
     workspacesByProj.value = {
       ...workspacesByProj.value,
-      [pid]: [recon, ...list],
+      [pid]: [recon, artifacts, ...list],
     }
   } catch { /* ignore */ }
 }
@@ -169,7 +175,10 @@ function applyFsProjects(fsProjects: FsProject[]) {
     if (!workspacesByProj.value[id]) {
       workspacesByProj.value = {
         ...workspacesByProj.value,
-        [id]: [{ id: 'reconnaissance', name: 'Reconnaissance', icon: 'radar' }],
+        [id]: [
+          { id: 'reconnaissance', name: 'Reconnaissance', icon: 'radar' },
+          { id: 'artifacts', name: 'Artifacts', icon: 'archive' },
+        ],
       }
     }
   }
@@ -203,6 +212,8 @@ function handleWorkspaceCreated(ws: Workspace) {
 function handleSelectWorkspace(wsId: string) {
   if (wsId === 'reconnaissance') {
     router.push('/project/' + currentProjectId.value + '/reconnaissance')
+  } else if (wsId === 'artifacts') {
+    router.push('/project/' + currentProjectId.value + '/artifacts')
   } else {
     router.push('/project/' + currentProjectId.value + '/workspace/' + wsId)
   }

@@ -12,6 +12,7 @@ type taskRecord struct {
 	ID          string          `db:"id"`
 	WorkspaceID string          `db:"workspace_id"`
 	Title       string          `db:"title"`
+	Reason      string          `db:"reason"`
 	Impl        json.RawMessage `db:"impl"`
 	Status      string          `db:"status"`
 	CreatedAt   time.Time       `db:"created_at"`
@@ -23,6 +24,7 @@ func toTaskEntity(r taskRecord) entity.Task {
 		ID:          r.ID,
 		WorkspaceID: r.WorkspaceID,
 		Title:       r.Title,
+		Reason:      r.Reason,
 		Impl:        r.Impl,
 		Status:      r.Status,
 		CreatedAt:   r.CreatedAt,
@@ -46,10 +48,10 @@ func (r *WorkspaceRepository) CreateTasks(ctx context.Context, workspaceID strin
 		}
 		var rec taskRecord
 		err := r.db.QueryRowxContext(ctx,
-			`INSERT INTO lg_tasks (workspace_id, title, impl)
-			 VALUES ($1, $2, $3)
-			 RETURNING id, workspace_id, title, impl, status, created_at, approved_at`,
-			workspaceID, t.Title, impl,
+			`INSERT INTO lg_tasks (workspace_id, title, reason, impl)
+			 VALUES ($1, $2, $3, $4)
+			 RETURNING id, workspace_id, title, reason, impl, status, created_at, approved_at`,
+			workspaceID, t.Title, t.Reason, impl,
 		).StructScan(&rec)
 		if err != nil {
 			return nil, err
@@ -62,7 +64,7 @@ func (r *WorkspaceRepository) CreateTasks(ctx context.Context, workspaceID strin
 func (r *WorkspaceRepository) GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error) {
 	var recs []taskRecord
 	err := r.db.SelectContext(ctx, &recs,
-		`SELECT id, workspace_id, title, impl, status, created_at, approved_at
+		`SELECT id, workspace_id, title, reason, impl, status, created_at, approved_at
 		 FROM lg_tasks WHERE workspace_id = $1 ORDER BY created_at ASC`,
 		workspaceID,
 	)

@@ -45,6 +45,8 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
   lg-embed:
     container_name: lg-embed
     image: lemongrass-embed:latest
+    volumes:
+      - {{.LGDir}}/workspaces:/home/lg/.lemongrass/workspaces:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
       interval: 10s

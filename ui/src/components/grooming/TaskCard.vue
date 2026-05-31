@@ -8,6 +8,12 @@
       </div>
     </div>
 
+    <!-- Why -->
+    <div v-if="task.reason" style="margin-bottom:14px">
+      <div :style="sectionLabel">Why</div>
+      <div :style="reasonText">{{ task.reason }}</div>
+    </div>
+
     <!-- Directives -->
     <div style="margin-bottom:16px">
       <div :style="sectionLabel">Directives</div>
@@ -96,6 +102,7 @@ const thumbBtn = (color: string, active: boolean) => ({
 const idxBadge      = { width: '22px', height: '22px', borderRadius: '5px', background: 'rgba(245,197,24,0.10)', color: 'var(--color-amber)', fontWeight: 700, fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '1px' }
 const titleStyle    = { fontSize: '15.5px', fontWeight: 600, color: 'var(--color-fg-primary)', fontFamily: "'DM Sans',sans-serif", letterSpacing: '-0.005em', lineHeight: 1.4 }
 const sectionLabel  = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--color-gray-400)', fontFamily: "'DM Sans',sans-serif", marginBottom: '4px' }
+const reasonText    = { fontSize: '13px', fontFamily: "'DM Sans',sans-serif", color: 'var(--color-gray-400)', fontStyle: 'italic' as const, lineHeight: 1.6, marginTop: '4px' }
 const filesBox      = { background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', overflow: 'hidden' }
 const implRow       = { padding: '6px 12px', fontFamily: "'JetBrains Mono','Courier Prime',monospace", fontSize: '11.5px', color: 'var(--color-gray-300)', lineHeight: 1.6 }
 const correctionInput = { width: '100%', minHeight: '70px', padding: '10px 12px', background: 'var(--color-surface-0)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: '6px', color: 'var(--color-gray-100)', fontFamily: "'DM Sans',sans-serif", fontSize: '13px', lineHeight: 1.6, outline: 'none', resize: 'vertical' as const }

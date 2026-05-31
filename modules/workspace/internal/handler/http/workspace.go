@@ -22,7 +22,8 @@ import (
 type usecase interface {
 	Create(ctx context.Context, ws entity.Workspace) (entity.Workspace, error)
 	Get(ctx context.Context, id string) (entity.Workspace, error)
-	ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error)
+	ListByProject(ctx context.Context, projectID int64, includeDeleted bool) ([]entity.Workspace, error)
+	DeleteWorkspace(ctx context.Context, id string) error
 	IsExecutionLocked(ctx context.Context, projectID int64) (bool, error)
 	StartGrooming(ctx context.Context, workspaceID string) error
 	GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error)
@@ -92,9 +93,27 @@ func (h *WorkspaceHandler) ListByProject(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project_id"})
 		return
 	}
-	list, err := h.uc.ListByProject(c.Request.Context(), projectID)
+	includeDeleted := c.Query("include_deleted") == "true"
+	list, err := h.uc.ListByProject(c.Request.Context(), projectID, includeDeleted)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if includeDeleted {
+		out := make([]transporter.WorkspaceWithRequirementsResponse, 0, len(list))
+		for _, ws := range list {
+			reqs, _ := h.uc.ListRequirements(c.Request.Context(), ws.ID)
+			reqOut := make([]transporter.WorkspaceRequirementResponse, len(reqs))
+			for j, r := range reqs {
+				reqOut[j] = transporter.ToRequirementResponse(r)
+			}
+			wr := transporter.WorkspaceWithRequirementsResponse{
+				WorkspaceResponse: transporter.ToResponse(ws),
+				Requirements:      reqOut,
+			}
+			out = append(out, wr)
+		}
+		c.JSON(http.StatusOK, out)
 		return
 	}
 	out := make([]transporter.WorkspaceResponse, len(list))
@@ -102,6 +121,20 @@ func (h *WorkspaceHandler) ListByProject(c *gin.Context) {
 		out[i] = transporter.ToResponse(ws)
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+func (h *WorkspaceHandler) Delete(c *gin.Context) {
+	if err := h.uc.DeleteWorkspace(c.Request.Context(), c.Param("id")); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "must be idle") {
+			status = http.StatusConflict
+		} else if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *WorkspaceHandler) StartGrooming(c *gin.Context) {

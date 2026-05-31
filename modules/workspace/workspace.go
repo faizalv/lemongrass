@@ -63,6 +63,7 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("", w.h.Create)
 	g.GET("", w.h.ListByProject)
 	g.GET("/:id", w.h.Get)
+	g.DELETE("/:id", w.h.Delete)
 	g.POST("/:id/groom", w.h.StartGrooming)
 	g.GET("/:id/tasks", w.h.GetTasks)
 	g.POST("/:id/tasks/approve", w.h.ApproveCheckpoint)

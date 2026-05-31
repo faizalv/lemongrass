@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	"github.com/faizalv/lemongrass/modules/workspace/entity"
@@ -10,7 +11,7 @@ import (
 type repo interface {
 	Create(ctx context.Context, ws entity.Workspace) (entity.Workspace, error)
 	Get(ctx context.Context, id string) (entity.Workspace, error)
-	ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error)
+	ListByProject(ctx context.Context, projectID int64, includeDeleted bool) ([]entity.Workspace, error)
 	CountExecuting(ctx context.Context, projectID int64) (int, error)
 	UpdateStatus(ctx context.Context, id, status string) error
 	GetProjectPath(ctx context.Context, projectID int64) (string, error)
@@ -70,8 +71,19 @@ func (u *WorkspaceUsecase) Get(ctx context.Context, id string) (entity.Workspace
 	return u.repo.Get(ctx, id)
 }
 
-func (u *WorkspaceUsecase) ListByProject(ctx context.Context, projectID int64) ([]entity.Workspace, error) {
-	return u.repo.ListByProject(ctx, projectID)
+func (u *WorkspaceUsecase) ListByProject(ctx context.Context, projectID int64, includeDeleted bool) ([]entity.Workspace, error) {
+	return u.repo.ListByProject(ctx, projectID, includeDeleted)
+}
+
+func (u *WorkspaceUsecase) DeleteWorkspace(ctx context.Context, id string) error {
+	ws, err := u.repo.Get(ctx, id)
+	if err != nil {
+		return fmt.Errorf("workspace not found")
+	}
+	if ws.Status != "idle" {
+		return fmt.Errorf("workspace must be idle to delete")
+	}
+	return u.repo.UpdateStatus(ctx, id, "deleted")
 }
 
 func (u *WorkspaceUsecase) IsExecutionLocked(ctx context.Context, projectID int64) (bool, error) {

@@ -59,10 +59,16 @@ type TaskResponse struct {
 	ID          string          `json:"id"`
 	WorkspaceID string          `json:"workspace_id"`
 	Title       string          `json:"title"`
+	Reason      string          `json:"reason"`
 	Impl        json.RawMessage `json:"impl"`
 	Status      string          `json:"status"`
 	CreatedAt   string          `json:"created_at"`
 	ApprovedAt  *string         `json:"approved_at,omitempty"`
+}
+
+type WorkspaceWithRequirementsResponse struct {
+	WorkspaceResponse
+	Requirements []WorkspaceRequirementResponse `json:"requirements"`
 }
 
 type TaskDecisionRequest struct {
@@ -75,6 +81,7 @@ func ToTaskResponse(t entity.Task) TaskResponse {
 		ID:          t.ID,
 		WorkspaceID: t.WorkspaceID,
 		Title:       t.Title,
+		Reason:      t.Reason,
 		Impl:        t.Impl,
 		Status:      t.Status,
 		CreatedAt:   t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),

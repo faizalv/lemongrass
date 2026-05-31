@@ -9,7 +9,7 @@ type Workspace struct {
 	ID        string
 	ProjectID int64
 	Name      string
-	Status    string // idle | grooming | awaiting_execution | executing | done
+	Status    string // idle | grooming | awaiting_execution | executing | done | deleted
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -28,6 +28,7 @@ type Task struct {
 	ID          string
 	WorkspaceID string
 	Title       string
+	Reason      string
 	Impl        json.RawMessage
 	Status      string
 	CreatedAt   time.Time
