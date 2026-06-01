@@ -6,44 +6,49 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/faizalv/lemongrass/infra"
 	"github.com/faizalv/lemongrass/modules/pty/entity"
 )
 
 var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]|\x1b[()][A-Z0-9]|\x1b[=>]|\x1b[^\[]`)
 
 type PtyUsecase struct {
-	log     *log.Logger
-	logFile *os.File
+	log         *log.Logger
+	logW        io.Closer
+	sessionsDir string
 }
 
-func New(runnerLogPath string) *PtyUsecase {
-	var w io.Writer = os.Stderr
-	var logFile *os.File
-	if f, err := os.OpenFile(runnerLogPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
-		w = io.MultiWriter(os.Stderr, f)
-		logFile = f
+func New(logDir string) *PtyUsecase {
+	sessionsDir := filepath.Join(logDir, "sessions")
+	os.MkdirAll(sessionsDir, 0755)
+	w := infra.NewDailyRotateWriter(logDir, "runner", 7)
+	return &PtyUsecase{
+		log:         log.New(io.MultiWriter(os.Stderr, w), "[pty] ", log.LstdFlags),
+		logW:        w,
+		sessionsDir: sessionsDir,
 	}
-	return &PtyUsecase{log: log.New(w, "[pty] ", log.LstdFlags), logFile: logFile}
 }
 
 func (u *PtyUsecase) Close() {
-	if u.logFile != nil {
-		u.logFile.Close()
+	if u.logW != nil {
+		u.logW.Close()
 	}
 }
 
 type Session struct {
-	stdinPipe  io.WriteCloser
-	cmd        *exec.Cmd
-	done       chan struct{}
-	readDone   chan struct{}
-	out        *outputBuffer
-	promptFile string // temp file in runner, cleaned up on Close
+	stdinPipe   io.WriteCloser
+	cmd         *exec.Cmd
+	done        chan struct{}
+	readDone    chan struct{}
+	out         *outputBuffer
+	promptFile  string   // temp file in runner, cleaned up on Close
+	sessionFile *os.File // per-session output log, closed on Close
 }
 
 func (s *Session) Write(b []byte) (int, error) {
@@ -70,6 +75,9 @@ func (s *Session) Close() {
 	<-s.readDone
 	if s.promptFile != "" {
 		exec.Command("docker", "exec", "lg-runner", "rm", "-f", s.promptFile).Run()
+	}
+	if s.sessionFile != nil {
+		s.sessionFile.Close()
 	}
 }
 
@@ -141,7 +149,19 @@ func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session
 		pw.Close()
 	}()
 
-	out := &outputBuffer{log: u.log}
+	var sessionFile *os.File
+	var sessionLog *log.Logger
+	if sessionID != "" && u.sessionsDir != "" {
+		stamp := time.Now().Format("20060102-150405")
+		sessPath := filepath.Join(u.sessionsDir, sessionID+"-"+stamp+".log")
+		if f, err := os.OpenFile(sessPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644); err == nil {
+			sessionFile = f
+			sessionLog = log.New(f, "", log.LstdFlags)
+		}
+		go cleanupSessionLogs(u.sessionsDir, 7)
+	}
+
+	out := &outputBuffer{log: u.log, sessionLog: sessionLog}
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
@@ -195,12 +215,13 @@ func (u *PtyUsecase) Open(systemPrompt, sessionID, sessionType string) (*Session
 
 	u.log.Printf("session ready")
 	return &Session{
-		stdinPipe:  stdinPipe,
-		cmd:        cmd,
-		done:       done,
-		readDone:   readDone,
-		out:        out,
-		promptFile: promptFile,
+		stdinPipe:   stdinPipe,
+		cmd:         cmd,
+		done:        done,
+		readDone:    readDone,
+		out:         out,
+		promptFile:  promptFile,
+		sessionFile: sessionFile,
 	}, nil
 }
 
@@ -216,16 +237,21 @@ func (u *PtyUsecase) RunTest() (entity.Session, error) {
 
 // outputBuffer accumulates raw output, logs clean lines, and supports polling.
 type outputBuffer struct {
-	mu        sync.Mutex
-	raw       []byte
-	lastWrite time.Time
-	log       *log.Logger
+	mu         sync.Mutex
+	raw        []byte
+	lastWrite  time.Time
+	log        *log.Logger
+	sessionLog *log.Logger // when set, output lines go here instead of the shared log
 }
 
 func (o *outputBuffer) write(p []byte) {
 	clean := strings.TrimSpace(ansiEscape.ReplaceAllString(string(p), ""))
 	if clean != "" {
-		o.log.Printf("out: %s", clean)
+		if o.sessionLog != nil {
+			o.sessionLog.Printf("%s", clean)
+		} else {
+			o.log.Printf("out: %s", clean)
+		}
 	}
 	o.mu.Lock()
 	o.raw = append(o.raw, p...)
@@ -296,4 +322,24 @@ func (o *outputBuffer) clean() string {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return ansiEscape.ReplaceAllString(string(o.raw), "")
+}
+
+func cleanupSessionLogs(dir string, maxDays int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().AddDate(0, 0, -maxDays)
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
 }

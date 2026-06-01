@@ -16,6 +16,7 @@ import (
 
 	"github.com/faizalv/lemongrass/config"
 	"github.com/faizalv/lemongrass/infra"
+
 	"github.com/faizalv/lemongrass/migrations"
 	lgdebug "github.com/faizalv/lemongrass/modules/debug"
 	lgfs "github.com/faizalv/lemongrass/modules/fs"
@@ -27,12 +28,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const serverLogPath = "/var/log/lemongrass/server.log"
+const logDir = "/var/log/lemongrass"
 
 func main() {
 	cfg := config.LoadOrDefault()
 
-	if lf := setupLogger(serverLogPath); lf != nil {
+	if lf := setupLogger(logDir); lf != nil {
 		defer lf.Close()
 	}
 
@@ -138,15 +139,11 @@ func main() {
 	log.Println("server stopped")
 }
 
-func setupLogger(logPath string) *os.File {
-	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Printf("could not open log file %s: %v", logPath, err)
-		return nil
-	}
-	log.SetOutput(io.MultiWriter(os.Stderr, f))
+func setupLogger(dir string) io.Closer {
+	w := infra.NewDailyRotateWriter(dir, "server", 7)
+	log.SetOutput(io.MultiWriter(os.Stderr, w))
 	log.SetFlags(log.LstdFlags)
-	return f
+	return w
 }
 
 func spaHandler(distFS fs.FS) gin.HandlerFunc {

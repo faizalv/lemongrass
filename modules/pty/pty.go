@@ -15,7 +15,7 @@ type Pty struct {
 }
 
 func (p *Pty) LoadMe(cfg config.Config, db *sqlx.DB) {
-	p.uc = usecase.New("/var/log/lemongrass/runner.log")
+	p.uc = usecase.New("/var/log/lemongrass")
 	p.h = handler.New(p.uc)
 }
 
