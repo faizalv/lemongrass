@@ -21,32 +21,54 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type usecase interface {
+type workspaceUC interface {
 	Create(ctx context.Context, ws entity.Workspace) (entity.Workspace, error)
 	Get(ctx context.Context, id string) (entity.Workspace, error)
 	ListByProject(ctx context.Context, projectID int64, includeDeleted bool) ([]entity.Workspace, error)
 	DeleteWorkspace(ctx context.Context, id string) error
 	IsExecutionLocked(ctx context.Context, projectID int64) (bool, error)
+}
+
+type groomingUC interface {
 	StartGrooming(ctx context.Context, workspaceID string) error
+}
+
+type checkpointUC interface {
 	GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error)
 	ApproveCheckpoint(ctx context.Context, workspaceID string) error
 	SaveTaskDecision(ctx context.Context, workspaceID, taskID string, approved bool, feedback string) error
 	GetCheckpointDraft(ctx context.Context, workspaceID string) (map[string]entity.TaskDecision, error)
 	SubmitCheckpointReviews(ctx context.Context, workspaceID string) error
+}
+
+type requirementUC interface {
 	ListRequirements(ctx context.Context, workspaceID string) ([]entity.WorkspaceRequirement, error)
 	AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error)
 	AddFileRequirement(ctx context.Context, workspaceID, reqType, filePath, fileName string) (entity.WorkspaceRequirement, error)
 	DeleteRequirement(ctx context.Context, workspaceID, reqID string) error
+}
+
+type sessionUC interface {
 	GetSessionActivity(ctx context.Context, workspaceID string) (time.Time, int, []lgentity.EchoMessage, bool)
 	ResetSession(ctx context.Context, workspaceID string) error
 }
 
 type WorkspaceHandler struct {
-	uc usecase
+	workspace   workspaceUC
+	grooming    groomingUC
+	checkpoint  checkpointUC
+	requirement requirementUC
+	session     sessionUC
 }
 
-func New(uc usecase) *WorkspaceHandler {
-	return &WorkspaceHandler{uc: uc}
+func New(ws workspaceUC, gr groomingUC, cp checkpointUC, rq requirementUC, sess sessionUC) *WorkspaceHandler {
+	return &WorkspaceHandler{
+		workspace:   ws,
+		grooming:    gr,
+		checkpoint:  cp,
+		requirement: rq,
+		session:     sess,
+	}
 }
 
 var allowedFileExts = map[string]struct {
@@ -71,7 +93,7 @@ func (h *WorkspaceHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
 		return
 	}
-	ws, err := h.uc.Create(c.Request.Context(), entity.Workspace{
+	ws, err := h.workspace.Create(c.Request.Context(), entity.Workspace{
 		ProjectID: req.ProjectID,
 		Name:      strings.TrimSpace(req.Name),
 	})
@@ -83,7 +105,7 @@ func (h *WorkspaceHandler) Create(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) Get(c *gin.Context) {
-	ws, err := h.uc.Get(c.Request.Context(), c.Param("id"))
+	ws, err := h.workspace.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
 		return
@@ -98,7 +120,7 @@ func (h *WorkspaceHandler) ListByProject(c *gin.Context) {
 		return
 	}
 	includeDeleted := c.Query("include_deleted") == "true"
-	list, err := h.uc.ListByProject(c.Request.Context(), projectID, includeDeleted)
+	list, err := h.workspace.ListByProject(c.Request.Context(), projectID, includeDeleted)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -106,16 +128,15 @@ func (h *WorkspaceHandler) ListByProject(c *gin.Context) {
 	if includeDeleted {
 		out := make([]transporter.WorkspaceWithRequirementsResponse, 0, len(list))
 		for _, ws := range list {
-			reqs, _ := h.uc.ListRequirements(c.Request.Context(), ws.ID)
+			reqs, _ := h.requirement.ListRequirements(c.Request.Context(), ws.ID)
 			reqOut := make([]transporter.WorkspaceRequirementResponse, len(reqs))
 			for j, r := range reqs {
 				reqOut[j] = transporter.ToRequirementResponse(r)
 			}
-			wr := transporter.WorkspaceWithRequirementsResponse{
+			out = append(out, transporter.WorkspaceWithRequirementsResponse{
 				WorkspaceResponse: transporter.ToResponse(ws),
 				Requirements:      reqOut,
-			}
-			out = append(out, wr)
+			})
 		}
 		c.JSON(http.StatusOK, out)
 		return
@@ -128,7 +149,7 @@ func (h *WorkspaceHandler) ListByProject(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) Delete(c *gin.Context) {
-	if err := h.uc.DeleteWorkspace(c.Request.Context(), c.Param("id")); err != nil {
+	if err := h.workspace.DeleteWorkspace(c.Request.Context(), c.Param("id")); err != nil {
 		status := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "must be idle") {
 			status = http.StatusConflict
@@ -142,8 +163,7 @@ func (h *WorkspaceHandler) Delete(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) StartGrooming(c *gin.Context) {
-	id := c.Param("id")
-	if err := h.uc.StartGrooming(c.Request.Context(), id); err != nil {
+	if err := h.grooming.StartGrooming(c.Request.Context(), c.Param("id")); err != nil {
 		status := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "must be idle") ||
 			strings.Contains(err.Error(), "not found") ||
@@ -157,8 +177,7 @@ func (h *WorkspaceHandler) StartGrooming(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) GetTasks(c *gin.Context) {
-	id := c.Param("id")
-	tasks, err := h.uc.GetTasks(c.Request.Context(), id)
+	tasks, err := h.checkpoint.GetTasks(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -171,7 +190,7 @@ func (h *WorkspaceHandler) GetTasks(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) ApproveCheckpoint(c *gin.Context) {
-	if err := h.uc.ApproveCheckpoint(c.Request.Context(), c.Param("id")); err != nil {
+	if err := h.checkpoint.ApproveCheckpoint(c.Request.Context(), c.Param("id")); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
@@ -188,8 +207,7 @@ func (h *WorkspaceHandler) SaveTaskDecision(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "feedback is required when rejecting"})
 		return
 	}
-	err := h.uc.SaveTaskDecision(c.Request.Context(), c.Param("id"), c.Param("task_id"), req.Approved, req.Feedback)
-	if err != nil {
+	if err := h.checkpoint.SaveTaskDecision(c.Request.Context(), c.Param("id"), c.Param("task_id"), req.Approved, req.Feedback); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -197,7 +215,7 @@ func (h *WorkspaceHandler) SaveTaskDecision(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) GetCheckpointDraft(c *gin.Context) {
-	draft, err := h.uc.GetCheckpointDraft(c.Request.Context(), c.Param("id"))
+	draft, err := h.checkpoint.GetCheckpointDraft(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -206,7 +224,7 @@ func (h *WorkspaceHandler) GetCheckpointDraft(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) SubmitCheckpointReviews(c *gin.Context) {
-	if err := h.uc.SubmitCheckpointReviews(c.Request.Context(), c.Param("id")); err != nil {
+	if err := h.checkpoint.SubmitCheckpointReviews(c.Request.Context(), c.Param("id")); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
@@ -214,7 +232,7 @@ func (h *WorkspaceHandler) SubmitCheckpointReviews(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) ListRequirements(c *gin.Context) {
-	reqs, err := h.uc.ListRequirements(c.Request.Context(), c.Param("id"))
+	reqs, err := h.requirement.ListRequirements(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -250,7 +268,7 @@ func (h *WorkspaceHandler) addTextRequirement(c *gin.Context, wsID string) {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "text exceeds 500 KB limit"})
 		return
 	}
-	result, err := h.uc.AddTextRequirement(c.Request.Context(), wsID, text)
+	result, err := h.requirement.AddTextRequirement(c.Request.Context(), wsID, text)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "locked") {
@@ -285,7 +303,7 @@ func (h *WorkspaceHandler) addFileRequirement(c *gin.Context, wsID string) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file"})
 		return
 	}
-	result, err := h.uc.AddFileRequirement(c.Request.Context(), wsID, meta.reqType, filename, fh.Filename)
+	result, err := h.requirement.AddFileRequirement(c.Request.Context(), wsID, meta.reqType, filename, fh.Filename)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "locked") {
@@ -298,9 +316,7 @@ func (h *WorkspaceHandler) addFileRequirement(c *gin.Context, wsID string) {
 }
 
 func (h *WorkspaceHandler) DeleteRequirement(c *gin.Context) {
-	wsID := c.Param("id")
-	reqID := c.Param("req_id")
-	if err := h.uc.DeleteRequirement(c.Request.Context(), wsID, reqID); err != nil {
+	if err := h.requirement.DeleteRequirement(c.Request.Context(), c.Param("id"), c.Param("req_id")); err != nil {
 		status := http.StatusInternalServerError
 		if strings.Contains(err.Error(), "locked") {
 			status = http.StatusConflict
@@ -312,7 +328,7 @@ func (h *WorkspaceHandler) DeleteRequirement(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) SessionActivity(c *gin.Context) {
-	lastAt, idleSec, echoes, active := h.uc.GetSessionActivity(c.Request.Context(), c.Param("id"))
+	lastAt, idleSec, echoes, active := h.session.GetSessionActivity(c.Request.Context(), c.Param("id"))
 	msgs := make([]transporter.EchoMessageResponse, len(echoes))
 	for i, e := range echoes {
 		msgs[i] = transporter.EchoMessageResponse{
@@ -332,7 +348,7 @@ func (h *WorkspaceHandler) SessionActivity(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) SessionReset(c *gin.Context) {
-	if err := h.uc.ResetSession(c.Request.Context(), c.Param("id")); err != nil {
+	if err := h.session.ResetSession(c.Request.Context(), c.Param("id")); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

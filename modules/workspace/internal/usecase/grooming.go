@@ -9,43 +9,67 @@ import (
 	"path/filepath"
 	"strings"
 
+	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	"github.com/faizalv/lemongrass/modules/workspace/entity"
 )
 
-func (u *WorkspaceUsecase) StartGrooming(ctx context.Context, workspaceID string) error {
+type ptyProvider interface {
+	Open(prompt, sessionID, sessionType string) (ptyclient.Session, error)
+}
+
+type groomingSession interface {
+	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+}
+
+type GroomingUsecase struct {
+	ws     workspaceStore
+	req    requirementStore
+	pty    ptyProvider
+	lgSess groomingSession
+}
+
+func NewGrooming(ws workspaceStore, req requirementStore, pty ptyProvider) *GroomingUsecase {
+	return &GroomingUsecase{ws: ws, req: req, pty: pty}
+}
+
+func (u *GroomingUsecase) SetLgSession(s groomingSession) {
+	u.lgSess = s
+}
+
+func (u *GroomingUsecase) StartGrooming(ctx context.Context, workspaceID string) error {
 	if u.pty == nil || u.lgSess == nil {
 		return fmt.Errorf("grooming not configured")
 	}
-	ws, err := u.repo.Get(ctx, workspaceID)
+	ws, err := u.ws.Get(ctx, workspaceID)
 	if err != nil {
 		return fmt.Errorf("workspace not found: %w", err)
 	}
 	if ws.Status != "idle" {
 		return fmt.Errorf("workspace is %s, must be idle to start grooming", ws.Status)
 	}
-	count, err := u.repo.CountRequirements(ctx, workspaceID)
+	count, err := u.req.CountRequirements(ctx, workspaceID)
 	if err != nil {
 		return fmt.Errorf("check requirements: %w", err)
 	}
 	if count == 0 {
 		return fmt.Errorf("no requirements added; add at least one before grooming")
 	}
-	projectPath, err := u.repo.GetProjectPath(ctx, ws.ProjectID)
+	projectPath, err := u.ws.GetProjectPath(ctx, ws.ProjectID)
 	if err != nil {
 		return fmt.Errorf("project not found: %w", err)
 	}
-	requirements, err := u.repo.ListRequirements(ctx, workspaceID)
+	requirements, err := u.req.ListRequirements(ctx, workspaceID)
 	if err != nil {
 		return fmt.Errorf("load requirements: %w", err)
 	}
 	requirements = convertRequirements(ctx, requirements)
 	systemPrompt := buildGroomingPrompt(requirements, projectPath)
-	if err := u.repo.UpdateStatus(ctx, workspaceID, "grooming"); err != nil {
+	if err := u.ws.UpdateStatus(ctx, workspaceID, "grooming"); err != nil {
 		return err
 	}
 	session, err := u.pty.Open(systemPrompt, workspaceID, "grooming")
 	if err != nil {
-		u.repo.UpdateStatus(ctx, workspaceID, "idle")
+		u.ws.UpdateStatus(ctx, workspaceID, "idle")
 		return fmt.Errorf("start grooming PTY: %w", err)
 	}
 	alias := filepath.Base(projectPath)
@@ -188,4 +212,3 @@ Annotate every node you read -- semantic map shared across all sessions.
 
 	return environmentPreamble + "\n\n" + fmt.Sprintf(strings.TrimSpace(tmpl), sb.String())
 }
-

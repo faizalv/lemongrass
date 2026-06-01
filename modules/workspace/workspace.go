@@ -9,10 +9,10 @@ import (
 	"github.com/faizalv/lemongrass/config"
 	lgentity "github.com/faizalv/lemongrass/modules/lg/entity"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
+	wsclient "github.com/faizalv/lemongrass/modules/workspace/client"
 	handler "github.com/faizalv/lemongrass/modules/workspace/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/workspace/internal/repository"
 	"github.com/faizalv/lemongrass/modules/workspace/internal/usecase"
-	wsclient "github.com/faizalv/lemongrass/modules/workspace/client"
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
 )
@@ -29,20 +29,26 @@ type lgSessionProvider interface {
 }
 
 type Workspace struct {
-	PtyClient ptyProvider
-	repo      *repository.WorkspaceRepository
-	uc        *usecase.WorkspaceUsecase
-	h         *handler.WorkspaceHandler
+	PtyClient    ptyProvider
+	repo         *repository.WorkspaceRepository
+	groomUc      *usecase.GroomingUsecase
+	checkpointUc *usecase.CheckpointUsecase
+	sessUc       *usecase.SessionUsecase
+	h            *handler.WorkspaceHandler
 }
 
 func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB) {
 	w.repo = repository.New(db)
-	w.uc = usecase.New(w.repo)
-	if w.PtyClient != nil {
-		w.uc.SetPty(w.PtyClient)
-	}
-	w.uc.SetDraftStore(repository.NewDraft())
-	w.h = handler.New(w.uc)
+	draft := repository.NewDraft()
+
+	wsUc := usecase.NewWorkspace(w.repo)
+	w.groomUc = usecase.NewGrooming(w.repo, w.repo, w.PtyClient)
+	w.checkpointUc = usecase.NewCheckpoint(w.repo, w.repo, draft)
+	reqUc := usecase.NewRequirement(w.repo, w.repo)
+	w.sessUc = usecase.NewSession(w.repo)
+
+	w.h = handler.New(wsUc, w.groomUc, w.checkpointUc, reqUc, w.sessUc)
+
 	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
 		id, ok := payload.(int64)
 		if !ok {
@@ -55,7 +61,9 @@ func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB) {
 }
 
 func (w *Workspace) SetLgSession(s lgSessionProvider) {
-	w.uc.SetLgSession(s)
+	w.groomUc.SetLgSession(s)
+	w.checkpointUc.SetLgSession(s)
+	w.sessUc.SetLgSession(s)
 }
 
 func (w *Workspace) TaskClient() *wsclient.WorkspaceTaskClient {
