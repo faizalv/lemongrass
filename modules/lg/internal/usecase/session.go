@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"time"
 
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 )
@@ -17,6 +18,7 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias string, projectID 
 		ptySession:   session,
 		checkpointCh: make(chan checkpointResult, 1),
 	}
+	u.lastActivity[workspaceID] = time.Now()
 }
 
 func (u *LgUsecase) RespondToCheckpoint(workspaceID string, rejections map[string]string) error {
@@ -38,6 +40,17 @@ func (u *LgUsecase) UnregisterSession(workspaceID string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	delete(u.sessions, workspaceID)
+	delete(u.lastActivity, workspaceID)
+}
+
+func (u *LgUsecase) ResetSession(workspaceID string) {
+	u.mu.Lock()
+	s := u.sessions[workspaceID]
+	u.mu.Unlock()
+	if s != nil && s.ptySession != nil {
+		s.ptySession.Close()
+	}
+	u.UnregisterSession(workspaceID)
 }
 
 func (u *LgUsecase) handleHandover(s *activeSession) {

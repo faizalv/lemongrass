@@ -71,6 +71,17 @@ type WorkspaceWithRequirementsResponse struct {
 	Requirements []WorkspaceRequirementResponse `json:"requirements"`
 }
 
+type EchoMessageResponse struct {
+	Ts   string `json:"ts"`
+	Text string `json:"text"`
+}
+
+type SessionActivityResponse struct {
+	LastActivityAt *string               `json:"last_activity_at"`
+	IdleSeconds    int                   `json:"idle_seconds"`
+	Messages       []EchoMessageResponse `json:"messages"`
+}
+
 type TaskDecisionRequest struct {
 	Approved bool   `json:"approved"`
 	Feedback string `json:"feedback"`

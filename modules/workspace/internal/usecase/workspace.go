@@ -3,7 +3,9 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"time"
 
+	lgentity "github.com/faizalv/lemongrass/modules/lg/entity"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	"github.com/faizalv/lemongrass/modules/workspace/entity"
 )
@@ -38,6 +40,8 @@ type ptyProvider interface {
 type lgSession interface {
 	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
 	RespondToCheckpoint(workspaceID string, rejections map[string]string) error
+	GetSessionActivity(workspaceID string) (time.Time, int, []lgentity.EchoMessage, bool)
+	ResetSession(workspaceID string)
 }
 
 type WorkspaceUsecase struct {
@@ -100,4 +104,18 @@ func (u *WorkspaceUsecase) UpdateStatus(ctx context.Context, id, status string) 
 
 func (u *WorkspaceUsecase) CreateTasks(ctx context.Context, workspaceID string, tasks []entity.Task) ([]entity.Task, error) {
 	return u.repo.CreateTasks(ctx, workspaceID, tasks)
+}
+
+func (u *WorkspaceUsecase) GetSessionActivity(ctx context.Context, workspaceID string) (time.Time, int, []lgentity.EchoMessage, bool) {
+	if u.lgSess == nil {
+		return time.Time{}, -1, nil, false
+	}
+	return u.lgSess.GetSessionActivity(workspaceID)
+}
+
+func (u *WorkspaceUsecase) ResetSession(ctx context.Context, workspaceID string) error {
+	if u.lgSess != nil {
+		u.lgSess.ResetSession(workspaceID)
+	}
+	return u.repo.UpdateStatus(ctx, workspaceID, "idle")
 }

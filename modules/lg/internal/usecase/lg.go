@@ -41,22 +41,46 @@ type activeSession struct {
 }
 
 type LgUsecase struct {
-	recon      reconClient
-	tasks      taskWriter
-	mu         sync.Mutex
-	calls      []entity.Call
-	writeTrail []entity.WriteTrailEntry
-	sessions   map[string]*activeSession
+	recon        reconClient
+	tasks        taskWriter
+	mu           sync.Mutex
+	calls        []entity.Call
+	writeTrail   []entity.WriteTrailEntry
+	sessions     map[string]*activeSession
+	lastActivity map[string]time.Time
 }
 
 func New() *LgUsecase {
-	uc := &LgUsecase{sessions: make(map[string]*activeSession)}
+	uc := &LgUsecase{
+		sessions:     make(map[string]*activeSession),
+		lastActivity: make(map[string]time.Time),
+	}
 	bus.Default.On(bus.EventProjectRemoved, func(_ any) {
 		uc.mu.Lock()
 		uc.calls = nil
 		uc.mu.Unlock()
 	})
 	return uc
+}
+
+func (u *LgUsecase) GetSessionActivity(workspaceID string) (lastAt time.Time, idleSec int, echoes []entity.EchoMessage, active bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	lastAt, active = u.lastActivity[workspaceID]
+	if !active {
+		idleSec = -1
+		return
+	}
+	idleSec = int(time.Since(lastAt).Seconds())
+	for _, c := range u.calls {
+		if c.SessionID == workspaceID && c.Cmd == "echo" {
+			echoes = append(echoes, entity.EchoMessage{Timestamp: c.Timestamp, Text: c.Args})
+		}
+	}
+	if len(echoes) > 50 {
+		echoes = echoes[len(echoes)-50:]
+	}
+	return
 }
 
 func (u *LgUsecase) SetRecon(r reconClient) {
@@ -69,9 +93,12 @@ func (u *LgUsecase) SetTaskWriter(tw taskWriter) {
 
 func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 	u.mu.Lock()
-	u.calls = append(u.calls, entity.Call{Cmd: cmd, Args: args, Timestamp: time.Now()})
+	u.calls = append(u.calls, entity.Call{Cmd: cmd, Args: args, SessionID: sessionID, Timestamp: time.Now()})
 	if len(u.calls) > 200 {
 		u.calls = u.calls[len(u.calls)-200:]
+	}
+	if sessionID != "" {
+		u.lastActivity[sessionID] = time.Now()
 	}
 	s := u.sessions[sessionID]
 	u.mu.Unlock()

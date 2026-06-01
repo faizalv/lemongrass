@@ -12,8 +12,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/faizalv/lemongrass/config"
+	lgentity "github.com/faizalv/lemongrass/modules/lg/entity"
 	"github.com/faizalv/lemongrass/modules/workspace/entity"
 	transporter "github.com/faizalv/lemongrass/modules/workspace/transporter/http"
 	"github.com/gin-gonic/gin"
@@ -35,6 +37,8 @@ type usecase interface {
 	AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error)
 	AddFileRequirement(ctx context.Context, workspaceID, reqType, filePath, fileName string) (entity.WorkspaceRequirement, error)
 	DeleteRequirement(ctx context.Context, workspaceID, reqID string) error
+	GetSessionActivity(ctx context.Context, workspaceID string) (time.Time, int, []lgentity.EchoMessage, bool)
+	ResetSession(ctx context.Context, workspaceID string) error
 }
 
 type WorkspaceHandler struct {
@@ -302,6 +306,34 @@ func (h *WorkspaceHandler) DeleteRequirement(c *gin.Context) {
 			status = http.StatusConflict
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *WorkspaceHandler) SessionActivity(c *gin.Context) {
+	lastAt, idleSec, echoes, active := h.uc.GetSessionActivity(c.Request.Context(), c.Param("id"))
+	msgs := make([]transporter.EchoMessageResponse, len(echoes))
+	for i, e := range echoes {
+		msgs[i] = transporter.EchoMessageResponse{
+			Ts:   e.Timestamp.UTC().Format("2006-01-02T15:04:05Z"),
+			Text: e.Text,
+		}
+	}
+	resp := transporter.SessionActivityResponse{
+		IdleSeconds: idleSec,
+		Messages:    msgs,
+	}
+	if active {
+		s := lastAt.UTC().Format("2006-01-02T15:04:05Z")
+		resp.LastActivityAt = &s
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *WorkspaceHandler) SessionReset(c *gin.Context) {
+	if err := h.uc.ResetSession(c.Request.Context(), c.Param("id")); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.Status(http.StatusNoContent)

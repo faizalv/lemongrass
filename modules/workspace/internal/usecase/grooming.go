@@ -154,11 +154,18 @@ On rejection, receive per-task list:
   2: "Add TenantID migration" -- include index on tenant_id
 Revise only rejected tasks, carry approved unchanged, resubmit full list.
 
+--- Progress ---
+
+Call #lg.echo <message> (as Bash tool call -- # is hook trigger, not a comment) at each major step:
+  "Exploring modules/auth/ -- checking annotation coverage"
+  "Running search for handler registration"
+  "Task list ready, calling checkpoint"
+One echo per meaningful transition. Short present-tense phrases only.
+
 --- Rules ---
 
 Shell commands unavailable -- use lg protocol only.
 Annotate every node you read -- semantic map shared across all sessions.
-#lg.echo <message> as Bash tool call to surface blockers to user (# is hook trigger, not a comment).
 #lg!.handover only after #lg.tasks.checkpoint returns approved.`
 
 	var sb strings.Builder
@@ -179,6 +186,6 @@ Annotate every node you read -- semantic map shared across all sessions.
 		}
 	}
 
-	return fmt.Sprintf(strings.TrimSpace(tmpl), sb.String())
+	return environmentPreamble + "\n\n" + fmt.Sprintf(strings.TrimSpace(tmpl), sb.String())
 }
 

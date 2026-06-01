@@ -3,9 +3,11 @@ package workspace
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/faizalv/lemongrass/bus"
 	"github.com/faizalv/lemongrass/config"
+	lgentity "github.com/faizalv/lemongrass/modules/lg/entity"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	handler "github.com/faizalv/lemongrass/modules/workspace/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/workspace/internal/repository"
@@ -22,6 +24,8 @@ type ptyProvider interface {
 type lgSessionProvider interface {
 	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
 	RespondToCheckpoint(workspaceID string, rejections map[string]string) error
+	GetSessionActivity(workspaceID string) (time.Time, int, []lgentity.EchoMessage, bool)
+	ResetSession(workspaceID string)
 }
 
 type Workspace struct {
@@ -73,4 +77,6 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/:id/requirements", w.h.ListRequirements)
 	g.POST("/:id/requirements", w.h.AddRequirement)
 	g.DELETE("/:id/requirements/:req_id", w.h.DeleteRequirement)
+	g.GET("/:id/session/activity", w.h.SessionActivity)
+	g.POST("/:id/session/reset", w.h.SessionReset)
 }

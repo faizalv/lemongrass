@@ -54,11 +54,35 @@
 
         <!-- Grooming live -->
         <div v-else-if="phase === 'grooming_live'" class="fade-in" style="max-width:760px;margin:40px auto 0;padding:0 32px 40px">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-            <Spinner :size="18" />
-            <div :style="phaseTitle">Claude is grooming…</div>
-          </div>
-          <div :style="phaseSub">The model is reading the semantic map and exploring the codebase. When it has a task list ready, it will appear here for your review.</div>
+          <!-- Stuck state -->
+          <template v-if="sessionIdleSec >= 300">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+              <AppIcon name="triangle-alert" :size="20" color="var(--color-amber)" />
+              <div :style="phaseTitle">Session appears stuck</div>
+            </div>
+            <div :style="phaseSub">No activity for {{ Math.floor(sessionIdleSec / 60) }} minutes. The model may have hit an error.</div>
+            <button :style="resetBtn" :disabled="resetting" @click="handleReset">
+              {{ resetting ? 'Resetting…' : 'Reset session' }}
+            </button>
+          </template>
+          <!-- Normal state -->
+          <template v-else>
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+              <Spinner :size="18" />
+              <div :style="phaseTitle">Claude is grooming…</div>
+            </div>
+            <div :style="phaseSub">The model is reading the semantic map and exploring the codebase. When it has a task list ready, it will appear here for your review.</div>
+            <div v-if="echoMessages.length > 0" ref="feedEl" :style="feedWrap">
+              <div
+                v-for="(msg, i) in echoMessages"
+                :key="i"
+                style="display:flex;gap:10px;padding:5px 0"
+              >
+                <span :style="feedTs">{{ formatTs(msg.ts) }}</span>
+                <span :style="feedText">{{ msg.text }}</span>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- Checkpoint review -->
@@ -209,7 +233,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { Decision, GroomingPhase, ReconStep, ApiTask } from '../../types'
 import { PROPOSED_TASKS, RECON_PATH_INFO } from '../../data/sampleData'
 import AppIcon from '../AppIcon.vue'
@@ -239,6 +263,12 @@ const startPending = ref(false)
 const checkpointLoading = ref(false)
 const taskDecisions = ref<Record<string, { approved: boolean; feedback: string }>>({})
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let activityTimer: ReturnType<typeof setInterval> | null = null
+
+const echoMessages = ref<{ ts: string; text: string }[]>([])
+const sessionIdleSec = ref(0)
+const resetting = ref(false)
+const feedEl = ref<HTMLElement | null>(null)
 
 onMounted(() => {
   const st = props.workspace.status
@@ -246,16 +276,59 @@ onMounted(() => {
   else if (st === 'awaiting_execution') { phase.value = 'awaiting_execution'; loadApprovedTasks() }
 })
 
-onUnmounted(stopPolling)
+onUnmounted(() => { stopPolling(); stopActivityPoll() })
 
 function startPolling() {
   stopPolling()
+  stopActivityPoll()
   pollTimer = setInterval(pollTasks, 2000)
+  activityTimer = setInterval(pollActivity, 5000)
   pollTasks()
+  pollActivity()
 }
 
 function stopPolling() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+}
+
+function stopActivityPoll() {
+  if (activityTimer) { clearInterval(activityTimer); activityTimer = null }
+}
+
+async function pollActivity() {
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/session/activity`)
+    if (!r.ok) return
+    const data = await r.json()
+    sessionIdleSec.value = data.idle_seconds ?? 0
+    if (Array.isArray(data.messages)) {
+      const prev = echoMessages.value.length
+      echoMessages.value = data.messages
+      if (data.messages.length > prev) {
+        await nextTick()
+        if (feedEl.value) feedEl.value.scrollTop = feedEl.value.scrollHeight
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+async function handleReset() {
+  resetting.value = true
+  try {
+    await fetch(`/api/workspaces/${props.workspace.id}/session/reset`, { method: 'POST' })
+    stopPolling()
+    stopActivityPoll()
+    echoMessages.value = []
+    sessionIdleSec.value = 0
+    phase.value = 'idle'
+  } catch { /* ignore */ } finally {
+    resetting.value = false
+  }
+}
+
+function formatTs(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 async function pollTasks() {
@@ -282,6 +355,14 @@ async function pollTasks() {
       approvedTasks.value = tasks.filter(t => t.status === 'approved')
       phase.value = 'awaiting_execution'
       stopPolling()
+      stopActivityPoll()
+      return
+    }
+
+    if (ws?.status === 'idle') {
+      phase.value = 'idle'
+      stopPolling()
+      stopActivityPoll()
     }
   } catch { /* ignore */ }
 }
@@ -589,4 +670,8 @@ const distillingItem = { padding: '12px 14px', margin: '4px 12px', background: '
 const phaseTitle = { fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em' }
 const phaseSub = { fontSize: '13.5px', color: 'var(--color-gray-300)', marginBottom: '20px', fontFamily: 'var(--font-body)', lineHeight: 1.6 }
 const draftingCard = { padding: '14px 18px', border: '1px dashed rgba(255,255,255,0.10)', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)', fontSize: '13px' }
+const feedWrap = { marginTop: '16px', maxHeight: '240px', overflowY: 'auto', background: 'var(--color-surface-1)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '10px 14px' } as Record<string, any>
+const feedTs   = { fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-gray-600)', flexShrink: 0, paddingTop: '2px' }
+const feedText = { fontSize: '13px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)', lineHeight: 1.5 }
+const resetBtn = { display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 16px', borderRadius: '6px', background: 'rgba(245,197,24,0.10)', border: '1px solid rgba(245,197,24,0.30)', color: 'var(--color-amber)', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }
 </script>

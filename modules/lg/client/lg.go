@@ -1,8 +1,11 @@
 package client
 
 import (
-	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
+	"time"
+
+	"github.com/faizalv/lemongrass/modules/lg/entity"
 	"github.com/faizalv/lemongrass/modules/lg/internal/usecase"
+	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 )
 
 type SessionManager struct {
@@ -23,4 +26,12 @@ func (s *SessionManager) RespondToCheckpoint(workspaceID string, rejections map[
 
 func (s *SessionManager) UnregisterSession(workspaceID string) {
 	s.uc.UnregisterSession(workspaceID)
+}
+
+func (s *SessionManager) GetSessionActivity(workspaceID string) (time.Time, int, []entity.EchoMessage, bool) {
+	return s.uc.GetSessionActivity(workspaceID)
+}
+
+func (s *SessionManager) ResetSession(workspaceID string) {
+	s.uc.ResetSession(workspaceID)
 }
