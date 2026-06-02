@@ -156,6 +156,39 @@ func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, args st
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+func (u *LgUsecase) handleTasksRead(ctx context.Context, s *activeSession) string {
+	if u.tasks == nil {
+		return "error: task store not available"
+	}
+	tasks, err := u.tasks.GetTasks(ctx, s.workspaceID)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	approved := make([]wsentity.Task, 0, len(tasks))
+	for _, t := range tasks {
+		if t.Status == "approved" {
+			approved = append(approved, t)
+		}
+	}
+	if len(approved) == 0 {
+		return "no approved tasks found"
+	}
+	type taskOut struct {
+		Title  string          `json:"title"`
+		Reason string          `json:"reason"`
+		Impl   json.RawMessage `json:"impl"`
+	}
+	out := make([]taskOut, len(approved))
+	for i, t := range approved {
+		out[i] = taskOut{Title: t.Title, Reason: t.Reason, Impl: t.Impl}
+	}
+	b, err := json.MarshalIndent(map[string]any{"tasks": out}, "", "  ")
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return string(b)
+}
+
 func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) {
 	filePath, symbol, kind, description, returnType, calls, err := parseAnnotateFormat(args)
 	if err != nil {

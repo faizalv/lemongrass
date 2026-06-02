@@ -55,12 +55,15 @@
         <!-- Grooming live -->
         <div v-else-if="phase === 'grooming_live'" class="fade-in" style="max-width:760px;margin:40px auto 0;padding:0 32px 40px">
           <!-- Stuck state -->
-          <template v-if="sessionIdleSec >= 300">
+          <template v-if="sessionIdleSec >= 300 || sessionIdleSec < 0">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
               <AppIcon name="triangle-alert" :size="20" color="var(--color-amber)" />
-              <div :style="phaseTitle">Session appears stuck</div>
+              <div :style="phaseTitle">{{ sessionIdleSec < 0 ? 'Session ended' : 'Session appears stuck' }}</div>
             </div>
-            <div :style="phaseSub">No activity for {{ Math.floor(sessionIdleSec / 60) }} minutes. The model may have hit an error.</div>
+            <div :style="phaseSub">
+              <template v-if="sessionIdleSec < 0">The session is no longer active. Reset to start a new one.</template>
+              <template v-else>No activity for {{ Math.floor(sessionIdleSec / 60) }} minutes. The model may have hit an error.</template>
+            </div>
             <button :style="resetBtn" :disabled="resetting" @click="handleReset">
               {{ resetting ? 'Resetting…' : 'Reset session' }}
             </button>
@@ -250,7 +253,10 @@ import ImplDetailView from './ImplDetailView.vue'
 import DoneBanner from './DoneBanner.vue'
 
 const props = defineProps<{ workspace: { id: string; status?: string; branch: string; commit: string; name: string } }>()
-defineEmits<{ 'jump-tab': [tab: string] }>()
+const emit = defineEmits<{
+  'jump-tab': [tab: string]
+  'status-change': [status: string]
+}>()
 
 type ExtendedPhase = GroomingPhase | 'grooming_live' | 'checkpoint' | 'awaiting_execution'
 const phase = ref<ExtendedPhase>('idle')
@@ -270,10 +276,37 @@ const sessionIdleSec = ref(0)
 const resetting = ref(false)
 const feedEl = ref<HTMLElement | null>(null)
 
-onMounted(() => {
-  const st = props.workspace.status
-  if (st === 'grooming') { phase.value = 'grooming_live'; startPolling() }
-  else if (st === 'awaiting_execution') { phase.value = 'awaiting_execution'; loadApprovedTasks() }
+async function initPhase() {
+  let st = props.workspace.status
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}`)
+    if (r.ok) { const ws = await r.json(); st = ws.status }
+  } catch { /* fall back to prop */ }
+  if (st === 'grooming') {
+    phase.value = 'grooming_live'
+    startPolling()
+  } else if (st === 'awaiting_execution' || st === 'executing' || st === 'done') {
+    phase.value = 'awaiting_execution'
+    loadApprovedTasks()
+  } else {
+    phase.value = 'idle'
+  }
+}
+
+onMounted(() => { initPhase() })
+
+watch(() => props.workspace.id, () => {
+  stopPolling()
+  stopActivityPoll()
+  clearTimer()
+  phase.value = 'idle'
+  apiTasks.value = []
+  approvedTasks.value = []
+  taskDecisions.value = {}
+  echoMessages.value = []
+  sessionIdleSec.value = 0
+  groomError.value = ''
+  initPhase()
 })
 
 onUnmounted(() => { stopPolling(); stopActivityPoll() })
@@ -354,6 +387,7 @@ async function pollTasks() {
     if (ws?.status === 'awaiting_execution') {
       approvedTasks.value = tasks.filter(t => t.status === 'approved')
       phase.value = 'awaiting_execution'
+      emit('status-change', 'awaiting_execution')
       stopPolling()
       stopActivityPoll()
       return
@@ -361,6 +395,7 @@ async function pollTasks() {
 
     if (ws?.status === 'idle') {
       phase.value = 'idle'
+      emit('status-change', 'idle')
       stopPolling()
       stopActivityPoll()
     }

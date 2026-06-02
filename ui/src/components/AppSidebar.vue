@@ -75,7 +75,7 @@
     <!-- Workspaces label -->
     <div v-if="projects.length > 0" :style="s.wsLabel">
       <span>Workspaces</span>
-      <span :style="s.wsCount">{{ workspaces.length }}</span>
+      <span :style="s.wsCount">{{ workspaces.filter(w => w.id !== 'reconnaissance' && w.id !== 'artifacts').length }}</span>
     </div>
 
     <!-- Workspace list -->
@@ -99,7 +99,7 @@
             <span :style="s.wsItemLabel(w.id === activeWorkspaceId)">{{ w.name }}</span>
             <span v-if="w.id !== 'reconnaissance'" :style="s.wsStatusPip(w.status || 'idle')"></span>
           </button>
-          <div v-if="w.id === 'reconnaissance'" :style="s.wsDivider"></div>
+          <div v-if="w.id === 'artifacts'" :style="s.wsDivider"></div>
         </template>
 
         <button

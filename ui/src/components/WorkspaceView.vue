@@ -59,17 +59,25 @@
 
     <!-- Tab content -->
     <div style="flex:1;display:flex;overflow:hidden">
-      <GroomingView v-if="activeTab === 'grooming'" :workspace="workspace" @jump-tab="switchTab($event)" />
+      <GroomingView
+        v-if="activeTab === 'grooming'"
+        :workspace="liveWorkspace"
+        @jump-tab="switchTab($event)"
+        @status-change="liveStatus = $event"
+      />
 
-      <div v-else-if="activeTab === 'execution'" class="fade-in" :style="emptyWrap">
-        <div :style="emptyIcon"><AppIcon name="route" :size="22" color="var(--color-gray-500)" /></div>
-        <div :style="emptyTitle">Execution hasn't started yet</div>
-        <div :style="emptyBody">Finish grooming first to unlock this phase.</div>
-        <div :style="lockedBadge">
-          <AppIcon name="lock" :size="11" />
-          Grooming must finish first
+      <template v-else-if="activeTab === 'execution'">
+        <ExecutionView v-if="isExecutionPhase" :workspace="liveWorkspace" />
+        <div v-else class="fade-in" :style="emptyWrap">
+          <div :style="emptyIcon"><AppIcon name="route" :size="22" color="var(--color-gray-500)" /></div>
+          <div :style="emptyTitle">Execution hasn't started yet</div>
+          <div :style="emptyBody">Finish grooming first to unlock this phase.</div>
+          <div :style="lockedBadge">
+            <AppIcon name="lock" :size="11" />
+            Grooming must finish first
+          </div>
         </div>
-      </div>
+      </template>
 
       <div v-else-if="activeTab === 'testing'" class="fade-in" :style="emptyWrap">
         <div :style="emptyIcon"><AppIcon name="flask-conical" :size="22" color="var(--color-gray-500)" /></div>
@@ -85,11 +93,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { Workspace } from '../types'
 import AppIcon from './AppIcon.vue'
 import GroomingView from './grooming/GroomingView.vue'
+import ExecutionView from './execution/ExecutionView.vue'
 import GitPanel from './GitPanel.vue'
 
 const props = defineProps<{ workspace: Workspace & { branch: string; commit: string } }>()
@@ -98,6 +107,24 @@ const route = useRoute()
 const router = useRouter()
 
 const menuOpen = ref(false)
+const liveStatus = ref<string>(props.workspace.status ?? 'idle')
+
+const executionStatuses = new Set(['awaiting_execution', 'executing', 'done'])
+const isExecutionPhase = computed(() => executionStatuses.has(liveStatus.value))
+const liveWorkspace = computed(() => ({ ...props.workspace, status: liveStatus.value as Workspace['status'] }))
+
+async function refreshStatus() {
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}`)
+    if (r.ok) { const ws = await r.json(); liveStatus.value = ws.status }
+  } catch { /* ignore */ }
+}
+
+onMounted(() => { refreshStatus() })
+watch(() => props.workspace.id, () => {
+  liveStatus.value = props.workspace.status ?? 'idle'
+  refreshStatus()
+})
 
 async function deleteWorkspace() {
   menuOpen.value = false

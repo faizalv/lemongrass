@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ type reconClient interface {
 type taskWriter interface {
 	CreateTasks(ctx context.Context, workspaceID string, tasks []wsentity.Task) ([]wsentity.Task, error)
 	UpdateStatus(ctx context.Context, id, status string) error
+	GetTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
 }
 
 type checkpointResult struct {
@@ -73,14 +75,61 @@ func (u *LgUsecase) GetSessionActivity(workspaceID string) (lastAt time.Time, id
 	}
 	idleSec = int(time.Since(lastAt).Seconds())
 	for _, c := range u.calls {
-		if c.SessionID == workspaceID && c.Cmd == "echo" {
-			echoes = append(echoes, entity.EchoMessage{Timestamp: c.Timestamp, Text: c.Args})
+		if c.SessionID != workspaceID {
+			continue
+		}
+		if msg := activityMessage(c.Cmd, c.Args); msg != "" {
+			echoes = append(echoes, entity.EchoMessage{Timestamp: c.Timestamp, Text: msg})
 		}
 	}
 	if len(echoes) > 50 {
 		echoes = echoes[len(echoes)-50:]
 	}
 	return
+}
+
+func activityMessage(cmd, args string) string {
+	args = strings.TrimSpace(args)
+	switch cmd {
+	case "echo":
+		return strings.Trim(args, `"'`)
+	case "recon.tree":
+		if args == "" {
+			return "Checking project map"
+		}
+		return "Checking " + args
+	case "recon.peek":
+		return "Peeking at " + args
+	case "recon.search":
+		return "Searching for " + args
+	case "recon.read":
+		parts := strings.SplitN(args, ":", 3)
+		if len(parts) >= 2 {
+			return "Reading " + parts[1] + " in " + parts[0]
+		}
+		return "Reading " + args
+	case "recon.related":
+		parts := strings.SplitN(args, ":", 3)
+		if len(parts) >= 2 {
+			return "Checking relationships for " + parts[1]
+		}
+		return "Checking symbol relationships"
+	case "annotate":
+		parts := strings.SplitN(args, ":", 4)
+		if len(parts) >= 2 {
+			return "Annotating " + parts[1] + " in " + parts[0]
+		}
+		return "Annotating symbol"
+	case "tasks.checkpoint":
+		return "Sending task proposal"
+	case "tasks.read":
+		return "Reading task list"
+	case "handover":
+		return "Handing over to execution"
+	case "done":
+		return "Execution complete"
+	}
+	return ""
 }
 
 func (u *LgUsecase) SetRecon(r reconClient) {
@@ -131,8 +180,13 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return ""
 	case "tasks.checkpoint":
 		return u.handleCheckpoint(ctx, s, args)
+	case "tasks.read":
+		return u.handleTasksRead(ctx, s)
 	case "handover":
-		u.handleHandover(s)
+		go u.handleHandover(s)
+		return ""
+	case "done":
+		go u.handleDone(s)
 		return ""
 	}
 	return ""

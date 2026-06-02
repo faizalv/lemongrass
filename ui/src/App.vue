@@ -95,7 +95,11 @@ const addProjectOpen = ref(false)
 const deletingProjectId = ref('')
 
 const currentProjectId = computed(() => route.params.projectId as string || '')
-const activeWorkspaceId = computed(() => (route.params.workspaceId as string) || 'reconnaissance')
+const activeWorkspaceId = computed(() => {
+  if (route.params.workspaceId) return route.params.workspaceId as string
+  if (route.path.endsWith('/artifacts')) return 'artifacts'
+  return 'reconnaissance'
+})
 
 const workspaces = computed(() => workspacesByProj.value[currentProjectId.value] ?? [])
 const currentProject = computed(() => projects.value.find(p => p.id === currentProjectId.value))

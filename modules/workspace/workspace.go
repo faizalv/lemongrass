@@ -34,6 +34,7 @@ type Workspace struct {
 	groomUc      *usecase.GroomingUsecase
 	checkpointUc *usecase.CheckpointUsecase
 	sessUc       *usecase.SessionUsecase
+	execUc       *usecase.ExecutionUsecase
 	h            *handler.WorkspaceHandler
 }
 
@@ -46,8 +47,9 @@ func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB) {
 	w.checkpointUc = usecase.NewCheckpoint(w.repo, w.repo, draft)
 	reqUc := usecase.NewRequirement(w.repo, w.repo)
 	w.sessUc = usecase.NewSession(w.repo)
+	w.execUc = usecase.NewExecution(w.repo, w.PtyClient)
 
-	w.h = handler.New(wsUc, w.groomUc, w.checkpointUc, reqUc, w.sessUc)
+	w.h = handler.New(wsUc, w.groomUc, w.checkpointUc, reqUc, w.sessUc, w.execUc)
 
 	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
 		id, ok := payload.(int64)
@@ -64,6 +66,7 @@ func (w *Workspace) SetLgSession(s lgSessionProvider) {
 	w.groomUc.SetLgSession(s)
 	w.checkpointUc.SetLgSession(s)
 	w.sessUc.SetLgSession(s)
+	w.execUc.SetLgSession(s)
 }
 
 func (w *Workspace) TaskClient() *wsclient.WorkspaceTaskClient {
@@ -87,4 +90,6 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.DELETE("/:id/requirements/:req_id", w.h.DeleteRequirement)
 	g.GET("/:id/session/activity", w.h.SessionActivity)
 	g.POST("/:id/session/reset", w.h.SessionReset)
+	g.POST("/:id/execution/start", w.h.StartExecution)
+	g.POST("/:id/execution/force-stop", w.h.ForceStopExecution)
 }

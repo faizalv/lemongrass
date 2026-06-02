@@ -27,6 +27,7 @@ type reconProvider interface {
 type taskProvider interface {
 	CreateTasks(ctx context.Context, workspaceID string, tasks []wsentity.Task) ([]wsentity.Task, error)
 	UpdateStatus(ctx context.Context, id, status string) error
+	GetTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
 }
 
 type Lg struct {

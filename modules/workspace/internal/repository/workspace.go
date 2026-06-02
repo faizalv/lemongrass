@@ -108,6 +108,14 @@ func (r *WorkspaceRepository) GetProjectPath(ctx context.Context, projectID int6
 	return path, err
 }
 
+func (r *WorkspaceRepository) GetProjectBranch(ctx context.Context, projectID int64) (string, error) {
+	var branch string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT branch FROM lg_projects WHERE id = $1`, projectID,
+	).Scan(&branch)
+	return branch, err
+}
+
 func (r *WorkspaceRepository) DeleteByProject(ctx context.Context, projectID int64) error {
 	if _, err := r.db.ExecContext(ctx,
 		`DELETE FROM lg_tasks WHERE workspace_id IN (SELECT id FROM lg_workspaces WHERE project_id = $1)`,

@@ -38,6 +38,9 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
       - {{.LGDir}}/claude:/home/lg/.lemongrass/claude
       - {{.LGDir}}/workspaces:/home/lg/.lemongrass/workspaces:ro
       - {{.LGDir}}/logs:/var/log/lemongrass
+{{- range .ProjectMounts}}
+      - {{.HostPath}}:/projects/{{.Alias}}:rw
+{{- end}}
     environment:
       - CLAUDE_CONFIG_DIR=/home/lg/.lemongrass/claude
     restart: unless-stopped

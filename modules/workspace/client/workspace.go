@@ -22,3 +22,7 @@ func (c *WorkspaceTaskClient) CreateTasks(ctx context.Context, workspaceID strin
 func (c *WorkspaceTaskClient) UpdateStatus(ctx context.Context, id, status string) error {
 	return c.repo.UpdateStatus(ctx, id, status)
 }
+
+func (c *WorkspaceTaskClient) GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error) {
+	return c.repo.GetTasks(ctx, workspaceID)
+}

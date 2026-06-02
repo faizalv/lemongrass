@@ -53,21 +53,28 @@ type sessionUC interface {
 	ResetSession(ctx context.Context, workspaceID string) error
 }
 
+type executionUC interface {
+	StartExecution(ctx context.Context, workspaceID string) error
+	ForceStopExecution(ctx context.Context, workspaceID string) error
+}
+
 type WorkspaceHandler struct {
 	workspace   workspaceUC
 	grooming    groomingUC
 	checkpoint  checkpointUC
 	requirement requirementUC
 	session     sessionUC
+	execution   executionUC
 }
 
-func New(ws workspaceUC, gr groomingUC, cp checkpointUC, rq requirementUC, sess sessionUC) *WorkspaceHandler {
+func New(ws workspaceUC, gr groomingUC, cp checkpointUC, rq requirementUC, sess sessionUC, exec executionUC) *WorkspaceHandler {
 	return &WorkspaceHandler{
 		workspace:   ws,
 		grooming:    gr,
 		checkpoint:  cp,
 		requirement: rq,
 		session:     sess,
+		execution:   exec,
 	}
 }
 
@@ -349,6 +356,30 @@ func (h *WorkspaceHandler) SessionActivity(c *gin.Context) {
 
 func (h *WorkspaceHandler) SessionReset(c *gin.Context) {
 	if err := h.session.ResetSession(c.Request.Context(), c.Param("id")); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *WorkspaceHandler) StartExecution(c *gin.Context) {
+	if err := h.execution.StartExecution(c.Request.Context(), c.Param("id")); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "already executing") {
+			status = http.StatusConflict
+		} else if strings.Contains(err.Error(), "git checkout") {
+			status = http.StatusUnprocessableEntity
+		} else if strings.Contains(err.Error(), "must be awaiting_execution") {
+			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *WorkspaceHandler) ForceStopExecution(c *gin.Context) {
+	if err := h.execution.ForceStopExecution(c.Request.Context(), c.Param("id")); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -62,3 +62,13 @@ func (u *LgUsecase) handleHandover(s *activeSession) {
 	}
 	u.UnregisterSession(s.workspaceID)
 }
+
+func (u *LgUsecase) handleDone(s *activeSession) {
+	if u.tasks != nil {
+		u.tasks.UpdateStatus(context.Background(), s.workspaceID, "done")
+	}
+	if s.ptySession != nil {
+		s.ptySession.Close()
+	}
+	u.UnregisterSession(s.workspaceID)
+}
