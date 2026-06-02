@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"os"
 	"time"
 
 	"github.com/faizalv/lemongrass/modules/lg/entity"
@@ -18,7 +19,21 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 		u.writeTrail = u.writeTrail[len(u.writeTrail)-200:]
 	}
 	s := u.sessions[sessionID]
+	isExec := s != nil && s.sessionType == "execution"
+	_, alreadySnapped := u.beforeSnapshots[sessionID][filePath]
 	u.mu.Unlock()
+
+	if isExec && !alreadySnapped {
+		content, _ := os.ReadFile(filePath)
+		u.mu.Lock()
+		if u.beforeSnapshots[sessionID] == nil {
+			u.beforeSnapshots[sessionID] = make(map[string]string)
+		}
+		if _, seen := u.beforeSnapshots[sessionID][filePath]; !seen {
+			u.beforeSnapshots[sessionID][filePath] = string(content)
+		}
+		u.mu.Unlock()
+	}
 
 	if s != nil && u.recon != nil {
 		u.recon.SyncGitProject(s.projectID)

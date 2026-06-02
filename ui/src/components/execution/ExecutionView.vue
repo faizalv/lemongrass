@@ -64,12 +64,36 @@
       </div>
 
       <!-- done -->
-      <div v-else-if="phase === 'done'" class="fade-in" style="max-width:760px;margin:80px auto 0;padding:0 32px 40px;text-align:center">
-        <div :style="doneIcon" style="margin:0 auto 18px">
-          <AppIcon name="check-circle-2" :size="22" color="var(--color-success)" />
+      <div v-else-if="phase === 'done'" class="fade-in" style="max-width:760px;margin:40px auto 0;padding:0 32px 60px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <div :style="doneIcon"><AppIcon name="check-circle-2" :size="22" color="var(--color-success)" /></div>
+          <div :style="phaseTitle">Execution complete</div>
         </div>
-        <div :style="phaseTitle" style="margin-bottom:8px">Execution complete</div>
-        <div :style="phaseSub" style="max-width:420px;margin:0 auto">All approved tasks have been implemented.</div>
+        <div :style="phaseSub">All approved tasks have been implemented.</div>
+
+        <template v-if="diffFiles.length > 0">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.10em;color:var(--color-gray-600);font-family:'DM Sans',sans-serif;margin-bottom:10px">
+            CHANGES &nbsp;{{ diffFiles.length }} file{{ diffFiles.length !== 1 ? 's' : '' }}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div v-for="f in diffFiles" :key="f.file_path" :style="diffCard">
+              <button :style="diffHeader" @click="toggleFile(f.file_path)">
+                <span :style="diffPath">{{ f.file_path }}</span>
+                <span :style="diffNew" v-if="f.is_new">NEW</span>
+                <span :style="diffStats">
+                  <span style="color:#4ade80">+{{ f.lines_added }}</span>
+                  <span style="color:var(--color-gray-600)"> / </span>
+                  <span style="color:#f87171">-{{ f.lines_removed }}</span>
+                </span>
+                <AppIcon :name="expandedFiles.has(f.file_path) ? 'chevron-down' : 'chevrons-up-down'" :size="11" :extra-style="{ color: 'var(--color-gray-600)', flexShrink: 0 }" />
+              </button>
+              <div v-if="expandedFiles.has(f.file_path)" :style="diffBody">
+                <div v-for="(line, i) in f.diff.split('\n')" :key="i" :style="diffLine(line)">{{ line }}</div>
+              </div>
+            </div>
+          </div>
+        </template>
+        <div v-else-if="diffLoaded" :style="phaseSub">No file changes recorded.</div>
       </div>
 
     </div>
@@ -83,7 +107,7 @@ import AppIcon from '../AppIcon.vue'
 import Spinner from '../grooming/Spinner.vue'
 
 const props = defineProps<{
-  workspace: { id: string; status?: string; name: string; branch: string; commit: string }
+  workspace: { id: string; status?: string; name: string; branch: string }
 }>()
 
 type ExecPhase = 'awaiting_execution' | 'executing' | 'done'
@@ -98,6 +122,17 @@ const echoMessages = ref<{ ts: string; text: string }[]>([])
 const sessionIdleSec = ref(0)
 const feedEl = ref<HTMLElement | null>(null)
 
+interface FileDiff {
+  file_path: string
+  diff: string
+  is_new: boolean
+  lines_added: number
+  lines_removed: number
+}
+const diffFiles = ref<FileDiff[]>([])
+const diffLoaded = ref(false)
+const expandedFiles = ref(new Set<string>())
+
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function initPhase() {
@@ -107,6 +142,7 @@ function initPhase() {
     startPoll()
   } else if (st === 'done') {
     phase.value = 'done'
+    loadDiff()
   } else {
     phase.value = 'awaiting_execution'
     loadApprovedTasks()
@@ -158,6 +194,7 @@ async function pollExecuting() {
       if (ws.status === 'done') {
         stopPoll()
         phase.value = 'done'
+        loadDiff()
       }
     }
   } catch { /* ignore */ }
@@ -204,6 +241,23 @@ async function handleForceStop() {
   }
 }
 
+async function loadDiff() {
+  try {
+    const r = await fetch(`/api/lg/execution-diff?session=${props.workspace.id}`)
+    if (!r.ok) return
+    const data = await r.json()
+    diffFiles.value = data.files ?? []
+  } catch { /* ignore */ } finally {
+    diffLoaded.value = true
+  }
+}
+
+function toggleFile(path: string) {
+  const s = new Set(expandedFiles.value)
+  if (s.has(path)) { s.delete(path) } else { s.add(path) }
+  expandedFiles.value = s
+}
+
 function formatTs(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -236,4 +290,18 @@ const forceStopBtnStyle = { display: 'inline-flex', alignItems: 'center', gap: '
 const feedWrap    = { marginTop: '16px', maxHeight: '240px', overflowY: 'auto', background: 'var(--color-surface-1)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', padding: '10px 14px' } as Record<string, any>
 const feedTs      = { fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-gray-600)', flexShrink: 0, paddingTop: '2px' }
 const feedText    = { fontSize: '13px', color: 'var(--color-gray-400)', fontFamily: 'var(--font-body)', lineHeight: 1.5 }
+const diffCard    = { border: '1px solid rgba(255,255,255,0.06)', borderRadius: '8px', overflow: 'hidden' }
+const diffHeader  = { width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--color-surface-1)', border: 'none', cursor: 'pointer', textAlign: 'left' as const }
+const diffPath    = { fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-200)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }
+const diffNew     = { fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, color: '#4ade80', flexShrink: 0 }
+const diffStats   = { fontFamily: 'var(--font-mono)', fontSize: '11px', flexShrink: 0 }
+const diffBody    = { padding: '8px 0', background: 'rgba(0,0,0,0.3)', overflowX: 'auto' as const, maxHeight: '400px', overflowY: 'auto' as const }
+function diffLine(line: string) {
+  let bg = 'transparent'
+  let color = 'var(--color-gray-500)'
+  if (line.startsWith('+') && !line.startsWith('+++')) { bg = 'rgba(74,222,128,0.08)'; color = '#4ade80' }
+  else if (line.startsWith('-') && !line.startsWith('---')) { bg = 'rgba(248,113,113,0.08)'; color = '#f87171' }
+  else if (line.startsWith('@@')) { color = 'var(--color-info)' }
+  return { display: 'block', padding: '0 14px', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: 1.6, whiteSpace: 'pre' as const, background: bg, color }
+}
 </script>

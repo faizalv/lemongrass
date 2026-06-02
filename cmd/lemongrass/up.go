@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/faizalv/lemongrass/config"
 )
@@ -39,6 +40,21 @@ func cmdUp() {
 		os.Exit(1)
 	}
 
+	pgUp := exec.Command("docker", "compose", "-f", composePath, "up", "-d", "--wait", "lg-postgres")
+	pgUp.Stdout = os.Stdout
+	pgUp.Stderr = os.Stderr
+	if err := pgUp.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to start postgres: %v\n", err)
+		os.Exit(1)
+	}
+
+	projectPaths := queryProjectPaths()
+
+	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, projectPaths), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write compose file: %v\n", err)
+		os.Exit(1)
+	}
+
 	cmd := exec.Command("docker", "compose", "-f", composePath, "up", "-d", "--wait")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -48,6 +64,23 @@ func cmdUp() {
 	}
 
 	fmt.Printf("Lemongrass is running at http://%s:%d\n", cfg.Host, cfg.Port)
+}
+
+func queryProjectPaths() []string {
+	out, err := exec.Command("docker", "exec", "lg-postgres",
+		"psql", "-U", "lemongrass", "-tAc",
+		"SELECT path FROM lg_projects WHERE status != 'removed'",
+	).Output()
+	if err != nil {
+		return nil
+	}
+	var paths []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if p := strings.TrimSpace(line); p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths
 }
 
 func writeHookSettings(cfg config.Config) {

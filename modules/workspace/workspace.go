@@ -22,7 +22,7 @@ type ptyProvider interface {
 }
 
 type lgSessionProvider interface {
-	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+	RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session)
 	RespondToCheckpoint(workspaceID string, rejections map[string]string) error
 	GetSessionActivity(workspaceID string) (time.Time, int, []lgentity.EchoMessage, bool)
 	ResetSession(workspaceID string)

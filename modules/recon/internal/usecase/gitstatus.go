@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -76,4 +77,19 @@ func (u *ReconUsecase) GitStatus(ctx context.Context, projectID int64) (entity.G
 		StaleCount:    staleCount,
 		RecentCommits: commits,
 	}, nil
+}
+
+func (u *ReconUsecase) GitInit(ctx context.Context, projectID int64) error {
+	rawPath, err := u.repo.ProjectDir(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	dir := "/projects/" + filepath.Base(rawPath)
+	if _, err := gitCmd(dir, "rev-parse", "--git-dir"); err == nil {
+		return errors.New("already a git repository")
+	}
+	if out, err := gitCmd(dir, "init"); err != nil {
+		return errors.New(strings.TrimSpace(out))
+	}
+	return nil
 }

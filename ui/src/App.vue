@@ -112,7 +112,6 @@ const activeWorkspace = computed(() => {
 const workspaceWithMeta = computed(() => ({
   ...activeWorkspace.value!,
   branch: currentProject.value?.branch ?? 'main',
-  commit: '7c3d1a8',
 }))
 
 watch(currentProjectId, pid => { if (pid) loadWorkspaces(pid) })

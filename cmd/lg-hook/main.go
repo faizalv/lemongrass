@@ -136,21 +136,32 @@ var groomingAllowedExts = map[string]bool{
 }
 
 func handleRead(raw json.RawMessage) {
-	if os.Getenv("LG_SESSION_TYPE") != "grooming" {
-		os.Exit(0)
-	}
 	var input struct {
 		FilePath string `json:"file_path"`
 	}
 	if err := json.Unmarshal(raw, &input); err != nil {
 		os.Exit(0)
 	}
-	ext := strings.ToLower(filepath.Ext(input.FilePath))
-	if groomingAllowedExts[ext] {
-		os.Exit(0)
+
+	switch os.Getenv("LG_SESSION_TYPE") {
+	case "grooming":
+		ext := strings.ToLower(filepath.Ext(input.FilePath))
+		if groomingAllowedExts[ext] {
+			allowTool()
+		}
+		reject("direct file reads are not permitted during grooming",
+			"Use #lg.recon.read <path:symbol:kind> to read source code through the semantic map.")
+
+	case "execution":
+		if strings.HasPrefix(input.FilePath, "/projects/") {
+			allowTool()
+		}
+		reject("reads outside project directories are not permitted",
+			"Use #lg.recon.read <path:symbol:kind> for exploration.\nNative Read is only permitted for /projects/ files as a prerequisite for Edit.")
+
+	default:
+		allowTool()
 	}
-	reject("direct file reads are not permitted during grooming",
-		"Use #lg.recon.read <file:symbol:start-end> to read source code through the semantic map.")
 }
 
 func handleBash(raw json.RawMessage) {
@@ -344,6 +355,17 @@ func deliver(content string) {
 			HookEventName:      "PreToolUse",
 			PermissionDecision: "allow",
 			UpdatedInput:       map[string]string{"command": "printf '%s' " + shellEscape(content)},
+		},
+	}
+	json.NewEncoder(os.Stdout).Encode(out)
+	os.Exit(0)
+}
+
+func allowTool() {
+	out := hookOutput{
+		HookSpecificOutput: hookSpecificOutput{
+			HookEventName:      "PreToolUse",
+			PermissionDecision: "allow",
 		},
 	}
 	json.NewEncoder(os.Stdout).Encode(out)

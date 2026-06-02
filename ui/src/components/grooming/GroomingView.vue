@@ -252,7 +252,7 @@ import ImplementationDetailItem from './ImplementationDetailItem.vue'
 import ImplDetailView from './ImplDetailView.vue'
 import DoneBanner from './DoneBanner.vue'
 
-const props = defineProps<{ workspace: { id: string; status?: string; branch: string; commit: string; name: string } }>()
+const props = defineProps<{ workspace: { id: string; status?: string; branch: string; name: string } }>()
 const emit = defineEmits<{
   'jump-tab': [tab: string]
   'status-change': [status: string]

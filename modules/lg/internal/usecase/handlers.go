@@ -26,8 +26,16 @@ func (u *LgUsecase) handleTree(ctx context.Context, s *activeSession, args strin
 	return strings.TrimRight(sb.String(), "\n")
 }
 
+func stripProjectPrefix(projectAlias, path string) string {
+	prefix := "/projects/" + projectAlias + "/"
+	if strings.HasPrefix(path, prefix) {
+		return strings.TrimPrefix(path, prefix)
+	}
+	return path
+}
+
 func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args string) string {
-	pathPrefix := strings.TrimSpace(args)
+	pathPrefix := stripProjectPrefix(s.projectAlias, strings.TrimSpace(args))
 	if pathPrefix == "" {
 		return "error: recon.peek requires a directory path"
 	}
@@ -114,6 +122,7 @@ func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args strin
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+	filePath = stripProjectPrefix(s.projectAlias, filePath)
 	node, code, err := u.recon.ReadNode(ctx, s.projectID, filePath, symbol, kind)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
@@ -130,6 +139,7 @@ func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, args st
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+	filePath = stripProjectPrefix(s.projectAlias, filePath)
 	callees, callers, err := u.recon.Related(ctx, s.projectID, filePath, symbol, kind)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
@@ -194,6 +204,7 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 	if err != nil {
 		return
 	}
+	filePath = stripProjectPrefix(s.projectAlias, filePath)
 	u.recon.Annotate(ctx, s.projectID, filePath, symbol, kind, description, returnType, calls)
 }
 

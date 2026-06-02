@@ -16,8 +16,8 @@ func New(uc *usecase.LgUsecase) *SessionManager {
 	return &SessionManager{uc: uc}
 }
 
-func (s *SessionManager) RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session) {
-	s.uc.RegisterSession(workspaceID, projectAlias, projectID, session)
+func (s *SessionManager) RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session) {
+	s.uc.RegisterSession(workspaceID, projectAlias, sessionType, projectID, session)
 }
 
 func (s *SessionManager) RespondToCheckpoint(workspaceID string, rejections map[string]string) error {

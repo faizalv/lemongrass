@@ -202,6 +202,7 @@
       </div>
 
     </div>
+    <GitPanel :project-id="String(project.id)" />
   </div>
 </template>
 
@@ -210,6 +211,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import type { Project, SemanticNode, LangCoverage, ReconTreeNode } from '../types'
 import AppIcon from './AppIcon.vue'
 import ReconFileNode from './ReconFileNode.vue'
+import GitPanel from './GitPanel.vue'
 
 const props = defineProps<{ project: Project }>()
 

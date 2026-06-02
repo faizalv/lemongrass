@@ -67,3 +67,17 @@ func (h *LgHandler) GetWriteTrail(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+func (h *LgHandler) ExecutionDiff(c *gin.Context) {
+	sessionID := c.Query("session")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "session is required"})
+		return
+	}
+	diffs := h.uc.GetExecutionDiff(sessionID)
+	resp := make([]transporter.FileDiffResponse, len(diffs))
+	for i, d := range diffs {
+		resp[i] = transporter.ToFileDiffResponse(d)
+	}
+	c.JSON(http.StatusOK, gin.H{"files": resp})
+}

@@ -1,16 +1,16 @@
 <template>
-  <div v-if="status" :style="root">
+  <div :style="root">
     <button :style="bar" @click="expanded = !expanded">
       <AppIcon name="git-branch" :size="11" :extra-style="{ flexShrink: 0 }" />
-      <span v-if="status.is_git_repo" style="flex:1;text-align:left">
-        {{ status.branch }} · {{ status.head_commit }} · {{ status.changed_files?.length ?? 0 }} changed · {{ status.stale_count }} stale
+      <span v-if="status?.is_git_repo" style="flex:1;text-align:left">
+        {{ status.branch }} · {{ status.head_commit }} · {{ status.changed_files?.length ?? 0 }} changed
       </span>
-      <span v-else style="flex:1;text-align:left">{{ status.stale_count }} stale</span>
+      <span v-else style="flex:1;text-align:left;color:var(--color-gray-600)">No git repository</span>
       <AppIcon :name="expanded ? 'chevron-up' : 'chevron-down'" :size="11" :extra-style="{ flexShrink: 0 }" />
     </button>
 
     <div v-if="expanded" :style="panel">
-      <template v-if="status.is_git_repo">
+      <template v-if="status?.is_git_repo">
         <div :style="section">
           <span :style="hash">{{ status.head_commit }}</span>
           <span :style="commitMsg">{{ status.head_message }}</span>
@@ -32,11 +32,22 @@
             <span :style="commitMeta">{{ c.author }} · {{ formatRelative(c.timestamp) }}</span>
           </div>
         </div>
+
+        <div :style="footer">
+          <button :style="syncBtn" @click="syncNow">Sync now</button>
+        </div>
       </template>
 
-      <div :style="footer">
-        <button :style="syncBtn" @click="syncNow">Sync now</button>
-      </div>
+      <template v-else>
+        <div :style="section">
+          <div style="font-size:12.5px;color:var(--color-gray-400);font-family:'DM Sans',sans-serif;margin-bottom:10px">
+            This project has no git repository. Initialize one to track changes made by the executor.
+          </div>
+          <button :style="initBtn" :disabled="initializing" @click="initRepo">
+            {{ initializing ? 'Initializing…' : 'Initialize repository' }}
+          </button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -59,6 +70,7 @@ interface GitStatusData {
 
 const status = ref<GitStatusData | null>(null)
 const expanded = ref(false)
+const initializing = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
 async function fetchStatus() {
@@ -85,9 +97,20 @@ function formatRelative(ts: string): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+async function initRepo() {
+  if (!props.projectId) return
+  initializing.value = true
+  try {
+    await fetch(`/api/recon/projects/${props.projectId}/git/init`, { method: 'POST' })
+    await fetchStatus()
+  } catch { /* ignore */ } finally {
+    initializing.value = false
+  }
+}
+
 onMounted(() => {
   fetchStatus()
-  timer = setInterval(fetchStatus, 5000)
+  timer = setInterval(fetchStatus, 10000)
 })
 onUnmounted(() => { if (timer) clearInterval(timer) })
 
@@ -105,6 +128,7 @@ const commitMsgSmall = { fontFamily: "'DM Sans',sans-serif", fontSize: '12px', c
 const commitMeta = { fontFamily: "'DM Sans',sans-serif", fontSize: '11px', color: 'var(--color-gray-600)', flexShrink: 0 }
 const footer = { display: 'flex', justifyContent: 'flex-end' }
 const syncBtn = { padding: '5px 12px', background: 'transparent', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '5px', color: 'var(--color-gray-300)', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 500, cursor: 'pointer' }
+const initBtn = { padding: '7px 14px', background: 'rgba(245,197,24,0.10)', border: '1px solid rgba(245,197,24,0.25)', borderRadius: '6px', color: 'var(--color-amber)', fontFamily: "'DM Sans',sans-serif", fontSize: '12px', fontWeight: 600, cursor: 'pointer' }
 
 const statusColors: Record<string, string> = { added: '#4ade80', deleted: '#f87171', modified: '#fbbf24' }
 function statusBadge(s: string) {

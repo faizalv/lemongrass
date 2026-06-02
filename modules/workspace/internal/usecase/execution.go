@@ -17,7 +17,7 @@ type executionStore interface {
 }
 
 type executionSession interface {
-	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+	RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session)
 	ResetSession(workspaceID string)
 }
 
@@ -66,7 +66,7 @@ func (u *ExecutionUsecase) StartExecution(ctx context.Context, workspaceID strin
 		u.store.UpdateStatus(ctx, workspaceID, "awaiting_execution")
 		return fmt.Errorf("start execution PTY: %w", err)
 	}
-	u.lgSess.RegisterSession(workspaceID, alias, ws.ProjectID, session)
+	u.lgSess.RegisterSession(workspaceID, alias, "execution", ws.ProjectID, session)
 	session.Write([]byte("Begin execution.\r"))
 	return nil
 }

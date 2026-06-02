@@ -23,6 +23,24 @@ type WriteTrailResponse struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
+type FileDiffResponse struct {
+	FilePath     string `json:"file_path"`
+	Diff         string `json:"diff"`
+	IsNew        bool   `json:"is_new"`
+	LinesAdded   int    `json:"lines_added"`
+	LinesRemoved int    `json:"lines_removed"`
+}
+
+func ToFileDiffResponse(d entity.FileDiff) FileDiffResponse {
+	return FileDiffResponse{
+		FilePath:     d.FilePath,
+		Diff:         d.Diff,
+		IsNew:        d.IsNew,
+		LinesAdded:   d.LinesAdded,
+		LinesRemoved: d.LinesRemoved,
+	}
+}
+
 func ToWriteTrailResponse(e entity.WriteTrailEntry) WriteTrailResponse {
 	return WriteTrailResponse{
 		SessionID: e.SessionID,

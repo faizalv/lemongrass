@@ -38,24 +38,29 @@ type activeSession struct {
 	workspaceID  string
 	projectID    int64
 	projectAlias string
+	sessionType  string
 	ptySession   ptyclient.Session
 	checkpointCh chan checkpointResult
 }
 
 type LgUsecase struct {
-	recon        reconClient
-	tasks        taskWriter
-	mu           sync.Mutex
-	calls        []entity.Call
-	writeTrail   []entity.WriteTrailEntry
-	sessions     map[string]*activeSession
-	lastActivity map[string]time.Time
+	recon           reconClient
+	tasks           taskWriter
+	mu              sync.Mutex
+	calls           []entity.Call
+	writeTrail      []entity.WriteTrailEntry
+	sessions        map[string]*activeSession
+	lastActivity    map[string]time.Time
+	beforeSnapshots map[string]map[string]string
+	execDiffs       map[string][]entity.FileDiff
 }
 
 func New() *LgUsecase {
 	uc := &LgUsecase{
-		sessions:     make(map[string]*activeSession),
-		lastActivity: make(map[string]time.Time),
+		sessions:        make(map[string]*activeSession),
+		lastActivity:    make(map[string]time.Time),
+		beforeSnapshots: make(map[string]map[string]string),
+		execDiffs:       make(map[string][]entity.FileDiff),
 	}
 	bus.Default.On(bus.EventProjectRemoved, func(_ any) {
 		uc.mu.Lock()

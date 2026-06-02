@@ -8,13 +8,14 @@ import (
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 )
 
-func (u *LgUsecase) RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session) {
+func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.sessions[workspaceID] = &activeSession{
 		workspaceID:  workspaceID,
 		projectID:    projectID,
 		projectAlias: projectAlias,
+		sessionType:  sessionType,
 		ptySession:   session,
 		checkpointCh: make(chan checkpointResult, 1),
 	}
@@ -67,6 +68,7 @@ func (u *LgUsecase) handleDone(s *activeSession) {
 	if u.tasks != nil {
 		u.tasks.UpdateStatus(context.Background(), s.workspaceID, "done")
 	}
+	u.computeExecDiff(s.workspaceID)
 	if s.ptySession != nil {
 		s.ptySession.Close()
 	}

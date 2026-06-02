@@ -97,7 +97,7 @@
           >
             <AppIcon :name="w.id === 'reconnaissance' ? 'radar' : (w.icon || 'layers')" :size="14" :extra-style="{ color: w.id === activeWorkspaceId ? 'var(--color-amber)' : 'var(--color-gray-400)' }" />
             <span :style="s.wsItemLabel(w.id === activeWorkspaceId)">{{ w.name }}</span>
-            <span v-if="w.id !== 'reconnaissance'" :style="s.wsStatusPip(w.status || 'idle')"></span>
+            <span v-if="w.id !== 'reconnaissance' && w.id !== 'artifacts'" :style="s.wsStatusPip(w.status || 'idle')"></span>
           </button>
           <div v-if="w.id === 'artifacts'" :style="s.wsDivider"></div>
         </template>

@@ -18,7 +18,7 @@ type ptyProvider interface {
 }
 
 type sessionRegistrar interface {
-	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+	RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session)
 	UnregisterSession(workspaceID string)
 }
 
@@ -65,7 +65,7 @@ func (h *DebugHandler) ExecHook(c *gin.Context) {
 	}
 
 	noop := h.pty.OpenNoop()
-	h.registrar.RegisterSession(req.WorkspaceID, "", req.ProjectID, noop)
+	h.registrar.RegisterSession(req.WorkspaceID, "", sessionType, req.ProjectID, noop)
 	defer h.registrar.UnregisterSession(req.WorkspaceID)
 
 	event, _ := json.Marshal(map[string]any{

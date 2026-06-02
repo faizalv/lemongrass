@@ -9,17 +9,11 @@
             <span>Workspace</span>
             <span style="color:var(--color-gray-700)">·</span>
             <span>{{ workspace.branch }}</span>
-            <span style="color:var(--color-gray-700)">·</span>
-            <span>pinned @ {{ workspace.commit }}</span>
           </div>
           <div :style="wsTitle">{{ workspace.name }}</div>
         </div>
 
         <div style="display:flex;gap:8px;flex-shrink:0;padding-top:6px;position:relative">
-          <button :style="btnGhost">
-            <AppIcon name="git-branch" :size="13" />
-            Re-pin commit
-          </button>
           <button :style="btnGhost" @click="menuOpen = !menuOpen">
             <AppIcon name="more-horizontal" :size="14" />
           </button>
@@ -38,9 +32,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Git panel -->
-      <GitPanel :project-id="projectId" />
 
       <!-- Tabs -->
       <div style="display:flex;gap:4px;padding:0 28px;margin-top:12px">
@@ -99,9 +90,8 @@ import type { Workspace } from '../types'
 import AppIcon from './AppIcon.vue'
 import GroomingView from './grooming/GroomingView.vue'
 import ExecutionView from './execution/ExecutionView.vue'
-import GitPanel from './GitPanel.vue'
 
-const props = defineProps<{ workspace: Workspace & { branch: string; commit: string } }>()
+const props = defineProps<{ workspace: Workspace & { branch: string } }>()
 
 const route = useRoute()
 const router = useRouter()
@@ -136,7 +126,6 @@ async function deleteWorkspace() {
 }
 
 const activeTab = computed(() => route.path.endsWith('/execution') ? 'execution' : 'grooming')
-const projectId = computed(() => route.params.projectId as string)
 
 function switchTab(tabId: string) {
   const base = '/project/' + route.params.projectId + '/workspace/' + route.params.workspaceId

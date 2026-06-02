@@ -15,7 +15,7 @@ type ptyProvider interface {
 }
 
 type sessionRegistrar interface {
-	RegisterSession(workspaceID, projectAlias string, projectID int64, session ptyclient.Session)
+	RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session)
 	UnregisterSession(workspaceID string)
 }
 

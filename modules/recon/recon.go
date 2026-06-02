@@ -47,6 +47,7 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/projects/:id/sync-status", r.h.SyncStatus)
 	g.PATCH("/projects/:id/sync-interval", r.h.UpdateSyncInterval)
 	g.GET("/projects/:id/git-status", r.h.GitStatus)
+	g.POST("/projects/:id/git/init", r.h.GitInit)
 }
 
 func (r *Recon) StartScheduler(ctx context.Context) {
