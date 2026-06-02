@@ -45,9 +45,9 @@
 
     <!-- Footer -->
     <div :style="footer">
-      Open source · MIT licensed ·
+      Open source · AGPL-3.0 licensed ·
       <a href="#" style="color:var(--color-amber);text-decoration:none">github.com/faizalv/lemongrass</a>
-      · v0.3.0-rc2
+      · v0.0.1
     </div>
   </div>
 </template>

@@ -55,8 +55,8 @@
         </SettingsRow>
 
         <div :style="footerBox">
-          <strong style="color:var(--color-gray-300)">Lemongrass · v0.3.0-rc2</strong><br/>
-          MIT licensed.
+          <strong style="color:var(--color-gray-300)">Lemongrass · v0.0.1</strong><br/>
+          AGPL-3.0 licensed.
           <a href="#" style="color:var(--color-amber);text-decoration:none">github.com/faizalv/lemongrass</a>
         </div>
       </div>
