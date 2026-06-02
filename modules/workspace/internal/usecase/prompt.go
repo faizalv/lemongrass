@@ -4,7 +4,7 @@ import "strings"
 
 const environmentPreamble = `You are running inside Lemongrass (lg-runner). Terminal output goes to a log file -- no user reads it. Text outside #lg.* commands (summaries, narration, step recaps) is invisible and burns context. Use #lg.echo for status only.`
 
-const hookCallInstruction = `Every #lg.* and #lg!.* command in this prompt is a direct Bash tool call -- not prose, not a comment. # routes to lg-hook; ! means fire-and-forget.`
+const hookCallInstruction = `Every #lg.* and #lg!.* command in this prompt is a direct Bash tool call -- not prose, not a comment. # routes to lg-hook; ! means fire-and-forget. Each command is one Bash tool call -- never combine multiple #lg.* calls on one line.`
 
 const cmdReconPeek    = `#lg.recon.peek <dir> -- all symbols under a directory: kind, name, lines, status`
 const cmdReconRead    = `#lg.recon.read <path:symbol:kind> -- raw source for a symbol; server resolves lines from map`
@@ -29,13 +29,13 @@ func buildExecutionPrompt(projectAlias string) string {
 		cmdReconRelated,
 		"",
 		"Use #lg.recon.read for exploration. Native Read is last resort -- only to obtain current file content before Edit.",
-		"After any native Read, annotate the symbols you read: " + cmdAnnotate,
+		"After any native Read, annotate the symbols you read: " + cmdAnnotate + " (! required -- no blocking annotate exists)",
 		"",
 		"--- Impl entry types ---",
 		"",
 		"  symbol at file -- directive",
-		"    Read symbol first. Write change. Annotate immediately (non-blocking):",
-		"    " + cmdAnnotate,
+		"    Read symbol first. Write change. Annotate immediately -- one separate Bash call per symbol:",
+		"    " + cmdAnnotate + "  (! required)",
 		"    " + annotateHookNote,
 		"",
 		"  new: path/to/file.go -- contents",
