@@ -9,6 +9,7 @@ import (
 
 type requirementStore interface {
 	ListRequirements(ctx context.Context, workspaceID string) ([]entity.WorkspaceRequirement, error)
+	GetRequirement(ctx context.Context, workspaceID, reqID string) (entity.WorkspaceRequirement, error)
 	AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error)
 	AddFileRequirement(ctx context.Context, workspaceID, reqType, filePath, fileName string) (entity.WorkspaceRequirement, error)
 	DeleteRequirement(ctx context.Context, reqID string) error
@@ -26,6 +27,10 @@ func NewRequirement(ws workspaceStore, req requirementStore) *RequirementUsecase
 
 func (u *RequirementUsecase) ListRequirements(ctx context.Context, workspaceID string) ([]entity.WorkspaceRequirement, error) {
 	return u.req.ListRequirements(ctx, workspaceID)
+}
+
+func (u *RequirementUsecase) GetRequirement(ctx context.Context, workspaceID, reqID string) (entity.WorkspaceRequirement, error) {
+	return u.req.GetRequirement(ctx, workspaceID, reqID)
 }
 
 func (u *RequirementUsecase) AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error) {

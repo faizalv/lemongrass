@@ -1,9 +1,12 @@
 package usecase
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/faizalv/lemongrass/config"
 	"github.com/faizalv/lemongrass/modules/lg/entity"
 	"github.com/pmezard/go-difflib/difflib"
 )
@@ -39,12 +42,33 @@ func (u *LgUsecase) computeExecDiff(workspaceID string) {
 	u.mu.Lock()
 	u.execDiffs[workspaceID] = diffs
 	u.mu.Unlock()
+
+	diffPath := execDiffPath(workspaceID)
+	if data, err := json.Marshal(diffs); err == nil {
+		os.WriteFile(diffPath, data, 0644)
+	}
 }
 
 func (u *LgUsecase) GetExecutionDiff(workspaceID string) []entity.FileDiff {
 	u.mu.Lock()
-	defer u.mu.Unlock()
-	return u.execDiffs[workspaceID]
+	cached, ok := u.execDiffs[workspaceID]
+	u.mu.Unlock()
+	if ok {
+		return cached
+	}
+	data, err := os.ReadFile(execDiffPath(workspaceID))
+	if err != nil {
+		return nil
+	}
+	var result []entity.FileDiff
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
+	}
+	return result
+}
+
+func execDiffPath(workspaceID string) string {
+	return filepath.Join(config.Dir(), "workspaces", workspaceID, "execution-diff.json")
 }
 
 func buildDiff(before, after, filePath string) entity.FileDiff {

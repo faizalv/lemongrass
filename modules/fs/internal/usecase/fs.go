@@ -129,6 +129,27 @@ func (uc *FsUsecase) ListProjects() ([]entity.Project, error) {
 	return uc.repo.List()
 }
 
+func (uc *FsUsecase) ListArtifacts(ctx context.Context, projectID int64, typeFilter string) ([]entity.Artifact, error) {
+	return uc.repo.ListArtifacts(ctx, projectID, typeFilter)
+}
+
+func (uc *FsUsecase) CreateArtifact(ctx context.Context, projectID int64, artType, name, content string) (entity.Artifact, error) {
+	return uc.repo.CreateArtifact(ctx, entity.Artifact{
+		ProjectID: projectID,
+		Type:      artType,
+		Name:      name,
+		Content:   content,
+	})
+}
+
+func (uc *FsUsecase) DeleteArtifact(ctx context.Context, id string) error {
+	return uc.repo.DeleteArtifact(ctx, id)
+}
+
+func (uc *FsUsecase) DeleteArtifactsByProject(ctx context.Context, projectID int64) error {
+	return uc.repo.DeleteArtifactsByProject(ctx, projectID)
+}
+
 func (uc *FsUsecase) RunSanityCheck(ctx context.Context) {
 	projects, err := uc.repo.ListNonRemoved()
 	if err != nil {

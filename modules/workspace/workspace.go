@@ -88,6 +88,7 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/:id/requirements", w.h.ListRequirements)
 	g.POST("/:id/requirements", w.h.AddRequirement)
 	g.DELETE("/:id/requirements/:req_id", w.h.DeleteRequirement)
+	g.GET("/:id/requirements/:req_id/file", w.h.ServeRequirementFile)
 	g.GET("/:id/session/activity", w.h.SessionActivity)
 	g.POST("/:id/session/reset", w.h.SessionReset)
 	g.POST("/:id/execution/start", w.h.StartExecution)

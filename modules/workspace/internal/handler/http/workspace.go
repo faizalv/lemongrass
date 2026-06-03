@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -43,6 +44,7 @@ type checkpointUC interface {
 
 type requirementUC interface {
 	ListRequirements(ctx context.Context, workspaceID string) ([]entity.WorkspaceRequirement, error)
+	GetRequirement(ctx context.Context, workspaceID, reqID string) (entity.WorkspaceRequirement, error)
 	AddTextRequirement(ctx context.Context, workspaceID, text string) (entity.WorkspaceRequirement, error)
 	AddFileRequirement(ctx context.Context, workspaceID, reqType, filePath, fileName string) (entity.WorkspaceRequirement, error)
 	DeleteRequirement(ctx context.Context, workspaceID, reqID string) error
@@ -320,6 +322,28 @@ func (h *WorkspaceHandler) addFileRequirement(c *gin.Context, wsID string) {
 		return
 	}
 	c.JSON(http.StatusCreated, transporter.ToRequirementResponse(result))
+}
+
+func (h *WorkspaceHandler) ServeRequirementFile(c *gin.Context) {
+	req, err := h.requirement.GetRequirement(c.Request.Context(), c.Param("id"), c.Param("req_id"))
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	switch req.Type {
+	case "text":
+		c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(req.TextContent))
+	default:
+		filePath := filepath.Join(config.Dir(), "workspaces", c.Param("id"), req.FilePath)
+		ext := strings.ToLower(filepath.Ext(req.FilePath))
+		contentType := mime.TypeByExtension(ext)
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		c.Header("Content-Disposition", "inline; filename=\""+req.FileName+"\"")
+		c.Header("Content-Type", contentType)
+		c.File(filePath)
+	}
 }
 
 func (h *WorkspaceHandler) DeleteRequirement(c *gin.Context) {

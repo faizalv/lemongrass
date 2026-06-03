@@ -86,6 +86,19 @@ func (r *WorkspaceRepository) DeleteRequirement(ctx context.Context, reqID strin
 	return err
 }
 
+func (r *WorkspaceRepository) GetRequirement(ctx context.Context, workspaceID, reqID string) (entity.WorkspaceRequirement, error) {
+	var rec requirementRecord
+	err := r.db.QueryRowxContext(ctx,
+		`SELECT id, workspace_id, type, text_content, file_path, file_name, created_at
+		 FROM lg_workspace_requirements WHERE id = $1 AND workspace_id = $2`,
+		reqID, workspaceID,
+	).StructScan(&rec)
+	if err != nil {
+		return entity.WorkspaceRequirement{}, err
+	}
+	return toRequirementEntity(rec), nil
+}
+
 func (r *WorkspaceRepository) CountRequirements(ctx context.Context, workspaceID string) (int, error) {
 	var count int
 	err := r.db.QueryRowxContext(ctx,

@@ -117,6 +117,15 @@ export interface ApiTask {
   approved_at?: string
 }
 
+export interface ProjectArtifact {
+  id: string
+  type: string
+  name: string
+  content: string
+  version: number
+  created_at: string
+}
+
 export interface WorkspaceWithRequirements {
   id: string
   project_id: number

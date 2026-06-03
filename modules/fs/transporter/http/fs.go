@@ -34,6 +34,32 @@ type ProjectResponse struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type ArtifactResponse struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Name      string `json:"name"`
+	Content   string `json:"content"`
+	Version   int    `json:"version"`
+	CreatedAt string `json:"created_at"`
+}
+
+func ArtifactToResponse(a entity.Artifact) ArtifactResponse {
+	return ArtifactResponse{
+		ID:        a.ID,
+		Type:      a.Type,
+		Name:      a.Name,
+		Content:   a.Content,
+		Version:   a.Version,
+		CreatedAt: a.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+	}
+}
+
+type CreateArtifactRequest struct {
+	Type    string `json:"type"`
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
 func ProjectToResponse(p entity.Project) ProjectResponse {
 	return ProjectResponse{
 		ID:        p.ID,
