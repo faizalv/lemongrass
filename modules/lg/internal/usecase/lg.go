@@ -21,6 +21,7 @@ type reconClient interface {
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
 	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
+	GetWeightedUnexplored(ctx context.Context, projectID int64) (int, error)
 	SyncGitProject(projectID int64)
 }
 
@@ -35,12 +36,14 @@ type checkpointResult struct {
 }
 
 type activeSession struct {
-	workspaceID  string
-	projectID    int64
-	projectAlias string
-	sessionType  string
-	ptySession   ptyclient.Session
-	checkpointCh chan checkpointResult
+	workspaceID     string
+	projectID       int64
+	projectAlias    string
+	sessionType     string
+	ptySession      ptyclient.Session
+	checkpointCh    chan checkpointResult
+	readNodes       map[string]string // "path:symbol:kind" -> kind, for quota tracking
+	annotationScore int
 }
 
 type LgUsecase struct {

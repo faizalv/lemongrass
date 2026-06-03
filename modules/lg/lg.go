@@ -21,6 +21,7 @@ type reconProvider interface {
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
 	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
+	GetWeightedUnexplored(ctx context.Context, projectID int64) (int, error)
 	SyncGitProject(projectID int64)
 }
 

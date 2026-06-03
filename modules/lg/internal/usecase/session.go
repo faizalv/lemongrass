@@ -18,6 +18,7 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 		sessionType:  sessionType,
 		ptySession:   session,
 		checkpointCh: make(chan checkpointResult, 1),
+		readNodes:    make(map[string]string),
 	}
 	u.lastActivity[workspaceID] = time.Now()
 }

@@ -18,6 +18,7 @@ func New(db *sqlx.DB) *ReconRepository {
 	return &ReconRepository{db: db}
 }
 
+
 type nodeRecord struct {
 	ID          string         `db:"id"`
 	ProjectID   int64          `db:"project_id"`

@@ -33,6 +33,7 @@ type repo interface {
 	SearchByFTS(ctx context.Context, projectID int64, query string, limit int) ([]entity.SemanticNode, error)
 	GetRelated(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
+	GetWeightedUnexplored(ctx context.Context, projectID int64) (int, error)
 	GetLastSyncedCommit(ctx context.Context, projectID int64) (string, error)
 	SetLastSyncedCommit(ctx context.Context, projectID int64, commit string) error
 	DeleteNodesByFilePaths(ctx context.Context, projectID int64, filePaths []string) error

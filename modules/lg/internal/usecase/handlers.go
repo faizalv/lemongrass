@@ -4,11 +4,39 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 
 	reconentity "github.com/faizalv/lemongrass/modules/recon/entity"
 	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
 )
+
+func kindWeight(kind string) int {
+	switch kind {
+	case "method", "func":
+		return 3
+	case "struct", "type", "interface", "dockerfile", "makefile", "ci-github", "ci-gitlab", "compose", "config-yaml":
+		return 2
+	case "imports":
+		return 0
+	default:
+		return 1
+	}
+}
+
+func quotaRequired(weightedUnexplored int) int {
+	const pct     = 0.10
+	const minFloor = 5
+	const maxCap   = 30
+	req := int(math.Ceil(float64(weightedUnexplored) * pct))
+	if req < minFloor {
+		return minFloor
+	}
+	if req > maxCap {
+		return maxCap
+	}
+	return req
+}
 
 func (u *LgUsecase) handleTree(ctx context.Context, s *activeSession, args string) string {
 	dirs, err := u.recon.TreeCoverage(ctx, s.projectID, strings.TrimSpace(args))
@@ -127,6 +155,9 @@ func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args strin
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+	u.mu.Lock()
+	s.readNodes[filePath+":"+symbol+":"+node.Kind] = node.Kind
+	u.mu.Unlock()
 	hint := ""
 	if node.Status == "stale" && node.Description != "" {
 		hint = "[STALE] " + node.Description + "\nLast annotated before code change. Re-read and re-annotate.\n---\n"
@@ -205,6 +236,12 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 		return
 	}
 	filePath = stripProjectPrefix(s.projectAlias, filePath)
+	key := filePath + ":" + symbol + ":" + kind
+	u.mu.Lock()
+	if readKind, ok := s.readNodes[key]; ok {
+		s.annotationScore += kindWeight(readKind)
+	}
+	u.mu.Unlock()
 	u.recon.Annotate(ctx, s.projectID, filePath, symbol, kind, description, returnType, calls)
 }
 
@@ -233,6 +270,21 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 			Impl:        implJSON,
 		}
 	}
+	if weighted, err := u.recon.GetWeightedUnexplored(ctx, s.projectID); err == nil {
+		required := quotaRequired(weighted)
+		u.mu.Lock()
+		score := s.annotationScore
+		u.mu.Unlock()
+		if score < required {
+			return fmt.Sprintf(
+				"annotation quota not met: %d/%d pts -- earn %d more.\n"+
+					"Priority: method/func (3pts) > struct/type/interface/config (2pts) > const/var (1pt).\n"+
+					"Read a node via #lg.recon.read first, then annotate. Unread annotations score 0.",
+				score, required, required-score,
+			)
+		}
+	}
+
 	created, err := u.tasks.CreateTasks(ctx, s.workspaceID, tasks)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)

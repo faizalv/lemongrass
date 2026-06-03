@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS lg_tasks_workspace_id_created_at_idx;
+DROP INDEX IF EXISTS lg_project_artifacts_project_id_type_name_idx;
