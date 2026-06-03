@@ -249,7 +249,8 @@ func extractExports(fset *token.FileSet, f *ast.File, srcLines [][]byte) []entit
 	for _, decl := range f.Decls {
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
-			if !d.Name.IsExported() {
+			isSpecial := d.Name.Name == "main" || d.Name.Name == "init"
+			if !d.Name.IsExported() && !isSpecial {
 				continue
 			}
 			sym := entity.Symbol{

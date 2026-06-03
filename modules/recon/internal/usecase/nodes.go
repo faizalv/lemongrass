@@ -58,9 +58,6 @@ func (u *ReconUsecase) GetProjectCoverage(ctx context.Context, projectID int64) 
 	return u.repo.GetProjectCoverage(ctx, projectID)
 }
 
-func (u *ReconUsecase) GetWeightedUnexplored(ctx context.Context, projectID int64) (int, error) {
-	return u.repo.GetWeightedUnexplored(ctx, projectID)
-}
 
 func (u *ReconUsecase) Search(ctx context.Context, projectID int64, query string) ([]entity.SemanticNode, error) {
 	const limit = 10

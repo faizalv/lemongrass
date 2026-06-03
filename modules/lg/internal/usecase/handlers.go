@@ -11,31 +11,23 @@ import (
 	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
 )
 
-func kindWeight(kind string) int {
-	switch kind {
-	case "method", "func":
-		return 3
-	case "struct", "type", "interface", "dockerfile", "makefile", "ci-github", "ci-gitlab", "compose", "config-yaml":
-		return 2
-	case "imports":
-		return 0
-	default:
-		return 1
-	}
+const coverageRate = 0.30
+
+func domainThreshold(n int) int {
+	return int(math.Ceil(float64(n) * coverageRate))
 }
 
-func quotaRequired(weightedUnexplored int) int {
-	const pct     = 0.10
-	const minFloor = 5
-	const maxCap   = 30
-	req := int(math.Ceil(float64(weightedUnexplored) * pct))
-	if req < minFloor {
-		return minFloor
+func bestMatchDomain(peekDomains map[string]*domainObligation, filePath string) *domainObligation {
+	var best *domainObligation
+	bestLen := 0
+	for prefix, ob := range peekDomains {
+		norm := strings.TrimSuffix(prefix, "/")
+		if (strings.HasPrefix(filePath, norm+"/") || filePath == norm) && len(norm) > bestLen {
+			best = ob
+			bestLen = len(norm)
+		}
 	}
-	if req > maxCap {
-		return maxCap
-	}
-	return req
+	return best
 }
 
 func (u *LgUsecase) handleTree(ctx context.Context, s *activeSession, args string) string {
@@ -52,6 +44,13 @@ func (u *LgUsecase) handleTree(ctx context.Context, s *activeSession, args strin
 			d.Dir, d.Total, d.Explored, d.Stale, d.Unexplored))
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+func stripReceiver(symbol string) string {
+	if i := strings.LastIndex(symbol, "."); i >= 0 {
+		return symbol[i+1:]
+	}
+	return symbol
 }
 
 func stripProjectPrefix(projectAlias, path string) string {
@@ -74,6 +73,36 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 	if len(nodes) == 0 {
 		return "no symbols found under " + pathPrefix
 	}
+
+	u.mu.Lock()
+	if _, exists := s.peekDomains[pathPrefix]; !exists {
+		ob := &domainObligation{
+			pathPrefix:    pathPrefix,
+			annotatedKeys: make(map[string]bool),
+		}
+		for _, n := range nodes {
+			if n.Status != "unexplored" {
+				continue
+			}
+			switch n.Kind {
+			case "method", "func":
+				key := n.FilePath + ":" + n.Symbol + ":" + n.Kind
+				ob.nodes = append(ob.nodes, pendingNode{
+					key:      key,
+					kind:     n.Kind,
+					symbol:   n.Symbol,
+					filePath: n.FilePath,
+				})
+				if n.Kind == "method" {
+					ob.methodsRequired++
+				} else {
+					ob.funcsRequired++
+				}
+			}
+		}
+		s.peekDomains[pathPrefix] = ob
+	}
+	u.mu.Unlock()
 
 	type fileGroup struct {
 		path    string
@@ -123,21 +152,22 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 }
 
 func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query string) string {
-	total, explored, err := u.recon.GetProjectCoverage(ctx, s.projectID)
-	if err == nil && total > 0 {
-		pct := explored * 100 / total
-		if pct < 80 {
-			return fmt.Sprintf("error: coverage too low to search (%d%% explored) -- use recon.peek + recon.read to build the map first", pct)
-		}
-	}
 	nodes, err := u.recon.Search(ctx, s.projectID, strings.TrimSpace(query))
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+
+	coverageNote := ""
+	if total, explored, err := u.recon.GetProjectCoverage(ctx, s.projectID); err == nil && total > 0 {
+		pct := explored * 100 / total
+		coverageNote = fmt.Sprintf(" (%d%% of %d nodes annotated)", pct, total)
+	}
+
 	if len(nodes) == 0 {
-		return "no results"
+		return "no results" + coverageNote
 	}
 	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("-- %d result(s)%s\n", len(nodes), coverageNote))
 	for _, n := range nodes {
 		sb.WriteString(formatAnnotate(n))
 		sb.WriteByte('\n')
@@ -151,12 +181,17 @@ func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args strin
 		return fmt.Sprintf("error: %v", err)
 	}
 	filePath = stripProjectPrefix(s.projectAlias, filePath)
+	symbol = stripReceiver(symbol)
 	node, code, err := u.recon.ReadNode(ctx, s.projectID, filePath, symbol, kind)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
 	u.mu.Lock()
-	s.readNodes[filePath+":"+symbol+":"+node.Kind] = node.Kind
+	s.readNodes[filePath+":"+symbol+":"+node.Kind] = readEntry{
+		kind:      node.Kind,
+		signature: node.Signature,
+		receiver:  node.Receiver,
+	}
 	u.mu.Unlock()
 	hint := ""
 	if node.Status == "stale" && node.Description != "" {
@@ -171,6 +206,7 @@ func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, args st
 		return fmt.Sprintf("error: %v", err)
 	}
 	filePath = stripProjectPrefix(s.projectAlias, filePath)
+	symbol = stripReceiver(symbol)
 	callees, callers, err := u.recon.Related(ctx, s.projectID, filePath, symbol, kind)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
@@ -192,6 +228,45 @@ func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, args st
 		for _, n := range callers {
 			sb.WriteString(formatAnnotate(n))
 			sb.WriteByte('\n')
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func (u *LgUsecase) handleQuotaStatus(s *activeSession) string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	if len(s.peekDomains) == 0 {
+		return "no obligations yet -- peek a directory first"
+	}
+
+	var sb strings.Builder
+	for _, ob := range s.peekDomains {
+		mThresh := domainThreshold(ob.methodsRequired)
+		fThresh := domainThreshold(ob.funcsRequired)
+		met := ob.methodsMet >= mThresh && (fThresh == 0 || ob.funcsMet >= fThresh)
+		status := "PENDING"
+		if met {
+			status = "OK"
+		}
+		sb.WriteString(fmt.Sprintf("[%s] %s  methods %d/%d  funcs %d/%d\n",
+			status, ob.pathPrefix, ob.methodsMet, mThresh, ob.funcsMet, fThresh))
+		for _, n := range ob.nodes {
+			if ob.annotatedKeys[n.key] {
+				continue
+			}
+			if entry, read := s.readNodes[n.key]; read {
+				sig := entry.signature
+				if entry.receiver != "" && sig != "" {
+					sig = "(" + entry.receiver + ") " + sig
+				} else if entry.receiver != "" {
+					sig = "(" + entry.receiver + ")"
+				}
+				sb.WriteString(fmt.Sprintf("  %-8s  %-36s  %s  [annotate from memory]\n", n.kind, n.symbol, sig))
+			} else {
+				sb.WriteString(fmt.Sprintf("  %-8s  %-36s  [not read]\n", n.kind, n.symbol))
+			}
 		}
 	}
 	return strings.TrimRight(sb.String(), "\n")
@@ -236,10 +311,20 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 		return
 	}
 	filePath = stripProjectPrefix(s.projectAlias, filePath)
+	symbol = stripReceiver(symbol)
 	key := filePath + ":" + symbol + ":" + kind
 	u.mu.Lock()
-	if readKind, ok := s.readNodes[key]; ok {
-		s.annotationScore += kindWeight(readKind)
+	if entry, ok := s.readNodes[key]; ok {
+		if ob := bestMatchDomain(s.peekDomains, filePath); ob != nil {
+			switch entry.kind {
+			case "method":
+				ob.methodsMet++
+				ob.annotatedKeys[key] = true
+			case "func":
+				ob.funcsMet++
+				ob.annotatedKeys[key] = true
+			}
+		}
 	}
 	u.mu.Unlock()
 	u.recon.Annotate(ctx, s.projectID, filePath, symbol, kind, description, returnType, calls)
@@ -270,17 +355,25 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 			Impl:        implJSON,
 		}
 	}
-	if weighted, err := u.recon.GetWeightedUnexplored(ctx, s.projectID); err == nil {
-		required := quotaRequired(weighted)
-		u.mu.Lock()
-		score := s.annotationScore
-		u.mu.Unlock()
-		if score < required {
+	u.mu.Lock()
+	obligations := make([]*domainObligation, 0, len(s.peekDomains))
+	for _, ob := range s.peekDomains {
+		obligations = append(obligations, ob)
+	}
+	u.mu.Unlock()
+	for _, ob := range obligations {
+		mThresh := domainThreshold(ob.methodsRequired)
+		fThresh := domainThreshold(ob.funcsRequired)
+		if mThresh > 0 && ob.methodsMet < mThresh {
 			return fmt.Sprintf(
-				"annotation quota not met: %d/%d pts -- earn %d more.\n"+
-					"Priority: method/func (3pts) > struct/type/interface/config (2pts) > const/var (1pt).\n"+
-					"Read a node via #lg.recon.read first, then annotate. Unread annotations score 0.",
-				score, required, required-score,
+				"annotation quota not met for %s:\n  methods: %d/%d annotated (need %d more)\nRead method bodies -- they reveal how this domain is written.",
+				ob.pathPrefix, ob.methodsMet, mThresh, mThresh-ob.methodsMet,
+			)
+		}
+		if fThresh > 0 && ob.funcsMet < fThresh {
+			return fmt.Sprintf(
+				"annotation quota not met for %s:\n  funcs: %d/%d annotated (need %d more)",
+				ob.pathPrefix, ob.funcsMet, fThresh, fThresh-ob.funcsMet,
 			)
 		}
 	}

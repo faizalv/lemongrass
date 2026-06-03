@@ -60,21 +60,30 @@
               <AppIcon name="triangle-alert" :size="20" color="var(--color-amber)" />
               <div :style="phaseTitle">{{ sessionIdleSec < 0 ? 'Session ended' : 'Session appears stuck' }}</div>
             </div>
-            <div :style="phaseSub">
-              <template v-if="sessionIdleSec < 0">The session is no longer active. Reset to start a new one.</template>
-              <template v-else>No activity for {{ Math.floor(sessionIdleSec / 60) }} minutes. The model may have hit an error.</template>
-            </div>
-            <button :style="resetBtn" :disabled="resetting" @click="handleReset">
-              {{ resetting ? 'Resetting…' : 'Reset session' }}
-            </button>
+            <template v-if="hasRejectedTasks">
+              <div :style="phaseSub">Tasks need revision but the session is no longer active. Resume as amendment to continue -- the model will see the approved tasks and your feedback.</div>
+              <div style="display:flex;gap:10px">
+                <button :style="resetBtn" @click="handleAmendment">Resume as amendment</button>
+                <button :style="{ ...resetBtn, background: 'transparent', border: '1px solid rgba(255,255,255,0.10)', color: 'var(--color-gray-400)' }" :disabled="resetting" @click="handleReset">Reset</button>
+              </div>
+            </template>
+            <template v-else>
+              <div :style="phaseSub">
+                <template v-if="sessionIdleSec < 0">The session is no longer active. Reset to start a new one.</template>
+                <template v-else>No activity for {{ Math.floor(sessionIdleSec / 60) }} minutes. The model may have hit an error.</template>
+              </div>
+              <button :style="resetBtn" :disabled="resetting" @click="handleReset">
+                {{ resetting ? 'Resetting…' : 'Reset session' }}
+              </button>
+            </template>
           </template>
           <!-- Normal state -->
           <template v-else>
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
               <Spinner :size="18" />
-              <div :style="phaseTitle">Claude is grooming…</div>
+              <div :style="phaseTitle">{{ props.workspace.status === 'amending' ? 'Claude is revising…' : 'Claude is grooming…' }}</div>
             </div>
-            <div :style="phaseSub">The model is reading the semantic map and exploring the codebase. When it has a task list ready, it will appear here for your review.</div>
+            <div :style="phaseSub">{{ props.workspace.status === 'amending' ? 'The model is reviewing your feedback and revising the task proposal.' : 'The model is reading the semantic map and exploring the codebase. When it has a task list ready, it will appear here for your review.' }}</div>
             <div v-if="echoMessages.length > 0" ref="feedEl" :style="feedWrap">
               <div
                 v-for="(msg, i) in echoMessages"
@@ -275,6 +284,7 @@ const echoMessages = ref<{ ts: string; text: string }[]>([])
 const sessionIdleSec = ref(0)
 const resetting = ref(false)
 const feedEl = ref<HTMLElement | null>(null)
+const hasRejectedTasks = ref(false)
 
 async function initPhase() {
   let st = props.workspace.status
@@ -282,7 +292,7 @@ async function initPhase() {
     const r = await fetch(`/api/workspaces/${props.workspace.id}`)
     if (r.ok) { const ws = await r.json(); st = ws.status }
   } catch { /* fall back to prop */ }
-  if (st === 'grooming') {
+  if (st === 'grooming' || st === 'amending') {
     phase.value = 'grooming_live'
     startPolling()
   } else if (st === 'awaiting_execution' || st === 'executing' || st === 'done') {
@@ -328,12 +338,24 @@ function stopActivityPoll() {
   if (activityTimer) { clearInterval(activityTimer); activityTimer = null }
 }
 
+async function checkRejectedTasks() {
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/tasks`)
+    if (!r.ok) return
+    const tasks: ApiTask[] = await r.json()
+    hasRejectedTasks.value = tasks.some(t => t.status === 'rejected')
+  } catch { /* ignore */ }
+}
+
 async function pollActivity() {
   try {
     const r = await fetch(`/api/workspaces/${props.workspace.id}/session/activity`)
     if (!r.ok) return
     const data = await r.json()
     sessionIdleSec.value = data.idle_seconds ?? 0
+    if ((data.idle_seconds < 0 || data.idle_seconds >= 300) && !hasRejectedTasks.value) {
+      checkRejectedTasks()
+    }
     if (Array.isArray(data.messages)) {
       const prev = echoMessages.value.length
       echoMessages.value = data.messages
@@ -343,6 +365,28 @@ async function pollActivity() {
       }
     }
   } catch { /* ignore */ }
+}
+
+async function handleAmendment() {
+  groomError.value = ''
+  startPending.value = true
+  try {
+    const r = await fetch(`/api/workspaces/${props.workspace.id}/amendment/start`, { method: 'POST' })
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}))
+      groomError.value = body.error ?? `Error ${r.status}`
+      return
+    }
+    hasRejectedTasks.value = false
+    echoMessages.value = []
+    sessionIdleSec.value = 0
+    phase.value = 'grooming_live'
+    startPolling()
+  } catch {
+    groomError.value = 'Network error, please try again.'
+  } finally {
+    startPending.value = false
+  }
 }
 
 async function handleReset() {
@@ -442,6 +486,7 @@ async function handleApprove() {
       apiTasks.value = []
       taskDecisions.value = {}
       phase.value = 'awaiting_execution'
+      emit('status-change', 'awaiting_execution')
     }
   } finally {
     checkpointLoading.value = false

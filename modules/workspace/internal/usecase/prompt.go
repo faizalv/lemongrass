@@ -6,6 +6,7 @@ const environmentPreamble = `You are running inside Lemongrass (lg-runner). Term
 
 const hookCallInstruction = `Every #lg.* and #lg!.* command in this prompt is a direct Bash tool call -- not prose, not a comment. # routes to lg-hook; ! means fire-and-forget. Each command is one Bash tool call -- never combine multiple #lg.* calls on one line.`
 
+const cmdReconSearch  = `#lg.recon.search <query> -- vector search across annotated nodes; returns coverage context`
 const cmdReconPeek    = `#lg.recon.peek <dir> -- all symbols under a directory: kind, name, lines, status`
 const cmdReconRead    = `#lg.recon.read <path:symbol:kind> -- raw source for a symbol; server resolves lines from map`
 const cmdReconRelated = `#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol`
@@ -27,6 +28,7 @@ func buildExecutionPrompt(projectAlias string) string {
 		cmdReconPeek,
 		cmdReconRead,
 		cmdReconRelated,
+		cmdReconSearch,
 		"",
 		"Use #lg.recon.read for exploration. Native Read is last resort -- only to obtain current file content before Edit.",
 		"After any native Read, annotate the symbols you read: " + cmdAnnotate + " (! required -- no blocking annotate exists)",

@@ -21,7 +21,6 @@ type reconClient interface {
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
 	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
-	GetWeightedUnexplored(ctx context.Context, projectID int64) (int, error)
 	SyncGitProject(projectID int64)
 }
 
@@ -35,15 +34,38 @@ type checkpointResult struct {
 	rejections map[string]string
 }
 
+type pendingNode struct {
+	key      string // "filePath:symbol:kind"
+	kind     string // "method" or "func"
+	symbol   string
+	filePath string
+}
+
+type domainObligation struct {
+	pathPrefix      string
+	nodes           []pendingNode
+	annotatedKeys   map[string]bool
+	methodsRequired int
+	funcsRequired   int
+	methodsMet      int
+	funcsMet        int
+}
+
+type readEntry struct {
+	kind      string
+	signature string
+	receiver  string
+}
+
 type activeSession struct {
-	workspaceID     string
-	projectID       int64
-	projectAlias    string
-	sessionType     string
-	ptySession      ptyclient.Session
-	checkpointCh    chan checkpointResult
-	readNodes       map[string]string // "path:symbol:kind" -> kind, for quota tracking
-	annotationScore int
+	workspaceID  string
+	projectID    int64
+	projectAlias string
+	sessionType  string
+	ptySession   ptyclient.Session
+	checkpointCh chan checkpointResult
+	readNodes    map[string]readEntry            // "path:symbol:kind" -> entry
+	peekDomains  map[string]*domainObligation    // path prefix -> obligation
 }
 
 type LgUsecase struct {
@@ -128,6 +150,8 @@ func activityMessage(cmd, args string) string {
 			return "Annotating " + parts[1] + " in " + parts[0]
 		}
 		return "Annotating symbol"
+	case "quota.status":
+		return "Checking annotation quota"
 	case "tasks.checkpoint":
 		return "Sending task proposal"
 	case "tasks.read":
@@ -186,6 +210,8 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 	case "annotate":
 		go u.handleAnnotate(ctx, s, args)
 		return ""
+	case "quota.status":
+		return u.handleQuotaStatus(s)
 	case "tasks.checkpoint":
 		return u.handleCheckpoint(ctx, s, args)
 	case "tasks.read":

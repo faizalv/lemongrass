@@ -46,7 +46,3 @@ func (c *ReconClient) PeekDir(ctx context.Context, projectID int64, pathPrefix s
 func (c *ReconClient) SyncGitProject(projectID int64) {
 	c.uc.ActivateGitSync(projectID)
 }
-
-func (c *ReconClient) GetWeightedUnexplored(ctx context.Context, projectID int64) (int, error) {
-	return c.uc.GetWeightedUnexplored(ctx, projectID)
-}

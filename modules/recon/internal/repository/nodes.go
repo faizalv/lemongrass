@@ -175,40 +175,6 @@ func (r *ReconRepository) GetProjectCoverage(ctx context.Context, projectID int6
 	return
 }
 
-func (r *ReconRepository) GetWeightedUnexplored(ctx context.Context, projectID int64) (int, error) {
-	type row struct {
-		Kind  string `db:"kind"`
-		Count int    `db:"cnt"`
-	}
-	var rows []row
-	if err := r.db.SelectContext(ctx, &rows,
-		`SELECT kind, COUNT(*) AS cnt
-		 FROM lg_semantic_nodes
-		 WHERE project_id = $1 AND status = 'unexplored' AND kind != 'imports'
-		 GROUP BY kind`,
-		projectID,
-	); err != nil {
-		return 0, err
-	}
-	total := 0
-	for _, row := range rows {
-		total += unexploredKindWeight(row.Kind) * row.Count
-	}
-	return total, nil
-}
-
-func unexploredKindWeight(kind string) int {
-	switch kind {
-	case "method", "func":
-		return 3
-	case "struct", "type", "interface", "dockerfile", "makefile", "ci-github", "ci-gitlab", "compose", "config-yaml":
-		return 2
-	case "imports":
-		return 0
-	default:
-		return 1
-	}
-}
 
 func (r *ReconRepository) SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error {
 	_, err := r.db.ExecContext(ctx,
