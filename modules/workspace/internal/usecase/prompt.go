@@ -1,6 +1,14 @@
 package usecase
 
-import "strings"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/faizalv/lemongrass/modules/workspace/entity"
+)
+
+func jsonUnmarshal(data []byte, v any) error { return json.Unmarshal(data, v) }
 
 const environmentPreamble = `You are running inside Lemongrass (lg-runner). Terminal output goes to a log file -- no user reads it. Text outside #lg.* commands (summaries, narration, step recaps) is invisible and burns context. Use #lg.echo for status only.`
 
@@ -41,10 +49,13 @@ func buildExecutionPrompt(projectAlias string) string {
 		"    " + annotateHookNote,
 		"",
 		"  new: path/to/file.go -- contents",
-		"    Create file. Annotate every symbol added.",
+		"    Create file. Immediately annotate every exported symbol (non-blocking, one call per symbol).",
 		"",
 		"  delete: path/to/file.go -- reason",
-		"    Call #lg!.recon.drop <path>, then delete file.",
+		"    1. For each exported symbol: #lg.recon.read, then check #lg.recon.related for callers.",
+		"    2. Edit each caller to remove the import and call sites. Re-annotate.",
+		"    3. #lg!.recon.drop <path> -- deletes the file AND purges stale map entries.",
+		"    Do not use rm. #lg!.recon.drop handles physical deletion.",
 		"",
 		"Annotate every symbol written or modified -- no exceptions.",
 		"",
@@ -63,4 +74,64 @@ func buildExecutionPrompt(projectAlias string) string {
 	}, "\n")
 
 	return environmentPreamble + "\n\n" + body
+}
+
+func buildAmendmentPrompt(requirements []entity.WorkspaceRequirement, approved, rejected []entity.Task, projectPath string) string {
+	var reqSB strings.Builder
+	for i, r := range requirements {
+		if len(requirements) > 1 {
+			fmt.Fprintf(&reqSB, "[Requirement %d]\n", i+1)
+		}
+		switch r.Type {
+		case "text":
+			reqSB.WriteString(r.TextContent)
+		case "pdf":
+			reqSB.WriteString("Requirements file at: /home/lg/.lemongrass/workspaces/" + r.WorkspaceID + "/" + r.FilePath)
+		case "image":
+			reqSB.WriteString("Requirements image at: /home/lg/.lemongrass/workspaces/" + r.WorkspaceID + "/" + r.FilePath)
+		}
+		if i < len(requirements)-1 {
+			reqSB.WriteString("\n\n")
+		}
+	}
+
+	var amendSB strings.Builder
+	if len(approved) > 0 {
+		amendSB.WriteString("These tasks were approved -- carry them forward unchanged:\n\n")
+		for i, t := range approved {
+			impl := strings.Join(implStrings(t.Impl), "\n    ")
+			fmt.Fprintf(&amendSB, "  %d. %s\n     impl: %s\n\n", i+1, t.Title, impl)
+		}
+	}
+	if len(rejected) > 0 {
+		amendSB.WriteString("These tasks were rejected -- revise based on the feedback:\n\n")
+		for i, t := range rejected {
+			impl := strings.Join(implStrings(t.Impl), "\n    ")
+			fmt.Fprintf(&amendSB, "  %d. %s\n     feedback: %q\n     current impl: %s\n\n", i+1, t.Title, t.AmendmentFeedback, impl)
+		}
+	}
+
+	base := buildGroomingPrompt(requirements, projectPath)
+	amendment := strings.Join([]string{
+		"",
+		"--- Amendment context ---",
+		"",
+		"You are resuming a grooming session to revise rejected tasks.",
+		"Use full recon access to look up anything referenced in the feedback before revising.",
+		"",
+		strings.TrimRight(amendSB.String(), "\n"),
+		"",
+		"When checkpointing: submit ALL tasks -- approved unchanged + revised rejected -- as one array.",
+		"Never drop an approved task. Never resubmit a rejected task without addressing the feedback.",
+	}, "\n")
+
+	return base + amendment
+}
+
+func implStrings(raw []byte) []string {
+	var items []string
+	if err := jsonUnmarshal(raw, &items); err != nil || len(items) == 0 {
+		return []string{"(no impl)"}
+	}
+	return items
 }

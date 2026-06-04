@@ -58,6 +58,10 @@ func (u *ReconUsecase) GetProjectCoverage(ctx context.Context, projectID int64) 
 	return u.repo.GetProjectCoverage(ctx, projectID)
 }
 
+func (u *ReconUsecase) DropFile(ctx context.Context, projectID int64, path string) {
+	u.repo.DeleteNodesByFilePaths(ctx, projectID, []string{path})
+	u.repo.DeleteFileHashes(ctx, projectID, []string{path})
+}
 
 func (u *ReconUsecase) Search(ctx context.Context, projectID int64, query string) ([]entity.SemanticNode, error) {
 	const limit = 10

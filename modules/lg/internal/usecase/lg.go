@@ -21,6 +21,7 @@ type reconClient interface {
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
 	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
+	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)
 }
 
@@ -207,6 +208,9 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return u.handleRead(ctx, s, args)
 	case "recon.related":
 		return u.handleRelated(ctx, s, args)
+	case "recon.drop":
+		go u.handleReconDrop(ctx, s, args)
+		return ""
 	case "annotate":
 		go u.handleAnnotate(ctx, s, args)
 		return ""

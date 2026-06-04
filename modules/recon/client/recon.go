@@ -43,6 +43,10 @@ func (c *ReconClient) PeekDir(ctx context.Context, projectID int64, pathPrefix s
 	return c.uc.PeekDir(ctx, projectID, pathPrefix)
 }
 
+func (c *ReconClient) DropFile(ctx context.Context, projectID int64, path string) {
+	c.uc.DropFile(ctx, projectID, path)
+}
+
 func (c *ReconClient) SyncGitProject(projectID int64) {
 	c.uc.ActivateGitSync(projectID)
 }

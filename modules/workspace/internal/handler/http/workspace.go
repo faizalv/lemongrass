@@ -60,6 +60,10 @@ type executionUC interface {
 	ForceStopExecution(ctx context.Context, workspaceID string) error
 }
 
+type amendmentUC interface {
+	StartAmendmentSession(ctx context.Context, workspaceID string) error
+}
+
 type WorkspaceHandler struct {
 	workspace   workspaceUC
 	grooming    groomingUC
@@ -67,9 +71,10 @@ type WorkspaceHandler struct {
 	requirement requirementUC
 	session     sessionUC
 	execution   executionUC
+	amendment   amendmentUC
 }
 
-func New(ws workspaceUC, gr groomingUC, cp checkpointUC, rq requirementUC, sess sessionUC, exec executionUC) *WorkspaceHandler {
+func New(ws workspaceUC, gr groomingUC, cp checkpointUC, rq requirementUC, sess sessionUC, exec executionUC, amend amendmentUC) *WorkspaceHandler {
 	return &WorkspaceHandler{
 		workspace:   ws,
 		grooming:    gr,
@@ -77,6 +82,7 @@ func New(ws workspaceUC, gr groomingUC, cp checkpointUC, rq requirementUC, sess 
 		requirement: rq,
 		session:     sess,
 		execution:   exec,
+		amendment:   amend,
 	}
 }
 
@@ -394,6 +400,19 @@ func (h *WorkspaceHandler) StartExecution(c *gin.Context) {
 		} else if strings.Contains(err.Error(), "git checkout") {
 			status = http.StatusUnprocessableEntity
 		} else if strings.Contains(err.Error(), "must be awaiting_execution") {
+			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *WorkspaceHandler) StartAmendment(c *gin.Context) {
+	if err := h.amendment.StartAmendmentSession(c.Request.Context(), c.Param("id")); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "no rejected tasks") ||
+			strings.Contains(err.Error(), "must be grooming") {
 			status = http.StatusConflict
 		}
 		c.JSON(status, gin.H{"error": err.Error()})

@@ -11,6 +11,7 @@ type taskStore interface {
 	CreateTasks(ctx context.Context, workspaceID string, tasks []entity.Task) ([]entity.Task, error)
 	GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error)
 	ApproveTasks(ctx context.Context, workspaceID string) error
+	RejectTasks(ctx context.Context, rejections map[string]string) error
 }
 
 type draftStore interface {
@@ -107,6 +108,16 @@ func (u *CheckpointUsecase) SubmitCheckpointReviews(ctx context.Context, workspa
 		if err := u.ws.UpdateStatus(ctx, workspaceID, "awaiting_execution"); err != nil {
 			return err
 		}
+		return u.lgSess.RespondToCheckpoint(workspaceID, nil)
 	}
-	return u.lgSess.RespondToCheckpoint(workspaceID, rejections)
+	// Persist feedback so amendment session can recover if the live session is dead.
+	if err := u.tasks.RejectTasks(ctx, rejections); err != nil {
+		return err
+	}
+	// Send to live session if available; ignore error if session is dead --
+	// the user can resume via StartAmendmentSession.
+	if u.lgSess != nil {
+		u.lgSess.RespondToCheckpoint(workspaceID, rejections) //nolint:errcheck
+	}
+	return nil
 }

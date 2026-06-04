@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 
 	reconentity "github.com/faizalv/lemongrass/modules/recon/entity"
@@ -303,6 +304,19 @@ func (u *LgUsecase) handleTasksRead(ctx context.Context, s *activeSession) strin
 		return fmt.Sprintf("error: %v", err)
 	}
 	return string(b)
+}
+
+func (u *LgUsecase) handleReconDrop(ctx context.Context, s *activeSession, args string) {
+	rel := stripProjectPrefix(s.projectAlias, strings.TrimSpace(args))
+	if rel == "" {
+		return
+	}
+	abs := "/projects/" + s.projectAlias + "/" + rel
+	if !strings.HasPrefix(abs, "/projects/"+s.projectAlias+"/") {
+		return
+	}
+	os.Remove(abs)
+	u.recon.DropFile(ctx, s.projectID, rel)
 }
 
 func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) {

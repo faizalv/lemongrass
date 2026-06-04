@@ -100,10 +100,25 @@
         <!-- Checkpoint review -->
         <div v-else-if="phase === 'checkpoint'" class="fade-in" style="max-width:760px;margin:24px auto 0;padding:0 32px 100px">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
-            <div :style="phaseTitle">Task proposal ready</div>
+            <div :style="phaseTitle">{{ approvedTasks.length > 0 ? 'Revision round' : 'Task proposal ready' }}</div>
             <div style="font-family:'JetBrains Mono','Courier Prime',monospace;font-size:11px;color:var(--color-gray-400)">{{ checkpointDecidedCount }}/{{ apiTasks.length }} decided</div>
           </div>
-          <div :style="phaseSub">Approve or reject each task individually. All tasks need a decision before you can submit.</div>
+          <div :style="phaseSub">{{ approvedTasks.length > 0 ? 'Previously approved tasks are locked. Review the revised proposals below.' : 'Approve or reject each task individually. All tasks need a decision before you can submit.' }}</div>
+
+          <!-- Approved chips from previous round -->
+          <div v-if="approvedTasks.length > 0" style="display:flex;flex-direction:column;gap:6px;margin-bottom:18px">
+            <div style="font-size:10px;font-weight:700;letter-spacing:0.10em;color:var(--color-gray-600);font-family:'DM Sans',sans-serif;text-transform:uppercase;margin-bottom:4px">Locked</div>
+            <div
+              v-for="t in approvedTasks"
+              :key="t.id"
+              :style="approvedChip"
+            >
+              <AppIcon name="check" :size="11" :extra-style="{ color: 'var(--color-success)', flexShrink: 0 }" />
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--color-gray-300);font-family:'DM Sans',sans-serif">{{ t.title }}</span>
+              <span style="font-size:10px;font-weight:600;color:var(--color-success);font-family:'DM Sans',sans-serif">approved</span>
+            </div>
+            <div style="height:1px;background:rgba(255,255,255,0.06);margin:8px 0" />
+          </div>
 
           <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px">
             <TaskCard
@@ -421,6 +436,7 @@ async function pollTasks() {
     const pending = tasks.filter(t => t.status === 'pending')
     if (pending.length > 0) {
       apiTasks.value = pending
+      approvedTasks.value = tasks.filter(t => t.status === 'approved')
       taskDecisions.value = {}
       await loadCheckpointDraft()
       phase.value = 'checkpoint'
@@ -741,7 +757,8 @@ function handleGenerateAll() {
 
 // Styles
 const emptyIcon   = { width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-const approveBtn = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'var(--color-success)', color: 'var(--color-surface-0)', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 700 }
+const approveBtn   = { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: 'var(--color-success)', color: 'var(--color-surface-0)', border: 'none', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 700 }
+const approvedChip = { display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px', background: 'rgba(74,222,128,0.05)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: '6px' }
 const submitReviewsBtn = (enabled: boolean) => ({ padding: '10px 18px', background: 'transparent', border: '1px solid rgba(248,113,113,0.35)', borderRadius: '7px', color: enabled ? 'var(--color-error)' : 'var(--color-gray-500)', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600 })
 const leftPanel = { width: '280px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', background: 'var(--color-surface-0)' } as Record<string, any>
 const leftPanelHeader = { padding: '18px 18px 10px', borderBottom: '1px solid rgba(255,255,255,0.05)' }

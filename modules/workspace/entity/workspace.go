@@ -25,14 +25,15 @@ type WorkspaceRequirement struct {
 }
 
 type Task struct {
-	ID          string
-	WorkspaceID string
-	Title       string
-	Reason      string
-	Impl        json.RawMessage
-	Status      string
-	CreatedAt   time.Time
-	ApprovedAt  *time.Time
+	ID                string
+	WorkspaceID       string
+	Title             string
+	Reason            string
+	Impl              json.RawMessage
+	Status            string
+	AmendmentFeedback string
+	CreatedAt         time.Time
+	ApprovedAt        *time.Time
 }
 
 type TaskDecision struct {

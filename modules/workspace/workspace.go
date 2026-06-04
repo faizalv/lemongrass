@@ -35,6 +35,7 @@ type Workspace struct {
 	checkpointUc *usecase.CheckpointUsecase
 	sessUc       *usecase.SessionUsecase
 	execUc       *usecase.ExecutionUsecase
+	amendUc      *usecase.AmendmentUsecase
 	h            *handler.WorkspaceHandler
 }
 
@@ -48,8 +49,9 @@ func (w *Workspace) LoadMe(_ config.Config, db *sqlx.DB) {
 	reqUc := usecase.NewRequirement(w.repo, w.repo)
 	w.sessUc = usecase.NewSession(w.repo)
 	w.execUc = usecase.NewExecution(w.repo, w.PtyClient)
+	w.amendUc = usecase.NewAmendment(w.repo, w.repo, w.repo, w.PtyClient)
 
-	w.h = handler.New(wsUc, w.groomUc, w.checkpointUc, reqUc, w.sessUc, w.execUc)
+	w.h = handler.New(wsUc, w.groomUc, w.checkpointUc, reqUc, w.sessUc, w.execUc, w.amendUc)
 
 	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
 		id, ok := payload.(int64)
@@ -67,6 +69,7 @@ func (w *Workspace) SetLgSession(s lgSessionProvider) {
 	w.checkpointUc.SetLgSession(s)
 	w.sessUc.SetLgSession(s)
 	w.execUc.SetLgSession(s)
+	w.amendUc.SetLgSession(s)
 }
 
 func (w *Workspace) TaskClient() *wsclient.WorkspaceTaskClient {
@@ -93,4 +96,5 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("/:id/session/reset", w.h.SessionReset)
 	g.POST("/:id/execution/start", w.h.StartExecution)
 	g.POST("/:id/execution/force-stop", w.h.ForceStopExecution)
+	g.POST("/:id/amendment/start", w.h.StartAmendment)
 }
