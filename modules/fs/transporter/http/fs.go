@@ -54,6 +54,11 @@ func ArtifactToResponse(a entity.Artifact) ArtifactResponse {
 	}
 }
 
+type ValidateDirResponse struct {
+	Ok       bool     `json:"ok"`
+	Warnings []string `json:"warnings"`
+}
+
 type CreateArtifactRequest struct {
 	Type    string `json:"type"`
 	Name    string `json:"name"`

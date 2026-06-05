@@ -70,6 +70,17 @@
               {{ selectedPath || 'Select a folder above' }}
             </span>
           </div>
+
+          <div v-if="confirmed && warnings.length > 0" :style="warnBanner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div :style="warnLines">
+              <div v-for="w in warnings" :key="w">{{ w }}</div>
+            </div>
+          </div>
         </template>
       </div>
 
@@ -95,17 +106,17 @@
       <div v-if="phase === 'browsing' || phase === 'adding'" :style="footer">
         <button :style="btnGhost" @click="$emit('close')" :disabled="phase === 'adding'">Cancel</button>
         <button
-          :style="btnPrimary(!!selectedPath && phase === 'browsing')"
-          :disabled="!selectedPath || phase === 'adding'"
+          :style="btnPrimary(!!selectedPath && phase === 'browsing' && !validating)"
+          :disabled="!selectedPath || phase === 'adding' || validating"
           @click="addProject"
         >
-          <svg v-if="phase === 'adding'" class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg v-if="phase === 'adding' || validating" class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
           </svg>
           <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
-          {{ phase === 'adding' ? 'Adding…' : 'Add project' }}
+          {{ phase === 'adding' ? 'Adding…' : validating ? 'Checking…' : confirmed ? 'Continue' : 'Add project' }}
         </button>
       </div>
     </div>
@@ -113,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import type { FsNode, FsProject } from '../../types'
 import FolderNode from '../FolderNode.vue'
 
@@ -130,8 +141,37 @@ const selectedPath = ref('')
 const fetchError = ref('')
 const restartError = ref('')
 const refreshing = ref(false)
+const warnings = ref<string[]>([])
+const validating = ref(false)
+const confirmed = ref(false)
+let abortController: AbortController | null = null
 
 onMounted(() => loadTree())
+
+watch(selectedPath, async (path) => {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
+  warnings.value = []
+  confirmed.value = false
+  if (!path) { validating.value = false; return }
+
+  validating.value = true
+  const ctrl = new AbortController()
+  abortController = ctrl
+  try {
+    const r = await fetch(`/api/fs/projects/validate?path=${encodeURIComponent(path)}`, { signal: ctrl.signal })
+    if (r.ok) warnings.value = (await r.json()).warnings ?? []
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') warnings.value = []
+  } finally {
+    if (!ctrl.signal.aborted) {
+      validating.value = false
+      abortController = null
+    }
+  }
+})
 
 async function loadTree(force = false) {
   fetchError.value = ''
@@ -156,6 +196,11 @@ async function loadTree(force = false) {
 
 async function addProject() {
   if (!selectedPath.value || phase.value !== 'browsing') return
+  if (warnings.value.length > 0 && !confirmed.value) {
+    confirmed.value = true
+    return
+  }
+  confirmed.value = false
   phase.value = 'adding'
 
   try {
@@ -320,4 +365,13 @@ const retryBtn = {
   cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)',
   flexShrink: 0,
 }
+const warnBanner = {
+  display: 'flex', alignItems: 'flex-start', gap: '9px',
+  marginTop: '10px', padding: '10px 12px',
+  background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.22)',
+  borderRadius: '7px', color: 'var(--color-amber)', fontFamily: 'var(--font-body)',
+}
+const warnLines = {
+  fontSize: '12px', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '2px',
+} as Record<string, any>
 </script>

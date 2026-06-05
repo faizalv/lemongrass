@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 
 	"github.com/faizalv/lemongrass/config"
@@ -47,6 +48,84 @@ func cmdStartDaemon() {
 	}
 }
 
+var projectMarkers = []string{
+	"go.mod", "package.json", "pyproject.toml", "Cargo.toml",
+	".git", "pom.xml", "build.gradle", "Makefile",
+}
+
+var blacklistedPaths = map[string]string{
+	"/home":         "System home directory containing all user accounts. Pick a subdirectory instead.",
+	"/etc":          "System configuration directory, not a project root.",
+	"/lib":          "System library directory, not a project root.",
+	"/lib64":        "System library directory, not a project root.",
+	"/lib32":        "System library directory, not a project root.",
+	"/usr":          "System directory, not a project root.",
+	"/var":          "System data directory, not a project root.",
+	"/tmp":          "Temporary files directory, not a project root.",
+	"/opt":          "Software installation directory, not typically a project root.",
+	"/System":       "macOS system directory, not a project root.",
+	"/Library":      "macOS library directory, not a project root.",
+	"/Applications": "macOS applications directory, not a project root.",
+}
+
+func blacklistWarning(path string) string {
+	clean := filepath.Clean(path)
+	if reason, ok := blacklistedPaths[clean]; ok {
+		return reason
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	if clean == filepath.Clean(home) {
+		return fmt.Sprintf("Your home directory. Projects typically live in subdirectories like %s/myproject, not the home root itself.", home)
+	}
+	return ""
+}
+
+func validateProjectDir(path string) (bool, []string) {
+	if reason := blacklistWarning(path); reason != "" {
+		return false, []string{reason}
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return true, nil
+	}
+
+	hasRootMarker := false
+	for _, marker := range projectMarkers {
+		if _, err := os.Stat(filepath.Join(path, marker)); err == nil {
+			hasRootMarker = true
+			break
+		}
+	}
+
+	subProjectCount := 0
+	dirCount := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dirCount++
+		for _, marker := range projectMarkers {
+			if _, err := os.Stat(filepath.Join(path, entry.Name(), marker)); err == nil {
+				subProjectCount++
+				break
+			}
+		}
+	}
+
+	var warnings []string
+	if subProjectCount >= 3 {
+		warnings = append(warnings, fmt.Sprintf("Contains %d subdirectories that each appear to be separate projects. This looks like a container directory rather than a single project root.", subProjectCount))
+	}
+	if !hasRootMarker && dirCount >= 10 {
+		warnings = append(warnings, fmt.Sprintf("Contains %d subdirectories with no recognizable project marker. Indexing this could produce an unusually large and noisy semantic map.", dirCount))
+	}
+	return len(warnings) == 0, warnings
+}
+
 var defaultFsExclusions = map[string]bool{
 	"proc": true, "sys": true, "dev": true,
 	"run": true, "tmp": true, "boot": true, "lost+found": true,
@@ -65,36 +144,90 @@ func walkFS(w io.Writer) {
 	for _, e := range cfg.FsExtraExclude {
 		excluded[e] = true
 	}
-	visited := make(map[string]struct{})
-	walkDir("/", excluded, visited, w)
-}
 
-func walkDir(path string, excluded map[string]bool, visited map[string]struct{}, w io.Writer) {
-	reald, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		return
+	concurrency := cfg.FsConcurrency
+	if concurrency <= 0 {
+		concurrency = 8
 	}
-	if _, seen := visited[reald]; seen {
-		return
-	}
-	visited[reald] = struct{}{}
 
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		if excluded[entry.Name()] {
-			continue
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		visited = make(map[string]struct{})
+		sem     = make(chan struct{}, concurrency)
+		bw      = bufio.NewWriter(w)
+	)
+
+	var walk func(path string)
+	walk = func(path string) {
+		defer wg.Done()
+
+		real, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return
 		}
-		full := filepath.Join(path, entry.Name())
-		info, err := os.Stat(full)
-		if err != nil || !info.IsDir() {
-			continue
+
+		mu.Lock()
+		_, seen := visited[real]
+		if !seen {
+			visited[real] = struct{}{}
 		}
-		fmt.Fprintln(w, full)
-		walkDir(full, excluded, visited, w)
+		mu.Unlock()
+
+		if seen {
+			return
+		}
+
+		sem <- struct{}{}
+		entries, err := os.ReadDir(path)
+		<-sem
+
+		if err != nil {
+			return
+		}
+
+		for _, entry := range entries {
+			if excluded[entry.Name()] {
+				continue
+			}
+			full := filepath.Join(path, entry.Name())
+			info, err := os.Stat(full)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+
+			mu.Lock()
+			fmt.Fprintln(bw, full)
+			mu.Unlock()
+
+			wg.Add(1)
+			go walk(full)
+		}
 	}
+
+	entries, err := os.ReadDir("/")
+	if err == nil {
+		for _, entry := range entries {
+			if excluded[entry.Name()] {
+				continue
+			}
+			full := filepath.Join("/", entry.Name())
+			info, err := os.Stat(full)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+
+			mu.Lock()
+			fmt.Fprintln(bw, full)
+			mu.Unlock()
+
+			wg.Add(1)
+			go walk(full)
+		}
+	}
+
+	wg.Wait()
+	bw.Flush()
 }
 
 func serveConn(conn net.Conn) {
@@ -109,6 +242,23 @@ func serveConn(conn net.Conn) {
 	case "BROWSE":
 		w := bufio.NewWriter(conn)
 		walkFS(w)
+		w.Flush()
+
+	case "VALIDATE":
+		if !scanner.Scan() {
+			return
+		}
+		ok, warnings := validateProjectDir(scanner.Text())
+		w := bufio.NewWriter(conn)
+		if ok {
+			fmt.Fprintln(w, "OK")
+		} else {
+			fmt.Fprintln(w, "WARN")
+			for _, warn := range warnings {
+				fmt.Fprintln(w, warn)
+			}
+		}
+		fmt.Fprintln(w, "END")
 		w.Flush()
 
 	case "REMOUNT":

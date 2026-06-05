@@ -40,6 +40,7 @@ func (f *Fs) LoadMe(cfg config.Config, db *sqlx.DB) {
 func (f *Fs) StartHTTPRouter(rg *gin.RouterGroup) {
 	g := rg.Group("/fs")
 	g.GET("/browse", f.h.Browse)
+	g.GET("/projects/validate", f.h.ValidateProjectDir)
 	g.GET("/projects", f.h.ListProjects)
 	g.POST("/projects", f.h.AddProject)
 	g.DELETE("/projects/:id", f.h.DeleteProject)

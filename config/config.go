@@ -13,6 +13,7 @@ type Config struct {
 	PostgresDSN    string   `json:"postgres_dsn"`
 	LogLevel       string   `json:"log_level"`
 	FsExtraExclude []string `json:"fs_extra_exclude"`
+	FsConcurrency  int      `json:"fs_concurrency"`
 	HomeDir        string   `json:"home_dir"`
 	BinPath        string   `json:"bin_path"`
 }
@@ -24,6 +25,7 @@ var defaults = Config{
 	PostgresDSN:    "postgres://lemongrass:lemongrass@lg-postgres:5432/lemongrass?sslmode=disable",
 	LogLevel:       "info",
 	FsExtraExclude: []string{},
+	FsConcurrency:  8,
 }
 
 func Dir() string {
@@ -52,6 +54,9 @@ func LoadOrDefault() Config {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return defaults
+	}
+	if cfg.FsConcurrency <= 0 {
+		cfg.FsConcurrency = defaults.FsConcurrency
 	}
 	return cfg
 }

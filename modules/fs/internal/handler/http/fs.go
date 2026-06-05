@@ -110,6 +110,19 @@ func (h *FsHandler) DeleteArtifact(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *FsHandler) ValidateProjectDir(c *gin.Context) {
+	path := c.Query("path")
+	if path == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path is required"})
+		return
+	}
+	ok, warnings := h.uc.ValidateProjectDir(path)
+	if warnings == nil {
+		warnings = []string{}
+	}
+	c.JSON(http.StatusOK, transporter.ValidateDirResponse{Ok: ok, Warnings: warnings})
+}
+
 func (h *FsHandler) ListProjects(c *gin.Context) {
 	projects, err := h.uc.ListProjects()
 	if err != nil {

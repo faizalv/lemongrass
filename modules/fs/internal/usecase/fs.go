@@ -150,6 +150,39 @@ func (uc *FsUsecase) DeleteArtifactsByProject(ctx context.Context, projectID int
 	return uc.repo.DeleteArtifactsByProject(ctx, projectID)
 }
 
+func (uc *FsUsecase) ValidateProjectDir(path string) (bool, []string) {
+	conn, err := net.DialTimeout("unix", uc.sockPath, 5*time.Second)
+	if err != nil {
+		return true, nil
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
+
+	w := bufio.NewWriter(conn)
+	fmt.Fprintln(w, "VALIDATE")
+	fmt.Fprintln(w, path)
+	w.Flush()
+
+	scanner := bufio.NewScanner(conn)
+	if !scanner.Scan() {
+		return true, nil
+	}
+	status := scanner.Text()
+	if status == "OK" {
+		return true, nil
+	}
+
+	var warnings []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "END" {
+			break
+		}
+		warnings = append(warnings, line)
+	}
+	return false, warnings
+}
+
 func (uc *FsUsecase) RunSanityCheck(ctx context.Context) {
 	projects, err := uc.repo.ListNonRemoved()
 	if err != nil {
