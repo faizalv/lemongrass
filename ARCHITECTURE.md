@@ -13,6 +13,9 @@
   |                               postgres/ (data)   |
   |                               logs/              |
   |                               workspaces/        |
+  |                               grammars/ (lang)   |
+  |                               lg-daemon.pid      |
+  |                               lemongrass.sock    |
   +-------------------------+------------------------+
                             | :9966 (only exposed port)
                             |        bind mounts
@@ -22,7 +25,7 @@
                     |   lg-server    |
                     |   :9966        +-----> lg-postgres
                     |                +-----> lg-embed
-                    |   pty manager  |
+                    |   pty manager  +-----> lg-lang
                     |   session orch |
                     +-------+--------+
                             | docker exec + pty (stdin/stdout)
@@ -34,7 +37,8 @@
                     +----------------+
   . . . . . . . . . . . . . . . . . . . . . . . . . .
 
-  lg-embed: local E5-base model, POST /embed for annotation vectors
+  lg-embed:    local E5-base model, POST /embed for annotation vectors
+  lg-lang:     tree-sitter parser service, POST /parse for external language symbol extraction
   lg-postgres: projects, workspaces, tasks, semantic nodes
 ```
 
@@ -46,7 +50,57 @@
 
 `lg-embed` runs a local `intfloat/e5-base` embedding model. Baked into the image at build time -- no network access at runtime. Called by `lg-server` after each annotation to generate the vector for semantic search.
 
-All data lives at `~/.lemongrass/` on the host. Everything in there is bind-mounted into the containers, so the containers carry no state. Project folders get mounted at `/projects/<alias>` into both `lg-server` and `lg-runner`.
+`lg-lang` is a Go HTTP server that uses CGo to call the tree-sitter C library. It loads language grammar parsers (`.so` files) at startup via `dlopen`, walks project directories, and returns symbol nodes in the wire protocol JSON format. See the Language parsers section below.
+
+All data lives at `~/.lemongrass/` on the host. Everything in there is bind-mounted into the containers, so the containers carry no state. Project folders get mounted at `/projects/<alias>` into both `lg-server` and `lg-lang`.
+
+---
+
+## Filesystem daemon
+
+The `lemongrass` CLI runs a background daemon process (`lg-daemon`) on the host for filesystem operations that cannot be performed from inside the `lg-server` container. It listens on a Unix socket at `~/.lemongrass/lemongrass.sock`.
+
+The daemon handles two commands:
+
+**BROWSE** -- walks the host filesystem from `/` using a parallel worker pool (concurrency controlled by `FsConcurrency` in config, default 8). Returns all directories as a newline-separated stream. Feeds the filesystem browser in the Add Project modal.
+
+**VALIDATE `<path>`** -- checks whether a path looks like a project root or a container directory. Applies a three-tier check: hardcoded system path blacklist, sub-project count (3+ immediate subdirs with their own project markers), and large directory fallback (10+ children, no root marker). Returns `OK` or `WARN` followed by warning lines and `END`.
+
+`lg-server` calls the daemon over the socket for both operations -- it cannot see the host filesystem directly.
+
+---
+
+## Language parsers
+
+The Go parser (`go/ast`) runs in-process inside `lg-server`. It handles all `.go` files and is always active.
+
+All other languages are handled by `lg-lang`. When a project is mapped, `lg-server` calls `POST http://lg-lang:3000/parse` with the project path and the active `.lgignore` patterns. `lg-lang` applies every loaded grammar to matching files and returns all symbol groups in a single response.
+
+### Grammar loading
+
+Grammars are compiled tree-sitter parsers -- shared libraries exposing a single C function (`tree_sitter_php()`, `tree_sitter_typescript()`, etc.). `lg-lang` loads them at startup via `dlopen`:
+
+```
+Grammar search order:
+  1. ~/.lemongrass/grammars/<lang>.so   user-installed, takes precedence
+  2. /app/grammars/<lang>.so            bundled in the Docker image
+```
+
+### setlang / rmlang
+
+`lemongrass setlang ts,php` writes the language list to `~/.lemongrass/config.json` and restarts the `lg-lang` container. `lg-lang` reads `LG_LANGUAGES` from its environment at startup and loads only the listed grammars. A project with no configured languages gets only the Go and config parsers.
+
+`lemongrass rmlang php` removes the language from config and restarts `lg-lang`.
+
+### Development vs production
+
+In the current development phase, grammar `.so` files are compiled from source and bundled inside the Docker image at `/app/grammars/`. `setlang` activates them by config -- no download needed.
+
+In the production phase (planned), `setlang` will download pre-compiled grammar binaries for the current platform from GitHub Releases into `~/.lemongrass/grammars/`, giving independent grammar version management without rebuilding the image.
+
+### KindRole
+
+Every semantic node has a `kind` field (e.g. `vue-method`, `trait`, `blade`). The system uses `KindRole(kind)` to map kinds to cross-language roles (`method`, `func`, `type`, `component`, etc.) for internal logic like the annotation quota. The model always sees the raw `kind` -- roles are never exposed to it.
 
 ---
 
@@ -127,7 +181,8 @@ Three tool types are intercepted:
         | #lg.tasks.checkpoint <json>  -----> UI shows task list
         | (blocks)                     <----- approve / reject per task
         |      |
-        |      +-- any rejected --> model revises, resubmits
+        |      +-- any rejected --> feedback sent to model --> amending session
+        |      |                    model revises tasks, resubmits checkpoint
         |      |
         |      +-- all approved --> #lg!.handover
         |
@@ -156,6 +211,8 @@ Three tool types are intercepted:
 ## Semantic map
 
 The recon engine scans the codebase on project add and on a configurable sync interval. It builds one row per symbol in `lg_semantic_nodes` using language parsers -- no model involved at this stage.
+
+The Go parser runs in-process. External languages (TypeScript, Vue, Python, PHP, and others configured via `setlang`) are parsed by `lg-lang` over HTTP. All parsers produce the same `ParseResult` format; the engine merges all groups and upserts them together.
 
 Every symbol starts `unexplored`. The grooming model reads raw source via `#lg.recon.read`, understands it, and writes an annotation via `#lg!.annotate`. This transitions the node to `explored` and triggers embedding generation. If the source changes between scans the node goes `stale` -- the old description is kept as a hint but flagged until the model re-reads and re-annotates.
 
@@ -190,6 +247,11 @@ Commands the model uses to communicate with Lemongrass inside a session. `#lg.` 
 
 ```
   idle --> grooming --> awaiting_execution --> executing --> done
+                  ^              |
+                  |    rejected  |
+                  +-- amending --+
 ```
 
-A project can have multiple workspaces but only one can be in `executing` at a time. The execution lock blocks a second executor from starting on the same project. Grooming is not affected by it. A crashed executor can be force-stopped from the UI, which resets the workspace to `awaiting_execution` and releases the lock.
+`amending` is entered when a checkpoint is rejected and an amendment session is started. The model revises the rejected tasks and resubmits a new checkpoint. On approval the workspace returns to `awaiting_execution`.
+
+A project can have multiple workspaces but only one can be in `executing` at a time. The execution lock blocks a second executor from starting on the same project. Grooming and amendment are not affected by it. A crashed executor can be force-stopped from the UI, which resets the workspace to `awaiting_execution` and releases the lock.
