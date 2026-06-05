@@ -49,6 +49,18 @@ func (l *Lg) SetWorkspaceTaskClient(c taskProvider) {
 	l.uc.SetTaskWriter(c)
 }
 
+type usageFetcher interface {
+	FetchUsage() string
+}
+
+func (l *Lg) SetUsageProvider(p usageFetcher) {
+	l.uc.SetUsageProvider(p)
+}
+
+func (l *Lg) StartUsageScheduler(ctx context.Context) {
+	l.uc.StartUsageScheduler(ctx)
+}
+
 func (l *Lg) SessionManager() *lgclient.SessionManager {
 	return lgclient.New(l.uc)
 }
@@ -59,5 +71,6 @@ func (l *Lg) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("/write-trail", l.h.WriteTrail)
 	g.GET("/write-trail", l.h.GetWriteTrail)
 	g.GET("/execution-diff", l.h.ExecutionDiff)
+	g.GET("/usage", l.h.Usage)
 	g.GET("/calls", l.h.Calls)
 }

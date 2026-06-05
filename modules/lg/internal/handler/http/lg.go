@@ -68,6 +68,11 @@ func (h *LgHandler) GetWriteTrail(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *LgHandler) Usage(c *gin.Context) {
+	data := h.uc.GetUsage(c.Request.Context())
+	c.JSON(http.StatusOK, data)
+}
+
 func (h *LgHandler) ExecutionDiff(c *gin.Context) {
 	sessionID := c.Query("session")
 	if sessionID == "" {

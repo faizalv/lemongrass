@@ -70,6 +70,8 @@ func main() {
 
 	lgMod := &lglg.Lg{ReconClient: reconModule.Client()}
 	lgMod.LoadMe(cfg, db)
+	lgMod.SetUsageProvider(ptyMod.Client())
+	lgMod.StartUsageScheduler(context.Background())
 	lgMod.StartHTTPRouter(api)
 
 	debugMod := &lgdebug.Debug{PtyClient: ptyMod.Client(), SessionRegistrar: lgMod.SessionManager()}

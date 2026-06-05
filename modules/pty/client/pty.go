@@ -45,3 +45,7 @@ func (n *noopSession) Close()                       {}
 func (c *PtyClient) OpenNoop() Session {
 	return &noopSession{}
 }
+
+func (c *PtyClient) FetchUsage() string {
+	return c.uc.FetchUsage()
+}

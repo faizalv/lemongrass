@@ -72,6 +72,7 @@ type activeSession struct {
 type LgUsecase struct {
 	recon           reconClient
 	tasks           taskWriter
+	usage           usageProvider
 	mu              sync.Mutex
 	calls           []entity.Call
 	writeTrail      []entity.WriteTrailEntry

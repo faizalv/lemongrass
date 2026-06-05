@@ -235,6 +235,17 @@ func (u *PtyUsecase) RunTest() (entity.Session, error) {
 	return entity.Session{ID: "test", Output: sess.Output()}, nil
 }
 
+func (u *PtyUsecase) FetchUsage() string {
+	sess, err := u.Open("", "usage-fetch", "")
+	if err != nil {
+		return ""
+	}
+	defer sess.Close()
+	sess.Write([]byte("/usage\r"))
+	sess.WaitIdle(2*time.Second, 10*time.Second)
+	return sess.Output()
+}
+
 // outputBuffer accumulates raw output, logs clean lines, and supports polling.
 type outputBuffer struct {
 	mu         sync.Mutex

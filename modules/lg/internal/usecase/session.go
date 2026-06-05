@@ -64,6 +64,7 @@ func (u *LgUsecase) handleHandover(s *activeSession) {
 		s.ptySession.Close()
 	}
 	u.UnregisterSession(s.workspaceID)
+	go u.refreshUsageCache()
 }
 
 func (u *LgUsecase) handleDone(s *activeSession) {
@@ -75,4 +76,5 @@ func (u *LgUsecase) handleDone(s *activeSession) {
 		s.ptySession.Close()
 	}
 	u.UnregisterSession(s.workspaceID)
+	go u.refreshUsageCache()
 }
