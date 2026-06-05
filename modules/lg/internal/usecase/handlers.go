@@ -85,20 +85,21 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 			if n.Status != "unexplored" {
 				continue
 			}
-			switch n.Kind {
-			case "method", "func":
-				key := n.FilePath + ":" + n.Symbol + ":" + n.Kind
-				ob.nodes = append(ob.nodes, pendingNode{
-					key:      key,
-					kind:     n.Kind,
-					symbol:   n.Symbol,
-					filePath: n.FilePath,
-				})
-				if n.Kind == "method" {
-					ob.methodsRequired++
-				} else {
-					ob.funcsRequired++
-				}
+			role := reconentity.KindRole(n.Kind)
+			if role != "method" && role != "func" {
+				continue
+			}
+			key := n.FilePath + ":" + n.Symbol + ":" + n.Kind
+			ob.nodes = append(ob.nodes, pendingNode{
+				key:      key,
+				kind:     n.Kind,
+				symbol:   n.Symbol,
+				filePath: n.FilePath,
+			})
+			if role == "method" {
+				ob.methodsRequired++
+			} else {
+				ob.funcsRequired++
 			}
 		}
 		s.peekDomains[pathPrefix] = ob
@@ -330,7 +331,7 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 	u.mu.Lock()
 	if entry, ok := s.readNodes[key]; ok {
 		if ob := bestMatchDomain(s.peekDomains, filePath); ob != nil {
-			switch entry.kind {
+			switch reconentity.KindRole(entry.kind) {
 			case "method":
 				ob.methodsMet++
 				ob.annotatedKeys[key] = true
