@@ -20,6 +20,7 @@ The thinking behind the semantic map is in [PASM.md](PASM.md).
         v
   recon engine scans codebase
   builds semantic map, no model involved
+  (Go via go/ast; PHP, TypeScript, Python, Vue via tree-sitter)
         |
         v
   create workspace, drop in requirements
