@@ -34,7 +34,7 @@ func (p *Parser) Detect(dir string) bool {
 	return err == nil
 }
 
-func (p *Parser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entity.ProjectTree, error) {
+func (p *Parser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entity.ParseResult, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -76,10 +76,11 @@ func (p *Parser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entit
 		packages = append(packages, *pkg)
 	}
 
-	return &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}, nil
+	tree := &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}
+	return tree.ToParseResult(), nil
 }
 
-func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, error) {
+func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ParseResult, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -126,7 +127,8 @@ func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, error)
 		}
 	}
 
-	return &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}, nil
+	tree := &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}
+	return tree.ToParseResult(), nil
 }
 
 func parseDir(dir, root, moduleName string) *entity.PackageNode {

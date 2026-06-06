@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"path/filepath"
+	"strings"
 	"text/template"
 )
 
@@ -58,6 +59,25 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
       start_period: 30s
     restart: unless-stopped
 
+  lg-lang:
+    container_name: lg-lang
+    image: lemongrass-lang:latest
+    volumes:
+      - {{.LGDir}}/grammars:/home/lg/.lemongrass/grammars:ro
+{{- range .ProjectMounts}}
+      - {{.HostPath}}:/projects/{{.Alias}}:ro
+{{- end}}
+    environment:
+      - LG_LANGUAGES={{.LangList}}
+      - LG_GRAMMAR_USER_DIR=/home/lg/.lemongrass/grammars
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
   lg-postgres:
     container_name: lg-postgres
     image: pgvector/pgvector:pg16
@@ -89,6 +109,7 @@ type composeData struct {
 	Config
 	LGDir         string
 	ProjectMounts []projectMount
+	LangList      string
 }
 
 func GenerateCompose(cfg Config, projectPaths []string) []byte {
@@ -101,6 +122,11 @@ func GenerateCompose(cfg Config, projectPaths []string) []byte {
 		lgDir = Dir()
 	}
 	var buf bytes.Buffer
-	tmpl.Execute(&buf, composeData{Config: cfg, LGDir: lgDir, ProjectMounts: mounts})
+	tmpl.Execute(&buf, composeData{
+		Config:        cfg,
+		LGDir:         lgDir,
+		ProjectMounts: mounts,
+		LangList:      strings.Join(cfg.Languages, ","),
+	})
 	return buf.Bytes()
 }

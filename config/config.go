@@ -14,6 +14,7 @@ type Config struct {
 	LogLevel       string   `json:"log_level"`
 	FsExtraExclude []string `json:"fs_extra_exclude"`
 	FsConcurrency  int      `json:"fs_concurrency"`
+	Languages      []string `json:"languages"`
 	HomeDir        string   `json:"home_dir"`
 	BinPath        string   `json:"bin_path"`
 }
@@ -77,6 +78,7 @@ func EnsureScaffold() {
 		filepath.Join(Dir(), "postgres"),
 		filepath.Join(Dir(), "logs"),
 		filepath.Join(Dir(), "workspaces"),
+		filepath.Join(Dir(), "grammars"),
 	}
 	for _, d := range dirs {
 		os.MkdirAll(d, 0755)

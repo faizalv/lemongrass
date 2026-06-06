@@ -41,7 +41,8 @@ var defaultPatterns = []string{
 }
 
 type ignoreFilter struct {
-	gi *gitignore.GitIgnore
+	gi       *gitignore.GitIgnore
+	patterns []string
 }
 
 func (f *ignoreFilter) Match(relPath string) bool {
@@ -53,6 +54,8 @@ func (f *ignoreFilter) Match(relPath string) bool {
 	}
 	return f.gi.MatchesPath(clean)
 }
+
+func (f *ignoreFilter) Patterns() []string { return f.patterns }
 
 // readUserPatterns returns only user-written lines from .lgignore: no defaults, no comments, no blank lines.
 func readUserPatterns(dir string) []string {
@@ -99,5 +102,5 @@ func loadIgnore(dir string) lang.Ignorer {
 		}
 	}
 
-	return &ignoreFilter{gi: gitignore.CompileIgnoreLines(patterns...)}
+	return &ignoreFilter{gi: gitignore.CompileIgnoreLines(patterns...), patterns: patterns}
 }

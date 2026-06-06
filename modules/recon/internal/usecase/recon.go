@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"sync"
 
@@ -76,70 +77,70 @@ func (u *ReconUsecase) MapIfNeeded(ctx context.Context, projectID int64, dir str
 }
 
 func (u *ReconUsecase) Map(ctx context.Context, projectID int64, dir string, ignoredExisting []string) error {
-	trees, err := u.Build(dir)
+	results, err := u.Build(dir)
 	if err != nil {
 		return err
 	}
-	nodes := u.NodesToInsert(projectID, trees)
+	nodes := u.NodesToInsert(projectID, results)
 	if err := u.repo.UpsertNodes(ctx, nodes); err != nil {
 		return err
 	}
-	return u.repo.MarkRemoved(ctx, projectID, u.ActiveFilePaths(trees), ignoredExisting)
+	return u.repo.MarkRemoved(ctx, projectID, u.ActiveFilePaths(results), ignoredExisting)
 }
 
-func (u *ReconUsecase) Build(dir string) ([]*entity.ProjectTree, error) {
+func (u *ReconUsecase) Build(dir string) ([]*entity.ParseResult, error) {
 	ig := loadIgnore(dir)
-	var trees []*entity.ProjectTree
+	var results []*entity.ParseResult
 	for _, p := range u.parsers {
-		if p.Detect(dir) {
-			tree, err := p.Parse(dir, ig)
-			if err != nil {
-				return nil, fmt.Errorf("parser %s: %w", p.Name(), err)
-			}
-			trees = append(trees, tree)
+		if !p.Detect(dir) {
+			continue
 		}
+		result, err := p.Parse(dir, ig)
+		if err != nil {
+			log.Printf("[recon] parser %s: %v", p.Name(), err)
+			continue
+		}
+		results = append(results, result)
 	}
-	if len(trees) == 0 {
+	if len(results) == 0 {
 		return nil, fmt.Errorf("no supported language detected in %s", dir)
 	}
-	return trees, nil
+	return results, nil
 }
 
-func (u *ReconUsecase) NodesToInsert(projectID int64, trees []*entity.ProjectTree) []entity.SemanticNode {
+func (u *ReconUsecase) NodesToInsert(projectID int64, results []*entity.ParseResult) []entity.SemanticNode {
 	var nodes []entity.SemanticNode
-	for _, tree := range trees {
-		for _, pkg := range tree.Packages {
-			for _, file := range pkg.Files {
-				for _, sym := range file.Exports {
-					nodes = append(nodes, entity.SemanticNode{
-						ProjectID:   projectID,
-						FilePath:    file.Path,
-						LineStart:   sym.LineStart,
-						LineEnd:     sym.LineEnd,
-						Package:     pkg.ImportPath,
-						Symbol:      sym.Name,
-						Kind:        sym.Kind,
-						Language:    tree.Language,
-						Receiver:    sym.Receiver,
-						Signature:   sym.Signature,
-						Exported:    true,
-						DependsOn:   pkg.DependsOn,
-						Status:      "unexplored",
-						ContentHash: sym.ContentHash,
-					})
-				}
+	for _, result := range results {
+		for _, group := range result.Groups {
+			for _, n := range group.Nodes {
+				nodes = append(nodes, entity.SemanticNode{
+					ProjectID:   projectID,
+					FilePath:    n.FilePath,
+					LineStart:   n.LineStart,
+					LineEnd:     n.LineEnd,
+					Package:     n.Package,
+					Symbol:      n.Symbol,
+					Kind:        n.Kind,
+					Language:    group.Language,
+					Receiver:    n.Receiver,
+					Signature:   n.Signature,
+					Exported:    n.Exported,
+					DependsOn:   n.DependsOn,
+					Status:      "unexplored",
+					ContentHash: n.ContentHash,
+				})
 			}
 		}
 	}
 	return nodes
 }
 
-func (u *ReconUsecase) ActiveFilePaths(trees []*entity.ProjectTree) []string {
+func (u *ReconUsecase) ActiveFilePaths(results []*entity.ParseResult) []string {
 	seen := make(map[string]bool)
-	for _, tree := range trees {
-		for _, pkg := range tree.Packages {
-			for _, file := range pkg.Files {
-				seen[file.Path] = true
+	for _, result := range results {
+		for _, group := range result.Groups {
+			for _, n := range group.Nodes {
+				seen[n.FilePath] = true
 			}
 		}
 	}

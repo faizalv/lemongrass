@@ -37,7 +37,7 @@ func (p *configParser) Detect(dir string) bool {
 	return found
 }
 
-func (p *configParser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entity.ProjectTree, error) {
+func (p *configParser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entity.ParseResult, error) {
 	pkgMap := make(map[string]*entity.PackageNode)
 
 	for _, relPath := range paths {
@@ -80,10 +80,10 @@ func (p *configParser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (
 	for _, pkg := range pkgMap {
 		packages = append(packages, *pkg)
 	}
-	return &entity.ProjectTree{Language: "config", Packages: packages}, nil
+	return (&entity.ProjectTree{Language: "config", Packages: packages}).ToParseResult(), nil
 }
 
-func (p *configParser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, error) {
+func (p *configParser) Parse(dir string, ig lang.Ignorer) (*entity.ParseResult, error) {
 	pkgMap := make(map[string]*entity.PackageNode)
 
 	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -136,7 +136,7 @@ func (p *configParser) Parse(dir string, ig lang.Ignorer) (*entity.ProjectTree, 
 		packages = append(packages, *pkg)
 	}
 
-	return &entity.ProjectTree{Language: "config", Packages: packages}, nil
+	return (&entity.ProjectTree{Language: "config", Packages: packages}).ToParseResult(), nil
 }
 
 // fileKind returns the config kind for the given file, or "" if not recognised.
@@ -159,6 +159,9 @@ func fileKind(relPath, name string) string {
 	}
 	if isYAML(name) && isAllowedYAMLDir(relPath) {
 		return "config-yaml"
+	}
+	if strings.HasSuffix(name, ".css") {
+		return "css"
 	}
 	return ""
 }

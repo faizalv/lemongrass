@@ -26,6 +26,10 @@ func main() {
 		cmdStartDaemon()
 	case "remount":
 		cmdRemount(os.Args[2:])
+	case "setlang":
+		cmdSetLang(os.Args[2:])
+	case "rmlang":
+		cmdRmLang(os.Args[2:])
 	case "_scaffold":
 		config.EnsureScaffold()
 		fmt.Println("~/.lemongrass/ initialized")

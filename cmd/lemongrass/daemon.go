@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -150,13 +151,22 @@ func walkFS(w io.Writer) {
 		concurrency = 8
 	}
 
+	type alias struct{ logical, real string }
+
 	var (
 		wg      sync.WaitGroup
 		mu      sync.Mutex
 		visited = make(map[string]struct{})
+		emitted []string
+		aliases []alias
 		sem     = make(chan struct{}, concurrency)
 		bw      = bufio.NewWriter(w)
 	)
+
+	emit := func(path string) {
+		emitted = append(emitted, path)
+		fmt.Fprintln(bw, path)
+	}
 
 	var walk func(path string)
 	walk = func(path string) {
@@ -171,6 +181,9 @@ func walkFS(w io.Writer) {
 		_, seen := visited[real]
 		if !seen {
 			visited[real] = struct{}{}
+		}
+		if seen && path != real {
+			aliases = append(aliases, alias{path, real})
 		}
 		mu.Unlock()
 
@@ -197,7 +210,7 @@ func walkFS(w io.Writer) {
 			}
 
 			mu.Lock()
-			fmt.Fprintln(bw, full)
+			emit(full)
 			mu.Unlock()
 
 			wg.Add(1)
@@ -218,7 +231,7 @@ func walkFS(w io.Writer) {
 			}
 
 			mu.Lock()
-			fmt.Fprintln(bw, full)
+			emit(full)
 			mu.Unlock()
 
 			wg.Add(1)
@@ -227,6 +240,18 @@ func walkFS(w io.Writer) {
 	}
 
 	wg.Wait()
+
+	// For each symlink alias, replay the real subtree under the logical path.
+	// No re-traversal -- just prefix substitution over already-collected paths.
+	for _, al := range aliases {
+		prefix := al.real + string(filepath.Separator)
+		for _, p := range emitted {
+			if strings.HasPrefix(p, prefix) {
+				fmt.Fprintln(bw, al.logical+string(filepath.Separator)+p[len(prefix):])
+			}
+		}
+	}
+
 	bw.Flush()
 }
 

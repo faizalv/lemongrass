@@ -189,15 +189,15 @@
             <div :style="metaVal">{{ selected.file_path }}:{{ selected.line_start }}–{{ selected.line_end }}</div>
           </div>
 
+          <template v-if="selected.signature">
+            <div :style="{ ...metaLabel, marginTop: '20px', marginBottom: '8px' }">Signature</div>
+            <div :style="signatureBlock">{{ selected.symbol }}{{ selected.signature }}</div>
+          </template>
           <template v-if="selected.status === 'explored' && selected.description">
             <div :style="{ ...metaLabel, marginTop: '20px', marginBottom: '8px' }">Description</div>
             <div :style="descriptionBlock">{{ selected.description }}</div>
           </template>
-          <template v-else-if="selected.signature">
-            <div :style="{ ...metaLabel, marginTop: '20px', marginBottom: '8px' }">Signature</div>
-            <div :style="signatureBlock">{{ selected.symbol }}{{ selected.signature }}</div>
-          </template>
-          <div v-else :style="notAnnotated">Not yet annotated.</div>
+          <div v-if="!(selected.status === 'explored' && selected.description)" :style="notAnnotated">Not yet annotated.</div>
         </template>
       </div>
 

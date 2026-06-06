@@ -2,3 +2,9 @@ context
 .claude
 .idea
 bin
+
+cmd/lg-lang/lg-lang
+
+# grammars: fetched grammar sources and compiled .so outputs
+grammars/src/
+grammars/dist/

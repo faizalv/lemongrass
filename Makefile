@@ -19,6 +19,7 @@ embed:
 	docker build -f Dockerfile.embed -t lemongrass-embed:latest .
 
 lemongrass: build-ui embed
+	docker build -f Dockerfile.lang   -t lemongrass-lang:latest   .
 	docker build -f Dockerfile.server -t lemongrass-server:latest .
 	docker build -f Dockerfile.runner -t lemongrass-runner:latest .
 	mkdir -p bin

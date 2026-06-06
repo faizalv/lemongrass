@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,11 +111,12 @@ func (u *ReconUsecase) MapFiles(ctx context.Context, projectID int64, dir string
 		if !p.Detect(dir) {
 			continue
 		}
-		tree, err := p.ParseFiles(dir, ig, filtered)
+		result, err := p.ParseFiles(dir, ig, filtered)
 		if err != nil {
+			log.Printf("[recon] parser %s: %v", p.Name(), err)
 			continue
 		}
-		allNodes = append(allNodes, u.NodesToInsert(projectID, []*entity.ProjectTree{tree})...)
+		allNodes = append(allNodes, u.NodesToInsert(projectID, []*entity.ParseResult{result})...)
 	}
 
 	if len(allNodes) > 0 {

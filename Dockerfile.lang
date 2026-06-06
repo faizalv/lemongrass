@@ -1,0 +1,23 @@
+FROM golang:1.25-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends make git g++ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Fetch and compile grammar shared libraries
+COPY grammars/ /build/grammars/
+RUN cd /build/grammars && make fetch && make all
+
+# Build the lg-lang Go binary
+COPY cmd/lg-lang/ /build/cmd/lg-lang/
+WORKDIR /build/cmd/lg-lang
+RUN CGO_ENABLED=1 GOOS=linux go build -o /app/lg-lang .
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/lg-lang /app/lg-lang
+COPY --from=builder /build/grammars/dist/ /app/grammars/
+
+CMD ["/app/lg-lang"]
