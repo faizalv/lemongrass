@@ -86,6 +86,25 @@ Grammar search order:
   2. /app/grammars/<lang>.so            bundled in the Docker image
 ```
 
+### Symbol extraction
+
+Loading a grammar gives `lg-lang` the parser. Extracting symbols from a parsed file is a separate step driven by tree-sitter queries.
+
+Each supported language ships an S-expression query file (`.scm`) embedded in the `lg-lang` binary at build time. The query file defines structural patterns that match specific node types in the concrete syntax tree and assigns named captures to the parts that matter:
+
+```scheme
+; example: PHP top-level function
+(program
+  (function_definition
+    name: (name) @symbol
+    parameters: (formal_parameters) @params
+    return_type: (_)? @return_type) @node)
+```
+
+When `lg-lang` processes a file it runs all patterns in the query against the CST in a single pass. Each match returns a set of captures keyed by name -- `@node` (the full declaration span), `@symbol` (the identifier), `@receiver` (method receiver if present), `@params`, `@return_type`, and so on. A per-language extraction function reads those captures and builds the `parsedNode` structs that become semantic map rows.
+
+The query files are compiled at `lg-lang` startup alongside the grammar binary. If the query references a node type or field name that does not exist in the compiled grammar, `ts_query_new` returns a compile error and the grammar is not loaded -- the error log will show the byte offset and error type (NodeType, Field, or Structure) to pinpoint the bad pattern.
+
 ### setlang / rmlang
 
 `lemongrass setlang ts,php` writes the language list to `~/.lemongrass/config.json` and restarts the `lg-lang` container. `lg-lang` reads `LG_LANGUAGES` from its environment at startup and loads only the listed grammars. A project with no configured languages gets only the Go and config parsers.
@@ -159,8 +178,9 @@ Three tool types are intercepted:
         v
   Grooming session
         |
-        | #lg.recon.tree
-        | sees package map, annotation coverage per directory
+        | #lg.recon.tree [path]
+        | no arg = root directories only; pass a path to drill one level deeper
+        | run iteratively until reaching the target directory
         |
         | #lg.recon.peek <dir>
         | lists all symbols under a directory: kind, name, lines, status
@@ -228,7 +248,7 @@ Commands the model uses to communicate with Lemongrass inside a session. `#lg.` 
 
 | Command | Session | Blocking | Purpose |
 |---|---|---|---|
-| `#lg.recon.tree [path]` | grooming | yes | directory map with annotation coverage |
+| `#lg.recon.tree [path]` | grooming | yes | one level deep from root or given path; drill iteratively then peek |
 | `#lg.recon.peek <dir>` | grooming | yes | all symbols under a directory: kind, name, lines, status |
 | `#lg.recon.search <query>` | grooming | yes | vector similarity search; rejected below 80% coverage |
 | `#lg.recon.read <path:symbol:kind>` | both | yes | raw source; `[STALE]` prefix on stale nodes |
