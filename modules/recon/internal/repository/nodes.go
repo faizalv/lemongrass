@@ -356,6 +356,29 @@ func (r *ReconRepository) listRootDirect(ctx context.Context, projectID int64) (
 	return nodes, subdirs, nil
 }
 
+func (r *ReconRepository) ListUnembedded(ctx context.Context, limit int) ([]entity.SemanticNode, error) {
+	var recs []nodeRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE embedding IS NULL AND status != 'removed'
+		 ORDER BY created_at ASC,
+		          CASE WHEN status = 'unexplored' THEN 0 ELSE 1 END
+		 LIMIT $1`,
+		limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+	return nodes, nil
+}
+
 func (r *ReconRepository) SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error) {
 	var recs []nodeRecord
 	err := r.db.SelectContext(ctx, &recs,
@@ -363,7 +386,7 @@ func (r *ReconRepository) SearchByVector(ctx context.Context, projectID int64, e
 		        language, receiver, signature, exported, depends_on, status,
 		        description, return_type, content_hash, calls, explored_at, created_at
 		 FROM lg_semantic_nodes
-		 WHERE project_id = $1 AND status != 'removed' AND status != 'unexplored' AND embedding IS NOT NULL
+		 WHERE project_id = $1 AND status != 'removed' AND embedding IS NOT NULL
 		 ORDER BY embedding <=> $2::vector
 		 LIMIT $3`,
 		projectID, formatVector(embedding), limit,
@@ -477,6 +500,18 @@ func (r *ReconRepository) DeleteNodesByFilePaths(ctx context.Context, projectID 
 		`DELETE FROM lg_semantic_nodes WHERE project_id = $1 AND file_path = ANY($2)`,
 		projectID, pq.StringArray(filePaths))
 	return err
+}
+
+func (r *ReconRepository) GetEmbedPending(ctx context.Context, projectID int64) (pending, total int, err error) {
+	err = r.db.QueryRowContext(ctx,
+		`SELECT
+		   COUNT(*),
+		   COUNT(*) FILTER (WHERE embedding IS NULL)
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1 AND status != 'removed'`,
+		projectID,
+	).Scan(&total, &pending)
+	return
 }
 
 func (r *ReconRepository) GetStaleCount(ctx context.Context, projectID int64) (int, error) {

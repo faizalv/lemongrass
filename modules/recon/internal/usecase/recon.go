@@ -3,10 +3,14 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"sort"
 	"sync"
+	"time"
 
+	"github.com/faizalv/lemongrass/infra"
 	"github.com/faizalv/lemongrass/modules/recon/entity"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/embed"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase/lang"
@@ -31,6 +35,7 @@ type repo interface {
 	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error)
 	SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error
 	GetTreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error)
+	ListUnembedded(ctx context.Context, limit int) ([]entity.SemanticNode, error)
 	SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error)
 	SearchByFTS(ctx context.Context, projectID int64, query string, limit int) ([]entity.SemanticNode, error)
 	GetRelated(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error)
@@ -38,6 +43,7 @@ type repo interface {
 	GetLastSyncedCommit(ctx context.Context, projectID int64) (string, error)
 	SetLastSyncedCommit(ctx context.Context, projectID int64, commit string) error
 	DeleteNodesByFilePaths(ctx context.Context, projectID int64, filePaths []string) error
+	GetEmbedPending(ctx context.Context, projectID int64) (pending, total int, err error)
 	GetStaleCount(ctx context.Context, projectID int64) (int, error)
 }
 
@@ -49,20 +55,39 @@ type ReconUsecase struct {
 	syncing    map[int64]bool
 	lastSynced map[int64]int64
 	activeID   int64
+
+	embedMu      sync.Mutex
+	embedCurrent string
+	embedRecent  []string
+	embedLog     *log.Logger
+	embedLogW    io.Closer
 }
 
-func New(r repo, parsers ...lang.Parser) *ReconUsecase {
+func New(r repo, logDir string, parsers ...lang.Parser) *ReconUsecase {
 	sorted := make([]lang.Parser, len(parsers))
 	copy(sorted, parsers)
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].Priority() > sorted[j].Priority()
 	})
-	return &ReconUsecase{
+	uc := &ReconUsecase{
 		parsers:    sorted,
 		repo:       r,
 		embed:      embed.New(),
 		syncing:    make(map[int64]bool),
 		lastSynced: make(map[int64]int64),
+	}
+	if logDir != "" {
+		os.MkdirAll(logDir, 0755)
+		w := infra.NewDailyRotateWriter(logDir, "embed", 7)
+		uc.embedLog = log.New(io.MultiWriter(os.Stderr, w), "[embed] ", log.LstdFlags)
+		uc.embedLogW = w
+	}
+	return uc
+}
+
+func (u *ReconUsecase) Close() {
+	if u.embedLogW != nil {
+		u.embedLogW.Close()
 	}
 }
 
@@ -134,6 +159,137 @@ func (u *ReconUsecase) NodesToInsert(projectID int64, results []*entity.ParseRes
 		}
 	}
 	return nodes
+}
+
+func signatureText(n entity.SemanticNode) string {
+	role := entity.KindRole(n.Kind)
+	if role == "meta" {
+		return ""
+	}
+	switch role {
+	case "method":
+		sym := n.Symbol
+		if n.Receiver != "" {
+			sym = "(" + n.Receiver + ") " + n.Symbol
+		}
+		if n.Signature != "" {
+			return sym + n.Signature
+		}
+		return sym + " " + n.Kind
+	case "func":
+		if n.Signature != "" {
+			return n.Symbol + n.Signature
+		}
+		return n.Symbol + " " + n.Kind
+	default:
+		if n.Symbol != "" {
+			return n.Symbol + " " + n.Kind
+		}
+		return n.Kind
+	}
+}
+
+func (u *ReconUsecase) StartBackgroundEmbed(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			nodes, err := u.repo.ListUnembedded(ctx, 50)
+			if err != nil {
+				log.Printf("[recon/embed] list unembedded: %v", err)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
+				continue
+			}
+
+			if len(nodes) == 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
+				continue
+			}
+
+			embedErr := false
+			for _, n := range nodes {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				text := signatureText(n)
+				if text == "" {
+					continue
+				}
+				key := n.FilePath + ":" + n.Symbol + ":" + n.Kind
+				u.embedMu.Lock()
+				u.embedCurrent = key
+				u.embedMu.Unlock()
+
+				t0 := time.Now()
+				vec, err := u.embed.Embed(ctx, text)
+				elapsed := time.Since(t0)
+				if err != nil {
+					u.embedMu.Lock()
+					u.embedCurrent = ""
+					u.embedMu.Unlock()
+					if u.embedLog != nil {
+						u.embedLog.Printf("service unavailable: %v -- retrying in 30s", err)
+					}
+					embedErr = true
+					break
+				}
+				if err := u.repo.SetEmbedding(ctx, n.ProjectID, n.FilePath, n.Symbol, vec); err != nil {
+					if u.embedLog != nil {
+						u.embedLog.Printf("set %s -- error: %v", key, err)
+					}
+				} else {
+					if u.embedLog != nil {
+						u.embedLog.Printf("ok %s (%dms)", key, elapsed.Milliseconds())
+					}
+					u.embedMu.Lock()
+					if len(u.embedRecent) >= 20 {
+						u.embedRecent = u.embedRecent[1:]
+					}
+					u.embedRecent = append(u.embedRecent, key)
+					u.embedMu.Unlock()
+				}
+				select {
+				case <-ctx.Done():
+					u.embedMu.Lock()
+					u.embedCurrent = ""
+					u.embedMu.Unlock()
+					return
+				case <-time.After(50 * time.Millisecond):
+				}
+			}
+			u.embedMu.Lock()
+			u.embedCurrent = ""
+			u.embedMu.Unlock()
+			if embedErr {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(30 * time.Second):
+				}
+				continue
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(1 * time.Second):
+			}
+		}
+	}()
 }
 
 func (u *ReconUsecase) ActiveFilePaths(results []*entity.ParseResult) []string {

@@ -29,7 +29,7 @@ func (r *Recon) LoadMe(cfg config.Config, db *sqlx.DB) {
 		"http://lg-lang:3000", 80,
 		func(dir string) bool { return true },
 	)}
-	r.uc = usecase.New(repo, parsers...)
+	r.uc = usecase.New(repo, "/var/log/lemongrass", parsers...)
 	r.h = handler.New(r.uc)
 
 	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
@@ -53,9 +53,11 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.PATCH("/projects/:id/sync-interval", r.h.UpdateSyncInterval)
 	g.GET("/projects/:id/git-status", r.h.GitStatus)
 	g.POST("/projects/:id/git/init", r.h.GitInit)
+	g.GET("/projects/:id/embed-status", r.h.EmbedStatus)
 }
 
 func (r *Recon) StartScheduler(ctx context.Context) {
+	r.uc.StartBackgroundEmbed(ctx)
 	go func() {
 		ticker60 := time.NewTicker(60 * time.Second)
 		ticker5 := time.NewTicker(5 * time.Second)
@@ -72,6 +74,10 @@ func (r *Recon) StartScheduler(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (r *Recon) Close() {
+	r.uc.Close()
 }
 
 func (r *Recon) MapIfNeeded(ctx context.Context, projectID int64, dir string) error {

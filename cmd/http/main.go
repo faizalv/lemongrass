@@ -66,6 +66,7 @@ func main() {
 
 	reconModule := &lgrecon.Recon{}
 	reconModule.LoadMe(cfg, db)
+	defer reconModule.Close()
 	reconModule.StartHTTPRouter(api)
 
 	lgMod := &lglg.Lg{ReconClient: reconModule.Client()}

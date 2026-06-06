@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-const defaultURL = "http://lg-embed:8000"
+const defaultURL = "http://lg-embed:8080"
 
 type Client struct {
 	url        string

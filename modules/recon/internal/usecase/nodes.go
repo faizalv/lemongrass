@@ -65,6 +65,18 @@ func (u *ReconUsecase) GetProjectCoverage(ctx context.Context, projectID int64) 
 	return u.repo.GetProjectCoverage(ctx, projectID)
 }
 
+func (u *ReconUsecase) EmbedStatus(ctx context.Context, projectID int64) (pending, total int, current string, recent []string, err error) {
+	pending, total, err = u.repo.GetEmbedPending(ctx, projectID)
+	if err != nil {
+		return
+	}
+	u.embedMu.Lock()
+	current = u.embedCurrent
+	recent = append([]string(nil), u.embedRecent...)
+	u.embedMu.Unlock()
+	return
+}
+
 func (u *ReconUsecase) DropFile(ctx context.Context, projectID int64, path string) {
 	u.repo.DeleteNodesByFilePaths(ctx, projectID, []string{path})
 	u.repo.DeleteFileHashes(ctx, projectID, []string{path})

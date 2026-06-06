@@ -9,6 +9,12 @@ import (
 
 func formatAnnotate(n reconentity.SemanticNode) string {
 	desc := n.Description
+	if desc == "" {
+		desc = n.Signature
+	}
+	if desc == "" {
+		desc = n.Kind
+	}
 	if n.Status == "stale" {
 		desc = "[STALE] " + desc
 	}

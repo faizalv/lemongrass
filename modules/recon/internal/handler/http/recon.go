@@ -148,6 +148,25 @@ func (h *ReconHandler) GitInit(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *ReconHandler) EmbedStatus(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	pending, total, current, recent, err := h.uc.EmbedStatus(c.Request.Context(), projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"pending": pending,
+		"total":   total,
+		"current": current,
+		"recent":  recent,
+	})
+}
+
 func (h *ReconHandler) GetLgIgnore(c *gin.Context) {
 	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {

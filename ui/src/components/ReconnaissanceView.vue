@@ -202,6 +202,7 @@
       </div>
 
     </div>
+    <EmbedStatusPanel :project-id="String(project.id)" />
     <GitPanel :project-id="String(project.id)" />
   </div>
 </template>
@@ -212,6 +213,7 @@ import type { Project, SemanticNode, LangCoverage, ReconTreeNode } from '../type
 import AppIcon from './AppIcon.vue'
 import ReconFileNode from './ReconFileNode.vue'
 import GitPanel from './GitPanel.vue'
+import EmbedStatusPanel from './EmbedStatusPanel.vue'
 
 const props = defineProps<{ project: Project }>()
 

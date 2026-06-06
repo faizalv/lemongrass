@@ -154,18 +154,11 @@ func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query st
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
-
-	coverageNote := ""
-	if total, explored, err := u.recon.GetProjectCoverage(ctx, s.projectID); err == nil && total > 0 {
-		pct := explored * 100 / total
-		coverageNote = fmt.Sprintf(" (%d%% of %d nodes annotated)", pct, total)
-	}
-
 	if len(nodes) == 0 {
-		return "no results" + coverageNote
+		return "no results"
 	}
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("-- %d result(s)%s\n", len(nodes), coverageNote))
+	sb.WriteString(fmt.Sprintf("-- %d result(s)\n", len(nodes)))
 	for _, n := range nodes {
 		sb.WriteString(formatAnnotate(n))
 		sb.WriteByte('\n')
