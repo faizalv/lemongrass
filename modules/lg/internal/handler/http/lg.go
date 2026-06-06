@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"github.com/faizalv/lemongrass/modules/lg/entity"
 	"github.com/faizalv/lemongrass/modules/lg/internal/usecase"
 	transporter "github.com/faizalv/lemongrass/modules/lg/transporter/http"
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,12 @@ func (h *LgHandler) Receive(c *gin.Context) {
 }
 
 func (h *LgHandler) Calls(c *gin.Context) {
-	calls := h.uc.ListCalls()
+	var calls []entity.Call
+	if ws := c.Query("workspace"); ws != "" {
+		calls = h.uc.ListCallsByWorkspace(ws)
+	} else {
+		calls = h.uc.ListCalls()
+	}
 	resp := make([]transporter.CallResponse, len(calls))
 	for i, call := range calls {
 		resp[i] = transporter.ToCallResponse(call)

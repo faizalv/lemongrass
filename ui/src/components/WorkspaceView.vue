@@ -48,36 +48,54 @@
       </div>
     </div>
 
-    <!-- Tab content -->
-    <div style="flex:1;display:flex;overflow:hidden">
-      <GroomingView
-        v-if="activeTab === 'grooming'"
-        :workspace="liveWorkspace"
-        @jump-tab="switchTab($event)"
-        @status-change="liveStatus = $event"
-      />
+    <!-- Tab content + protocol panel -->
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div style="flex:1;display:flex;overflow:hidden">
+        <GroomingView
+          v-if="activeTab === 'grooming'"
+          :workspace="liveWorkspace"
+          @jump-tab="switchTab($event)"
+          @status-change="liveStatus = $event"
+        />
 
-      <template v-else-if="activeTab === 'execution'">
-        <ExecutionView v-if="isExecutionPhase" :workspace="liveWorkspace" />
-        <div v-else class="fade-in" :style="emptyWrap">
-          <div :style="emptyIcon"><AppIcon name="route" :size="22" color="var(--color-gray-500)" /></div>
-          <div :style="emptyTitle">Execution hasn't started yet</div>
-          <div :style="emptyBody">Finish grooming first to unlock this phase.</div>
+        <template v-else-if="activeTab === 'execution'">
+          <ExecutionView v-if="isExecutionPhase" :workspace="liveWorkspace" />
+          <div v-else class="fade-in" :style="emptyWrap">
+            <div :style="emptyIcon"><AppIcon name="route" :size="22" color="var(--color-gray-500)" /></div>
+            <div :style="emptyTitle">Execution hasn't started yet</div>
+            <div :style="emptyBody">Finish grooming first to unlock this phase.</div>
+            <div :style="lockedBadge">
+              <AppIcon name="lock" :size="11" />
+              Grooming must finish first
+            </div>
+          </div>
+        </template>
+
+        <div v-else-if="activeTab === 'testing'" class="fade-in" :style="emptyWrap">
+          <div :style="emptyIcon"><AppIcon name="flask-conical" :size="22" color="var(--color-gray-500)" /></div>
+          <div :style="emptyTitle">Nothing to test yet</div>
+          <div :style="emptyBody">REST endpoints pre-populated from your Swagger map will land here after the build phase.</div>
           <div :style="lockedBadge">
             <AppIcon name="lock" :size="11" />
             Grooming must finish first
           </div>
         </div>
-      </template>
+      </div>
 
-      <div v-else-if="activeTab === 'testing'" class="fade-in" :style="emptyWrap">
-        <div :style="emptyIcon"><AppIcon name="flask-conical" :size="22" color="var(--color-gray-500)" /></div>
-        <div :style="emptyTitle">Nothing to test yet</div>
-        <div :style="emptyBody">REST endpoints pre-populated from your Swagger map will land here after the build phase.</div>
-        <div :style="lockedBadge">
-          <AppIcon name="lock" :size="11" />
-          Grooming must finish first
-        </div>
+      <!-- Protocol log panel -->
+      <div v-if="protocolOpen" :style="protocolPanel">
+        <ProtocolLog :workspace-id="workspace.id" />
+      </div>
+
+      <!-- Protocol toggle strip -->
+      <div :style="protocolStrip" @click="protocolOpen = !protocolOpen">
+        <AppIcon name="terminal" :size="11" />
+        <span>Protocol Log</span>
+        <AppIcon
+          name="chevron-down"
+          :size="12"
+          :extra-style="{ transform: protocolOpen ? 'none' : 'rotate(180deg)', transition: 'transform 150ms ease' }"
+        />
       </div>
     </div>
   </div>
@@ -90,6 +108,7 @@ import type { Workspace } from '../types'
 import AppIcon from './AppIcon.vue'
 import GroomingView from './grooming/GroomingView.vue'
 import ExecutionView from './execution/ExecutionView.vue'
+import ProtocolLog from './ProtocolLog.vue'
 
 const props = defineProps<{ workspace: Workspace & { branch: string } }>()
 
@@ -138,6 +157,8 @@ const tabs = [
   { id: 'testing',    label: 'Testing',   icon: 'flask-conical' },
 ]
 
+const protocolOpen = ref(false)
+
 const topBar      = { borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'var(--color-surface-0)', flexShrink: 0 }
 const breadcrumb  = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-500)', whiteSpace: 'nowrap', overflow: 'hidden' }
 const wsTitle     = { fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
@@ -151,4 +172,6 @@ const emptyBody   = { fontSize: '13.5px', color: 'var(--color-gray-400)', lineHe
 const lockedBadge   = { marginTop: '18px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', color: 'var(--color-gray-400)', fontSize: '11.5px', fontFamily: 'var(--font-body)', fontWeight: 600 }
 const dropdownMenu  = { position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--color-surface-1)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: '8px', padding: '4px', minWidth: '180px', zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' } as Record<string, any>
 const dropdownItem  = (color: string) => ({ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 10px', background: 'transparent', border: 'none', borderRadius: '5px', color, fontFamily: 'var(--font-body)', fontSize: '13px', cursor: 'pointer', textAlign: 'left' as const })
+const protocolPanel = { height: '260px', flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden', display: 'flex', flexDirection: 'column' } as Record<string, any>
+const protocolStrip = { display: 'flex', alignItems: 'center', gap: '7px', padding: '6px 20px', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'var(--color-surface-0)', cursor: 'pointer', flexShrink: 0, fontFamily: 'var(--font-body)', fontSize: '11.5px', fontWeight: 500, color: 'var(--color-gray-500)', userSelect: 'none' } as Record<string, any>
 </script>

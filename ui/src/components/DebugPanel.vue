@@ -84,6 +84,7 @@
                 <span style="margin-left:auto;display:flex;gap:4px;flex-shrink:0">
                   <button :style="s.drillBtn" @click="peekDrillRead(row)" title="read">read</button>
                   <button :style="s.drillBtn" @click="peekDrillRelated(row)" title="related">related</button>
+                  <button :style="s.drillBtn" @click="peekDrillAnnotate(row)" title="annotate">annotate</button>
                 </span>
               </div>
             </div>
@@ -92,6 +93,27 @@
         </div>
         <div v-else :style="s.emptyResult">
           Send a command to see the response.
+        </div>
+
+        <!-- Annotate form (shown after a successful recon.read) -->
+        <div v-if="lastReadRef" :style="s.annotateBox">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span :style="s.sectionLabel" style="margin:0">Annotate {{ lastReadRef.symbol }} ({{ lastReadRef.kind }})</span>
+            <span v-if="annotateResult" :style="s.badge(annotateResult.ok)">{{ annotateResult.text }}</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <input
+              v-model="annotateDesc"
+              :style="s.input"
+              placeholder="Description..."
+              @keydown.enter="sendAnnotate"
+            />
+            <button
+              :disabled="!annotateDesc.trim() || annotateRunning"
+              :style="s.sendBtn(!annotateDesc.trim() || annotateRunning)"
+              @click="sendAnnotate"
+            >{{ annotateRunning ? '…' : 'Annotate' }}</button>
+          </div>
         </div>
 
         <!-- History -->
@@ -151,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { Workspace } from '../types'
 
 const props = defineProps<{ workspaces: Workspace[] }>()
@@ -170,6 +192,22 @@ const ptyMessage = ref('')
 const ptySending = ref(false)
 const calls = ref<Call[]>([])
 let pollTimer: ReturnType<typeof setInterval> | null = null
+
+const annotateDesc = ref('')
+const annotateResult = ref<{ ok: boolean; text: string } | null>(null)
+const annotateRunning = ref(false)
+
+const lastReadRef = computed(() => {
+  if (!lastResult.value || lastResult.value.cmd !== 'recon.read' || !lastResult.value.ok) return null
+  const parts = lastResult.value.args.split(':')
+  if (parts.length < 3) return null
+  return { path: parts[0], symbol: parts[1], kind: parts[2] }
+})
+
+watch(lastReadRef, () => {
+  annotateResult.value = null
+  annotateDesc.value = ''
+})
 
 const quickCommands = ['recon.tree', 'recon.peek modules/', 'recon.search handlers', 'echo ping']
 
@@ -295,6 +333,38 @@ function peekDrillRelated(row: PeekRow) {
   command.value = `#lg.recon.related ${row.filePath}:${row.rawSymbol}:${row.kind}`
 }
 
+function peekDrillAnnotate(row: PeekRow) {
+  command.value = `#lg!.annotate ${row.filePath}:${row.rawSymbol}:${row.kind}:""::`
+}
+
+async function sendAnnotate() {
+  if (!lastReadRef.value || annotateRunning.value || !annotateDesc.value.trim()) return
+  const { path, symbol, kind } = lastReadRef.value
+  annotateRunning.value = true
+  annotateResult.value = null
+  try {
+    const r = await fetch('/api/debug/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspace_id: selectedWorkspaceId.value,
+        project_id: selectedWorkspace.value?.project_id ? Number(selectedWorkspace.value.project_id) : 0,
+        command: `#lg!.annotate ${path}:${symbol}:${kind}:"${annotateDesc.value.trim()}"::`,
+        session_type: sessionType.value,
+      }),
+    })
+    const body = await r.json().catch(() => ({ output: '', exit_code: -1 }))
+    const { text } = parseHookOutput(body.output || body.error || '')
+    const ok = text === 'ok'
+    annotateResult.value = { ok, text: text || '(empty response)' }
+    if (ok) annotateDesc.value = ''
+  } catch {
+    annotateResult.value = { ok: false, text: 'error: network failure' }
+  } finally {
+    annotateRunning.value = false
+  }
+}
+
 function restoreHistory(h: Result) {
   command.value = '#lg.' + h.cmd + (h.args ? ' ' + h.args : '')
   lastResult.value = h
@@ -411,6 +481,10 @@ const s = {
   emptyResult: {
     fontSize: '12px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)',
     padding: '16px 0',
+  },
+  annotateBox: {
+    marginTop: '12px', background: 'rgba(251,191,36,0.04)',
+    border: '1px solid rgba(251,191,36,0.15)', borderRadius: '8px', padding: '14px 16px',
   },
   elapsed: {
     fontSize: '11px', color: 'var(--color-gray-500)',

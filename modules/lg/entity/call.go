@@ -3,10 +3,13 @@ package entity
 import "time"
 
 type Call struct {
-	Cmd       string
-	Args      string
-	SessionID string
-	Timestamp time.Time
+	Cmd         string
+	Args        string
+	Response    string
+	SessionID   string
+	SessionType string
+	DurationMs  int64
+	Timestamp   time.Time
 }
 
 type EchoMessage struct {

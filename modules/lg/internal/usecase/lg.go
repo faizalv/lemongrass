@@ -16,10 +16,10 @@ import (
 type reconClient interface {
 	TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.DirectoryCoverage, error)
 	ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (reconentity.SemanticNode, string, error)
-	Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error
+	Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error)
 	Search(ctx context.Context, projectID int64, query string) ([]reconentity.SemanticNode, error)
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
-	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
+	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, []reconentity.SubdirSummary, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
 	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)
@@ -174,58 +174,106 @@ func (u *LgUsecase) SetTaskWriter(tw taskWriter) {
 	u.tasks = tw
 }
 
-func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
+func (u *LgUsecase) logCall(sessionID, sessionType, cmd, args, response string, start time.Time) {
+	c := entity.Call{
+		Cmd:         cmd,
+		Args:        args,
+		Response:    response,
+		SessionID:   sessionID,
+		SessionType: sessionType,
+		DurationMs:  time.Since(start).Milliseconds(),
+		Timestamp:   start,
+	}
 	u.mu.Lock()
-	u.calls = append(u.calls, entity.Call{Cmd: cmd, Args: args, SessionID: sessionID, Timestamp: time.Now()})
+	u.calls = append(u.calls, c)
 	if len(u.calls) > 200 {
 		u.calls = u.calls[len(u.calls)-200:]
 	}
+	u.mu.Unlock()
+}
+
+func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
+	start := time.Now()
+	u.mu.Lock()
 	if sessionID != "" {
-		u.lastActivity[sessionID] = time.Now()
+		u.lastActivity[sessionID] = start
 	}
 	s := u.sessions[sessionID]
 	u.mu.Unlock()
 
 	if cmd == "echo" {
+		u.logCall(sessionID, "", cmd, args, args, start)
 		return args
 	}
 
 	if s == nil {
-		return "error: no active session for this workspace"
+		resp := "error: no active session for this workspace"
+		u.logCall(sessionID, "", cmd, args, resp, start)
+		return resp
 	}
 	if u.recon == nil {
-		return "error: recon not available"
+		resp := "error: recon not available"
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	}
 
 	ctx := context.Background()
 	switch cmd {
 	case "recon.tree":
-		return u.handleTree(ctx, s, args)
+		resp := u.handleTree(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "recon.peek":
-		return u.handlePeek(ctx, s, args)
+		resp := u.handlePeek(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "recon.search":
-		return u.handleSearch(ctx, s, args)
+		resp := u.handleSearch(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "recon.read":
-		return u.handleRead(ctx, s, args)
+		resp := u.handleRead(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "recon.related":
-		return u.handleRelated(ctx, s, args)
+		resp := u.handleRelated(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "recon.drop":
-		go u.handleReconDrop(ctx, s, args)
+		go func() {
+			u.handleReconDrop(ctx, s, args)
+			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
+		}()
 		return ""
 	case "annotate":
-		go u.handleAnnotate(ctx, s, args)
+		go func() {
+			resp := u.handleAnnotate(ctx, s, args)
+			u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		}()
 		return ""
 	case "quota.status":
-		return u.handleQuotaStatus(s)
+		resp := u.handleQuotaStatus(s)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "tasks.checkpoint":
-		return u.handleCheckpoint(ctx, s, args)
+		resp := u.handleCheckpoint(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "tasks.read":
-		return u.handleTasksRead(ctx, s)
+		resp := u.handleTasksRead(ctx, s)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "handover":
-		go u.handleHandover(s)
+		go func() {
+			u.handleHandover(s)
+			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
+		}()
 		return ""
 	case "done":
-		go u.handleDone(s)
+		go func() {
+			u.handleDone(s)
+			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
+		}()
 		return ""
 	}
 	return ""

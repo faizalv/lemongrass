@@ -7,13 +7,25 @@ import (
 )
 
 type CallResponse struct {
-	Cmd       string    `json:"cmd"`
-	Args      string    `json:"args"`
-	Timestamp time.Time `json:"timestamp"`
+	Cmd         string    `json:"cmd"`
+	Args        string    `json:"args"`
+	Response    string    `json:"response"`
+	SessionID   string    `json:"session_id"`
+	SessionType string    `json:"session_type"`
+	DurationMs  int64     `json:"duration_ms"`
+	Timestamp   time.Time `json:"timestamp"`
 }
 
 func ToCallResponse(c entity.Call) CallResponse {
-	return CallResponse{Cmd: c.Cmd, Args: c.Args, Timestamp: c.Timestamp}
+	return CallResponse{
+		Cmd:         c.Cmd,
+		Args:        c.Args,
+		Response:    c.Response,
+		SessionID:   c.SessionID,
+		SessionType: c.SessionType,
+		DurationMs:  c.DurationMs,
+		Timestamp:   c.Timestamp,
+	}
 }
 
 type WriteTrailResponse struct {

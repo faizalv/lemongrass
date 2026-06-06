@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -100,9 +99,7 @@ func (u *LgUsecase) refreshUsageCache() {
 		return
 	}
 	raw := u.usage.FetchUsage()
-	log.Printf("[usage] scheduled fetch raw_len=%d", len(raw))
 	data := parseUsageOutput(raw)
-	log.Printf("[usage] scheduled parsed session_pct=%d week_pct=%d", data.SessionPct, data.WeekPct)
 	usageCacheMu.Lock()
 	usageCached = &usageCacheEntry{data: data, at: time.Now()}
 	usageCacheMu.Unlock()

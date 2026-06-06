@@ -33,25 +33,32 @@ func (u *ReconUsecase) ReadNode(ctx context.Context, projectID int64, filePath, 
 		return entity.SemanticNode{}, "", err
 	}
 	diskPath := filepath.Join("/projects", filepath.Base(rawPath), filePath)
-	code, err := readLines(diskPath, node.LineStart, node.LineEnd)
+	lineEnd := node.LineEnd
+	if entity.KindRole(node.Kind) == "type" && lineEnd > node.LineStart+19 {
+		lineEnd = node.LineStart + 19
+	}
+	code, err := readLines(diskPath, node.LineStart, lineEnd)
 	if err != nil {
 		return entity.SemanticNode{}, "", fmt.Errorf("read file: %w", err)
 	}
 	return node, code, nil
 }
 
-func (u *ReconUsecase) Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error {
-	if err := u.repo.AnnotateNode(ctx, projectID, filePath, symbol, kind, description, returnType, calls); err != nil {
-		return err
+func (u *ReconUsecase) Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error) {
+	n, err := u.repo.AnnotateNode(ctx, projectID, filePath, symbol, kind, description, returnType, calls)
+	if err != nil {
+		return 0, err
 	}
-	go func() {
-		vec, err := u.embed.Embed(context.Background(), description)
-		if err != nil {
-			return
-		}
-		u.repo.SetEmbedding(context.Background(), projectID, filePath, symbol, vec)
-	}()
-	return nil
+	if n > 0 {
+		go func() {
+			vec, err := u.embed.Embed(context.Background(), description)
+			if err != nil {
+				return
+			}
+			u.repo.SetEmbedding(context.Background(), projectID, filePath, symbol, vec)
+		}()
+	}
+	return n, nil
 }
 
 func (u *ReconUsecase) GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error) {
@@ -98,8 +105,8 @@ func (u *ReconUsecase) Related(ctx context.Context, projectID int64, filePath, s
 	return u.repo.GetRelated(ctx, projectID, filePath, symbol, kind)
 }
 
-func (u *ReconUsecase) PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
-	return u.repo.ListByPathPrefix(ctx, projectID, pathPrefix)
+func (u *ReconUsecase) PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, []entity.SubdirSummary, error) {
+	return u.repo.ListByPathDirect(ctx, projectID, pathPrefix)
 }
 
 func readLines(path string, start, end int) (string, error) {

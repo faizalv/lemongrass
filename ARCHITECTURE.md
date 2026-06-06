@@ -179,11 +179,11 @@ Three tool types are intercepted:
   Grooming session
         |
         | #lg.recon.tree [path]
-        | no arg = root directories only; pass a path to drill one level deeper
-        | run iteratively until reaching the target directory
+        | full project coverage at all depths; n/m explored; n stale per directory
+        | no arg = whole project; pass a path to filter to that subtree
         |
         | #lg.recon.peek <dir>
-        | lists all symbols under a directory: kind, name, lines, status
+        | direct-child symbols only + subdirectory symbol counts; non-recursive
         |
         | nodes already annotated?
         |   yes --> #lg.recon.search "keyword"
@@ -248,9 +248,9 @@ Commands the model uses to communicate with Lemongrass inside a session. `#lg.` 
 
 | Command | Session | Blocking | Purpose |
 |---|---|---|---|
-| `#lg.recon.tree [path]` | grooming | yes | one level deep from root or given path; drill iteratively then peek |
-| `#lg.recon.peek <dir>` | grooming | yes | all symbols under a directory: kind, name, lines, status |
-| `#lg.recon.search <query>` | grooming | yes | vector similarity search; rejected below 80% coverage |
+| `#lg.recon.tree [path]` | grooming | yes | full project coverage at all depths; n/m explored; n stale per directory |
+| `#lg.recon.peek <dir>` | grooming | yes | direct-child symbols + subdirectory counts; non-recursive |
+| `#lg.recon.search <query>` | grooming | yes | hybrid vector + full-text search; top 10 results across both, deduplicated |
 | `#lg.recon.read <path:symbol:kind>` | both | yes | raw source; `[STALE]` prefix on stale nodes |
 | `#lg.recon.related <path:symbol:kind>` | grooming | yes | callers and callees from the call graph |
 | `#lg!.annotate <path:symbol:kind>:"desc":return:deps` | both | no | store description, return type, deps; generate embedding |

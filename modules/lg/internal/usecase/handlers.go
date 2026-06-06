@@ -41,8 +41,11 @@ func (u *LgUsecase) handleTree(ctx context.Context, s *activeSession, args strin
 	}
 	var sb strings.Builder
 	for _, d := range dirs {
-		sb.WriteString(fmt.Sprintf("%-50s %3d nodes  %3d explored  %3d stale  %3d unexplored\n",
-			d.Dir, d.Total, d.Explored, d.Stale, d.Unexplored))
+		if d.Stale > 0 {
+			sb.WriteString(fmt.Sprintf("%-50s %d/%d explored; %d stale\n", d.Dir, d.Explored, d.Total, d.Stale))
+		} else {
+			sb.WriteString(fmt.Sprintf("%-50s %d/%d explored\n", d.Dir, d.Explored, d.Total))
+		}
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
@@ -67,11 +70,11 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 	if pathPrefix == "" {
 		return "error: recon.peek requires a directory path"
 	}
-	nodes, err := u.recon.PeekDir(ctx, s.projectID, pathPrefix)
+	nodes, subdirs, err := u.recon.PeekDir(ctx, s.projectID, pathPrefix)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
-	if len(nodes) == 0 {
+	if len(nodes) == 0 && len(subdirs) == 0 {
 		return "no symbols found under " + pathPrefix
 	}
 
@@ -106,6 +109,17 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 	}
 	u.mu.Unlock()
 
+	var sb strings.Builder
+	for _, sd := range subdirs {
+		sb.WriteString(fmt.Sprintf("%-50s %d symbols\n", sd.Path, sd.Count))
+	}
+	if len(subdirs) > 0 && len(nodes) > 0 {
+		sb.WriteByte('\n')
+	}
+	if len(nodes) == 0 {
+		return strings.TrimRight(sb.String(), "\n")
+	}
+
 	type fileGroup struct {
 		path    string
 		regular []reconentity.SemanticNode
@@ -127,7 +141,6 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 		}
 	}
 
-	var sb strings.Builder
 	for i, f := range files {
 		if i > 0 {
 			sb.WriteByte('\n')
@@ -320,10 +333,10 @@ func (u *LgUsecase) handleReconDrop(ctx context.Context, s *activeSession, args 
 	u.recon.DropFile(ctx, s.projectID, rel)
 }
 
-func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) {
+func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) string {
 	filePath, symbol, kind, description, returnType, calls, err := parseAnnotateFormat(args)
 	if err != nil {
-		return
+		return "error: " + err.Error()
 	}
 	filePath = stripProjectPrefix(s.projectAlias, filePath)
 	symbol = stripReceiver(symbol)
@@ -342,7 +355,14 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 		}
 	}
 	u.mu.Unlock()
-	u.recon.Annotate(ctx, s.projectID, filePath, symbol, kind, description, returnType, calls)
+	n, err := u.recon.Annotate(ctx, s.projectID, filePath, symbol, kind, description, returnType, calls)
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	if n == 0 {
+		return "not found: " + symbol + " (" + kind + ")"
+	}
+	return "ok"
 }
 
 func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args string) string {

@@ -59,3 +59,15 @@ func (u *LgUsecase) ListCalls() []entity.Call {
 	copy(result, u.calls)
 	return result
 }
+
+func (u *LgUsecase) ListCallsByWorkspace(workspaceID string) []entity.Call {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	var out []entity.Call
+	for _, c := range u.calls {
+		if c.SessionID == workspaceID {
+			out = append(out, c)
+		}
+	}
+	return out
+}

@@ -40,6 +40,11 @@ type DirectoryCoverage struct {
 	Unexplored int
 }
 
+type SubdirSummary struct {
+	Path  string
+	Count int
+}
+
 type FileHash struct {
 	Path string
 	Hash string

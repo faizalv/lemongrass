@@ -15,7 +15,7 @@ const environmentPreamble = `You are running inside Lemongrass (lg-runner). Term
 const hookCallInstruction = `Every #lg.* and #lg!.* command in this prompt is a direct Bash tool call -- not prose, not a comment. # routes to lg-hook; ! means fire-and-forget. Each command is one Bash tool call -- never combine multiple #lg.* calls on one line.`
 
 const cmdReconSearch  = `#lg.recon.search <query> -- vector search across annotated nodes; returns coverage context`
-const cmdReconPeek    = `#lg.recon.peek <dir> -- all symbols under a directory: kind, name, lines, status`
+const cmdReconPeek    = `#lg.recon.peek <dir> -- symbols in files directly inside a directory + subdirectory symbol counts. Non-recursive. Pass a file path to see that file's symbols only.`
 const cmdReconRead    = `#lg.recon.read <path:symbol:kind> -- raw source for a symbol; server resolves lines from map`
 const cmdReconRelated = `#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol`
 const cmdAnnotate     = `#lg!.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil`

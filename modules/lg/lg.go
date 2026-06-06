@@ -16,10 +16,10 @@ import (
 type reconProvider interface {
 	TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.DirectoryCoverage, error)
 	ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (reconentity.SemanticNode, string, error)
-	Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error
+	Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error)
 	Search(ctx context.Context, projectID int64, query string) ([]reconentity.SemanticNode, error)
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
-	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
+	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, []reconentity.SubdirSummary, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
 	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)

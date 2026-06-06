@@ -23,7 +23,7 @@ func (c *ReconClient) ReadNode(ctx context.Context, projectID int64, filePath, s
 	return c.uc.ReadNode(ctx, projectID, filePath, symbol, kind)
 }
 
-func (c *ReconClient) Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error {
+func (c *ReconClient) Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error) {
 	return c.uc.Annotate(ctx, projectID, filePath, symbol, kind, description, returnType, calls)
 }
 
@@ -39,7 +39,7 @@ func (c *ReconClient) Related(ctx context.Context, projectID int64, filePath, sy
 	return c.uc.Related(ctx, projectID, filePath, symbol, kind)
 }
 
-func (c *ReconClient) PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+func (c *ReconClient) PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, []entity.SubdirSummary, error) {
 	return c.uc.PeekDir(ctx, projectID, pathPrefix)
 }
 

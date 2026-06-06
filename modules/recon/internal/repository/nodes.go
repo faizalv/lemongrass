@@ -147,18 +147,22 @@ func (r *ReconRepository) GetNode(ctx context.Context, projectID int64, filePath
 	return toEntity(rec), nil
 }
 
-func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) error {
+func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error) {
 	c := pq.StringArray(calls)
 	if c == nil {
 		c = pq.StringArray{}
 	}
-	_, err := r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE lg_semantic_nodes
 		 SET description = $1, return_type = $2, calls = $3, status = 'explored', explored_at = NOW()
 		 WHERE project_id = $4 AND file_path = $5 AND symbol = $6 AND kind = $7`,
 		nullStr(description), nullStr(returnType), c, projectID, filePath, symbol, kind,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 func (r *ReconRepository) GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error) {
@@ -198,11 +202,6 @@ func (r *ReconRepository) GetTreeCoverage(ctx context.Context, projectID int64, 
 	}
 	defer rows.Close()
 
-	depth := 1
-	if pathPrefix != "" {
-		depth = len(strings.Split(strings.TrimSuffix(pathPrefix, "/"), "/")) + 1
-	}
-
 	type counts struct{ total, explored, stale int }
 	dirs := make(map[string]*counts)
 	for rows.Next() {
@@ -210,7 +209,7 @@ func (r *ReconRepository) GetTreeCoverage(ctx context.Context, projectID int64, 
 		if err := rows.Scan(&fp, &st); err != nil {
 			return nil, err
 		}
-		dir := groupAtDepth(fp, depth)
+		dir := dirOf(fp)
 		c, ok := dirs[dir]
 		if !ok {
 			c = &counts{}
@@ -242,17 +241,119 @@ func (r *ReconRepository) GetTreeCoverage(ctx context.Context, projectID int64, 
 	return out, nil
 }
 
-func groupAtDepth(fp string, depth int) string {
-	parts := strings.Split(fp, "/")
-	dirDepth := len(parts) - 1
-	if dirDepth == 0 {
-		return "."
+func dirOf(fp string) string {
+	if i := strings.LastIndex(fp, "/"); i >= 0 {
+		return fp[:i]
 	}
-	n := depth
-	if n > dirDepth {
-		n = dirDepth
+	return "."
+}
+
+func (r *ReconRepository) ListByPathDirect(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, []entity.SubdirSummary, error) {
+	pathPrefix = strings.TrimSuffix(strings.TrimPrefix(pathPrefix, "./"), "/")
+	if pathPrefix == "." || pathPrefix == "" {
+		return r.listRootDirect(ctx, projectID)
 	}
-	return strings.Join(parts[:n], "/")
+	prefix := pathPrefix + "/"
+
+	var recs []nodeRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1
+		   AND file_path LIKE $2
+		   AND file_path NOT LIKE $3
+		   AND status != 'removed'
+		 ORDER BY file_path, line_start`,
+		projectID, prefix+"%", prefix+"%/%",
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+
+	type row struct {
+		Name  string `db:"subdir_name"`
+		Count int    `db:"symbol_count"`
+	}
+	var subdirRows []row
+	prefixLen := len(prefix) + 1 // SUBSTR is 1-indexed
+	err = r.db.SelectContext(ctx, &subdirRows,
+		`SELECT
+		    SPLIT_PART(SUBSTR(file_path, $3), '/', 1) AS subdir_name,
+		    COUNT(*)::int AS symbol_count
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1
+		   AND file_path LIKE $2
+		   AND STRPOS(SUBSTR(file_path, $3), '/') > 0
+		   AND status != 'removed'
+		 GROUP BY subdir_name
+		 ORDER BY subdir_name`,
+		projectID, prefix+"%", prefixLen,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	subdirs := make([]entity.SubdirSummary, len(subdirRows))
+	for i, r := range subdirRows {
+		subdirs[i] = entity.SubdirSummary{
+			Path:  pathPrefix + "/" + r.Name,
+			Count: r.Count,
+		}
+	}
+	return nodes, subdirs, nil
+}
+
+func (r *ReconRepository) listRootDirect(ctx context.Context, projectID int64) ([]entity.SemanticNode, []entity.SubdirSummary, error) {
+	var recs []nodeRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1
+		   AND file_path NOT LIKE '%/%'
+		   AND status != 'removed'
+		 ORDER BY file_path, line_start`,
+		projectID,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+
+	type row struct {
+		Name  string `db:"subdir_name"`
+		Count int    `db:"symbol_count"`
+	}
+	var subdirRows []row
+	err = r.db.SelectContext(ctx, &subdirRows,
+		`SELECT
+		    SPLIT_PART(file_path, '/', 1) AS subdir_name,
+		    COUNT(*)::int AS symbol_count
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1
+		   AND file_path LIKE '%/%'
+		   AND status != 'removed'
+		 GROUP BY subdir_name
+		 ORDER BY subdir_name`,
+		projectID,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	subdirs := make([]entity.SubdirSummary, len(subdirRows))
+	for i, r := range subdirRows {
+		subdirs[i] = entity.SubdirSummary{Path: r.Name, Count: r.Count}
+	}
+	return nodes, subdirs, nil
 }
 
 func (r *ReconRepository) SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error) {
