@@ -23,13 +23,11 @@ func extractPython(gr *grammar, src []byte, relPath, _ string) []parsedNode {
 
 		receiver, hasReceiver := findCap(caps, "receiver")
 		receiverText := ""
-		fullSymbol := symbolText
 
 		kind := pyNodeKind(node.nodeType, hasReceiver)
 
 		if hasReceiver {
 			receiverText = receiver.text(src)
-			fullSymbol = receiverText + "." + symbolText
 		}
 
 		sig := pySig(caps, src, node.nodeType, hasReceiver)
@@ -37,7 +35,7 @@ func extractPython(gr *grammar, src []byte, relPath, _ string) []parsedNode {
 		nodes = append(nodes, parsedNode{
 			FilePath:    relPath,
 			Package:     pkg,
-			Symbol:      fullSymbol,
+			Symbol:      symbolText,
 			Kind:        kind,
 			LineStart:   node.startLine,
 			LineEnd:     node.endLine,

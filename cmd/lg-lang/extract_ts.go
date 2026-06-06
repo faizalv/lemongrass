@@ -88,7 +88,6 @@ func extractVue(vueGr *grammar, tsGr *grammar, src []byte, relPath string) []par
 			if tsGr != nil {
 				for _, tsCaps := range tsGr.extract(scriptSrc) {
 					if n := tsBuildNode(tsCaps, scriptSrc, relPath, pkg, true, lineOffset); n.Symbol != "" {
-						n.Symbol = componentName + "." + n.Symbol
 						n.Kind = "vue-method"
 						n.Receiver = componentName
 						nodes = append(nodes, n)

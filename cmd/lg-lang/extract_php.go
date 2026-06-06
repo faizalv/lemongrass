@@ -41,11 +41,9 @@ func extractPHP(gr *grammar, src []byte, relPath, _ string) []parsedNode {
 		receiver, hasReceiver := findCap(caps, "receiver")
 		kind := phpKind(node.nodeType, hasReceiver)
 
-		fullSymbol := symbolText
 		receiverText := ""
 		if hasReceiver {
 			receiverText = receiver.text(src)
-			fullSymbol = receiverText + "." + symbolText
 		}
 
 		sig := phpSig(caps, src, node.nodeType)
@@ -53,7 +51,7 @@ func extractPHP(gr *grammar, src []byte, relPath, _ string) []parsedNode {
 		nodes = append(nodes, parsedNode{
 			FilePath:    relPath,
 			Package:     pkg,
-			Symbol:      fullSymbol,
+			Symbol:      symbolText,
 			Kind:        kind,
 			LineStart:   node.startLine,
 			LineEnd:     node.endLine,
