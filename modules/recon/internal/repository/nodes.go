@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/faizalv/lemongrass/modules/recon/entity"
 	"github.com/lib/pq"
@@ -198,6 +198,11 @@ func (r *ReconRepository) GetTreeCoverage(ctx context.Context, projectID int64, 
 	}
 	defer rows.Close()
 
+	depth := 1
+	if pathPrefix != "" {
+		depth = len(strings.Split(strings.TrimSuffix(pathPrefix, "/"), "/")) + 1
+	}
+
 	type counts struct{ total, explored, stale int }
 	dirs := make(map[string]*counts)
 	for rows.Next() {
@@ -205,10 +210,7 @@ func (r *ReconRepository) GetTreeCoverage(ctx context.Context, projectID int64, 
 		if err := rows.Scan(&fp, &st); err != nil {
 			return nil, err
 		}
-		dir := filepath.Dir(fp)
-		if dir == "." {
-			dir = fp
-		}
+		dir := groupAtDepth(fp, depth)
 		c, ok := dirs[dir]
 		if !ok {
 			c = &counts{}
@@ -238,6 +240,19 @@ func (r *ReconRepository) GetTreeCoverage(ctx context.Context, projectID int64, 
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Dir < out[j].Dir })
 	return out, nil
+}
+
+func groupAtDepth(fp string, depth int) string {
+	parts := strings.Split(fp, "/")
+	dirDepth := len(parts) - 1
+	if dirDepth == 0 {
+		return "."
+	}
+	n := depth
+	if n > dirDepth {
+		n = dirDepth
+	}
+	return strings.Join(parts[:n], "/")
 }
 
 func (r *ReconRepository) SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error) {
