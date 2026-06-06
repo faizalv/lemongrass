@@ -109,6 +109,10 @@ func (u *ReconUsecase) PeekDir(ctx context.Context, projectID int64, pathPrefix 
 	return u.repo.ListByPathDirect(ctx, projectID, pathPrefix)
 }
 
+func (u *ReconUsecase) ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+	return u.repo.ListAllNodesByPrefix(ctx, projectID, pathPrefix)
+}
+
 func readLines(path string, start, end int) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {

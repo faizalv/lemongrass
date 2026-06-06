@@ -12,19 +12,32 @@ import (
 	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
 )
 
-const coverageRate = 0.30
+const coverageRate          = 0.30
+const commitmentMethodCap   = 15
+const commitmentFuncCap     = 8
+const commitmentRootThreshold = 0.70
 
-func domainThreshold(n int) int {
-	return int(math.Ceil(float64(n) * coverageRate))
+func commitmentThreshold(n, cap int) int {
+	t := int(math.Ceil(float64(n) * coverageRate))
+	if t > cap {
+		return cap
+	}
+	return t
 }
 
-func bestMatchDomain(peekDomains map[string]*domainObligation, filePath string) *domainObligation {
-	var best *domainObligation
+func bestMatchCommitment(commitments map[string]*commitment, filePath string) *commitment {
+	var best *commitment
 	bestLen := 0
-	for prefix, ob := range peekDomains {
+	for prefix, c := range commitments {
+		if prefix == "." {
+			if best == nil {
+				best = c
+			}
+			continue
+		}
 		norm := strings.TrimSuffix(prefix, "/")
 		if (strings.HasPrefix(filePath, norm+"/") || filePath == norm) && len(norm) > bestLen {
-			best = ob
+			best = c
 			bestLen = len(norm)
 		}
 	}
@@ -78,36 +91,6 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 		return "no symbols found under " + pathPrefix
 	}
 
-	u.mu.Lock()
-	if _, exists := s.peekDomains[pathPrefix]; !exists {
-		ob := &domainObligation{
-			pathPrefix:    pathPrefix,
-			annotatedKeys: make(map[string]bool),
-		}
-		for _, n := range nodes {
-			if n.Status != "unexplored" {
-				continue
-			}
-			role := reconentity.KindRole(n.Kind)
-			if role != "method" && role != "func" {
-				continue
-			}
-			key := n.FilePath + ":" + n.Symbol + ":" + n.Kind
-			ob.nodes = append(ob.nodes, pendingNode{
-				key:      key,
-				kind:     n.Kind,
-				symbol:   n.Symbol,
-				filePath: n.FilePath,
-			})
-			if role == "method" {
-				ob.methodsRequired++
-			} else {
-				ob.funcsRequired++
-			}
-		}
-		s.peekDomains[pathPrefix] = ob
-	}
-	u.mu.Unlock()
 
 	var sb strings.Builder
 	for _, sd := range subdirs {
@@ -248,41 +231,88 @@ func (u *LgUsecase) handleRelated(ctx context.Context, s *activeSession, args st
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-func (u *LgUsecase) handleQuotaStatus(s *activeSession) string {
+func (u *LgUsecase) handleCommitment(ctx context.Context, s *activeSession, args string) string {
+	path := strings.TrimPrefix(strings.TrimSpace(args), "./")
+	path = strings.TrimSuffix(path, "/")
+	if path == "" {
+		path = "."
+	}
+
+	if path == "." {
+		total, explored, err := u.recon.GetProjectCoverage(ctx, s.projectID)
+		if err != nil {
+			return fmt.Sprintf("error: %v", err)
+		}
+		if total > 0 && float64(explored)/float64(total) < commitmentRootThreshold {
+			pct := explored * 100 / total
+			return fmt.Sprintf("project is %d%% explored; reach 70%% before committing to root", pct)
+		}
+	}
+
+	u.mu.Lock()
+	_, exists := s.commitments[path]
+	u.mu.Unlock()
+	if exists {
+		return "already committed to " + path
+	}
+
+	nodes, err := u.recon.ListAllNodesByPrefix(ctx, s.projectID, path)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+
+	var methodCount, funcCount int
+	for _, n := range nodes {
+		if n.Status != "unexplored" {
+			continue
+		}
+		switch reconentity.KindRole(n.Kind) {
+		case "method":
+			methodCount++
+		case "func":
+			funcCount++
+		}
+	}
+
+	mThresh := commitmentThreshold(methodCount, commitmentMethodCap)
+	fThresh := commitmentThreshold(funcCount, commitmentFuncCap)
+
+	c := &commitment{
+		pathPrefix:      path,
+		annotatedKeys:   make(map[string]bool),
+		methodsRequired: methodCount,
+		funcsRequired:   funcCount,
+	}
+	u.mu.Lock()
+	s.commitments[path] = c
+	u.mu.Unlock()
+
+	if methodCount == 0 && funcCount == 0 {
+		return "committed to " + path + ": no unexplored methods or funcs found; checkpoint unlocked for this path"
+	}
+	return fmt.Sprintf("committed to %s: %d unexplored methods (need %d), %d unexplored funcs (need %d)",
+		path, methodCount, mThresh, funcCount, fThresh)
+}
+
+func (u *LgUsecase) handleCommitmentStatus(s *activeSession) string {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	if len(s.peekDomains) == 0 {
-		return "no obligations yet -- peek a directory first"
+	if len(s.commitments) == 0 {
+		return "no commitments yet -- use #lg.commitment <path> to declare what you will annotate"
 	}
 
 	var sb strings.Builder
-	for _, ob := range s.peekDomains {
-		mThresh := domainThreshold(ob.methodsRequired)
-		fThresh := domainThreshold(ob.funcsRequired)
-		met := ob.methodsMet >= mThresh && (fThresh == 0 || ob.funcsMet >= fThresh)
+	for _, c := range s.commitments {
+		mThresh := commitmentThreshold(c.methodsRequired, commitmentMethodCap)
+		fThresh := commitmentThreshold(c.funcsRequired, commitmentFuncCap)
+		met := c.methodsMet >= mThresh && (fThresh == 0 || c.funcsMet >= fThresh)
 		status := "PENDING"
 		if met {
 			status = "OK"
 		}
-		sb.WriteString(fmt.Sprintf("[%s] %s  methods %d/%d  funcs %d/%d\n",
-			status, ob.pathPrefix, ob.methodsMet, mThresh, ob.funcsMet, fThresh))
-		for _, n := range ob.nodes {
-			if ob.annotatedKeys[n.key] {
-				continue
-			}
-			if entry, read := s.readNodes[n.key]; read {
-				sig := entry.signature
-				if entry.receiver != "" && sig != "" {
-					sig = "(" + entry.receiver + ") " + sig
-				} else if entry.receiver != "" {
-					sig = "(" + entry.receiver + ")"
-				}
-				sb.WriteString(fmt.Sprintf("  %-8s  %-36s  %s  [annotate from memory]\n", n.kind, n.symbol, sig))
-			} else {
-				sb.WriteString(fmt.Sprintf("  %-8s  %-36s  [not read]\n", n.kind, n.symbol))
-			}
-		}
+		sb.WriteString(fmt.Sprintf("[%s] %-40s  methods %d/%d  funcs %d/%d\n",
+			status, c.pathPrefix, c.methodsMet, mThresh, c.funcsMet, fThresh))
 	}
 	return strings.TrimRight(sb.String(), "\n")
 }
@@ -343,14 +373,14 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 	key := filePath + ":" + symbol + ":" + kind
 	u.mu.Lock()
 	if entry, ok := s.readNodes[key]; ok {
-		if ob := bestMatchDomain(s.peekDomains, filePath); ob != nil {
+		if c := bestMatchCommitment(s.commitments, filePath); c != nil {
 			switch reconentity.KindRole(entry.kind) {
 			case "method":
-				ob.methodsMet++
-				ob.annotatedKeys[key] = true
+				c.methodsMet++
+				c.annotatedKeys[key] = true
 			case "func":
-				ob.funcsMet++
-				ob.annotatedKeys[key] = true
+				c.funcsMet++
+				c.annotatedKeys[key] = true
 			}
 		}
 	}
@@ -391,24 +421,30 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 		}
 	}
 	u.mu.Lock()
-	obligations := make([]*domainObligation, 0, len(s.peekDomains))
-	for _, ob := range s.peekDomains {
-		obligations = append(obligations, ob)
+	commitments := make([]*commitment, 0, len(s.commitments))
+	for _, c := range s.commitments {
+		commitments = append(commitments, c)
 	}
 	u.mu.Unlock()
-	for _, ob := range obligations {
-		mThresh := domainThreshold(ob.methodsRequired)
-		fThresh := domainThreshold(ob.funcsRequired)
-		if mThresh > 0 && ob.methodsMet < mThresh {
+	if len(commitments) == 0 {
+		total, explored, err := u.recon.GetProjectCoverage(ctx, s.projectID)
+		if err != nil || explored < total {
+			return "no commitment made -- use #lg.commitment <path> to declare what you will annotate"
+		}
+	}
+	for _, c := range commitments {
+		mThresh := commitmentThreshold(c.methodsRequired, commitmentMethodCap)
+		fThresh := commitmentThreshold(c.funcsRequired, commitmentFuncCap)
+		if mThresh > 0 && c.methodsMet < mThresh {
 			return fmt.Sprintf(
-				"annotation quota not met for %s:\n  methods: %d/%d annotated (need %d more)\nRead method bodies -- they reveal how this domain is written.",
-				ob.pathPrefix, ob.methodsMet, mThresh, mThresh-ob.methodsMet,
+				"commitment not met for %s:\n  methods: %d/%d annotated (need %d more)\nRead method bodies -- they reveal how this domain is written.",
+				c.pathPrefix, c.methodsMet, mThresh, mThresh-c.methodsMet,
 			)
 		}
-		if fThresh > 0 && ob.funcsMet < fThresh {
+		if fThresh > 0 && c.funcsMet < fThresh {
 			return fmt.Sprintf(
-				"annotation quota not met for %s:\n  funcs: %d/%d annotated (need %d more)",
-				ob.pathPrefix, ob.funcsMet, fThresh, fThresh-ob.funcsMet,
+				"commitment not met for %s:\n  funcs: %d/%d annotated (need %d more)",
+				c.pathPrefix, c.funcsMet, fThresh, fThresh-c.funcsMet,
 			)
 		}
 	}

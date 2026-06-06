@@ -401,18 +401,20 @@ func (r *ReconRepository) SearchByFTS(ctx context.Context, projectID int64, quer
 	return nodes, nil
 }
 
-func (r *ReconRepository) ListByPathPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+func (r *ReconRepository) ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+	query := `SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+	                 language, receiver, signature, exported, depends_on, status,
+	                 description, return_type, content_hash, calls, explored_at, created_at
+	          FROM lg_semantic_nodes
+	          WHERE project_id = $1 AND status != 'removed'`
+	args := []any{projectID}
+	if pathPrefix != "" && pathPrefix != "." {
+		args = append(args, pathPrefix+"%")
+		query += ` AND file_path LIKE $2`
+	}
+	query += ` ORDER BY file_path, line_start`
 	var recs []nodeRecord
-	err := r.db.SelectContext(ctx, &recs,
-		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
-		        language, receiver, signature, exported, depends_on, status,
-		        description, return_type, content_hash, calls, explored_at, created_at
-		 FROM lg_semantic_nodes
-		 WHERE project_id = $1 AND file_path LIKE $2 AND status != 'removed'
-		 ORDER BY file_path, line_start`,
-		projectID, pathPrefix+"%",
-	)
-	if err != nil {
+	if err := r.db.SelectContext(ctx, &recs, query, args...); err != nil {
 		return nil, err
 	}
 	nodes := make([]entity.SemanticNode, len(recs))
@@ -421,6 +423,7 @@ func (r *ReconRepository) ListByPathPrefix(ctx context.Context, projectID int64,
 	}
 	return nodes, nil
 }
+
 
 func (r *ReconRepository) GetRelated(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error) {
 	var callSymbols pq.StringArray

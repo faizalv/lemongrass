@@ -21,6 +21,7 @@ type reconClient interface {
 	Related(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []reconentity.SemanticNode, err error)
 	PeekDir(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, []reconentity.SubdirSummary, error)
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
+	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)
 }
@@ -35,16 +36,8 @@ type checkpointResult struct {
 	rejections map[string]string
 }
 
-type pendingNode struct {
-	key      string // "filePath:symbol:kind"
-	kind     string // "method" or "func"
-	symbol   string
-	filePath string
-}
-
-type domainObligation struct {
+type commitment struct {
 	pathPrefix      string
-	nodes           []pendingNode
 	annotatedKeys   map[string]bool
 	methodsRequired int
 	funcsRequired   int
@@ -65,8 +58,8 @@ type activeSession struct {
 	sessionType  string
 	ptySession   ptyclient.Session
 	checkpointCh chan checkpointResult
-	readNodes    map[string]readEntry            // "path:symbol:kind" -> entry
-	peekDomains  map[string]*domainObligation    // path prefix -> obligation
+	readNodes    map[string]readEntry        // "path:symbol:kind" -> entry
+	commitments  map[string]*commitment      // path prefix -> commitment
 }
 
 type LgUsecase struct {
@@ -152,8 +145,10 @@ func activityMessage(cmd, args string) string {
 			return "Annotating " + parts[1] + " in " + parts[0]
 		}
 		return "Annotating symbol"
-	case "quota.status":
-		return "Checking annotation quota"
+	case "commitment":
+		return "Declaring annotation commitment"
+	case "commitment.status":
+		return "Checking commitment status"
 	case "tasks.checkpoint":
 		return "Sending task proposal"
 	case "tasks.read":
@@ -251,8 +246,12 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 			u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		}()
 		return ""
-	case "quota.status":
-		resp := u.handleQuotaStatus(s)
+	case "commitment":
+		resp := u.handleCommitment(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "commitment.status":
+		resp := u.handleCommitmentStatus(s)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
 	case "tasks.checkpoint":

@@ -43,6 +43,10 @@ func (c *ReconClient) PeekDir(ctx context.Context, projectID int64, pathPrefix s
 	return c.uc.PeekDir(ctx, projectID, pathPrefix)
 }
 
+func (c *ReconClient) ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error) {
+	return c.uc.ListAllNodesByPrefix(ctx, projectID, pathPrefix)
+}
+
 func (c *ReconClient) DropFile(ctx context.Context, projectID int64, path string) {
 	c.uc.DropFile(ctx, projectID, path)
 }

@@ -22,22 +22,30 @@ type PtyUsecase struct {
 	log         *log.Logger
 	logW        io.Closer
 	sessionsDir string
+	usageLog    *log.Logger
+	usageLogW   io.Closer
 }
 
 func New(logDir string) *PtyUsecase {
 	sessionsDir := filepath.Join(logDir, "sessions")
 	os.MkdirAll(sessionsDir, 0755)
 	w := infra.NewDailyRotateWriter(logDir, "runner", 7)
+	uw := infra.NewDailyRotateWriter(logDir, "usage", 7)
 	return &PtyUsecase{
 		log:         log.New(io.MultiWriter(os.Stderr, w), "[pty] ", log.LstdFlags),
 		logW:        w,
 		sessionsDir: sessionsDir,
+		usageLog:    log.New(uw, "", log.LstdFlags),
+		usageLogW:   uw,
 	}
 }
 
 func (u *PtyUsecase) Close() {
 	if u.logW != nil {
 		u.logW.Close()
+	}
+	if u.usageLogW != nil {
+		u.usageLogW.Close()
 	}
 }
 
@@ -236,14 +244,18 @@ func (u *PtyUsecase) RunTest() (entity.Session, error) {
 }
 
 func (u *PtyUsecase) FetchUsage() string {
-	sess, err := u.Open("", "usage-fetch", "")
+	sess, err := u.Open("", "", "")
 	if err != nil {
 		return ""
 	}
 	defer sess.Close()
 	sess.Write([]byte("/usage\r"))
 	sess.WaitIdle(2*time.Second, 10*time.Second)
-	return sess.Output()
+	output := sess.Output()
+	if u.usageLog != nil {
+		u.usageLog.Printf("%s", output)
+	}
+	return output
 }
 
 // outputBuffer accumulates raw output, logs clean lines, and supports polling.

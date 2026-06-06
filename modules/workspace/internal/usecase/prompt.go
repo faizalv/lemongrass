@@ -18,9 +18,11 @@ const cmdReconSearch  = `#lg.recon.search <query> -- vector search across annota
 const cmdReconPeek    = `#lg.recon.peek <dir> -- symbols in files directly inside a directory + subdirectory symbol counts. Non-recursive. Pass a file path to see that file's symbols only.`
 const cmdReconRead    = `#lg.recon.read <path:symbol:kind> -- raw source for a symbol; server resolves lines from map`
 const cmdReconRelated = `#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol`
-const cmdAnnotate     = `#lg!.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil`
-const annotateHookNote = `nil means field absent.`
-const echoRule        = `Call #lg.echo <message> at each major step. No quotes around message:`
+const cmdAnnotate         = `#lg!.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil`
+const annotateHookNote    = `nil means field absent.`
+const cmdCommitment       = `#lg.commitment <path> -- declare annotation scope; path is dir, file, or . (root requires 70% coverage)`
+const cmdCommitmentStatus = `#lg.commitment.status -- shows each commitment, method/func progress, and overall status`
+const echoRule            = `Call #lg.echo <message> at each major step. No quotes around message:`
 
 func buildExecutionPrompt(projectAlias string) string {
 	body := strings.Join([]string{

@@ -253,6 +253,8 @@ Commands the model uses to communicate with Lemongrass inside a session. `#lg.` 
 | `#lg.recon.search <query>` | grooming | yes | hybrid vector + full-text search; top 10 results across both, deduplicated |
 | `#lg.recon.read <path:symbol:kind>` | both | yes | raw source; `[STALE]` prefix on stale nodes |
 | `#lg.recon.related <path:symbol:kind>` | grooming | yes | callers and callees from the call graph |
+| `#lg.commitment <path>` | grooming | yes | declare annotation scope; min(30%, 15 methods / 8 funcs) threshold; root requires 70% coverage |
+| `#lg.commitment.status` | grooming | yes | progress per commitment; call before checkpoint |
 | `#lg!.annotate <path:symbol:kind>:"desc":return:deps` | both | no | store description, return type, deps; generate embedding |
 | `#lg!.recon.drop <path>` | execution | no | remove all nodes for a path from the semantic map |
 | `#lg.tasks.checkpoint <json>` | grooming | yes | submit task list; blocks until user approves or rejects |
