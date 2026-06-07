@@ -49,6 +49,8 @@ type repo interface {
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
 	SearchKnowledge(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.KnowledgeEntry, error)
 	ListKnowledge(ctx context.Context, projectID int64) ([]entity.KnowledgeEntry, error)
+	DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error)
+	FindSimilarKnowledge(ctx context.Context, projectID int64, excludeKey string, embedding []float32) ([]string, error)
 	DeleteKnowledgeByProject(ctx context.Context, projectID int64) error
 }
 

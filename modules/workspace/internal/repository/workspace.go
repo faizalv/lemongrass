@@ -9,22 +9,24 @@ import (
 )
 
 type workspaceRecord struct {
-	ID        string    `db:"id"`
-	ProjectID int64     `db:"project_id"`
-	Name      string    `db:"name"`
-	Status    string    `db:"status"`
-	CreatedAt time.Time `db:"created_at"`
-	UpdatedAt time.Time `db:"updated_at"`
+	ID              string    `db:"id"`
+	ProjectID       int64     `db:"project_id"`
+	Name            string    `db:"name"`
+	Status          string    `db:"status"`
+	HandoverContext string    `db:"handover_context"`
+	CreatedAt       time.Time `db:"created_at"`
+	UpdatedAt       time.Time `db:"updated_at"`
 }
 
 func toEntity(r workspaceRecord) entity.Workspace {
 	return entity.Workspace{
-		ID:        r.ID,
-		ProjectID: r.ProjectID,
-		Name:      r.Name,
-		Status:    r.Status,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
+		ID:              r.ID,
+		ProjectID:       r.ProjectID,
+		Name:            r.Name,
+		Status:          r.Status,
+		HandoverContext: r.HandoverContext,
+		CreatedAt:       r.CreatedAt,
+		UpdatedAt:       r.UpdatedAt,
 	}
 }
 
@@ -54,7 +56,7 @@ func (r *WorkspaceRepository) Create(ctx context.Context, ws entity.Workspace) (
 func (r *WorkspaceRepository) Get(ctx context.Context, id string) (entity.Workspace, error) {
 	var rec workspaceRecord
 	err := r.db.QueryRowxContext(ctx,
-		`SELECT id, project_id, name, status, created_at, updated_at
+		`SELECT id, project_id, name, status, handover_context, created_at, updated_at
 		 FROM lg_workspaces WHERE id = $1`,
 		id,
 	).StructScan(&rec)
@@ -66,8 +68,7 @@ func (r *WorkspaceRepository) Get(ctx context.Context, id string) (entity.Worksp
 
 func (r *WorkspaceRepository) ListByProject(ctx context.Context, projectID int64, includeDeleted bool) ([]entity.Workspace, error) {
 	var recs []workspaceRecord
-	query := `SELECT id, project_id, name, status, created_at, updated_at
-	          FROM lg_workspaces WHERE project_id = $1`
+	query := `SELECT id, project_id, name, status, handover_context, created_at, updated_at FROM lg_workspaces WHERE project_id = $1`
 	if !includeDeleted {
 		query += ` AND status != 'deleted'`
 	}
@@ -114,6 +115,14 @@ func (r *WorkspaceRepository) GetProjectBranch(ctx context.Context, projectID in
 		`SELECT branch FROM lg_projects WHERE id = $1`, projectID,
 	).Scan(&branch)
 	return branch, err
+}
+
+func (r *WorkspaceRepository) SaveHandoverContext(ctx context.Context, workspaceID, context string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE lg_workspaces SET handover_context = $1, updated_at = NOW() WHERE id = $2`,
+		context, workspaceID,
+	)
+	return err
 }
 
 func (r *WorkspaceRepository) DeleteByProject(ctx context.Context, projectID int64) error {

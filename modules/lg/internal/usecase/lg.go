@@ -27,12 +27,15 @@ type reconClient interface {
 	SaveKnowledge(ctx context.Context, projectID int64, key, content string) error
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
 	SearchKnowledge(ctx context.Context, projectID int64, query string) ([]reconentity.KnowledgeEntry, error)
+	DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error)
+	FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error)
 }
 
 type taskWriter interface {
 	CreateTasks(ctx context.Context, workspaceID string, tasks []wsentity.Task) ([]wsentity.Task, error)
 	UpdateStatus(ctx context.Context, id, status string) error
 	GetTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
+	SaveHandoverContext(ctx context.Context, workspaceID, context string) error
 }
 
 type checkpointResult struct {
@@ -167,6 +170,8 @@ func activityMessage(cmd, args string) string {
 		return "Saving knowledge entry"
 	case "knowledge.search":
 		return "Searching knowledge: " + args
+	case "knowledge.delete":
+		return "Deleting knowledge: " + args
 	}
 	return ""
 }
@@ -274,7 +279,7 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return resp
 	case "handover":
 		go func() {
-			u.handleHandover(s)
+			u.handleHandover(s, args)
 			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
 		}()
 		return ""
@@ -294,6 +299,10 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return resp
 	case "knowledge.search":
 		resp := u.handleKnowledgeSearch(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "knowledge.delete":
+		resp := u.handleKnowledgeDelete(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
 	}

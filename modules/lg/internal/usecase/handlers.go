@@ -167,7 +167,20 @@ func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query st
 }
 
 func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args string) string {
-	filePath, symbol, kind, err := parseRef(strings.TrimSpace(args))
+	refs := strings.Split(args, "|")
+	if len(refs) == 1 {
+		return u.readOne(ctx, s, strings.TrimSpace(refs[0]))
+	}
+	var parts []string
+	for i, ref := range refs {
+		result := u.readOne(ctx, s, strings.TrimSpace(ref))
+		parts = append(parts, fmt.Sprintf("==== [%d] ====\n%s", i+1, result))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func (u *LgUsecase) readOne(ctx context.Context, s *activeSession, ref string) string {
+	filePath, symbol, kind, err := parseRef(ref)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
@@ -369,6 +382,10 @@ func (u *LgUsecase) handleKnowledgeSave(ctx context.Context, s *activeSession, a
 	if err := u.recon.SaveKnowledge(ctx, s.projectID, key, content); err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+	similar, _ := u.recon.FindSimilarKnowledge(ctx, s.projectID, content, key)
+	if len(similar) > 0 {
+		return "saved: " + key + " [similar: " + strings.Join(similar, ", ") + "]"
+	}
 	return "saved: " + key
 }
 
@@ -398,6 +415,21 @@ func (u *LgUsecase) handleKnowledgeSearch(ctx context.Context, s *activeSession,
 		sb.WriteString(e.Key + ": " + snippet + "\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+func (u *LgUsecase) handleKnowledgeDelete(ctx context.Context, s *activeSession, args string) string {
+	key := strings.TrimSpace(args)
+	if key == "" {
+		return "error: key required"
+	}
+	deleted, err := u.recon.DeleteKnowledge(ctx, s.projectID, key)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	if !deleted {
+		return "not found: " + key
+	}
+	return "deleted: " + key
 }
 
 func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) string {

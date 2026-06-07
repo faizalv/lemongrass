@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
@@ -56,9 +57,27 @@ func (u *LgUsecase) ResetSession(workspaceID string) {
 	u.UnregisterSession(workspaceID)
 }
 
-func (u *LgUsecase) handleHandover(s *activeSession) {
-	if u.tasks != nil {
-		u.tasks.UpdateStatus(context.Background(), s.workspaceID, "awaiting_execution")
+func (u *LgUsecase) handleHandover(s *activeSession, args string) {
+	if u.tasks != nil && u.recon != nil {
+		ctx := context.Background()
+		args = strings.TrimSpace(args)
+		if args != "" {
+			var lines []string
+			for _, key := range strings.Split(args, ",") {
+				key = strings.TrimSpace(key)
+				if key == "" {
+					continue
+				}
+				content, err := u.recon.ReadKnowledge(ctx, s.projectID, key)
+				if err == nil {
+					lines = append(lines, key+": "+content)
+				}
+			}
+			if len(lines) > 0 {
+				u.tasks.SaveHandoverContext(ctx, s.workspaceID, strings.Join(lines, "\n"))
+			}
+		}
+		u.tasks.UpdateStatus(ctx, s.workspaceID, "awaiting_execution")
 	}
 	if s.ptySession != nil {
 		s.ptySession.Close()

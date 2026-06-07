@@ -251,7 +251,7 @@ Commands the model uses to communicate with Lemongrass inside a session. `#lg.` 
 | `#lg.recon.tree [path]` | grooming | yes | full project coverage at all depths; n/m explored; n stale per directory |
 | `#lg.recon.peek <dir>` | grooming | yes | direct-child symbols + subdirectory counts; non-recursive |
 | `#lg.recon.search <query>` | grooming | yes | hybrid vector + full-text search; top 10 results across both, deduplicated |
-| `#lg.recon.read <path:symbol:kind>` | both | yes | raw source; `[STALE]` prefix on stale nodes |
+| `#lg.recon.read <path:symbol:kind>` | both | yes | raw source; `[STALE]` prefix on stale nodes; pipe-separate for multiple: `a\|b\|c` |
 | `#lg.recon.related <path:symbol:kind>` | grooming | yes | callers and callees from the call graph |
 | `#lg.commitment <path>` | grooming | yes | declare annotation scope; min(30%, 15 methods / 8 funcs) threshold; root requires 70% coverage |
 | `#lg.commitment.status` | grooming | yes | progress per commitment; call before checkpoint |

@@ -6,12 +6,13 @@ import (
 )
 
 type Workspace struct {
-	ID        string
-	ProjectID int64
-	Name      string
-	Status    string // idle | grooming | awaiting_execution | executing | done | deleted
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID              string
+	ProjectID       int64
+	Name            string
+	Status          string // idle | grooming | awaiting_execution | executing | done | deleted
+	HandoverContext string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type WorkspaceRequirement struct {

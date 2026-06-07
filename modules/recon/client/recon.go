@@ -66,3 +66,11 @@ func (c *ReconClient) ReadKnowledge(ctx context.Context, projectID int64, key st
 func (c *ReconClient) SearchKnowledge(ctx context.Context, projectID int64, query string) ([]entity.KnowledgeEntry, error) {
 	return c.uc.SearchKnowledge(ctx, projectID, query)
 }
+
+func (c *ReconClient) DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error) {
+	return c.uc.DeleteKnowledge(ctx, projectID, key)
+}
+
+func (c *ReconClient) FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error) {
+	return c.uc.FindSimilarKnowledge(ctx, projectID, content, excludeKey)
+}

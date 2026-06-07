@@ -81,6 +81,47 @@ func (r *ReconRepository) ListKnowledge(ctx context.Context, projectID int64) ([
 	return out, rows.Err()
 }
 
+func (r *ReconRepository) DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM lg_knowledge WHERE project_id = $1 AND key = $2`,
+		projectID, key,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+func (r *ReconRepository) FindSimilarKnowledge(ctx context.Context, projectID int64, excludeKey string, embedding []float32) ([]string, error) {
+	if len(embedding) == 0 {
+		return nil, nil
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT key FROM lg_knowledge
+		 WHERE project_id = $1
+		   AND key != $2
+		   AND embedding IS NOT NULL
+		   AND embedding <=> $3::vector < 0.20
+		 ORDER BY embedding <=> $3::vector
+		 LIMIT 5`,
+		projectID, excludeKey, formatVector(embedding),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []string
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		keys = append(keys, k)
+	}
+	return keys, rows.Err()
+}
+
 func (r *ReconRepository) DeleteKnowledgeByProject(ctx context.Context, projectID int64) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM lg_knowledge WHERE project_id = $1`, projectID)
 	return err

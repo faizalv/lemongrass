@@ -61,7 +61,7 @@ func (u *ExecutionUsecase) StartExecution(ctx context.Context, workspaceID strin
 	if err := u.store.UpdateStatus(ctx, workspaceID, "executing"); err != nil {
 		return err
 	}
-	session, err := u.pty.Open(buildExecutionPrompt(alias), workspaceID, "execution")
+	session, err := u.pty.Open(buildExecutionPrompt(alias, ws.HandoverContext), workspaceID, "execution")
 	if err != nil {
 		u.store.UpdateStatus(ctx, workspaceID, "awaiting_execution")
 		return fmt.Errorf("start execution PTY: %w", err)

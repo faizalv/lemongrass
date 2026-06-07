@@ -26,3 +26,15 @@ func (u *ReconUsecase) SearchKnowledge(ctx context.Context, projectID int64, que
 func (u *ReconUsecase) ListKnowledge(ctx context.Context, projectID int64) ([]entity.KnowledgeEntry, error) {
 	return u.repo.ListKnowledge(ctx, projectID)
 }
+
+func (u *ReconUsecase) DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error) {
+	return u.repo.DeleteKnowledge(ctx, projectID, key)
+}
+
+func (u *ReconUsecase) FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error) {
+	vec, err := u.embed.Embed(ctx, content)
+	if err != nil {
+		return nil, nil
+	}
+	return u.repo.FindSimilarKnowledge(ctx, projectID, excludeKey, vec)
+}

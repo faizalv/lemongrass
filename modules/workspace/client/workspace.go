@@ -26,3 +26,7 @@ func (c *WorkspaceTaskClient) UpdateStatus(ctx context.Context, id, status strin
 func (c *WorkspaceTaskClient) GetTasks(ctx context.Context, workspaceID string) ([]entity.Task, error) {
 	return c.repo.GetTasks(ctx, workspaceID)
 }
+
+func (c *WorkspaceTaskClient) SaveHandoverContext(ctx context.Context, workspaceID, context string) error {
+	return c.repo.SaveHandoverContext(ctx, workspaceID, context)
+}

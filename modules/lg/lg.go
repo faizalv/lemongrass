@@ -27,12 +27,15 @@ type reconProvider interface {
 	SaveKnowledge(ctx context.Context, projectID int64, key, content string) error
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
 	SearchKnowledge(ctx context.Context, projectID int64, query string) ([]reconentity.KnowledgeEntry, error)
+	DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error)
+	FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error)
 }
 
 type taskProvider interface {
 	CreateTasks(ctx context.Context, workspaceID string, tasks []wsentity.Task) ([]wsentity.Task, error)
 	UpdateStatus(ctx context.Context, id, status string) error
 	GetTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
+	SaveHandoverContext(ctx context.Context, workspaceID, context string) error
 }
 
 type Lg struct {
