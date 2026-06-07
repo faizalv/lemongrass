@@ -49,3 +49,9 @@ type FileHash struct {
 	Path string
 	Hash string
 }
+
+type KnowledgeEntry struct {
+	Key       string
+	Content   string
+	UpdatedAt time.Time
+}

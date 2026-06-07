@@ -24,6 +24,9 @@ type reconClient interface {
 	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)
+	SaveKnowledge(ctx context.Context, projectID int64, key, content string) error
+	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
+	SearchKnowledge(ctx context.Context, projectID int64, query string) ([]reconentity.KnowledgeEntry, error)
 }
 
 type taskWriter interface {
@@ -157,6 +160,13 @@ func activityMessage(cmd, args string) string {
 		return "Handing over to execution"
 	case "done":
 		return "Execution complete"
+	case "knowledge.save":
+		if idx := strings.IndexByte(args, ':'); idx > 0 {
+			return "Saving knowledge: " + strings.TrimSpace(args[:idx])
+		}
+		return "Saving knowledge entry"
+	case "knowledge.search":
+		return "Searching knowledge: " + args
 	}
 	return ""
 }
@@ -274,6 +284,18 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
 		}()
 		return ""
+	case "knowledge.save":
+		resp := u.handleKnowledgeSave(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "knowledge.read":
+		resp := u.handleKnowledgeRead(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "knowledge.search":
+		resp := u.handleKnowledgeSearch(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	}
 	return ""
 }

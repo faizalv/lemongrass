@@ -1,106 +1,143 @@
 <template>
-  <div class="fade-in" :style="wrap">
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
 
-    <!-- Workspace history -->
-    <div>
-      <div :style="sectionLabel">WORKSPACE HISTORY</div>
-      <div v-if="wsLoading" :style="emptyState">Loading…</div>
-      <div v-else-if="workspaces.length === 0" :style="emptyState">No workspaces yet for this project.</div>
-      <div v-else style="display:flex;flex-direction:column;gap:10px">
-        <div v-for="ws in workspaces" :key="ws.id" :style="wsCard">
-          <!-- Card header -->
-          <button :style="wsHeader" @click="toggleWs(ws.id)">
-            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px">
-              <span :style="wsName">{{ ws.name }}</span>
-              <span :style="statusBadge(ws.status)">{{ ws.status }}</span>
-            </div>
-            <span :style="metaText">{{ formatDate(ws.created_at) }}</span>
-            <AppIcon :name="expandedWs.has(ws.id) ? 'chevron-down' : 'chevrons-up-down'" :size="12" :extra-style="{ color: 'var(--color-gray-600)', flexShrink: 0 }" />
-          </button>
+    <!-- Top bar -->
+    <div :style="topBar">
+      <div style="padding:22px 32px 0">
+        <div :style="breadcrumb">
+          <AppIcon name="archive" :size="11" color="var(--color-amber)" :extra-style="{ flexShrink: 0 }" />
+          <span>Artifacts</span>
+        </div>
+        <div :style="mainTitle">{{ tabs.find(t => t.id === activeTab)?.label }}</div>
+      </div>
+      <div style="display:flex;gap:4px;padding:0 28px;margin-top:12px">
+        <button v-for="tab in tabs" :key="tab.id" :style="tabBtn(tab.id === activeTab)" @click="activeTab = tab.id">
+          {{ tab.label }}
+          <span v-if="tab.id === activeTab" :style="tabUnderline" />
+        </button>
+      </div>
+    </div>
 
-          <!-- Expanded content -->
-          <div v-if="expandedWs.has(ws.id)" :style="wsBody">
-
-            <!-- Requirements -->
-            <div v-if="ws.requirements.length > 0">
-              <div :style="subLabel">REQUIREMENTS</div>
-              <div style="display:flex;flex-direction:column;gap:6px">
-                <div v-for="r in ws.requirements" :key="r.id" :style="reqCard">
-                  <AppIcon
-                    :name="r.type === 'text' ? 'file-text' : r.type === 'image' ? 'eye' : 'file'"
-                    :size="13"
-                    :extra-style="{ color: 'var(--color-gray-500)', flexShrink: 0 }"
-                  />
-                  <div style="flex:1;min-width:0">
-                    <div v-if="r.type === 'text'" style="display:flex;flex-direction:column;gap:4px">
-                      <button :style="reqToggleBtn" @click="toggleReq(r.id)">
-                        <span :style="reqPreview">{{ expandedReqs.has(r.id) ? '' : (r.text_content ?? '').slice(0, 120) + ((r.text_content?.length ?? 0) > 120 ? '…' : '') }}</span>
-                        <span :style="reqAction">{{ expandedReqs.has(r.id) ? 'Collapse' : 'Expand' }}</span>
-                      </button>
-                      <div v-if="expandedReqs.has(r.id)" :style="reqFullText">{{ r.text_content }}</div>
-                    </div>
-                    <div v-else style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-                      <span :style="reqPreview">{{ r.file_name }}</span>
-                      <a :href="`/api/workspaces/${ws.id}/requirements/${r.id}/file`" target="_blank" :style="reqAction">Open</a>
-                    </div>
-                    <div v-if="r.type === 'image'" style="margin-top:6px">
-                      <img :src="`/api/workspaces/${ws.id}/requirements/${r.id}/file`" :style="reqThumb" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div v-else :style="emptyInline">No requirements.</div>
-
-            <!-- Approved tasks -->
-            <div v-if="wsData[ws.id]?.tasks?.length">
-              <div :style="subLabel">APPROVED TASKS</div>
-              <div style="display:flex;flex-direction:column;gap:4px">
-                <div v-for="(t, i) in wsData[ws.id].tasks" :key="t.id" :style="taskRow">
-                  <span :style="taskIdx">{{ i + 1 }}</span>
-                  <span :style="taskTitle">{{ t.title }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Execution diff -->
-            <div v-if="wsData[ws.id]?.diff?.length">
-              <div :style="subLabel">EXECUTION DIFF</div>
-              <div style="display:flex;flex-direction:column;gap:6px">
-                <div v-for="f in wsData[ws.id].diff" :key="f.file_path" :style="diffCard">
-                  <button :style="diffHeader" @click="toggleDiffFile(ws.id + f.file_path)">
-                    <span :style="diffPath">{{ f.file_path }}</span>
-                    <span v-if="f.is_new" :style="newBadge">NEW</span>
-                    <span :style="diffStats"><span style="color:#4ade80">+{{ f.lines_added }}</span> <span style="color:var(--color-gray-600)">/</span> <span style="color:#f87171">-{{ f.lines_removed }}</span></span>
-                    <AppIcon :name="expandedDiffFiles.has(ws.id + f.file_path) ? 'chevron-down' : 'chevrons-up-down'" :size="11" :extra-style="{ color: 'var(--color-gray-600)' }" />
-                  </button>
-                  <div v-if="expandedDiffFiles.has(ws.id + f.file_path)" :style="diffBody">
-                    <div v-for="(line, li) in f.diff.split('\n')" :key="li" :style="diffLine(line)">{{ line }}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+    <!-- Archive tab: master-detail -->
+    <div v-if="activeTab === 'archive'" style="flex:1;display:flex;overflow:hidden">
+      <!-- Sidebar -->
+      <div :style="sidebar">
+        <div v-if="wsLoading" :style="sideEmpty">Loading…</div>
+        <div v-else-if="workspaces.length === 0" :style="sideEmpty">No workspaces yet.</div>
+        <button
+          v-else
+          v-for="ws in workspaces"
+          :key="ws.id"
+          :style="sideRow(ws.id === selectedWsId)"
+          @click="selectWs(ws.id)"
+        >
+          <div style="flex:1;min-width:0">
+            <div :style="sideTitle">{{ ws.name }}</div>
+            <div :style="sideMeta">{{ formatDate(ws.created_at) }}</div>
           </div>
+          <span :style="statusPip(ws.status)" />
+        </button>
+      </div>
+
+      <!-- Detail panel -->
+      <div :style="detail">
+        <div v-if="!selectedWsId" :style="detailEmpty">Select a workspace to view its history.</div>
+        <div v-else-if="detailLoading" :style="detailEmpty">Loading…</div>
+        <template v-else-if="selectedWs">
+          <!-- Status + name -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">
+            <span :style="wsNameLarge">{{ selectedWs.name }}</span>
+            <span :style="statusBadge(selectedWs.status)">{{ selectedWs.status }}</span>
+            <span :style="detailMeta" style="margin-left:auto">{{ formatDate(selectedWs.created_at) }}</span>
+          </div>
+
+          <!-- Requirements -->
+          <div :style="sectionLabel">REQUIREMENTS</div>
+          <div v-if="selectedWs.requirements.length === 0" :style="emptyInline">No requirements.</div>
+          <div v-else style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px">
+            <div v-for="r in selectedWs.requirements" :key="r.id" :style="reqCard">
+              <AppIcon
+                :name="r.type === 'text' ? 'file-text' : r.type === 'image' ? 'eye' : 'file'"
+                :size="13"
+                :extra-style="{ color: 'var(--color-gray-500)', flexShrink: 0 }"
+              />
+              <div style="flex:1;min-width:0">
+                <div v-if="r.type === 'text'" style="display:flex;flex-direction:column;gap:4px">
+                  <button :style="reqToggleBtn" @click="toggleReq(r.id)">
+                    <span :style="reqPreview">{{ expandedReqs.has(r.id) ? '' : (r.text_content ?? '').slice(0, 120) + ((r.text_content?.length ?? 0) > 120 ? '…' : '') }}</span>
+                    <span :style="reqAction">{{ expandedReqs.has(r.id) ? 'Collapse' : 'Expand' }}</span>
+                  </button>
+                  <div v-if="expandedReqs.has(r.id)" :style="reqFullText">{{ r.text_content }}</div>
+                </div>
+                <div v-else style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span :style="reqPreview">{{ r.file_name }}</span>
+                  <a :href="`/api/workspaces/${selectedWs.id}/requirements/${r.id}/file`" target="_blank" :style="reqAction">Open</a>
+                </div>
+                <div v-if="r.type === 'image'" style="margin-top:6px">
+                  <img :src="`/api/workspaces/${selectedWs.id}/requirements/${r.id}/file`" :style="reqThumb" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Approved tasks -->
+          <template v-if="wsData[selectedWsId]?.tasks?.length">
+            <div :style="sectionLabel">APPROVED TASKS</div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px">
+              <div v-for="(t, i) in wsData[selectedWsId].tasks" :key="t.id" :style="taskRow">
+                <span :style="taskIdx">{{ i + 1 }}</span>
+                <span :style="taskTitle">{{ t.title }}</span>
+              </div>
+            </div>
+          </template>
+
+          <!-- Execution diff -->
+          <template v-if="wsData[selectedWsId]?.diff?.length">
+            <div :style="sectionLabel">EXECUTION DIFF</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div v-for="f in wsData[selectedWsId].diff" :key="f.file_path" :style="diffCard">
+                <button :style="diffHeader" @click="toggleDiffFile(selectedWsId + f.file_path)">
+                  <span :style="diffPath">{{ f.file_path }}</span>
+                  <span v-if="f.is_new" :style="newBadge">NEW</span>
+                  <span :style="diffStats"><span style="color:#4ade80">+{{ f.lines_added }}</span> <span style="color:var(--color-gray-600)">/</span> <span style="color:#f87171">-{{ f.lines_removed }}</span></span>
+                  <AppIcon :name="expandedDiffFiles.has(selectedWsId + f.file_path) ? 'chevron-down' : 'chevrons-up-down'" :size="11" :extra-style="{ color: 'var(--color-gray-600)' }" />
+                </button>
+                <div v-if="expandedDiffFiles.has(selectedWsId + f.file_path)" :style="diffBody">
+                  <div v-for="(line, li) in f.diff.split('\n')" :key="li" :style="diffLine(line)">{{ line }}</div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </template>
+      </div>
+    </div>
+
+    <!-- Knowledge tab: 3-column grid -->
+    <div v-else-if="activeTab === 'knowledge'" :style="gridWrap">
+      <div v-if="knowledgeLoading" :style="tabEmpty">Loading…</div>
+      <div v-else-if="knowledge.length === 0" :style="tabEmpty">No knowledge saved yet.</div>
+      <div v-else :style="grid">
+        <div v-for="k in knowledge" :key="k.key" :style="gridCard">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+            <span :style="knowledgeKey">{{ k.key }}</span>
+            <span :style="detailMeta">{{ formatDate(k.updated_at) }}</span>
+          </div>
+          <pre :style="knowledgeContent">{{ k.content }}</pre>
         </div>
       </div>
     </div>
 
-    <!-- Divider -->
-    <div :style="divider" />
-
-    <!-- Project artifacts -->
-    <div>
-      <div :style="sectionLabel">PROJECT ARTIFACTS</div>
-      <div v-if="artifactsLoading" :style="emptyState">Loading…</div>
-      <div v-else-if="artifacts.length === 0" :style="emptyState">No project artifacts yet.</div>
-      <div v-else style="display:flex;flex-direction:column;gap:8px">
-        <div v-for="a in artifacts" :key="a.id" :style="artifactCard">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <!-- Outputs tab: 3-column grid -->
+    <div v-else-if="activeTab === 'outputs'" :style="gridWrap">
+      <div v-if="artifactsLoading" :style="tabEmpty">Loading…</div>
+      <div v-else-if="artifacts.length === 0" :style="tabEmpty">No outputs yet.</div>
+      <div v-else :style="grid">
+        <div v-for="a in artifacts" :key="a.id" :style="gridCard">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
             <span :style="artifactName">{{ a.name }}</span>
             <span :style="artifactType">{{ a.type }}</span>
             <span :style="versionBadge">v{{ a.version }}</span>
-            <span :style="metaText" style="margin-left:auto">{{ formatDate(a.created_at) }}</span>
+            <span :style="detailMeta" style="margin-left:auto">{{ formatDate(a.created_at) }}</span>
           </div>
           <template v-if="a.type === 'type-definition'">
             <div :style="codeWrap">
@@ -119,8 +156,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import type { WorkspaceWithRequirements, ProjectArtifact, ApiTask } from '../types'
+import { ref, computed, onMounted, watch } from 'vue'
+import type { WorkspaceWithRequirements, ProjectArtifact, ApiTask, KnowledgeEntry } from '../types'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps<{ projectId: string }>()
@@ -128,16 +165,27 @@ const props = defineProps<{ projectId: string }>()
 interface FileDiff { file_path: string; diff: string; is_new: boolean; lines_added: number; lines_removed: number }
 interface WsData { tasks: ApiTask[]; diff: FileDiff[] }
 
-const workspaces = ref<WorkspaceWithRequirements[]>([])
-const artifacts = ref<ProjectArtifact[]>([])
-const wsData = ref<Record<string, WsData>>({})
-const wsLoading = ref(true)
-const artifactsLoading = ref(true)
+const tabs = [
+  { id: 'archive',   label: 'Archive' },
+  { id: 'knowledge', label: 'Knowledge' },
+  { id: 'outputs',   label: 'Outputs' },
+]
 
-const expandedWs = ref(new Set<string>())
-const expandedReqs = ref(new Set<string>())
+const activeTab     = ref('archive')
+const selectedWsId  = ref('')
+const workspaces    = ref<WorkspaceWithRequirements[]>([])
+const artifacts     = ref<ProjectArtifact[]>([])
+const knowledge     = ref<KnowledgeEntry[]>([])
+const wsData        = ref<Record<string, WsData>>({})
+const wsLoading     = ref(true)
+const artifactsLoading = ref(true)
+const knowledgeLoading = ref(true)
+const detailLoading = ref(false)
+const expandedReqs  = ref(new Set<string>())
 const expandedDiffFiles = ref(new Set<string>())
-const copiedId = ref('')
+const copiedId      = ref('')
+
+const selectedWs = computed(() => workspaces.value.find(w => w.id === selectedWsId.value) ?? null)
 
 onMounted(() => { load() })
 watch(() => props.projectId, () => { reset(); load() })
@@ -145,44 +193,47 @@ watch(() => props.projectId, () => { reset(); load() })
 function reset() {
   workspaces.value = []
   artifacts.value = []
+  knowledge.value = []
   wsData.value = {}
-  expandedWs.value = new Set()
+  selectedWsId.value = ''
   expandedReqs.value = new Set()
   expandedDiffFiles.value = new Set()
   wsLoading.value = true
   artifactsLoading.value = true
+  knowledgeLoading.value = true
 }
 
 async function load() {
-  const [wsRes, artRes] = await Promise.allSettled([
+  const [wsRes, artRes, knRes] = await Promise.allSettled([
     fetch(`/api/workspaces?project_id=${props.projectId}&include_deleted=true`),
     fetch(`/api/fs/projects/${props.projectId}/artifacts`),
+    fetch(`/api/recon/projects/${props.projectId}/knowledge`),
   ])
-  if (wsRes.status === 'fulfilled' && wsRes.value.ok) workspaces.value = await wsRes.value.json()
+  if (wsRes.status === 'fulfilled' && wsRes.value.ok) {
+    workspaces.value = await wsRes.value.json()
+    if (workspaces.value.length > 0) selectWs(workspaces.value[0].id)
+  }
   wsLoading.value = false
   if (artRes.status === 'fulfilled' && artRes.value.ok) artifacts.value = await artRes.value.json()
   artifactsLoading.value = false
+  if (knRes.status === 'fulfilled' && knRes.value.ok) knowledge.value = await knRes.value.json()
+  knowledgeLoading.value = false
 }
 
-async function toggleWs(id: string) {
-  const s = new Set(expandedWs.value)
-  if (s.has(id)) { s.delete(id); expandedWs.value = s; return }
-  s.add(id)
-  expandedWs.value = s
-  if (!wsData.value[id]) await loadWsData(id)
-}
-
-async function loadWsData(wsId: string) {
+async function selectWs(id: string) {
+  selectedWsId.value = id
+  if (wsData.value[id]) return
+  detailLoading.value = true
   const [tasksRes, diffRes] = await Promise.allSettled([
-    fetch(`/api/workspaces/${wsId}/tasks`),
-    fetch(`/api/lg/execution-diff?session=${wsId}`),
+    fetch(`/api/workspaces/${id}/tasks`),
+    fetch(`/api/lg/execution-diff?session=${id}`),
   ])
   const tasks: ApiTask[] = tasksRes.status === 'fulfilled' && tasksRes.value.ok
     ? (await tasksRes.value.json()).filter((t: ApiTask) => t.status === 'approved')
     : []
   const diffData = diffRes.status === 'fulfilled' && diffRes.value.ok ? await diffRes.value.json() : null
-  const diff: FileDiff[] = diffData?.files ?? []
-  wsData.value = { ...wsData.value, [wsId]: { tasks, diff } }
+  wsData.value = { ...wsData.value, [id]: { tasks, diff: diffData?.files ?? [] } }
+  detailLoading.value = false
 }
 
 function toggleReq(id: string) {
@@ -218,29 +269,44 @@ function diffLine(line: string) {
 const statusColors: Record<string, string> = {
   idle: 'rgba(255,255,255,0.10)', grooming: 'rgba(96,165,250,0.20)',
   awaiting_execution: 'rgba(245,197,24,0.20)', executing: 'rgba(74,222,128,0.20)',
-  done: 'rgba(74,222,128,0.12)', deleted: 'rgba(255,255,255,0.05)',
+  done: 'rgba(74,222,128,0.12)', deleted: 'rgba(255,255,255,0.05)', amending: 'rgba(167,139,250,0.20)',
 }
-const statusText: Record<string, string> = {
+const statusTextColors: Record<string, string> = {
   idle: 'var(--color-gray-300)', grooming: 'var(--color-info)',
   awaiting_execution: 'var(--color-amber)', executing: 'var(--color-success)',
-  done: 'var(--color-success)', deleted: 'var(--color-gray-600)',
+  done: 'var(--color-success)', deleted: 'var(--color-gray-600)', amending: '#a78bfa',
 }
+const statusPipColors: Record<string, string> = {
+  idle: 'var(--color-gray-600)', grooming: 'var(--color-info)',
+  awaiting_execution: 'var(--color-amber)', executing: 'var(--color-success)',
+  done: 'var(--color-success)', deleted: 'var(--color-gray-700)', amending: '#a78bfa',
+}
+
 function statusBadge(status: string) {
-  return { display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: '999px', background: statusColors[status] ?? 'rgba(255,255,255,0.06)', color: statusText[status] ?? 'var(--color-gray-500)', fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-body)' }
+  return { display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: '999px', background: statusColors[status] ?? 'rgba(255,255,255,0.06)', color: statusTextColors[status] ?? 'var(--color-gray-500)', fontSize: '10px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: 'var(--font-body)' }
+}
+function statusPip(status: string) {
+  return { width: '6px', height: '6px', borderRadius: '50%', background: statusPipColors[status] ?? 'var(--color-gray-600)', flexShrink: 0 }
 }
 
-const wrap          = { maxWidth: '800px', margin: '40px auto 0', padding: '0 32px 60px', display: 'flex', flexDirection: 'column', gap: '28px' } as Record<string, any>
-const sectionLabel  = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)', textTransform: 'uppercase' as const, marginBottom: '10px' }
-const subLabel      = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.10em', color: 'var(--color-gray-700)', fontFamily: 'var(--font-body)', textTransform: 'uppercase' as const, margin: '14px 0 6px' }
-const emptyState    = { fontSize: '13px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)', padding: '12px 0' }
-const emptyInline   = { fontSize: '12px', color: 'var(--color-gray-700)', fontFamily: 'var(--font-body)', paddingTop: '8px' }
-const divider       = { height: '1px', background: 'rgba(255,255,255,0.06)' }
-const metaText      = { fontSize: '11px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-mono)', flexShrink: 0 }
+const topBar        = { borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'var(--color-surface-0)', flexShrink: 0 }
+const breadcrumb    = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--color-gray-500)', whiteSpace: 'nowrap' as const }
+const mainTitle     = { fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 700, color: 'var(--color-fg-primary)', letterSpacing: '-0.02em' }
+const tabBtn        = (active: boolean) => ({ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '10px 14px 12px', background: 'transparent', border: 'none', cursor: 'pointer', color: active ? 'var(--color-amber)' : 'var(--color-gray-300)', fontFamily: 'var(--font-body)', fontSize: '13.5px', fontWeight: active ? 600 : 500 } as Record<string, any>)
+const tabUnderline  = { position: 'absolute', left: '8px', right: '8px', bottom: '-1px', height: '2px', background: 'var(--color-amber)', borderRadius: '2px' } as Record<string, any>
 
-const wsCard   = { background: 'var(--color-surface-1)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', overflow: 'hidden' }
-const wsHeader = { width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' as const }
-const wsName   = { fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: 600, color: 'var(--color-fg-primary)', letterSpacing: '-0.01em' }
-const wsBody   = { padding: '0 18px 16px', display: 'flex', flexDirection: 'column' as const }
+const sidebar       = { width: '260px', flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', overflowY: 'auto' as const, display: 'flex', flexDirection: 'column' as const }
+const sideRow       = (active: boolean) => ({ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: active ? 'rgba(255,255,255,0.05)' : 'transparent', border: 'none', borderLeft: active ? '2px solid var(--color-amber)' : '2px solid transparent', cursor: 'pointer', textAlign: 'left' as const } as Record<string, any>)
+const sideTitle     = { fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 500, color: 'var(--color-fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }
+const sideMeta      = { fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-gray-600)', marginTop: '2px' }
+const sideEmpty     = { padding: '20px 16px', fontSize: '12px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)' }
+
+const detail        = { flex: 1, overflowY: 'auto' as const, padding: '28px 32px' }
+const detailEmpty   = { fontSize: '13px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)' }
+const detailMeta    = { fontSize: '11px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-mono)', flexShrink: 0 }
+const wsNameLarge   = { fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: 600, color: 'var(--color-fg-primary)', letterSpacing: '-0.01em' }
+const sectionLabel  = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)', textTransform: 'uppercase' as const, marginBottom: '8px' }
+const emptyInline   = { fontSize: '12px', color: 'var(--color-gray-700)', fontFamily: 'var(--font-body)', paddingBottom: '16px' }
 
 const reqCard       = { background: 'var(--color-surface-0)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', padding: '8px 12px', display: 'flex', alignItems: 'flex-start', gap: '8px' }
 const reqToggleBtn  = { width: '100%', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' as const, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }
@@ -249,8 +315,8 @@ const reqAction     = { fontSize: '11px', color: 'var(--color-amber)', fontFamil
 const reqFullText   = { fontSize: '12px', color: 'var(--color-gray-300)', fontFamily: 'var(--font-body)', lineHeight: 1.6, whiteSpace: 'pre-wrap' as const, marginTop: '6px' }
 const reqThumb      = { maxWidth: '200px', maxHeight: '120px', borderRadius: '4px', objectFit: 'cover' as const, border: '1px solid rgba(255,255,255,0.06)' }
 
-const taskRow  = { display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '4px 0' }
-const taskIdx  = { width: '16px', height: '16px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-gray-500)', flexShrink: 0, marginTop: '1px' }
+const taskRow   = { display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '4px 0' }
+const taskIdx   = { width: '16px', height: '16px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-gray-500)', flexShrink: 0, marginTop: '1px' }
 const taskTitle = { fontSize: '12.5px', color: 'var(--color-gray-300)', fontFamily: 'var(--font-body)' }
 
 const diffCard   = { border: '1px solid rgba(255,255,255,0.06)', borderRadius: '7px', overflow: 'hidden' }
@@ -260,7 +326,14 @@ const diffStats  = { fontFamily: 'var(--font-mono)', fontSize: '11px', flexShrin
 const newBadge   = { fontFamily: 'var(--font-mono)', fontSize: '10px', fontWeight: 700, color: '#4ade80', flexShrink: 0 }
 const diffBody   = { background: 'rgba(0,0,0,0.3)', maxHeight: '320px', overflowY: 'auto' as const, overflowX: 'auto' as const }
 
-const artifactCard    = { background: 'var(--color-surface-1)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '16px 18px' }
+const gridWrap  = { flex: 1, overflowY: 'auto' as const, padding: '28px 32px' }
+const tabEmpty  = { fontSize: '13px', color: 'var(--color-gray-600)', fontFamily: 'var(--font-body)' }
+const grid      = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', alignItems: 'start' } as Record<string, any>
+const gridCard  = { background: 'var(--color-surface-1)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '10px', padding: '16px 18px' }
+
+const knowledgeKey     = { fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 700, color: 'var(--color-info)', letterSpacing: '0.04em' }
+const knowledgeContent = { margin: 0, fontFamily: 'var(--font-mono)', fontSize: '11.5px', color: 'var(--color-gray-300)', lineHeight: 1.6, whiteSpace: 'pre-wrap' as const, background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', padding: '10px 12px' }
+
 const artifactName    = { fontFamily: 'var(--font-body)', fontSize: '13.5px', fontWeight: 600, color: 'var(--color-fg-primary)' }
 const artifactType    = { fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--color-gray-500)', fontFamily: 'var(--font-body)', textTransform: 'uppercase' as const, background: 'rgba(255,255,255,0.05)', padding: '2px 7px', borderRadius: '4px' }
 const versionBadge    = { fontSize: '10px', color: 'var(--color-amber)', fontFamily: 'var(--font-mono)', background: 'rgba(245,197,24,0.10)', padding: '2px 7px', borderRadius: '4px' }

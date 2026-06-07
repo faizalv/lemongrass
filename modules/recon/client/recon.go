@@ -54,3 +54,15 @@ func (c *ReconClient) DropFile(ctx context.Context, projectID int64, path string
 func (c *ReconClient) SyncGitProject(projectID int64) {
 	c.uc.ActivateGitSync(projectID)
 }
+
+func (c *ReconClient) SaveKnowledge(ctx context.Context, projectID int64, key, content string) error {
+	return c.uc.SaveKnowledge(ctx, projectID, key, content)
+}
+
+func (c *ReconClient) ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error) {
+	return c.uc.ReadKnowledge(ctx, projectID, key)
+}
+
+func (c *ReconClient) SearchKnowledge(ctx context.Context, projectID int64, query string) ([]entity.KnowledgeEntry, error) {
+	return c.uc.SearchKnowledge(ctx, projectID, query)
+}

@@ -356,6 +356,50 @@ func (u *LgUsecase) handleReconDrop(ctx context.Context, s *activeSession, args 
 	u.recon.DropFile(ctx, s.projectID, rel)
 }
 
+func (u *LgUsecase) handleKnowledgeSave(ctx context.Context, s *activeSession, args string) string {
+	idx := strings.IndexByte(args, ':')
+	if idx <= 0 {
+		return "error: format is knowledge.save <key>:<content>"
+	}
+	key := strings.TrimSpace(args[:idx])
+	content := strings.TrimSpace(args[idx+1:])
+	if content == "" {
+		return "error: content is empty"
+	}
+	if err := u.recon.SaveKnowledge(ctx, s.projectID, key, content); err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return "saved: " + key
+}
+
+func (u *LgUsecase) handleKnowledgeRead(ctx context.Context, s *activeSession, args string) string {
+	key := strings.TrimSpace(args)
+	content, err := u.recon.ReadKnowledge(ctx, s.projectID, key)
+	if err != nil {
+		return "not found: " + key
+	}
+	return content
+}
+
+func (u *LgUsecase) handleKnowledgeSearch(ctx context.Context, s *activeSession, args string) string {
+	entries, err := u.recon.SearchKnowledge(ctx, s.projectID, strings.TrimSpace(args))
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	if len(entries) == 0 {
+		return "no knowledge entries found"
+	}
+	var sb strings.Builder
+	for _, e := range entries {
+		snippet := e.Content
+		if len(snippet) > 120 {
+			snippet = snippet[:120] + "…"
+		}
+		sb.WriteString(e.Key + ": " + snippet + "\n")
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) string {
 	filePath, symbol, kind, description, returnType, calls, err := parseAnnotateFormat(args)
 	if err != nil {

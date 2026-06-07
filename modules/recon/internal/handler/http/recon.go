@@ -61,6 +61,24 @@ func (h *ReconHandler) GetCoverage(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *ReconHandler) ListKnowledge(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	entries, err := h.uc.ListKnowledge(c.Request.Context(), projectID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	resp := make([]transporter.KnowledgeResponse, len(entries))
+	for i, e := range entries {
+		resp[i] = transporter.KnowledgeToResponse(e)
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *ReconHandler) Activate(c *gin.Context) {
 	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {

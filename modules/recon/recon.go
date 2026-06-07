@@ -40,6 +40,9 @@ func (r *Recon) LoadMe(cfg config.Config, db *sqlx.DB) {
 		if err := repo.DeleteByProject(context.Background(), id); err != nil {
 			log.Printf("recon: delete nodes for project %d: %v", id, err)
 		}
+		if err := repo.DeleteKnowledgeByProject(context.Background(), id); err != nil {
+			log.Printf("recon: delete knowledge for project %d: %v", id, err)
+		}
 	})
 }
 
@@ -54,6 +57,7 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/projects/:id/git-status", r.h.GitStatus)
 	g.POST("/projects/:id/git/init", r.h.GitInit)
 	g.GET("/projects/:id/embed-status", r.h.EmbedStatus)
+	g.GET("/projects/:id/knowledge", r.h.ListKnowledge)
 }
 
 func (r *Recon) StartScheduler(ctx context.Context) {

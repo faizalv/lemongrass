@@ -1,6 +1,20 @@
 package transporter
 
-import "github.com/faizalv/lemongrass/modules/recon/entity"
+import (
+	"time"
+
+	"github.com/faizalv/lemongrass/modules/recon/entity"
+)
+
+type KnowledgeResponse struct {
+	Key       string    `json:"key"`
+	Content   string    `json:"content"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func KnowledgeToResponse(e entity.KnowledgeEntry) KnowledgeResponse {
+	return KnowledgeResponse{Key: e.Key, Content: e.Content, UpdatedAt: e.UpdatedAt}
+}
 
 type NodeResponse struct {
 	ID          string `json:"id"`

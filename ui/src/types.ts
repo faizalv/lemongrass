@@ -126,6 +126,12 @@ export interface ProjectArtifact {
   created_at: string
 }
 
+export interface KnowledgeEntry {
+  key: string
+  content: string
+  updated_at: string
+}
+
 export interface WorkspaceWithRequirements {
   id: string
   project_id: number

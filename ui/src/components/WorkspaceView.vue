@@ -5,7 +5,7 @@
       <div style="padding:22px 32px 0;display:flex;align-items:flex-start;gap:24px">
         <div style="flex:1;min-width:0">
           <div :style="breadcrumb">
-            <AppIcon name="layers" :size="11" :extra-style="{ flexShrink: 0 }" />
+            <AppIcon name="layers" :size="11" color="var(--color-amber)" :extra-style="{ flexShrink: 0 }" />
             <span>Workspace</span>
             <span style="color:var(--color-gray-700)">·</span>
             <span>{{ workspace.branch }}</span>
