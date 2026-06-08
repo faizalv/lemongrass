@@ -213,14 +213,19 @@ Three tool types are intercepted:
   Execution session
         |
         | #lg.tasks.read
-        | gets approved task list with title, reason, impl directives
+        | gets approved task list with title, reason, impl directives, task_id
         |
-        | for each task:
-        |   #lg.recon.peek / #lg.recon.read  -- navigate to relevant symbols
-        |   Edit / Write tools               -- write the change directly
-        |   #lg!.annotate                    -- re-annotate every touched symbol
+        | for each task (in order):
+        |   #lg.tasks.start <task_id>            -- marks in_progress; check response for rejection note
+        |   #lg.recon.peek / #lg.recon.read      -- navigate to relevant symbols
+        |   Edit / Write tools                   -- write the change directly
+        |   #lg!.annotate                        -- re-annotate every touched symbol
+        |   #lg.tasks.finish <task_id>:<notes>   -- marks done; check response for rejection note
+        |   (notes: one sentence if impl diverged from plan, empty otherwise)
         |
-        | #lg!.done
+        | address any rejection note before proceeding or calling #lg!.done
+        |
+        | #lg!.done (when all tasks done, no rejections pending)
         |
         v
   workspace: done
@@ -242,6 +247,30 @@ The semantic map compounds across sessions. Every grooming session enriches it. 
 
 ---
 
+## Commitment model
+
+Before the grooming model can submit a task checkpoint it must declare annotation scope via `#lg.commitment <path>`. Each commitment sets a coverage requirement: at least 30% of method and func nodes under that prefix must have been read via `#lg.recon.read` and annotated via `#lg!.annotate` in the same session.
+
+The read-first rule is strict: annotations not preceded by a `#lg.recon.read` call for the exact `path:symbol:kind` triple score zero toward the threshold. Blind annotation is rejected.
+
+A commitment to `.` (root) requires that 70% of the project is already explored before it is accepted.
+
+`#lg.commitment.status` reports progress per commitment. The model calls this before `#lg.tasks.checkpoint` to confirm all thresholds are met. The server rejects a checkpoint that has shortfalls and returns a per-commitment breakdown of what is still needed.
+
+---
+
+## Knowledge store
+
+The knowledge store is a project-scoped key-value store (`lg_knowledge`) for non-obvious patterns and architectural decisions discovered during grooming or execution. Content is vectorized on save.
+
+**Commands**: `#lg.knowledge.save`, `#lg.knowledge.read`, `#lg.knowledge.search`, `#lg.knowledge.delete` -- all blocking, available in both session types.
+
+**Dedup signal**: `knowledge.save` runs a cosine similarity search after saving and appends `[similar: key-a, key-b]` to the response when overlapping entries exist (cosine distance < 0.20). The model can immediately read the flagged entries and delete whichever is stale.
+
+**Handover flow**: At `#lg!.handover key1,key2`, the server fetches those knowledge entries and stores them as `handover_context` on the workspace. The execution session receives them as a `--- Handover knowledge ---` preamble at the top of its system prompt. This is how grooming context transfers to execution without the execution model re-reading the codebase from scratch.
+
+---
+
 ## #lg protocol
 
 Commands the model uses to communicate with Lemongrass inside a session. `#lg.` blocks -- the hook waits for the server response before returning to Claude. `#lg!.` fires and returns immediately.
@@ -255,11 +284,17 @@ Commands the model uses to communicate with Lemongrass inside a session. `#lg.` 
 | `#lg.recon.related <path:symbol:kind>` | grooming | yes | callers and callees from the call graph |
 | `#lg.commitment <path>` | grooming | yes | declare annotation scope; min(30%, 15 methods / 8 funcs) threshold; root requires 70% coverage |
 | `#lg.commitment.status` | grooming | yes | progress per commitment; call before checkpoint |
+| `#lg.knowledge.save <key>:<content>` | both | yes | upsert a project insight; response includes `[similar: ...]` when overlapping entries exist |
+| `#lg.knowledge.read <key>` | both | yes | retrieve a saved insight by key |
+| `#lg.knowledge.search <query>` | both | yes | vector search across saved knowledge; top 5 results |
+| `#lg.knowledge.delete <key>` | both | yes | remove a stale or superseded insight |
 | `#lg!.annotate <path:symbol:kind>:"desc":return:deps` | both | no | store description, return type, deps; generate embedding |
 | `#lg!.recon.drop <path>` | execution | no | remove all nodes for a path from the semantic map |
 | `#lg.tasks.checkpoint <json>` | grooming | yes | submit task list; blocks until user approves or rejects |
-| `#lg!.handover` | grooming | no | end grooming, workspace moves to awaiting_execution |
-| `#lg.tasks.read` | execution | yes | get approved task list with title, reason, impl |
+| `#lg!.handover [key1,key2,...]` | grooming | no | end grooming, workspace moves to awaiting_execution; optional key list fetched and stored as execution preamble |
+| `#lg.tasks.read` | execution | yes | get approved task list with title, reason, impl, task_id |
+| `#lg.tasks.start <task_id>` | execution | yes | mark task in_progress; response includes pending rejection note if any |
+| `#lg.tasks.finish <task_id>:<notes>` | execution | yes | mark task done; capture per-task diff; response includes rejection note if any |
 | `#lg!.done` | execution | no | end execution, workspace moves to done |
 | `#lg.echo <message>` | both | no | send a status message visible in the UI activity feed |
 
