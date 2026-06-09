@@ -364,6 +364,8 @@ func (r *ReconRepository) ListUnembedded(ctx context.Context, limit int) ([]enti
 		        description, return_type, content_hash, calls, explored_at, created_at
 		 FROM lg_semantic_nodes
 		 WHERE embedding IS NULL AND status != 'removed'
+		   AND (description IS NULL OR description = '')
+		   AND kind NOT IN ('imports', 'commented-block', 'vue-template', 'vue-style')
 		 ORDER BY created_at ASC,
 		          CASE WHEN status = 'unexplored' THEN 0 ELSE 1 END
 		 LIMIT $1`,
@@ -506,7 +508,8 @@ func (r *ReconRepository) GetEmbedPending(ctx context.Context, projectID int64) 
 	err = r.db.QueryRowContext(ctx,
 		`SELECT
 		   COUNT(*),
-		   COUNT(*) FILTER (WHERE embedding IS NULL)
+		   COUNT(*) FILTER (WHERE embedding IS NULL
+		                    AND kind NOT IN ('imports', 'commented-block', 'vue-template', 'vue-style'))
 		 FROM lg_semantic_nodes
 		 WHERE project_id = $1 AND status != 'removed'`,
 		projectID,

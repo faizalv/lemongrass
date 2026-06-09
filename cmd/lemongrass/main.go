@@ -24,6 +24,8 @@ func main() {
 		cmdStatus()
 	case "start-daemon":
 		cmdStartDaemon()
+	case "init":
+		cmdInit(os.Args[2:])
 	case "remount":
 		cmdRemount(os.Args[2:])
 	case "setlang":
@@ -48,6 +50,7 @@ COMMANDS
   up                Start all containers
   down              Stop all containers
   status            Show container status
-  remount <paths>      Recreate server container with given project paths mounted
+  init [path]       Register a project directory with lemongrass (default: current directory)
+  remount <paths>   Recreate server container with given project paths mounted
 `)
 }

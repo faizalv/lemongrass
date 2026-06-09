@@ -6,8 +6,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/faizalv/lemongrass/infra"
@@ -67,6 +69,8 @@ type ReconUsecase struct {
 	syncing    map[int64]bool
 	lastSynced map[int64]int64
 	activeID   int64
+
+	annotating atomic.Int32
 
 	embedMu      sync.Mutex
 	embedCurrent string
@@ -175,24 +179,36 @@ func (u *ReconUsecase) NodesToInsert(projectID int64, results []*entity.ParseRes
 
 func signatureText(n entity.SemanticNode) string {
 	role := entity.KindRole(n.Kind)
-	if role == "meta" {
-		return ""
-	}
 	switch role {
-	case "method":
-		sym := n.Symbol
-		if n.Receiver != "" {
+	case "meta", "view":
+		return ""
+	case "method", "func":
+		var sym string
+		if role == "method" && n.Receiver != "" {
 			sym = "(" + n.Receiver + ") " + n.Symbol
+		} else {
+			sym = n.Symbol
 		}
+		var text string
 		if n.Signature != "" {
-			return sym + n.Signature
+			text = sym + n.Signature
+		} else if n.ReturnType != "" {
+			text = sym + "() " + n.ReturnType
+		} else {
+			text = sym + " " + n.Kind
 		}
-		return sym + " " + n.Kind
-	case "func":
-		if n.Signature != "" {
-			return n.Symbol + n.Signature
+		if n.Package != "" {
+			text = path.Base(n.Package) + "." + text
 		}
-		return n.Symbol + " " + n.Kind
+		if n.Language != "" && n.Language != "go" {
+			text = n.Language + " " + text
+		}
+		return text
+	case "component":
+		if n.Symbol != "" {
+			return n.Symbol + " component"
+		}
+		return "component"
 	default:
 		if n.Symbol != "" {
 			return n.Symbol + " " + n.Kind
@@ -240,6 +256,19 @@ func (u *ReconUsecase) StartBackgroundEmbed(ctx context.Context) {
 				text := signatureText(n)
 				if text == "" {
 					continue
+				}
+				if n.Description != "" {
+					continue
+				}
+				for u.annotating.Load() > 0 {
+					select {
+					case <-ctx.Done():
+						u.embedMu.Lock()
+						u.embedCurrent = ""
+						u.embedMu.Unlock()
+						return
+					case <-time.After(500 * time.Millisecond):
+					}
 				}
 				key := n.FilePath + ":" + n.Symbol + ":" + n.Kind
 				u.embedMu.Lock()

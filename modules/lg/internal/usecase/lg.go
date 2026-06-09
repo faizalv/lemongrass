@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +41,8 @@ type taskWriter interface {
 	UpdateStatus(ctx context.Context, id, status string) error
 	GetTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
 	SaveHandoverContext(ctx context.Context, workspaceID, context string) error
+	CreateWorkspace(ctx context.Context, projectID int64, name string) (wsentity.Workspace, error)
+	FindWorkspace(ctx context.Context, projectID int64, nameOrID string) (wsentity.Workspace, error)
 }
 
 type checkpointResult struct {
@@ -92,9 +95,14 @@ func New() *LgUsecase {
 		beforeSnapshots: make(map[string]map[string]string),
 		execDiffs:       make(map[string][]entity.FileDiff),
 	}
-	bus.Default.On(bus.EventProjectRemoved, func(_ any) {
+	bus.Default.On(bus.EventProjectRemoved, func(payload any) {
 		uc.mu.Lock()
 		uc.calls = nil
+		if id, ok := payload.(int64); ok {
+			key := fmt.Sprintf("host:%d", id)
+			delete(uc.sessions, key)
+			delete(uc.lastActivity, key)
+		}
 		uc.mu.Unlock()
 	})
 	return uc
@@ -313,6 +321,14 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return resp
 	case "knowledge.labels":
 		resp := u.handleKnowledgeLabels(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "workspace.create":
+		resp := u.handleWorkspaceCreate(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "workspace.use":
+		resp := u.handleWorkspaceUse(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
 	}

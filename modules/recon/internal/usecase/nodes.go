@@ -50,7 +50,9 @@ func (u *ReconUsecase) Annotate(ctx context.Context, projectID int64, filePath, 
 		return 0, err
 	}
 	if n > 0 {
+		u.annotating.Add(1)
 		go func() {
+			defer u.annotating.Add(-1)
 			vec, err := u.embed.Embed(context.Background(), description)
 			if err != nil {
 				return

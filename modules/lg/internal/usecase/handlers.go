@@ -525,9 +525,48 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 	return "ok"
 }
 
+func (u *LgUsecase) handleWorkspaceCreate(ctx context.Context, s *activeSession, args string) string {
+	if u.tasks == nil {
+		return "error: task writer not configured"
+	}
+	name := strings.TrimSpace(args)
+	if name == "" {
+		return "error: workspace name required"
+	}
+	ws, err := u.tasks.CreateWorkspace(ctx, s.projectID, name)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	u.mu.Lock()
+	s.workspaceID = ws.ID
+	u.mu.Unlock()
+	return "workspace ready: " + ws.Name + " (" + ws.ID + ")"
+}
+
+func (u *LgUsecase) handleWorkspaceUse(ctx context.Context, s *activeSession, args string) string {
+	if u.tasks == nil {
+		return "error: task writer not configured"
+	}
+	nameOrID := strings.TrimSpace(args)
+	if nameOrID == "" {
+		return "error: workspace name or ID required"
+	}
+	ws, err := u.tasks.FindWorkspace(ctx, s.projectID, nameOrID)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	u.mu.Lock()
+	s.workspaceID = ws.ID
+	u.mu.Unlock()
+	return "using workspace: " + ws.Name
+}
+
 func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args string) string {
 	if u.tasks == nil {
 		return "error: task writer not configured"
+	}
+	if s.workspaceID == "" {
+		return "error: no workspace active -- call #lg.workspace.create <name> or #lg.workspace.use <name> first"
 	}
 	var payload struct {
 		Tasks []struct {

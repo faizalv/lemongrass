@@ -40,6 +40,8 @@ type taskProvider interface {
 	UpdateStatus(ctx context.Context, id, status string) error
 	GetTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
 	SaveHandoverContext(ctx context.Context, workspaceID, context string) error
+	CreateWorkspace(ctx context.Context, projectID int64, name string) (wsentity.Workspace, error)
+	FindWorkspace(ctx context.Context, projectID int64, nameOrID string) (wsentity.Workspace, error)
 }
 
 type Lg struct {

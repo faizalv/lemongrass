@@ -23,12 +23,18 @@ func (h *LgHandler) Receive(c *gin.Context) {
 		Args      string `json:"args"`
 		Blocking  bool   `json:"blocking"`
 		SessionID string `json:"session_id"`
+		ProjectID int64  `json:"project_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || req.Cmd == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cmd is required"})
 		return
 	}
-	text := h.uc.Handle(req.SessionID, req.Cmd, req.Args, req.Blocking)
+	var text string
+	if req.ProjectID > 0 && req.SessionID == "" {
+		text = h.uc.HandleByProject(req.ProjectID, req.Cmd, req.Args, req.Blocking)
+	} else {
+		text = h.uc.Handle(req.SessionID, req.Cmd, req.Args, req.Blocking)
+	}
 	c.JSON(http.StatusOK, gin.H{"text": text})
 }
 

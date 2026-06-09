@@ -9,5 +9,5 @@ CREATE TABLE lg_knowledge_labels (
   UNIQUE(project_id, label)
 );
 
-CREATE INDEX ON lg_knowledge(project_id, labels) USING GIN;
-CREATE INDEX ON lg_knowledge_labels(project_id);
+CREATE INDEX lg_knowledge_labels_gin_idx ON lg_knowledge USING GIN (labels);
+CREATE INDEX lg_knowledge_labels_project_id_idx ON lg_knowledge_labels(project_id);

@@ -16,6 +16,36 @@ import (
 
 const defaultServerURL = "http://lg-server:9966/api/lg"
 
+var isHost = "false"
+var activeServerURL = defaultServerURL
+var activeProjectID int64
+
+type lgHostConfig struct {
+	ProjectID int64  `json:"project_id"`
+	ServerURL string `json:"server_url"`
+}
+
+func findLgConfig() *lgHostConfig {
+	dir, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	for {
+		data, err := os.ReadFile(filepath.Join(dir, ".lemongrass", "config.json"))
+		if err == nil {
+			var cfg lgHostConfig
+			if json.Unmarshal(data, &cfg) == nil && cfg.ProjectID > 0 {
+				return &cfg
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return nil
+		}
+		dir = parent
+	}
+}
+
 type hookEvent struct {
 	ToolName  string          `json:"tool_name"`
 	ToolInput json.RawMessage `json:"tool_input"`
@@ -34,7 +64,8 @@ type lgRequest struct {
 	Cmd       string `json:"cmd"`
 	Args      string `json:"args"`
 	Blocking  bool   `json:"blocking"`
-	SessionID string `json:"session_id"`
+	SessionID string `json:"session_id,omitempty"`
+	ProjectID int64  `json:"project_id,omitempty"`
 }
 
 type lgResponse struct {
@@ -90,6 +121,13 @@ var destructiveCommands = map[string]bool{
 }
 
 func main() {
+	if isHost == "true" {
+		if cfg := findLgConfig(); cfg != nil {
+			activeServerURL = cfg.ServerURL + "/api/lg"
+			activeProjectID = cfg.ProjectID
+		}
+	}
+
 	var event hookEvent
 	if err := json.NewDecoder(os.Stdin).Decode(&event); err != nil {
 		os.Exit(0)
@@ -108,6 +146,10 @@ func main() {
 }
 
 func handleWrite(raw json.RawMessage) {
+	if isHost == "true" {
+		allowTool()
+		return
+	}
 	var input writeInput
 	if err := json.Unmarshal(raw, &input); err != nil {
 		os.Exit(0)
@@ -119,7 +161,7 @@ func handleWrite(raw json.RawMessage) {
 		"byte_count": len(input.Content),
 	})
 	client := &http.Client{Timeout: 5 * time.Second}
-	client.Post(defaultServerURL+"/write-trail", "application/json", bytes.NewReader(body))
+	client.Post(activeServerURL+"/write-trail", "application/json", bytes.NewReader(body))
 	os.Exit(0)
 }
 
@@ -136,6 +178,10 @@ var groomingAllowedExts = map[string]bool{
 }
 
 func handleRead(raw json.RawMessage) {
+	if isHost == "true" {
+		allowTool()
+		return
+	}
 	var input struct {
 		FilePath string `json:"file_path"`
 	}
@@ -172,18 +218,34 @@ func handleBash(raw json.RawMessage) {
 	cmd := input.Command
 
 	switch {
-	case strings.HasPrefix(cmd, "#lg!."):
-		forwardToServer(strings.TrimPrefix(cmd, "#lg!."), false)
-	case strings.HasPrefix(cmd, "#lg."):
-		forwardToServer(strings.TrimPrefix(cmd, "#lg."), true)
+	case strings.HasPrefix(cmd, "#lg!.") || strings.HasPrefix(cmd, "#lg."):
+		if isHost == "true" && activeProjectID == 0 {
+			deliver("lemongrass is not initialised for this project -- run `lemongrass init` in the project root first")
+			return
+		}
+		if strings.HasPrefix(cmd, "#lg!.") {
+			forwardToServer(strings.TrimPrefix(cmd, "#lg!."), false)
+		} else {
+			forwardToServer(strings.TrimPrefix(cmd, "#lg."), true)
+		}
 	default:
+		if isHost == "true" {
+			allowTool()
+			return
+		}
 		handlePermitted(cmd)
 	}
 }
 
 func forwardToServer(rest string, blocking bool) {
 	lgCmd, args := splitCmd(rest)
-	body, _ := json.Marshal(lgRequest{Cmd: lgCmd, Args: args, Blocking: blocking, SessionID: os.Getenv("LG_SESSION_ID")})
+	req := lgRequest{Cmd: lgCmd, Args: args, Blocking: blocking}
+	if activeProjectID > 0 {
+		req.ProjectID = activeProjectID
+	} else {
+		req.SessionID = os.Getenv("LG_SESSION_ID")
+	}
+	body, _ := json.Marshal(req)
 
 	timeout := 5 * time.Second
 	if blocking {
@@ -191,7 +253,7 @@ func forwardToServer(rest string, blocking bool) {
 	}
 
 	client := &http.Client{Timeout: timeout}
-	resp, err := client.Post(defaultServerURL, "application/json", bytes.NewReader(body))
+	resp, err := client.Post(activeServerURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		if blocking {
 			deliver(fmt.Sprintf("error: lg-server unreachable (%v)", err))

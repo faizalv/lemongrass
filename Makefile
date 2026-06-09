@@ -24,10 +24,13 @@ lemongrass: build-ui embed
 	docker build -f Dockerfile.runner -t lemongrass-runner:latest .
 	mkdir -p bin
 	go build -o bin/lemongrass ./cmd/lemongrass
+	go build -ldflags "-X main.isHost=true" -o bin/lg-hook-host ./cmd/lg-hook
 	@if [ -d "$$HOME/.local/bin" ]; then \
 		install -m 755 bin/lemongrass $$HOME/.local/bin/lemongrass; \
+		install -m 755 bin/lg-hook-host $$HOME/.local/bin/lg-hook-host; \
 	else \
 		install -m 755 bin/lemongrass /usr/local/bin/lemongrass; \
+		install -m 755 bin/lg-hook-host /usr/local/bin/lg-hook-host; \
 	fi
 	bin/lemongrass _scaffold
 	@echo ""

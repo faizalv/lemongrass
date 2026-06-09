@@ -9,6 +9,23 @@ import (
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 )
 
+func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking bool) string {
+	key := fmt.Sprintf("host:%d", projectID)
+	u.mu.Lock()
+	if u.sessions[key] == nil {
+		u.sessions[key] = &activeSession{
+			projectID:    projectID,
+			projectAlias: fmt.Sprintf("project-%d", projectID),
+			sessionType:  "host",
+			checkpointCh: make(chan checkpointResult, 1),
+			readNodes:    make(map[string]readEntry),
+			commitments:  make(map[string]*commitment),
+		}
+	}
+	u.mu.Unlock()
+	return u.Handle(key, cmd, args, blocking)
+}
+
 func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
