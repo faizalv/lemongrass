@@ -6,6 +6,7 @@ import (
 	"github.com/faizalv/lemongrass/config"
 	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
 	handler "github.com/faizalv/lemongrass/modules/lg/internal/handler/http"
+	"github.com/faizalv/lemongrass/modules/lg/internal/repository"
 	"github.com/faizalv/lemongrass/modules/lg/internal/usecase"
 	reconentity "github.com/faizalv/lemongrass/modules/recon/entity"
 	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
@@ -24,15 +25,18 @@ type reconProvider interface {
 	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)
-	SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) error
+	SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) (bool, error)
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
-	SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]reconentity.KnowledgeEntry, error)
+	SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]reconentity.KnowledgeEntry, bool, error)
 	DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error)
 	FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error)
 	UpsertLabel(ctx context.Context, projectID int64, label, content string) error
 	FindSimilarLabels(ctx context.Context, projectID int64, label, content string) ([]string, error)
 	SearchLabels(ctx context.Context, projectID int64, query string) ([]string, error)
 	SearchKnowledgeByLabel(ctx context.Context, projectID int64, label, query string) ([]reconentity.KnowledgeEntry, error)
+	Embed(ctx context.Context, text string) ([]float32, error)
+	ProjectDir(ctx context.Context, projectID int64) (string, error)
+	ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]reconentity.SemanticNode, error)
 }
 
 type taskProvider interface {
@@ -50,10 +54,13 @@ type Lg struct {
 	h           *handler.LgHandler
 }
 
-func (l *Lg) LoadMe(_ config.Config, _ *sqlx.DB) {
+func (l *Lg) LoadMe(_ config.Config, db *sqlx.DB) {
 	l.uc = usecase.New()
 	if l.ReconClient != nil {
 		l.uc.SetRecon(l.ReconClient)
+	}
+	if db != nil {
+		l.uc.SetInterimRepo(repository.NewInterim(db))
 	}
 	l.h = handler.New(l.uc)
 }

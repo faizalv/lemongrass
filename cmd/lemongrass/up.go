@@ -199,6 +199,8 @@ You know the exact symbol and want to read its body:
 You want to know what calls a symbol or what it calls:
   #lg.recon.related <path:symbol:kind>
 
+peek displays methods as Receiver.Method (LgUsecase.HandleByProject). All commands -- recon.read, recon.related, codebase.interim S: -- take the bare name (HandleByProject). The recon.read response header confirms the correct triple.
+
 You want a coverage overview of the whole project or a subtree:
   #lg.recon.tree              (no path = full project entrance)
   #lg.recon.tree <path>

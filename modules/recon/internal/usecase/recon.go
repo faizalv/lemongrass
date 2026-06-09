@@ -35,6 +35,7 @@ type repo interface {
 	AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error)
 	ListByPathDirect(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, []entity.SubdirSummary, error)
 	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error)
+	ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]entity.SemanticNode, error)
 	SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error
 	GetTreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error)
 	ListUnembedded(ctx context.Context, limit int) ([]entity.SemanticNode, error)
@@ -107,6 +108,18 @@ func (u *ReconUsecase) Close() {
 	}
 }
 
+func (u *ReconUsecase) Embed(ctx context.Context, text string) ([]float32, error) {
+	return u.embed.Embed(ctx, text)
+}
+
+func (u *ReconUsecase) ProjectDir(ctx context.Context, projectID int64) (string, error) {
+	return u.repo.ProjectDir(ctx, projectID)
+}
+
+func (u *ReconUsecase) ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]entity.SemanticNode, error) {
+	return u.repo.ListFileNodes(ctx, projectID, filePath)
+}
+
 func (u *ReconUsecase) MapIfNeeded(ctx context.Context, projectID int64, dir string) error {
 	has, err := u.repo.HasNodes(ctx, projectID)
 	if err != nil {
@@ -170,6 +183,7 @@ func (u *ReconUsecase) NodesToInsert(projectID int64, results []*entity.ParseRes
 					DependsOn:   n.DependsOn,
 					Status:      "unexplored",
 					ContentHash: n.ContentHash,
+					Calls:       n.Calls,
 				})
 			}
 		}

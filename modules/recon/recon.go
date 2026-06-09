@@ -91,6 +91,10 @@ func (r *Recon) MapIfNeeded(ctx context.Context, projectID int64, dir string) er
 	return r.uc.MapIfNeeded(ctx, projectID, dir)
 }
 
+func (r *Recon) Activate(projectID int64) {
+	r.uc.Activate(projectID)
+}
+
 func (r *Recon) Usecase() *usecase.ReconUsecase {
 	return r.uc
 }

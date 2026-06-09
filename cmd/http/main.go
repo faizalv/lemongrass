@@ -103,6 +103,10 @@ func main() {
 			} else {
 				log.Printf("startup mapping: project %d ok", p.ID)
 			}
+			if _, err := os.Stat(filepath.Join(dir, ".lemongrass")); err == nil {
+				reconModule.Activate(p.ID)
+				log.Printf("startup activate: project %d (headless)", p.ID)
+			}
 		}
 	}
 

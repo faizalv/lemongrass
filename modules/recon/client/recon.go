@@ -55,7 +55,7 @@ func (c *ReconClient) SyncGitProject(projectID int64) {
 	c.uc.ActivateGitSync(projectID)
 }
 
-func (c *ReconClient) SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) error {
+func (c *ReconClient) SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) (bool, error) {
 	return c.uc.SaveKnowledge(ctx, projectID, key, content, labels)
 }
 
@@ -63,7 +63,7 @@ func (c *ReconClient) ReadKnowledge(ctx context.Context, projectID int64, key st
 	return c.uc.ReadKnowledge(ctx, projectID, key)
 }
 
-func (c *ReconClient) SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]entity.KnowledgeEntry, error) {
+func (c *ReconClient) SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]entity.KnowledgeEntry, bool, error) {
 	return c.uc.SearchKnowledge(ctx, projectID, query, label)
 }
 
@@ -89,4 +89,16 @@ func (c *ReconClient) SearchLabels(ctx context.Context, projectID int64, query s
 
 func (c *ReconClient) SearchKnowledgeByLabel(ctx context.Context, projectID int64, label, query string) ([]entity.KnowledgeEntry, error) {
 	return c.uc.SearchKnowledgeByLabel(ctx, projectID, label, query)
+}
+
+func (c *ReconClient) ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]entity.SemanticNode, error) {
+	return c.uc.ListFileNodes(ctx, projectID, filePath)
+}
+
+func (c *ReconClient) Embed(ctx context.Context, text string) ([]float32, error) {
+	return c.uc.Embed(ctx, text)
+}
+
+func (c *ReconClient) ProjectDir(ctx context.Context, projectID int64) (string, error) {
+	return c.uc.ProjectDir(ctx, projectID)
 }

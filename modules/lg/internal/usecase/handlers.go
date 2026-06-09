@@ -417,10 +417,14 @@ func (u *LgUsecase) handleKnowledgeSave(ctx context.Context, s *activeSession, a
 		return "error: content is empty"
 	}
 	content, labels := parseKnowledgeLabels(raw)
-	if err := u.recon.SaveKnowledge(ctx, s.projectID, key, content, labels); err != nil {
+	embedded, err := u.recon.SaveKnowledge(ctx, s.projectID, key, content, labels)
+	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
 	var signals []string
+	if !embedded {
+		signals = append(signals, "[warning: embedding unavailable -- search will use substring fallback until embed service recovers]")
+	}
 	similar, _ := u.recon.FindSimilarKnowledge(ctx, s.projectID, content, key)
 	if len(similar) > 0 {
 		signals = append(signals, "[similar: "+strings.Join(similar, ", ")+"]")
@@ -449,7 +453,7 @@ func (u *LgUsecase) handleKnowledgeRead(ctx context.Context, s *activeSession, a
 
 func (u *LgUsecase) handleKnowledgeSearch(ctx context.Context, s *activeSession, args string) string {
 	query, label := parseKnowledgeSearchArgs(args)
-	entries, err := u.recon.SearchKnowledge(ctx, s.projectID, query, label)
+	entries, fallback, err := u.recon.SearchKnowledge(ctx, s.projectID, query, label)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
@@ -457,6 +461,9 @@ func (u *LgUsecase) handleKnowledgeSearch(ctx context.Context, s *activeSession,
 		return "no knowledge entries found"
 	}
 	var sb strings.Builder
+	if fallback {
+		sb.WriteString("[fallback: embed unavailable, results are substring matches not semantic]\n")
+	}
 	for _, e := range entries {
 		snippet := e.Content
 		if len(snippet) > 120 {

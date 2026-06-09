@@ -21,6 +21,7 @@ type ParsedNode struct {
 	Exported    bool     `json:"exported"`
 	DependsOn   []string `json:"depends_on"`
 	ContentHash string   `json:"content_hash"`
+	Calls       []string `json:"calls"`
 }
 
 func (t *ProjectTree) ToParseResult() *ParseResult {
@@ -37,9 +38,10 @@ func (t *ProjectTree) ToParseResult() *ParseResult {
 					LineEnd:     sym.LineEnd,
 					Receiver:    sym.Receiver,
 					Signature:   sym.Signature,
-					Exported:    true,
+					Exported:    sym.Exported,
 					DependsOn:   pkg.DependsOn,
 					ContentHash: sym.ContentHash,
+					Calls:       sym.Calls,
 				})
 			}
 		}

@@ -25,15 +25,26 @@ type reconClient interface {
 	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)
-	SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) error
+	SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) (bool, error)
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
-	SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]reconentity.KnowledgeEntry, error)
+	SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]reconentity.KnowledgeEntry, bool, error)
 	DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error)
 	FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error)
 	UpsertLabel(ctx context.Context, projectID int64, label, content string) error
 	FindSimilarLabels(ctx context.Context, projectID int64, label, content string) ([]string, error)
 	SearchLabels(ctx context.Context, projectID int64, query string) ([]string, error)
 	SearchKnowledgeByLabel(ctx context.Context, projectID int64, label, query string) ([]reconentity.KnowledgeEntry, error)
+	Embed(ctx context.Context, text string) ([]float32, error)
+	ProjectDir(ctx context.Context, projectID int64) (string, error)
+	ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]reconentity.SemanticNode, error)
+}
+
+type interimRepository interface {
+	DropInterim(ctx context.Context, sessionID string) error
+	InsertChunk(ctx context.Context, sessionID, filePath string, chunkIndex, lineStart, lineEnd int, content string, embedding []float32) error
+	QueryInterim(ctx context.Context, sessionID string, embedding []float32, limit int) ([]entity.InterimChunk, error)
+	SearchInterim(ctx context.Context, sessionID, pattern string) ([]entity.InterimChunk, error)
+	HasInterim(ctx context.Context, sessionID string) (bool, error)
 }
 
 type taskWriter interface {
@@ -65,6 +76,7 @@ type readEntry struct {
 }
 
 type activeSession struct {
+	key          string
 	workspaceID  string
 	projectID    int64
 	projectAlias string
@@ -79,6 +91,7 @@ type LgUsecase struct {
 	recon           reconClient
 	tasks           taskWriter
 	usage           usageProvider
+	interim         interimRepository
 	mu              sync.Mutex
 	calls           []entity.Call
 	writeTrail      []entity.WriteTrailEntry
@@ -186,6 +199,12 @@ func activityMessage(cmd, args string) string {
 		return "Deleting knowledge: " + args
 	case "knowledge.labels":
 		return "Searching knowledge labels: " + args
+	case "codebase.interim":
+		return "Loading workbench: " + args
+	case "codebase.query":
+		return "Querying workbench: " + args
+	case "codebase.search":
+		return "Searching workbench: " + args
 	}
 	return ""
 }
@@ -196,6 +215,10 @@ func (u *LgUsecase) SetRecon(r reconClient) {
 
 func (u *LgUsecase) SetTaskWriter(tw taskWriter) {
 	u.tasks = tw
+}
+
+func (u *LgUsecase) SetInterimRepo(r interimRepository) {
+	u.interim = r
 }
 
 func (u *LgUsecase) logCall(sessionID, sessionType, cmd, args, response string, start time.Time) {
@@ -329,6 +352,18 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return resp
 	case "workspace.use":
 		resp := u.handleWorkspaceUse(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "codebase.interim":
+		resp := u.handleCodebaseInterim(ctx, sessionID, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "codebase.query":
+		resp := u.handleCodebaseQuery(ctx, sessionID, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "codebase.search":
+		resp := u.handleCodebaseSearch(ctx, sessionID, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
 	}

@@ -27,6 +27,20 @@ const cmdKnowledgeRead    = `#lg.knowledge.read <key> -- retrieve a saved insigh
 const cmdKnowledgeSearch  = `#lg.knowledge.search <query> [label] -- vector search across saved knowledge; optional trailing label filters to entries tagged with that label`
 const cmdKnowledgeDelete  = `#lg.knowledge.delete <key> -- remove a stale or superseded entry`
 const cmdKnowledgeLabels  = `#lg.knowledge.labels <query> -- vibe search: returns top label names relevant to query; no content returned; use to orient then follow with knowledge.search <query> <label>`
+const cmdCodebaseInterim = `#lg.codebase.interim <inputs> -- load files or symbols into session workbench; pipe-separate inputs; replaces previous workbench. Selectors: S:path:symbol:kind (symbol body), F:path/to/file (full file), R:glob (all matching files)`
+const cmdCodebaseQuery   = `#lg.codebase.query <question> -- vector search within workbench; use for concepts when symbol identity is unknown`
+const cmdCodebaseSearch  = `#lg.codebase.search <pattern> -- pattern search within workbench; returns full surrounding chunk, not just the matching line`
+
+const workbenchDecisionTree = `When to reach for each tool:
+  concept or term you cannot place → recon.search
+  known symbol identity             → recon.read
+  blast radius before touching      → recon.related
+  load files for block-level search → codebase.interim
+  concept within loaded files       → codebase.query
+  exact identifier or string        → codebase.search
+
+Do not use codebase.query when you already know path:symbol:kind -- recon.read is cheaper, gives the exact boundary, and counts toward commitment.`
+
 const echoRule            = `Call #lg.echo <message> at each major step. No quotes around message:`
 
 func buildExecutionPrompt(projectAlias, handoverContext string) string {
@@ -43,6 +57,8 @@ func buildExecutionPrompt(projectAlias, handoverContext string) string {
 		"",
 		hookCallInstruction,
 		"",
+		workbenchDecisionTree,
+		"",
 		"#lg.tasks.read -- approved task list with title, reason, impl. Call this first.",
 		cmdReconPeek,
 		cmdReconRead,
@@ -53,6 +69,12 @@ func buildExecutionPrompt(projectAlias, handoverContext string) string {
 		cmdKnowledgeSearch,
 		cmdKnowledgeDelete,
 		cmdKnowledgeLabels,
+		"",
+		"--- Workbench ---",
+		"",
+		cmdCodebaseInterim,
+		cmdCodebaseQuery,
+		cmdCodebaseSearch,
 		"",
 		"Use #lg.recon.read for exploration. Native Read is last resort -- only to obtain current file content before Edit.",
 		"After any native Read, annotate the symbols you read: " + cmdAnnotate + " (! required -- no blocking annotate exists)",

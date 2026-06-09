@@ -22,8 +22,8 @@ type Parser struct{}
 
 func New() *Parser { return &Parser{} }
 
-func (p *Parser) Name() string     { return "go" }
-func (p *Parser) Priority() int    { return 80 }
+func (p *Parser) Name() string  { return "go" }
+func (p *Parser) Priority() int { return 80 }
 
 func (p *Parser) Detect(dir string) bool {
 	abs, err := filepath.Abs(dir)
@@ -32,6 +32,18 @@ func (p *Parser) Detect(dir string) bool {
 	}
 	_, err = os.Stat(filepath.Join(abs, "go.mod"))
 	return err == nil
+}
+
+type parsedASTFile struct {
+	path      string
+	astFile   *ast.File
+	importMap map[string]string // local alias -> full import path
+}
+
+type parsedPkg struct {
+	node     entity.PackageNode
+	fset     *token.FileSet
+	astFiles []parsedASTFile
 }
 
 func (p *Parser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entity.ParseResult, error) {
@@ -59,12 +71,12 @@ func (p *Parser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entit
 	var packages []entity.PackageNode
 	for relDir := range dirSet {
 		absDir := filepath.Join(dir, relDir)
-		pkg := parseDir(absDir, dir, moduleName)
-		if pkg == nil {
+		pp := parseDir(absDir, dir, moduleName)
+		if pp == nil {
 			continue
 		}
 		var filtered []entity.FileNode
-		for _, f := range pkg.Files {
+		for _, f := range pp.node.Files {
 			if pathSet[f.Path] {
 				filtered = append(filtered, f)
 			}
@@ -72,8 +84,8 @@ func (p *Parser) ParseFiles(dir string, ig lang.Ignorer, paths []string) (*entit
 		if len(filtered) == 0 {
 			continue
 		}
-		pkg.Files = filtered
-		packages = append(packages, *pkg)
+		pp.node.Files = filtered
+		packages = append(packages, pp.node)
 	}
 
 	tree := &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}
@@ -92,7 +104,7 @@ func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ParseResult, error)
 		return nil, err
 	}
 
-	var packages []entity.PackageNode
+	var parsedPkgs []parsedPkg
 	importIndex := make(map[string]int)
 
 	err = filepath.WalkDir(dir, func(path string, d os.DirEntry, walkErr error) error {
@@ -107,31 +119,85 @@ func (p *Parser) Parse(dir string, ig lang.Ignorer) (*entity.ParseResult, error)
 		if rel != "." && ig.Match(rel+"/") {
 			return filepath.SkipDir
 		}
-		pkg := parseDir(path, dir, moduleName)
-		if pkg == nil {
+		pp := parseDir(path, dir, moduleName)
+		if pp == nil {
 			return nil
 		}
-		importIndex[pkg.ImportPath] = len(packages)
-		packages = append(packages, *pkg)
+		importIndex[pp.node.ImportPath] = len(parsedPkgs)
+		parsedPkgs = append(parsedPkgs, *pp)
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("walk %s: %w", dir, err)
 	}
 
-	for i := range packages {
-		for _, dep := range packages[i].DependsOn {
+	for i := range parsedPkgs {
+		for _, dep := range parsedPkgs[i].node.DependsOn {
 			if j, ok := importIndex[dep]; ok {
-				packages[j].UsedBy = append(packages[j].UsedBy, packages[i].ImportPath)
+				parsedPkgs[j].node.UsedBy = append(parsedPkgs[j].node.UsedBy, parsedPkgs[i].node.ImportPath)
 			}
 		}
+	}
+
+	// Build symbol index: importPath -> set of exported symbol names
+	allPkgSyms := make(map[string]map[string]bool, len(parsedPkgs))
+	for _, pp := range parsedPkgs {
+		syms := make(map[string]bool)
+		for _, f := range pp.node.Files {
+			for _, s := range f.Exports {
+				if s.Kind != "imports" {
+					syms[s.Name] = true
+				}
+			}
+		}
+		allPkgSyms[pp.node.ImportPath] = syms
+	}
+
+	// Second pass: extract calls per FuncDecl using the full symbol index
+	for i := range parsedPkgs {
+		pp := &parsedPkgs[i]
+		samePackageSyms := allPkgSyms[pp.node.ImportPath]
+		for _, af := range pp.astFiles {
+			fileIdx := -1
+			for k, f := range pp.node.Files {
+				if f.Path == af.path {
+					fileIdx = k
+					break
+				}
+			}
+			if fileIdx < 0 {
+				continue
+			}
+			for _, decl := range af.astFile.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok {
+					continue
+				}
+				calls := extractCallsForFunc(fn, samePackageSyms, af.importMap, allPkgSyms)
+				if len(calls) == 0 {
+					continue
+				}
+				symLineStart := pp.fset.Position(fn.Pos()).Line
+				for k, sym := range pp.node.Files[fileIdx].Exports {
+					if sym.LineStart == symLineStart {
+						pp.node.Files[fileIdx].Exports[k].Calls = calls
+						break
+					}
+				}
+			}
+		}
+	}
+
+	packages := make([]entity.PackageNode, len(parsedPkgs))
+	for i, pp := range parsedPkgs {
+		packages[i] = pp.node
 	}
 
 	tree := &entity.ProjectTree{Language: "go", Module: moduleName, Root: dir, Packages: packages}
 	return tree.ToParseResult(), nil
 }
 
-func parseDir(dir, root, moduleName string) *entity.PackageNode {
+func parseDir(dir, root, moduleName string) *parsedPkg {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
@@ -139,12 +205,12 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 
 	fset := token.NewFileSet()
 
-	type parsedFile struct {
+	type rawFile struct {
 		path    string
 		pkgName string
 		astFile *ast.File
 	}
-	var parsed []parsedFile
+	var parsed []rawFile
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -163,7 +229,7 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 		if strings.HasSuffix(pkgName, "_test") {
 			continue
 		}
-		parsed = append(parsed, parsedFile{path: filePath, pkgName: pkgName, astFile: f})
+		parsed = append(parsed, rawFile{path: filePath, pkgName: pkgName, astFile: f})
 	}
 
 	if len(parsed) == 0 {
@@ -181,9 +247,11 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 
 	importSet := make(map[string]bool)
 	var files []entity.FileNode
+	var astFiles []parsedASTFile
 
 	for _, pf := range parsed {
 		relFile, _ := filepath.Rel(root, pf.path)
+		relFile = filepath.ToSlash(relFile)
 		src, _ := os.ReadFile(pf.path)
 		srcLines := bytes.Split(src, []byte("\n"))
 		exports := extractExports(fset, pf.astFile, srcLines)
@@ -203,8 +271,24 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 			})
 			break
 		}
+
+		importMap := make(map[string]string, len(pf.astFile.Imports))
+		for _, imp := range pf.astFile.Imports {
+			rawPath := strings.Trim(imp.Path.Value, `"`)
+			var alias string
+			if imp.Name != nil {
+				if imp.Name.Name == "_" || imp.Name.Name == "." {
+					continue
+				}
+				alias = imp.Name.Name
+			} else {
+				alias = filepath.Base(rawPath)
+			}
+			importMap[alias] = rawPath
+		}
+
 		node := entity.FileNode{
-			Path:    filepath.ToSlash(relFile),
+			Path:    relFile,
 			Package: pkgName,
 			Exports: exports,
 		}
@@ -215,6 +299,12 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 		}
 		sort.Strings(node.Imports)
 		files = append(files, node)
+
+		astFiles = append(astFiles, parsedASTFile{
+			path:      relFile,
+			astFile:   pf.astFile,
+			importMap: importMap,
+		})
 	}
 
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
@@ -227,12 +317,58 @@ func parseDir(dir, root, moduleName string) *entity.PackageNode {
 	}
 	sort.Strings(dependsOn)
 
-	return &entity.PackageNode{
-		ImportPath: importPath,
-		Dir:        rel,
-		Files:      files,
-		DependsOn:  dependsOn,
+	return &parsedPkg{
+		node: entity.PackageNode{
+			ImportPath: importPath,
+			Dir:        rel,
+			Files:      files,
+			DependsOn:  dependsOn,
+		},
+		fset:     fset,
+		astFiles: astFiles,
 	}
+}
+
+func extractCallsForFunc(fn *ast.FuncDecl, samePackageSyms map[string]bool, importAliasToPath map[string]string, allPkgSyms map[string]map[string]bool) []string {
+	if fn.Body == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		switch fun := call.Fun.(type) {
+		case *ast.Ident:
+			if samePackageSyms[fun.Name] {
+				seen[fun.Name] = true
+			}
+		case *ast.SelectorExpr:
+			alias, ok := fun.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if pkgPath, hasPkg := importAliasToPath[alias.Name]; hasPkg {
+				if pkgSyms, ok := allPkgSyms[pkgPath]; ok && pkgSyms[fun.Sel.Name] {
+					seen[fun.Sel.Name] = true
+				}
+			} else if samePackageSyms[fun.Sel.Name] {
+				// method call on a local var/receiver -- record if the name resolves to same-package symbol
+				seen[fun.Sel.Name] = true
+			}
+		}
+		return true
+	})
+	if len(seen) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(seen))
+	for name := range seen {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func hashLines(lines [][]byte, start, end int) string {
@@ -251,15 +387,12 @@ func extractExports(fset *token.FileSet, f *ast.File, srcLines [][]byte) []entit
 	for _, decl := range f.Decls {
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
-			isSpecial := d.Name.Name == "main" || d.Name.Name == "init"
-			if !d.Name.IsExported() && !isSpecial {
-				continue
-			}
 			sym := entity.Symbol{
 				Name:      d.Name.Name,
 				LineStart: fset.Position(d.Pos()).Line,
 				LineEnd:   fset.Position(d.End()).Line,
 				Signature: formatParams(fset, d.Type.Params),
+				Exported:  d.Name.IsExported(),
 			}
 			sym.ContentHash = hashLines(srcLines, sym.LineStart, sym.LineEnd)
 			if d.Recv != nil {
@@ -274,9 +407,6 @@ func extractExports(fset *token.FileSet, f *ast.File, srcLines [][]byte) []entit
 			for _, spec := range d.Specs {
 				switch s := spec.(type) {
 				case *ast.TypeSpec:
-					if !s.Name.IsExported() {
-						continue
-					}
 					kind := "type"
 					switch s.Type.(type) {
 					case *ast.StructType:
@@ -295,21 +425,19 @@ func extractExports(fset *token.FileSet, f *ast.File, srcLines [][]byte) []entit
 					})
 				case *ast.ValueSpec:
 					for _, name := range s.Names {
-						if name.IsExported() {
-							kind := "var"
-							if d.Tok == token.CONST {
-								kind = "const"
-							}
-							ls := fset.Position(name.Pos()).Line
-							le := fset.Position(name.End()).Line
-							symbols = append(symbols, entity.Symbol{
-								Name:        name.Name,
-								Kind:        kind,
-								LineStart:   ls,
-								LineEnd:     le,
-								ContentHash: hashLines(srcLines, ls, le),
-							})
+						kind := "var"
+						if d.Tok == token.CONST {
+							kind = "const"
 						}
+						ls := fset.Position(name.Pos()).Line
+						le := fset.Position(name.End()).Line
+						symbols = append(symbols, entity.Symbol{
+							Name:        name.Name,
+							Kind:        kind,
+							LineStart:   ls,
+							LineEnd:     le,
+							ContentHash: hashLines(srcLines, ls, le),
+						})
 					}
 				}
 			}
@@ -355,4 +483,3 @@ func readModuleName(dir string) (string, error) {
 	}
 	return "", fmt.Errorf("module directive not found in go.mod")
 }
-

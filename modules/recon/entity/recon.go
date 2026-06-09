@@ -5,9 +5,11 @@ type Symbol struct {
 	Kind        string // "func" | "method" | "type" | "struct" | "interface" | "const" | "var"
 	LineStart   int
 	LineEnd     int
-	Receiver    string // method receiver type name; empty for non-methods
-	Signature   string // parameter list, e.g. "(ctx context.Context, id int64)"
-	ContentHash string // SHA-256 hex of raw source bytes for the symbol body
+	Receiver    string   // method receiver type name; empty for non-methods
+	Signature   string   // parameter list, e.g. "(ctx context.Context, id int64)"
+	ContentHash string   // SHA-256 hex of raw source bytes for the symbol body
+	Calls       []string // bare symbol names called within this symbol's body
+	Exported    bool
 }
 
 type FileNode struct {

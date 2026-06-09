@@ -25,6 +25,10 @@ func (r *ReconRepository) UpsertNodes(ctx context.Context, nodes []entity.Semant
 		if deps == nil {
 			deps = pq.StringArray{}
 		}
+		calls := pq.StringArray(n.Calls)
+		if calls == nil {
+			calls = pq.StringArray{}
+		}
 		var hash *string
 		if n.ContentHash != "" {
 			hash = &n.ContentHash
@@ -32,14 +36,24 @@ func (r *ReconRepository) UpsertNodes(ctx context.Context, nodes []entity.Semant
 		_, err := r.db.ExecContext(ctx, `
 			INSERT INTO lg_semantic_nodes
 			  (project_id, file_path, line_start, line_end, package, symbol, kind, language,
-			   receiver, signature, exported, depends_on, status, content_hash)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'unexplored',$13)
+			   receiver, signature, exported, depends_on, status, content_hash, calls)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'unexplored',$13,$14)
 			ON CONFLICT (project_id, file_path, symbol, kind) DO UPDATE SET
 			  line_start   = EXCLUDED.line_start,
 			  line_end     = EXCLUDED.line_end,
 			  signature    = EXCLUDED.signature,
 			  depends_on   = EXCLUDED.depends_on,
 			  content_hash = EXCLUDED.content_hash,
+			  calls = CASE
+			    WHEN array_length(EXCLUDED.calls, 1) IS NOT NULL
+			      THEN CASE
+			        WHEN lg_semantic_nodes.status = 'explored'
+			             AND array_length(lg_semantic_nodes.calls, 1) IS NOT NULL
+			          THEN lg_semantic_nodes.calls
+			        ELSE EXCLUDED.calls
+			      END
+			    ELSE lg_semantic_nodes.calls
+			  END,
 			  status = CASE
 			    WHEN lg_semantic_nodes.content_hash IS NULL     THEN lg_semantic_nodes.status
 			    WHEN EXCLUDED.content_hash IS NULL              THEN lg_semantic_nodes.status
@@ -48,7 +62,7 @@ func (r *ReconRepository) UpsertNodes(ctx context.Context, nodes []entity.Semant
 			  END`,
 			n.ProjectID, n.FilePath, n.LineStart, n.LineEnd,
 			n.Package, n.Symbol, n.Kind, n.Language,
-			n.Receiver, n.Signature, n.Exported, deps, hash,
+			n.Receiver, n.Signature, n.Exported, deps, hash, calls,
 		)
 		if err != nil {
 			return err
@@ -149,12 +163,11 @@ func (r *ReconRepository) GetNode(ctx context.Context, projectID int64, filePath
 
 func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error) {
 	c := pq.StringArray(calls)
-	if c == nil {
-		c = pq.StringArray{}
-	}
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE lg_semantic_nodes
-		 SET description = $1, return_type = $2, calls = $3, status = 'explored', explored_at = NOW()
+		 SET description = $1, return_type = $2,
+		     calls = CASE WHEN array_length($3::text[], 1) IS NOT NULL THEN $3 ELSE calls END,
+		     status = 'explored', explored_at = NOW()
 		 WHERE project_id = $4 AND file_path = $5 AND symbol = $6 AND kind = $7`,
 		nullStr(description), nullStr(returnType), c, projectID, filePath, symbol, kind,
 	)
@@ -449,6 +462,28 @@ func (r *ReconRepository) ListAllNodesByPrefix(ctx context.Context, projectID in
 	return nodes, nil
 }
 
+
+func (r *ReconRepository) ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]entity.SemanticNode, error) {
+	const query = `SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+	                      language, receiver, signature, exported, depends_on, status,
+	                      description, return_type, content_hash, calls, explored_at, created_at
+	               FROM lg_semantic_nodes
+	               WHERE project_id = $1
+	                 AND file_path = $2
+	                 AND line_start > 0
+	                 AND line_end >= line_start
+	                 AND kind NOT IN ('class', 'trait', 'imports', 'vue-template', 'vue-style', 'commented-block')
+	               ORDER BY line_start`
+	var recs []nodeRecord
+	if err := r.db.SelectContext(ctx, &recs, query, projectID, filePath); err != nil {
+		return nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+	return nodes, nil
+}
 
 func (r *ReconRepository) GetRelated(ctx context.Context, projectID int64, filePath, symbol, kind string) (callees, callers []entity.SemanticNode, err error) {
 	var callSymbols pq.StringArray

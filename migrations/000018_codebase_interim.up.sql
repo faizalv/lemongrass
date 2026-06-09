@@ -5,6 +5,8 @@ CREATE TABLE lg_codebase_interim (
   chunk_index INT NOT NULL,
   content     TEXT NOT NULL,
   embedding   vector(768),
+  line_start  INT NOT NULL DEFAULT 0,
+  line_end    INT NOT NULL DEFAULT 0,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

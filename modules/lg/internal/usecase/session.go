@@ -14,6 +14,7 @@ func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking 
 	u.mu.Lock()
 	if u.sessions[key] == nil {
 		u.sessions[key] = &activeSession{
+			key:          key,
 			projectID:    projectID,
 			projectAlias: fmt.Sprintf("project-%d", projectID),
 			sessionType:  "host",
@@ -30,6 +31,7 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.sessions[workspaceID] = &activeSession{
+		key:          workspaceID,
 		workspaceID:  workspaceID,
 		projectID:    projectID,
 		projectAlias: projectAlias,
@@ -74,6 +76,12 @@ func (u *LgUsecase) ResetSession(workspaceID string) {
 	u.UnregisterSession(workspaceID)
 }
 
+func (u *LgUsecase) dropInterim(s *activeSession) {
+	if u.interim != nil && s.key != "" {
+		u.interim.DropInterim(context.Background(), s.key)
+	}
+}
+
 func (u *LgUsecase) handleHandover(s *activeSession, args string) {
 	if u.tasks != nil && u.recon != nil {
 		ctx := context.Background()
@@ -96,6 +104,7 @@ func (u *LgUsecase) handleHandover(s *activeSession, args string) {
 		}
 		u.tasks.UpdateStatus(ctx, s.workspaceID, "awaiting_execution")
 	}
+	u.dropInterim(s)
 	if s.ptySession != nil {
 		s.ptySession.Close()
 	}
@@ -108,6 +117,7 @@ func (u *LgUsecase) handleDone(s *activeSession) {
 		u.tasks.UpdateStatus(context.Background(), s.workspaceID, "done")
 	}
 	u.computeExecDiff(s.workspaceID)
+	u.dropInterim(s)
 	if s.ptySession != nil {
 		s.ptySession.Close()
 	}
