@@ -55,16 +55,16 @@ func (c *ReconClient) SyncGitProject(projectID int64) {
 	c.uc.ActivateGitSync(projectID)
 }
 
-func (c *ReconClient) SaveKnowledge(ctx context.Context, projectID int64, key, content string) error {
-	return c.uc.SaveKnowledge(ctx, projectID, key, content)
+func (c *ReconClient) SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) error {
+	return c.uc.SaveKnowledge(ctx, projectID, key, content, labels)
 }
 
 func (c *ReconClient) ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error) {
 	return c.uc.ReadKnowledge(ctx, projectID, key)
 }
 
-func (c *ReconClient) SearchKnowledge(ctx context.Context, projectID int64, query string) ([]entity.KnowledgeEntry, error) {
-	return c.uc.SearchKnowledge(ctx, projectID, query)
+func (c *ReconClient) SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]entity.KnowledgeEntry, error) {
+	return c.uc.SearchKnowledge(ctx, projectID, query, label)
 }
 
 func (c *ReconClient) DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error) {
@@ -73,4 +73,20 @@ func (c *ReconClient) DeleteKnowledge(ctx context.Context, projectID int64, key 
 
 func (c *ReconClient) FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error) {
 	return c.uc.FindSimilarKnowledge(ctx, projectID, content, excludeKey)
+}
+
+func (c *ReconClient) UpsertLabel(ctx context.Context, projectID int64, label, content string) error {
+	return c.uc.UpsertLabel(ctx, projectID, label, content)
+}
+
+func (c *ReconClient) FindSimilarLabels(ctx context.Context, projectID int64, label, content string) ([]string, error) {
+	return c.uc.FindSimilarLabels(ctx, projectID, label, content)
+}
+
+func (c *ReconClient) SearchLabels(ctx context.Context, projectID int64, query string) ([]string, error) {
+	return c.uc.SearchLabels(ctx, projectID, query)
+}
+
+func (c *ReconClient) SearchKnowledgeByLabel(ctx context.Context, projectID int64, label, query string) ([]entity.KnowledgeEntry, error) {
+	return c.uc.SearchKnowledgeByLabel(ctx, projectID, label, query)
 }

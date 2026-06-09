@@ -43,6 +43,9 @@ func (r *Recon) LoadMe(cfg config.Config, db *sqlx.DB) {
 		if err := repo.DeleteKnowledgeByProject(context.Background(), id); err != nil {
 			log.Printf("recon: delete knowledge for project %d: %v", id, err)
 		}
+		if err := repo.DeleteLabelsByProject(context.Background(), id); err != nil {
+			log.Printf("recon: delete knowledge labels for project %d: %v", id, err)
+		}
 	})
 }
 

@@ -45,13 +45,18 @@ type repo interface {
 	DeleteNodesByFilePaths(ctx context.Context, projectID int64, filePaths []string) error
 	GetEmbedPending(ctx context.Context, projectID int64) (pending, total int, err error)
 	GetStaleCount(ctx context.Context, projectID int64) (int, error)
-	SaveKnowledge(ctx context.Context, projectID int64, key, content string, embedding []float32) error
+	SaveKnowledge(ctx context.Context, projectID int64, key, content string, embedding []float32, labels []string) error
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
 	SearchKnowledge(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.KnowledgeEntry, error)
 	ListKnowledge(ctx context.Context, projectID int64) ([]entity.KnowledgeEntry, error)
 	DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error)
 	FindSimilarKnowledge(ctx context.Context, projectID int64, excludeKey string, embedding []float32) ([]string, error)
 	DeleteKnowledgeByProject(ctx context.Context, projectID int64) error
+	DeleteLabelsByProject(ctx context.Context, projectID int64) error
+	UpsertLabel(ctx context.Context, projectID int64, label string, embedding []float32) error
+	FindSimilarLabels(ctx context.Context, projectID int64, label string, embedding []float32) ([]string, error)
+	SearchLabels(ctx context.Context, projectID int64, embedding []float32) ([]string, error)
+	SearchKnowledgeByLabel(ctx context.Context, projectID int64, label string, embedding []float32, limit int) ([]entity.KnowledgeEntry, error)
 }
 
 type ReconUsecase struct {

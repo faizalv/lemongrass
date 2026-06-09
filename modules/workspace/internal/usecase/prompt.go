@@ -22,10 +22,11 @@ const cmdAnnotate         = `#lg!.annotate <path:symbol:kind>:"description":retu
 const annotateHookNote    = `nil means field absent.`
 const cmdCommitment       = `#lg.commitment <path> -- declare annotation scope; path is dir, file, or . (root requires 70% coverage)`
 const cmdCommitmentStatus = `#lg.commitment.status -- shows each commitment, method/func progress, and overall status`
-const cmdKnowledgeSave    = `#lg.knowledge.save <key>:<content> -- save or update a project insight; same key overwrites; response includes [similar: ...] when overlapping entries exist -- read them and delete if superseded`
+const cmdKnowledgeSave    = `#lg.knowledge.save <key>:<content> [label1,label2,...] -- save or update a project insight; labels optional (comma-separated, no spaces); response includes [similar: ...] when overlapping entries exist -- read them and delete if superseded; [similar labels: ...] when a near-duplicate label exists -- prefer the existing label`
 const cmdKnowledgeRead    = `#lg.knowledge.read <key> -- retrieve a saved insight`
-const cmdKnowledgeSearch  = `#lg.knowledge.search <query> -- vector search across saved knowledge`
+const cmdKnowledgeSearch  = `#lg.knowledge.search <query> [label] -- vector search across saved knowledge; optional trailing label filters to entries tagged with that label`
 const cmdKnowledgeDelete  = `#lg.knowledge.delete <key> -- remove a stale or superseded entry`
+const cmdKnowledgeLabels  = `#lg.knowledge.labels <query> -- vibe search: returns top label names relevant to query; no content returned; use to orient then follow with knowledge.search <query> <label>`
 const echoRule            = `Call #lg.echo <message> at each major step. No quotes around message:`
 
 func buildExecutionPrompt(projectAlias, handoverContext string) string {
@@ -51,6 +52,7 @@ func buildExecutionPrompt(projectAlias, handoverContext string) string {
 		cmdKnowledgeRead,
 		cmdKnowledgeSearch,
 		cmdKnowledgeDelete,
+		cmdKnowledgeLabels,
 		"",
 		"Use #lg.recon.read for exploration. Native Read is last resort -- only to obtain current file content before Edit.",
 		"After any native Read, annotate the symbols you read: " + cmdAnnotate + " (! required -- no blocking annotate exists)",

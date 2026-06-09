@@ -24,11 +24,15 @@ type reconProvider interface {
 	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.SemanticNode, error)
 	DropFile(ctx context.Context, projectID int64, path string)
 	SyncGitProject(projectID int64)
-	SaveKnowledge(ctx context.Context, projectID int64, key, content string) error
+	SaveKnowledge(ctx context.Context, projectID int64, key, content string, labels []string) error
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
-	SearchKnowledge(ctx context.Context, projectID int64, query string) ([]reconentity.KnowledgeEntry, error)
+	SearchKnowledge(ctx context.Context, projectID int64, query, label string) ([]reconentity.KnowledgeEntry, error)
 	DeleteKnowledge(ctx context.Context, projectID int64, key string) (bool, error)
 	FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error)
+	UpsertLabel(ctx context.Context, projectID int64, label, content string) error
+	FindSimilarLabels(ctx context.Context, projectID int64, label, content string) ([]string, error)
+	SearchLabels(ctx context.Context, projectID int64, query string) ([]string, error)
+	SearchKnowledgeByLabel(ctx context.Context, projectID int64, label, query string) ([]reconentity.KnowledgeEntry, error)
 }
 
 type taskProvider interface {

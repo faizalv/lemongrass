@@ -369,22 +369,71 @@ func (u *LgUsecase) handleReconDrop(ctx context.Context, s *activeSession, args 
 	u.recon.DropFile(ctx, s.projectID, rel)
 }
 
+func parseKnowledgeLabels(content string) (string, []string) {
+	idx := strings.LastIndex(content, " ")
+	if idx < 0 {
+		return content, nil
+	}
+	last := content[idx+1:]
+	if !strings.ContainsRune(last, ',') {
+		return content, nil
+	}
+	var labels []string
+	for _, l := range strings.Split(last, ",") {
+		l = strings.TrimSpace(l)
+		if l != "" {
+			labels = append(labels, l)
+		}
+	}
+	if len(labels) == 0 {
+		return content, nil
+	}
+	return strings.TrimSpace(content[:idx]), labels
+}
+
+func parseKnowledgeSearchArgs(args string) (query, label string) {
+	args = strings.TrimSpace(args)
+	idx := strings.LastIndex(args, " ")
+	if idx < 0 {
+		return args, ""
+	}
+	last := args[idx+1:]
+	for _, r := range last {
+		if !('a' <= r && r <= 'z') && !('A' <= r && r <= 'Z') && !('0' <= r && r <= '9') && r != '-' && r != '_' {
+			return args, ""
+		}
+	}
+	return strings.TrimSpace(args[:idx]), last
+}
+
 func (u *LgUsecase) handleKnowledgeSave(ctx context.Context, s *activeSession, args string) string {
 	idx := strings.IndexByte(args, ':')
 	if idx <= 0 {
 		return "error: format is knowledge.save <key>:<content>"
 	}
 	key := strings.TrimSpace(args[:idx])
-	content := strings.TrimSpace(args[idx+1:])
-	if content == "" {
+	raw := strings.TrimSpace(args[idx+1:])
+	if raw == "" {
 		return "error: content is empty"
 	}
-	if err := u.recon.SaveKnowledge(ctx, s.projectID, key, content); err != nil {
+	content, labels := parseKnowledgeLabels(raw)
+	if err := u.recon.SaveKnowledge(ctx, s.projectID, key, content, labels); err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+	var signals []string
 	similar, _ := u.recon.FindSimilarKnowledge(ctx, s.projectID, content, key)
 	if len(similar) > 0 {
-		return "saved: " + key + " [similar: " + strings.Join(similar, ", ") + "]"
+		signals = append(signals, "[similar: "+strings.Join(similar, ", ")+"]")
+	}
+	for _, label := range labels {
+		_ = u.recon.UpsertLabel(ctx, s.projectID, label, content)
+		similarLabels, _ := u.recon.FindSimilarLabels(ctx, s.projectID, label, content)
+		if len(similarLabels) > 0 {
+			signals = append(signals, "[similar labels: "+strings.Join(similarLabels, ", ")+"]")
+		}
+	}
+	if len(signals) > 0 {
+		return "saved: " + key + " " + strings.Join(signals, " ")
 	}
 	return "saved: " + key
 }
@@ -399,7 +448,8 @@ func (u *LgUsecase) handleKnowledgeRead(ctx context.Context, s *activeSession, a
 }
 
 func (u *LgUsecase) handleKnowledgeSearch(ctx context.Context, s *activeSession, args string) string {
-	entries, err := u.recon.SearchKnowledge(ctx, s.projectID, strings.TrimSpace(args))
+	query, label := parseKnowledgeSearchArgs(args)
+	entries, err := u.recon.SearchKnowledge(ctx, s.projectID, query, label)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
@@ -415,6 +465,17 @@ func (u *LgUsecase) handleKnowledgeSearch(ctx context.Context, s *activeSession,
 		sb.WriteString(e.Key + ": " + snippet + "\n")
 	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+func (u *LgUsecase) handleKnowledgeLabels(ctx context.Context, s *activeSession, args string) string {
+	labels, err := u.recon.SearchLabels(ctx, s.projectID, strings.TrimSpace(args))
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	if len(labels) == 0 {
+		return "no labels yet"
+	}
+	return strings.Join(labels, "\n")
 }
 
 func (u *LgUsecase) handleKnowledgeDelete(ctx context.Context, s *activeSession, args string) string {
