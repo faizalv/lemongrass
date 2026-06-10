@@ -58,6 +58,7 @@ type repo interface {
 	DeleteLabelsByProject(ctx context.Context, projectID int64) error
 	UpsertLabel(ctx context.Context, projectID int64, label string, embedding []float32) error
 	FindSimilarLabels(ctx context.Context, projectID int64, label string, embedding []float32) ([]string, error)
+	ListAllLabels(ctx context.Context, projectID int64) ([]string, error)
 	SearchLabels(ctx context.Context, projectID int64, embedding []float32) ([]string, error)
 	SearchKnowledgeByLabel(ctx context.Context, projectID int64, label string, embedding []float32, limit int) ([]entity.KnowledgeEntry, error)
 }

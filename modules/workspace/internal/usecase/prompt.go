@@ -5,43 +5,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/faizalv/lemongrass/infra/lgprompt"
 	"github.com/faizalv/lemongrass/modules/workspace/entity"
 )
 
 func jsonUnmarshal(data []byte, v any) error { return json.Unmarshal(data, v) }
-
-const environmentPreamble = `You are running inside Lemongrass (lg-runner). Terminal output goes to a log file -- no user reads it. Text outside #lg.* commands (summaries, narration, step recaps) is invisible and burns context. Use #lg.echo for status only.`
-
-const hookCallInstruction = `Every #lg.* and #lg!.* command in this prompt is a direct Bash tool call -- not prose, not a comment. # routes to lg-hook; ! means fire-and-forget. Each command is one Bash tool call -- never combine multiple #lg.* calls on one line.`
-
-const cmdReconSearch  = `#lg.recon.search <query> -- vector search across annotated nodes; returns coverage context`
-const cmdReconPeek    = `#lg.recon.peek <dir> -- symbols in files directly inside a directory + subdirectory symbol counts. Non-recursive. Pass a file path to see that file's symbols only.`
-const cmdReconRead    = `#lg.recon.read <path:symbol:kind> -- raw source for a symbol; server resolves lines from map (pipe-separate for multiple: a|b|c)`
-const cmdReconRelated = `#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol`
-const cmdAnnotate         = `#lg!.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil`
-const annotateHookNote    = `nil means field absent.`
-const cmdCommitment       = `#lg.commitment <path> -- declare annotation scope; path is dir, file, or . (root requires 70% coverage)`
-const cmdCommitmentStatus = `#lg.commitment.status -- shows each commitment, method/func progress, and overall status`
-const cmdKnowledgeSave    = `#lg.knowledge.save <key>:<content> [label1,label2,...] -- save or update a project insight; labels optional (comma-separated, no spaces); response includes [similar: ...] when overlapping entries exist -- read them and delete if superseded; [similar labels: ...] when a near-duplicate label exists -- prefer the existing label`
-const cmdKnowledgeRead    = `#lg.knowledge.read <key> -- retrieve a saved insight`
-const cmdKnowledgeSearch  = `#lg.knowledge.search <query> [label] -- vector search across saved knowledge; optional trailing label filters to entries tagged with that label`
-const cmdKnowledgeDelete  = `#lg.knowledge.delete <key> -- remove a stale or superseded entry`
-const cmdKnowledgeLabels  = `#lg.knowledge.labels <query> -- vibe search: returns top label names relevant to query; no content returned; use to orient then follow with knowledge.search <query> <label>`
-const cmdCodebaseInterim = `#lg.codebase.interim <inputs> -- load files or symbols into session workbench; pipe-separate inputs; replaces previous workbench. Selectors: S:path:symbol:kind (symbol body), F:path/to/file (full file), R:glob (all matching files)`
-const cmdCodebaseQuery   = `#lg.codebase.query <question> -- vector search within workbench; use for concepts when symbol identity is unknown`
-const cmdCodebaseSearch  = `#lg.codebase.search <pattern> -- pattern search within workbench; returns full surrounding chunk, not just the matching line`
-
-const workbenchDecisionTree = `When to reach for each tool:
-  concept or term you cannot place → recon.search
-  known symbol identity             → recon.read
-  blast radius before touching      → recon.related
-  load files for block-level search → codebase.interim
-  concept within loaded files       → codebase.query
-  exact identifier or string        → codebase.search
-
-Do not use codebase.query when you already know path:symbol:kind -- recon.read is cheaper, gives the exact boundary, and counts toward commitment.`
-
-const echoRule            = `Call #lg.echo <message> at each major step. No quotes around message:`
 
 func buildExecutionPrompt(projectAlias, handoverContext string) string {
 	var handoverBlock string
@@ -55,36 +23,36 @@ func buildExecutionPrompt(projectAlias, handoverContext string) string {
 		"",
 		"--- Commands ---",
 		"",
-		hookCallInstruction,
+		lgprompt.HookCallInstruction,
 		"",
-		workbenchDecisionTree,
+		lgprompt.WorkbenchDecisionTree,
 		"",
 		"#lg.tasks.read -- approved task list with title, reason, impl. Call this first.",
-		cmdReconPeek,
-		cmdReconRead,
-		cmdReconRelated,
-		cmdReconSearch,
-		cmdKnowledgeSave,
-		cmdKnowledgeRead,
-		cmdKnowledgeSearch,
-		cmdKnowledgeDelete,
-		cmdKnowledgeLabels,
+		lgprompt.CmdReconPeek,
+		lgprompt.CmdReconRead,
+		lgprompt.CmdReconRelated,
+		lgprompt.CmdReconSearch,
+		lgprompt.CmdKnowledgeSave,
+		lgprompt.CmdKnowledgeRead,
+		lgprompt.CmdKnowledgeSearch,
+		lgprompt.CmdKnowledgeDelete,
+		lgprompt.CmdKnowledgeLabels,
+		lgprompt.CmdCodebaseSearch,
 		"",
 		"--- Workbench ---",
 		"",
-		cmdCodebaseInterim,
-		cmdCodebaseQuery,
-		cmdCodebaseSearch,
+		lgprompt.CmdCodebaseInterim,
+		lgprompt.CmdCodebaseQuery,
 		"",
 		"Use #lg.recon.read for exploration. Native Read is last resort -- only to obtain current file content before Edit.",
-		"After any native Read, annotate the symbols you read: " + cmdAnnotate + " (! required -- no blocking annotate exists)",
+		"After any native Read, annotate the symbols you read: " + lgprompt.CmdAnnotate + " (! required -- no blocking annotate exists)",
 		"",
 		"--- Impl entry types ---",
 		"",
 		"  symbol at file -- directive",
 		"    Read symbol first. Write change. Annotate immediately -- one separate Bash call per symbol:",
-		"    " + cmdAnnotate + "  (! required)",
-		"    " + annotateHookNote,
+		"    " + lgprompt.CmdAnnotate + "  (! required)",
+		"    " + lgprompt.AnnotateHookNote,
 		"",
 		"  new: path/to/file.go -- contents",
 		"    Create file. Immediately annotate every exported symbol (non-blocking, one call per symbol).",
@@ -99,7 +67,7 @@ func buildExecutionPrompt(projectAlias, handoverContext string) string {
 		"",
 		"--- Progress ---",
 		"",
-		echoRule,
+		lgprompt.EchoRule,
 		"  Reading task list",
 		"  Implementing task 1 -- adding tenant_id filter",
 		"  Creating tenant_middleware.go",
@@ -111,7 +79,7 @@ func buildExecutionPrompt(projectAlias, handoverContext string) string {
 		"#lg!.done only when all tasks are complete.",
 	}, "\n")
 
-	return environmentPreamble + "\n\n" + handoverBlock + body
+	return lgprompt.EnvironmentPreamble + "\n\n" + handoverBlock + body
 }
 
 func buildAmendmentPrompt(requirements []entity.WorkspaceRequirement, approved, rejected []entity.Task, projectPath string) string {

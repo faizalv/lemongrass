@@ -32,6 +32,7 @@ type reconClient interface {
 	FindSimilarKnowledge(ctx context.Context, projectID int64, content, excludeKey string) ([]string, error)
 	UpsertLabel(ctx context.Context, projectID int64, label, content string) error
 	FindSimilarLabels(ctx context.Context, projectID int64, label, content string) ([]string, error)
+	ListAllLabels(ctx context.Context, projectID int64) ([]string, error)
 	SearchLabels(ctx context.Context, projectID int64, query string) ([]string, error)
 	SearchKnowledgeByLabel(ctx context.Context, projectID int64, label, query string) ([]reconentity.KnowledgeEntry, error)
 	Embed(ctx context.Context, text string) ([]float32, error)

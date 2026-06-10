@@ -186,6 +186,28 @@ func (r *ReconRepository) FindSimilarLabels(ctx context.Context, projectID int64
 	return labels, rows.Err()
 }
 
+func (r *ReconRepository) ListAllLabels(ctx context.Context, projectID int64) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT label FROM lg_knowledge_labels
+		 WHERE project_id = $1
+		 ORDER BY label`,
+		projectID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var labels []string
+	for rows.Next() {
+		var l string
+		if err := rows.Scan(&l); err != nil {
+			return nil, err
+		}
+		labels = append(labels, l)
+	}
+	return labels, rows.Err()
+}
+
 func (r *ReconRepository) SearchLabels(ctx context.Context, projectID int64, embedding []float32) ([]string, error) {
 	if len(embedding) == 0 {
 		return nil, nil

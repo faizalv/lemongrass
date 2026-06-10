@@ -393,17 +393,11 @@ func parseKnowledgeLabels(content string) (string, []string) {
 
 func parseKnowledgeSearchArgs(args string) (query, label string) {
 	args = strings.TrimSpace(args)
-	idx := strings.LastIndex(args, " ")
+	idx := strings.IndexByte(args, ':')
 	if idx < 0 {
 		return args, ""
 	}
-	last := args[idx+1:]
-	for _, r := range last {
-		if !('a' <= r && r <= 'z') && !('A' <= r && r <= 'Z') && !('0' <= r && r <= '9') && r != '-' && r != '_' {
-			return args, ""
-		}
-	}
-	return strings.TrimSpace(args[:idx]), last
+	return strings.TrimSpace(args[:idx]), strings.TrimSpace(args[idx+1:])
 }
 
 func (u *LgUsecase) handleKnowledgeSave(ctx context.Context, s *activeSession, args string) string {
@@ -475,7 +469,14 @@ func (u *LgUsecase) handleKnowledgeSearch(ctx context.Context, s *activeSession,
 }
 
 func (u *LgUsecase) handleKnowledgeLabels(ctx context.Context, s *activeSession, args string) string {
-	labels, err := u.recon.SearchLabels(ctx, s.projectID, strings.TrimSpace(args))
+	args = strings.TrimSpace(args)
+	var labels []string
+	var err error
+	if args == "" {
+		labels, err = u.recon.ListAllLabels(ctx, s.projectID)
+	} else {
+		labels, err = u.recon.SearchLabels(ctx, s.projectID, args)
+	}
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}

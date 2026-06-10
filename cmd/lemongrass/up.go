@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/faizalv/lemongrass/config"
+	"github.com/faizalv/lemongrass/infra/lgprompt"
 )
 
 func cmdUp() {
@@ -176,78 +177,12 @@ func writeSkillFile() {
 		return
 	}
 	skillPath := filepath.Join(skillsDir, "SKILL.md")
-	if err := os.WriteFile(skillPath, []byte(skillFileContent), 0644); err != nil {
+	if err := os.WriteFile(skillPath, []byte(lgprompt.BuildSkillContent()), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not write skill file: %v\n", err)
 		return
 	}
 	fmt.Printf("wrote skill file -> %s\n", skillPath)
 }
-
-const skillFileContent = `You are working in a lemongrass project. A live semantic map covers the codebase -- every function, method, type, and symbol is indexed with embeddings. Reach for the map first, not file reads or grep.
-
-HOW TO FIND THINGS
-
-You do not know the path -- start with semantic search:
-  #lg.recon.search <query>
-
-You know the path and want to see what symbols are there:
-  #lg.recon.peek <path>
-
-You know the exact symbol and want to read its body:
-  #lg.recon.read <path:symbol:kind>
-
-You want to know what calls a symbol or what it calls:
-  #lg.recon.related <path:symbol:kind>
-
-peek displays methods as Receiver.Method (LgUsecase.HandleByProject). All commands -- recon.read, recon.related, codebase.interim S: -- take the bare name (HandleByProject). The recon.read response header confirms the correct triple.
-
-You want a coverage overview of the whole project or a subtree:
-  #lg.recon.tree              (no path = full project entrance)
-  #lg.recon.tree <path>
-
-Search results carry a status marker. unexplored means the node has a provisional embedding from its signature -- description is empty. explored means a human-written description exists and the embedding reflects it. Reading and annotating unexplored nodes improves the map permanently for every future session.
-
-WHEN YOU NEED FILE CONTENT
-
-recon.read gives you a symbol body. When you need actual file bytes -- cross-cutting analysis, string patterns, reading around a symbol -- load the workbench first:
-
-  #lg.codebase.interim <S:path:symbol | F:path | R:glob>   load files or symbols
-  #lg.codebase.query <question>                            semantic search within workbench
-  #lg.codebase.search <pattern>                            pattern search within workbench
-
-Use recon.read when the symbol is the thing. Use codebase.interim when the file content around it is the thing.
-
-KNOWLEDGE
-
-Persist things that would cost another session time to re-derive: architectural decisions, module boundaries, non-obvious constraints, build procedures. Not task notes. Not things already readable from the code.
-
-  #lg.knowledge.save <key>:<content> [label1,label2]
-  #lg.knowledge.read <key>
-  #lg.knowledge.search <query>
-  #lg.knowledge.labels <query>          find relevant label names before saving
-  #lg.knowledge.delete <key>
-
-WORKSPACES AND TASKS
-
-Workspaces record what you and the user agreed to do. Tasks track progress and build a readable history in the UI.
-
-  #lg.workspace.create <name>
-  #lg.workspace.use <name>
-  #lg.tasks.checkpoint                  write down the agreed task list
-  #lg.tasks.start <taskID>
-  #lg.tasks.finish <taskID>:<notes>
-
-Checkpoint writes down a conclusion already reached in conversation. Do not call it speculatively.
-
-MODES
-
-PTY mode -- you are running inside lg-runner, driven by the grooming pipeline. Call #lg.commitment <path> before annotating a directory. This registers your scope and gates the checkpoint. Read before annotating -- blind annotations do not count toward commitment.
-
-  #lg.commitment <path>
-  #lg.commitment.status
-
-Headless mode -- you are Claude Code running on the host, using lemongrass as infrastructure. Commitment is not required. Annotate freely when you read something worth recording. Checkpoint and tasks work as records, not gates.
-`
 
 func queryProjectPaths() []string {
 	out, err := exec.Command("docker", "exec", "lg-postgres",

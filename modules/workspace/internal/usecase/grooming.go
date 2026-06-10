@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/faizalv/lemongrass/infra/lgprompt"
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 	"github.com/faizalv/lemongrass/modules/workspace/entity"
 )
@@ -157,29 +158,30 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 		"",
 		"--- Navigation ---",
 		"",
-		hookCallInstruction,
+		lgprompt.HookCallInstruction,
 		"",
-		workbenchDecisionTree,
+		lgprompt.WorkbenchDecisionTree,
 		"",
 		"#lg.recon.tree [path] -- full project coverage at all directory depths. No argument = whole project. Pass a path to filter to that subtree. Shows n/m explored; n stale per directory.",
-		cmdReconPeek,
+		lgprompt.CmdReconPeek,
 		"#lg.recon.search <query> -- vector search across annotated nodes. Returns coverage context so you can reason about sparse results.",
-		cmdReconRead,
-		cmdReconRelated,
-		cmdKnowledgeSave,
-		cmdKnowledgeRead,
-		cmdKnowledgeSearch,
-		cmdKnowledgeDelete,
-		cmdKnowledgeLabels,
+		lgprompt.CmdReconRead,
+		lgprompt.CmdReconRelated,
+		lgprompt.CmdKnowledgeSave,
+		lgprompt.CmdKnowledgeRead,
+		lgprompt.CmdKnowledgeSearch,
+		lgprompt.CmdKnowledgeDelete,
+		lgprompt.CmdKnowledgeLabels,
+		lgprompt.CmdCodebaseSearch,
 		"Save non-obvious patterns when you discover them: naming rules, cross-cutting constraints, architectural decisions. Keys are short slugs. Content must be dense -- compact prompts style, no prose.",
 		"knowledge.save response includes [similar: key-a, key-b] when overlapping entries exist. Read them with knowledge.read and delete if superseded -- consolidate rather than accumulate.",
-		"Labels group knowledge by domain (auth, billing, middleware). Use knowledge.labels <query> to orient in an unfamiliar area, then knowledge.search <query> <label> to retrieve targeted entries.",
+		"Labels group knowledge by domain (auth, billing, middleware). Use knowledge.labels <query> to orient in an unfamiliar area, then knowledge.search <query>:<label> to retrieve targeted entries.",
 		"",
 		"Navigation flow: tree to see the full project coverage map. Peek the target directory -- returns only direct-child symbols plus subdirectory counts so you know what is inside without listing everything. Drill into subdirectories by peeking them directly. Read method bodies to understand behavior.",
 		"",
 		"After reading a method or func node, annotate it (non-blocking) -- this counts toward your active commitment:",
-		"  " + cmdAnnotate,
-		"  " + annotateHookNote,
+		"  " + lgprompt.CmdAnnotate,
+		"  " + lgprompt.AnnotateHookNote,
 		`  Example: modules/user/repo/user.go:GetByID:method:"fetches user by primary key; no tenant check":*entity.User:db.QueryRowx,db.Get`,
 		"",
 		"The server remembers every symbol you read this session. If #lg.commitment.status shows unmet progress, annotate from memory -- no need to re-read.",
@@ -189,9 +191,8 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 		"",
 		"--- Workbench ---",
 		"",
-		cmdCodebaseInterim,
-		cmdCodebaseQuery,
-		cmdCodebaseSearch,
+		lgprompt.CmdCodebaseInterim,
+		lgprompt.CmdCodebaseQuery,
 		"",
 		"--- Stale nodes ---",
 		"",
@@ -199,7 +200,7 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 		"",
 		"--- Commitment ---",
 		"",
-		"  " + cmdCommitment,
+		"  " + lgprompt.CmdCommitment,
 		"",
 		"When exploring a directory, commit to it if it is not yet fully annotated. Committing tells the server",
 		"you intend to read and annotate a meaningful portion of that scope before proposing tasks.",
@@ -208,7 +209,7 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 		"Commit at the level you are actually working. If you are exploring app/Http/Controllers,",
 		"commit to that path. #lg.commitment . (whole project) requires 70%+ overall coverage first.",
 		"",
-		cmdCommitmentStatus,
+		lgprompt.CmdCommitmentStatus,
 		"Call this before #lg.tasks.checkpoint to confirm commitments are met.",
 		"",
 		"Do not annotate structs, consts, or imports to meet commitment -- they score 0.",
@@ -240,7 +241,7 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 		"",
 		"--- Progress ---",
 		"",
-		echoRule,
+		lgprompt.EchoRule,
 		"  Exploring modules/auth/",
 		"  Running search for handler registration",
 		"  Task list ready, calling checkpoint",
@@ -253,5 +254,5 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 		"Annotate every node you read -- semantic map shared across all sessions.",
 	}, "\n")
 
-	return environmentPreamble + "\n\n" + body
+	return lgprompt.EnvironmentPreamble + "\n\n" + body
 }

@@ -79,6 +79,10 @@ func (u *ReconUsecase) FindSimilarLabels(ctx context.Context, projectID int64, l
 	return u.repo.FindSimilarLabels(ctx, projectID, label, vec)
 }
 
+func (u *ReconUsecase) ListAllLabels(ctx context.Context, projectID int64) ([]string, error) {
+	return u.repo.ListAllLabels(ctx, projectID)
+}
+
 func (u *ReconUsecase) SearchLabels(ctx context.Context, projectID int64, query string) ([]string, error) {
 	vec, err := u.embed.Embed(ctx, query)
 	if err != nil {

@@ -83,6 +83,10 @@ func (c *ReconClient) FindSimilarLabels(ctx context.Context, projectID int64, la
 	return c.uc.FindSimilarLabels(ctx, projectID, label, content)
 }
 
+func (c *ReconClient) ListAllLabels(ctx context.Context, projectID int64) ([]string, error) {
+	return c.uc.ListAllLabels(ctx, projectID)
+}
+
 func (c *ReconClient) SearchLabels(ctx context.Context, projectID int64, query string) ([]string, error) {
 	return c.uc.SearchLabels(ctx, projectID, query)
 }

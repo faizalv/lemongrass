@@ -1,11 +1,13 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -312,17 +314,98 @@ func (u *LgUsecase) handleCodebaseQuery(ctx context.Context, sessionID string, s
 	return formatChunks(chunks)
 }
 
-func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, sessionID string, s *activeSession, args string) string {
-	if u.interim == nil {
-		return interimNoArg
+func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activeSession, args string) string {
+	if u.recon == nil {
+		return "error: recon not available"
 	}
-	has, err := u.interim.HasInterim(ctx, s.key)
-	if err != nil || !has {
-		return interimNoArg
-	}
-	chunks, err := u.interim.SearchInterim(ctx, s.key, args)
+	rawPath, err := u.recon.ProjectDir(ctx, s.projectID)
 	if err != nil {
-		return "error: search failed"
+		return "error: project path unavailable"
 	}
-	return formatChunks(chunks)
+	projectDir := filepath.Join("/projects", filepath.Base(rawPath))
+
+	pattern := strings.ToLower(strings.TrimSpace(args))
+	if pattern == "" {
+		return "error: pattern required"
+	}
+
+	const contextLines = 3
+	const maxResults = 20
+
+	skipDirs := map[string]bool{
+		".git": true, "node_modules": true, "vendor": true, ".lemongrass": true,
+	}
+
+	type match struct {
+		filePath  string
+		lineStart int
+		lineEnd   int
+		content   string
+	}
+
+	var results []match
+	limitReached := false
+
+	_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || limitReached {
+			return nil
+		}
+		if d.IsDir() {
+			if skipDirs[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if bytes.IndexByte(data, 0) >= 0 {
+			return nil
+		}
+		rel, err := filepath.Rel(projectDir, path)
+		if err != nil {
+			return nil
+		}
+		lines := strings.Split(string(data), "\n")
+		for i, line := range lines {
+			if strings.Contains(strings.ToLower(line), pattern) {
+				start := i - contextLines
+				if start < 0 {
+					start = 0
+				}
+				end := i + contextLines
+				if end >= len(lines) {
+					end = len(lines) - 1
+				}
+				results = append(results, match{
+					filePath:  rel,
+					lineStart: start + 1,
+					lineEnd:   end + 1,
+					content:   strings.Join(lines[start:end+1], "\n"),
+				})
+				if len(results) >= maxResults {
+					limitReached = true
+					return nil
+				}
+			}
+		}
+		return nil
+	})
+
+	if len(results) == 0 {
+		return "no results"
+	}
+
+	var sb strings.Builder
+	for i, r := range results {
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		fmt.Fprintf(&sb, "%s L%d-%d\n%s", r.filePath, r.lineStart, r.lineEnd, r.content)
+	}
+	if limitReached {
+		fmt.Fprintf(&sb, "\n\n(results capped at %d -- refine pattern)", maxResults)
+	}
+	return sb.String()
 }
