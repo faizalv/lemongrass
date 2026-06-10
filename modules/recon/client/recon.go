@@ -106,3 +106,7 @@ func (c *ReconClient) Embed(ctx context.Context, text string) ([]float32, error)
 func (c *ReconClient) ProjectDir(ctx context.Context, projectID int64) (string, error) {
 	return c.uc.ProjectDir(ctx, projectID)
 }
+
+func (c *ReconClient) ListFilePaths(ctx context.Context, projectID int64) []string {
+	return c.uc.ListFilePaths(ctx, projectID)
+}

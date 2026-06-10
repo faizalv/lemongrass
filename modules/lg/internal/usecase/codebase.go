@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -76,6 +77,22 @@ func extractGoSymbols(content string) []goSym {
 	}
 	contentLines := strings.Split(content, "\n")
 	var syms []goSym
+	for _, decl := range f.Decls {
+		gd, ok := decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.IMPORT {
+			continue
+		}
+		start := fset.Position(gd.Pos()).Line
+		end := fset.Position(gd.End()).Line
+		if start < 1 || end > len(contentLines) {
+			continue
+		}
+		syms = append(syms, goSym{
+			sig:       "",
+			lineStart: start,
+			lines:     contentLines[start-1 : end],
+		})
+	}
 	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok {
@@ -329,8 +346,8 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 		return "error: pattern required"
 	}
 
-	const contextLines = 3
-	const maxResults = 20
+	const contextLines = 2
+	const maxResults = 50
 
 	skipDirs := map[string]bool{
 		".git": true, "node_modules": true, "vendor": true, ".lemongrass": true,
@@ -346,52 +363,91 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 	var results []match
 	limitReached := false
 
-	_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || limitReached {
-			return nil
-		}
-		if d.IsDir() {
-			if skipDirs[d.Name()] {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		if bytes.IndexByte(data, 0) >= 0 {
-			return nil
-		}
-		rel, err := filepath.Rel(projectDir, path)
-		if err != nil {
-			return nil
-		}
-		lines := strings.Split(string(data), "\n")
-		for i, line := range lines {
-			if strings.Contains(strings.ToLower(line), pattern) {
-				start := i - contextLines
-				if start < 0 {
-					start = 0
-				}
-				end := i + contextLines
-				if end >= len(lines) {
-					end = len(lines) - 1
-				}
-				results = append(results, match{
-					filePath:  rel,
-					lineStart: start + 1,
-					lineEnd:   end + 1,
-					content:   strings.Join(lines[start:end+1], "\n"),
-				})
+	// Path and directory matching from cache -- no disk access
+	if cached := u.recon.ListFilePaths(ctx, s.projectID); len(cached) > 0 {
+		dirSeen := make(map[string]bool)
+		for _, p := range cached {
+			if strings.Contains(strings.ToLower(p), pattern) {
+				results = append(results, match{filePath: p, content: "[path]"})
 				if len(results) >= maxResults {
 					limitReached = true
-					return nil
+					break
+				}
+			}
+			for d := filepath.Dir(p); d != "." && d != ""; d = filepath.Dir(d) {
+				if dirSeen[d] {
+					break
+				}
+				dirSeen[d] = true
+			}
+		}
+		if !limitReached {
+			dirs := make([]string, 0, len(dirSeen))
+			for d := range dirSeen {
+				dirs = append(dirs, d)
+			}
+			sort.Strings(dirs)
+			for _, d := range dirs {
+				if strings.Contains(strings.ToLower(d), pattern) {
+					results = append(results, match{filePath: d + "/", content: "[dir]"})
+					if len(results) >= maxResults {
+						limitReached = true
+						break
+					}
 				}
 			}
 		}
-		return nil
-	})
+	}
+
+	// Content matching -- direct filesystem walk
+	if !limitReached {
+		_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || limitReached {
+				return nil
+			}
+			if d.IsDir() {
+				if skipDirs[d.Name()] {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil
+			}
+			if bytes.IndexByte(data, 0) >= 0 {
+				return nil
+			}
+			rel, err := filepath.Rel(projectDir, path)
+			if err != nil {
+				return nil
+			}
+			lines := strings.Split(string(data), "\n")
+			for i, line := range lines {
+				if strings.Contains(strings.ToLower(line), pattern) {
+					start := i - contextLines
+					if start < 0 {
+						start = 0
+					}
+					end := i + contextLines
+					if end >= len(lines) {
+						end = len(lines) - 1
+					}
+					results = append(results, match{
+						filePath:  rel,
+						lineStart: start + 1,
+						lineEnd:   end + 1,
+						content:   strings.Join(lines[start:end+1], "\n"),
+					})
+					if len(results) >= maxResults {
+						limitReached = true
+						return nil
+					}
+				}
+			}
+			return nil
+		})
+	}
 
 	if len(results) == 0 {
 		return "no results"
@@ -402,10 +458,14 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 		if i > 0 {
 			sb.WriteString("\n\n")
 		}
-		fmt.Fprintf(&sb, "%s L%d-%d\n%s", r.filePath, r.lineStart, r.lineEnd, r.content)
+		if r.lineStart == 0 {
+			fmt.Fprintf(&sb, "%s  %s", r.filePath, r.content)
+		} else {
+			fmt.Fprintf(&sb, "%s L%d-%d\n%s", r.filePath, r.lineStart, r.lineEnd, r.content)
+		}
 	}
 	if limitReached {
-		fmt.Fprintf(&sb, "\n\n(results capped at %d -- refine pattern)", maxResults)
+		fmt.Fprintf(&sb, "\n\n!! capped at %d results -- use a more specific pattern", maxResults)
 	}
 	return sb.String()
 }

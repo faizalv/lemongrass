@@ -70,6 +70,10 @@ func (u *ReconUsecase) Sync(ctx context.Context, projectID int64, dir string) er
 		}
 	}
 
+	u.pathCacheMu.Lock()
+	u.pathCache[projectID] = parsedCandidates
+	u.pathCacheMu.Unlock()
+
 	if !changed {
 		return nil
 	}
@@ -171,7 +175,15 @@ func (u *ReconUsecase) SyncGit(ctx context.Context, projectID int64, dir string)
 	for p := range pathSet {
 		paths = append(paths, p)
 	}
-	return u.MapFiles(ctx, projectID, dir, paths)
+	if err := u.MapFiles(ctx, projectID, dir, paths); err != nil {
+		return err
+	}
+	if cached, err := u.repo.ListFilePaths(ctx, projectID); err == nil {
+		u.pathCacheMu.Lock()
+		u.pathCache[projectID] = cached
+		u.pathCacheMu.Unlock()
+	}
+	return nil
 }
 
 // ActivateGitSync triggers a non-blocking SyncGit for the given project.

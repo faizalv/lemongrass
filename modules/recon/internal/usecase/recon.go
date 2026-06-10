@@ -29,6 +29,7 @@ type repo interface {
 	GetFileHashes(ctx context.Context, projectID int64) (map[string]string, error)
 	UpsertFileHashes(ctx context.Context, projectID int64, hashes []entity.FileHash) error
 	DeleteFileHashes(ctx context.Context, projectID int64, paths []string) error
+	ListFilePaths(ctx context.Context, projectID int64) ([]string, error)
 	GetSyncInterval(ctx context.Context, projectID int64) (string, error)
 	UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error
 	GetNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, error)
@@ -72,6 +73,9 @@ type ReconUsecase struct {
 	lastSynced map[int64]int64
 	activeID   int64
 
+	pathCache   map[int64][]string
+	pathCacheMu sync.RWMutex
+
 	annotating atomic.Int32
 
 	embedMu      sync.Mutex
@@ -93,6 +97,7 @@ func New(r repo, logDir string, parsers ...lang.Parser) *ReconUsecase {
 		embed:      embed.New(),
 		syncing:    make(map[int64]bool),
 		lastSynced: make(map[int64]int64),
+		pathCache:  make(map[int64][]string),
 	}
 	if logDir != "" {
 		os.MkdirAll(logDir, 0755)
@@ -346,6 +351,23 @@ func (u *ReconUsecase) StartBackgroundEmbed(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (u *ReconUsecase) ListFilePaths(ctx context.Context, projectID int64) []string {
+	u.pathCacheMu.RLock()
+	cached := u.pathCache[projectID]
+	u.pathCacheMu.RUnlock()
+	if cached != nil {
+		return cached
+	}
+	paths, err := u.repo.ListFilePaths(ctx, projectID)
+	if err != nil {
+		return nil
+	}
+	u.pathCacheMu.Lock()
+	u.pathCache[projectID] = paths
+	u.pathCacheMu.Unlock()
+	return paths
 }
 
 func (u *ReconUsecase) ActiveFilePaths(results []*entity.ParseResult) []string {

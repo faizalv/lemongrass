@@ -38,6 +38,7 @@ type reconProvider interface {
 	Embed(ctx context.Context, text string) ([]float32, error)
 	ProjectDir(ctx context.Context, projectID int64) (string, error)
 	ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]reconentity.SemanticNode, error)
+	ListFilePaths(ctx context.Context, projectID int64) []string
 }
 
 type taskProvider interface {

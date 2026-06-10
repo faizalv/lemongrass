@@ -47,3 +47,21 @@ func (r *ReconRepository) DeleteFileHashes(ctx context.Context, projectID int64,
 	)
 	return err
 }
+
+func (r *ReconRepository) ListFilePaths(ctx context.Context, projectID int64) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT file_path FROM lg_file_hashes WHERE project_id = $1 ORDER BY file_path`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	return paths, rows.Err()
+}
