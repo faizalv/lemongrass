@@ -26,6 +26,7 @@ type lgSessionProvider interface {
 	RespondToCheckpoint(workspaceID string, rejections map[string]string) error
 	GetSessionActivity(workspaceID string) (time.Time, int, []lgentity.EchoMessage, bool)
 	ResetSession(workspaceID string)
+	WriteToSession(workspaceID string, msg []byte) error
 }
 
 type Workspace struct {
@@ -96,5 +97,6 @@ func (w *Workspace) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("/:id/session/reset", w.h.SessionReset)
 	g.POST("/:id/execution/start", w.h.StartExecution)
 	g.POST("/:id/execution/force-stop", w.h.ForceStopExecution)
+	g.POST("/:id/tasks/:task_id/reject", w.h.RejectTask)
 	g.POST("/:id/amendment/start", w.h.StartAmendment)
 }

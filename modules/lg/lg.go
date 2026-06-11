@@ -2,9 +2,11 @@ package lg
 
 import (
 	"context"
+	"time"
 
 	"github.com/faizalv/lemongrass/config"
 	lgclient "github.com/faizalv/lemongrass/modules/lg/client"
+	lgentity "github.com/faizalv/lemongrass/modules/lg/entity"
 	handler "github.com/faizalv/lemongrass/modules/lg/internal/handler/http"
 	"github.com/faizalv/lemongrass/modules/lg/internal/repository"
 	"github.com/faizalv/lemongrass/modules/lg/internal/usecase"
@@ -50,6 +52,17 @@ type taskProvider interface {
 	SaveHandoverContext(ctx context.Context, workspaceID, context string) error
 	CreateWorkspace(ctx context.Context, projectID int64, name string) (wsentity.Workspace, error)
 	FindWorkspace(ctx context.Context, projectID int64, nameOrID string) (wsentity.Workspace, error)
+	AddTextRequirement(ctx context.Context, workspaceID, text string) error
+	ListWorkspaces(ctx context.Context, projectID int64) ([]wsentity.Workspace, error)
+	GetWorkspace(ctx context.Context, id string) (wsentity.Workspace, error)
+	DeleteWorkspace(ctx context.Context, id string) error
+	GetTask(ctx context.Context, taskID string) (wsentity.Task, error)
+	GetTaskByNumber(ctx context.Context, workspaceID string, num int) (wsentity.Task, error)
+	StartTask(ctx context.Context, taskID string, startedAt time.Time) error
+	FinishTask(ctx context.Context, taskID, notes string, diff []lgentity.FileDiff, finishedAt time.Time) error
+	RejectTask(ctx context.Context, taskID, reason string) error
+	GetRejectedTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
+	CountInProgressTasks(ctx context.Context, workspaceID string) (int, error)
 }
 
 type Lg struct {

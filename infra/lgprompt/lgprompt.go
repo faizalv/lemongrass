@@ -42,9 +42,17 @@ const CmdKnowledgeSearch = `#lg.knowledge.search <query>[:<label>] -- vector sea
 const CmdKnowledgeDelete = `#lg.knowledge.delete <key> -- remove a stale or superseded entry`
 const CmdKnowledgeLabels = `#lg.knowledge.labels [query] -- list all labels or vector search for relevant ones`
 
+const CmdTasksStart  = `#lg.tasks.start <n> -- mark task n in_progress (n is the integer task_id from tasks.read); check response for pending rejection notes`
+const CmdTasksFinish = `#lg.tasks.finish <n>:<notes> -- mark task n done and record per-task diff; notes explain any divergence from planned impl (empty if none); check response for pending rejection notes`
+
+const CmdWorkspaceRequirementAdd = `#lg.workspace.requirement.add <text> -- add a text requirement to the active workspace`
+const CmdWorkspaceList           = `#lg.workspace.list -- list all workspaces with name, created date, and status`
+const CmdWorkspaceSearch         = `#lg.workspace.search <query> -- filter workspaces by name`
+const CmdWorkspaceDelete         = `#lg.workspace.delete <name> -- delete a workspace (must be idle)`
+
 const CmdCodebaseInterim = `#lg.codebase.interim <inputs> -- load files/symbols into session workbench; pipe-separate: S:path:symbol:kind | F:path | R:glob`
 const CmdCodebaseQuery   = `#lg.codebase.query <question> -- semantic search across everything loaded into the workbench`
-const CmdCodebaseSearch  = `#lg.codebase.search <pattern> -- grep replacement; searches project files, returns matching lines with 2 lines of context; supports regex`
+const CmdCodebaseSearch  = `#lg.codebase.search <pattern> [path/prefix] -- grep replacement; last token with / is a path scope filter; supports regex; use | for alternation (not \|); no quotes around pattern`
 
 func BuildSkillContent() string {
 	return strings.Join([]string{
@@ -108,10 +116,15 @@ func BuildSkillContent() string {
 		"",
 		"WORKSPACES AND TASKS",
 		"",
-		"  #lg.workspace.create <name>",
-		"  #lg.workspace.use <name>",
-		"  #lg.tasks.checkpoint    write down the agreed task list",
-		"  #lg.tasks.read          read the current task list",
+		"  #lg.workspace.create <name>         create a workspace (one per PRD)",
+		"  #lg.workspace.use <name>            switch to an existing workspace",
+		"  " + CmdWorkspaceList,
+		"  " + CmdWorkspaceSearch,
+		"  " + CmdWorkspaceDelete,
+		"  " + CmdWorkspaceRequirementAdd,
+		"  #lg.tasks.checkpoint <json>         save tasks -- see format on empty call",
+		"  #lg.tasks.read                      read the current task list",
+		"  #lg.skill.loaded                    acknowledge skill reload after compaction",
 		"",
 		"Commitment not required in this mode. Peruse and annotate freely. Checkpoint and tasks work as records.",
 	}, "\n")

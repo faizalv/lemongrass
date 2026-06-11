@@ -35,3 +35,7 @@ func (s *SessionManager) GetSessionActivity(workspaceID string) (time.Time, int,
 func (s *SessionManager) ResetSession(workspaceID string) {
 	s.uc.ResetSession(workspaceID)
 }
+
+func (s *SessionManager) WriteToSession(workspaceID string, msg []byte) error {
+	return s.uc.WriteToSession(workspaceID, msg)
+}

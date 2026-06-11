@@ -7,8 +7,11 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/faizalv/lemongrass/modules/lg/entity"
 	reconentity "github.com/faizalv/lemongrass/modules/recon/entity"
 	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
 )
@@ -380,19 +383,123 @@ func (u *LgUsecase) handleTasksRead(ctx context.Context, s *activeSession) strin
 		return "no approved tasks found"
 	}
 	type taskOut struct {
-		Title  string          `json:"title"`
-		Reason string          `json:"reason"`
-		Impl   json.RawMessage `json:"impl"`
+		TaskNum int             `json:"task_id"`
+		Title   string          `json:"title"`
+		Reason  string          `json:"reason"`
+		Impl    json.RawMessage `json:"impl"`
 	}
 	out := make([]taskOut, len(approved))
 	for i, t := range approved {
-		out[i] = taskOut{Title: t.Title, Reason: t.Reason, Impl: t.Impl}
+		out[i] = taskOut{TaskNum: t.TaskNumber, Title: t.Title, Reason: t.Reason, Impl: t.Impl}
 	}
 	b, err := json.MarshalIndent(map[string]any{"tasks": out}, "", "  ")
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
 	return string(b)
+}
+
+func rejectionNote(tasks []wsentity.Task) string {
+	if len(tasks) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, t := range tasks {
+		parts = append(parts, fmt.Sprintf("%q: %s", t.Title, t.RejectionReason))
+	}
+	return "rejection pending: " + strings.Join(parts, "; ")
+}
+
+func (u *LgUsecase) handleTasksStart(ctx context.Context, s *activeSession, args string) string {
+	if u.tasks == nil {
+		return "error: task store not available"
+	}
+	if s.workspaceID == "" {
+		return "error: no workspace active -- call #lg.workspace.use <name> first"
+	}
+	num, err := strconv.Atoi(strings.TrimSpace(args))
+	if err != nil || num < 1 {
+		return "error: task_id must be a positive integer"
+	}
+	task, err := u.tasks.GetTaskByNumber(ctx, s.workspaceID, num)
+	if err != nil {
+		return fmt.Sprintf("error: task %d not found", num)
+	}
+	now := time.Now()
+	if err := u.tasks.StartTask(ctx, task.ID, now); err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	u.mu.Lock()
+	s.taskStartTimes[task.ID] = now
+	u.mu.Unlock()
+
+	rejected, _ := u.tasks.GetRejectedTasks(ctx, s.workspaceID)
+	resp := "ok: " + task.Title
+	if note := rejectionNote(rejected); note != "" {
+		resp += " -- " + note
+	}
+	return resp
+}
+
+func (u *LgUsecase) handleTasksFinish(ctx context.Context, s *activeSession, args string) string {
+	if u.tasks == nil {
+		return "error: task store not available"
+	}
+	if s.workspaceID == "" {
+		return "error: no workspace active -- call #lg.workspace.use <name> first"
+	}
+	sep := strings.IndexByte(args, ':')
+	var numStr, notes string
+	if sep < 0 {
+		numStr = strings.TrimSpace(args)
+	} else {
+		numStr = strings.TrimSpace(args[:sep])
+		notes = strings.TrimSpace(args[sep+1:])
+	}
+	num, err := strconv.Atoi(numStr)
+	if err != nil || num < 1 {
+		return "error: task_id must be a positive integer -- format: <task_id>:<notes>"
+	}
+	task, err := u.tasks.GetTaskByNumber(ctx, s.workspaceID, num)
+	if err != nil {
+		return fmt.Sprintf("error: task %d not found", num)
+	}
+
+	u.mu.Lock()
+	startTime, hasStart := s.taskStartTimes[task.ID]
+	snapshots := u.beforeSnapshots[s.workspaceID]
+	var trailPaths []string
+	seen := make(map[string]bool)
+	for _, e := range u.writeTrail {
+		if e.SessionID == s.workspaceID && !e.Timestamp.Before(startTime) && !seen[e.FilePath] {
+			trailPaths = append(trailPaths, e.FilePath)
+			seen[e.FilePath] = true
+		}
+	}
+	u.mu.Unlock()
+
+	_ = hasStart
+	var diffs []entity.FileDiff
+	for _, path := range trailPaths {
+		before := snapshots[path]
+		afterBytes, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		diffs = append(diffs, buildDiff(before, string(afterBytes), path))
+	}
+
+	now := time.Now()
+	if err := u.tasks.FinishTask(ctx, task.ID, notes, diffs, now); err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+
+	rejected, _ := u.tasks.GetRejectedTasks(ctx, s.workspaceID)
+	resp := "done: " + task.Title
+	if note := rejectionNote(rejected); note != "" {
+		resp += " -- " + note + ". Finish all in-progress work, then address the rejection before calling #lg!.done."
+	}
+	return resp
 }
 
 func (u *LgUsecase) handleReconDrop(ctx context.Context, s *activeSession, args string) {
@@ -590,6 +697,105 @@ func (u *LgUsecase) handleWorkspaceCreate(ctx context.Context, s *activeSession,
 	return "workspace ready: " + ws.Name + " (" + ws.ID + ")"
 }
 
+func (u *LgUsecase) handleWorkspaceRequirementAdd(ctx context.Context, s *activeSession, args string) string {
+	if u.tasks == nil {
+		return "error: task writer not configured"
+	}
+	if s.workspaceID == "" {
+		return "error: no workspace active -- call #lg.workspace.create <name> or #lg.workspace.use <name> first"
+	}
+	ws, err := u.tasks.GetWorkspace(ctx, s.workspaceID)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	if ws.Status != "idle" && ws.Status != "grooming" {
+		return fmt.Sprintf("error: workspace is %s -- create a new workspace to amend", workspaceStatus(ws.Status))
+	}
+	text := strings.TrimSpace(args)
+	if text == "" {
+		return "error: requirement text required"
+	}
+	if err := u.tasks.AddTextRequirement(ctx, s.workspaceID, text); err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return "requirement added"
+}
+
+func workspaceStatus(raw string) string {
+	switch raw {
+	case "awaiting_execution":
+		return "waiting execution"
+	default:
+		return raw
+	}
+}
+
+func formatWorkspaces(workspaces []wsentity.Workspace) string {
+	if len(workspaces) == 0 {
+		return "no workspaces found"
+	}
+	var sb strings.Builder
+	for _, ws := range workspaces {
+		fmt.Fprintf(&sb, "%s  %s  %s\n", ws.Name, ws.CreatedAt.Format("2006-01-02"), workspaceStatus(ws.Status))
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func (u *LgUsecase) handleWorkspaceList(ctx context.Context, s *activeSession) string {
+	if u.tasks == nil {
+		return "error: task writer not configured"
+	}
+	workspaces, err := u.tasks.ListWorkspaces(ctx, s.projectID)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	return formatWorkspaces(workspaces)
+}
+
+func (u *LgUsecase) handleWorkspaceSearch(ctx context.Context, s *activeSession, args string) string {
+	if u.tasks == nil {
+		return "error: task writer not configured"
+	}
+	query := strings.ToLower(strings.TrimSpace(args))
+	if query == "" {
+		return "error: search query required"
+	}
+	workspaces, err := u.tasks.ListWorkspaces(ctx, s.projectID)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	var matched []wsentity.Workspace
+	for _, ws := range workspaces {
+		if strings.Contains(strings.ToLower(ws.Name), query) {
+			matched = append(matched, ws)
+		}
+	}
+	return formatWorkspaces(matched)
+}
+
+func (u *LgUsecase) handleWorkspaceDelete(ctx context.Context, s *activeSession, args string) string {
+	if u.tasks == nil {
+		return "error: task writer not configured"
+	}
+	nameOrID := strings.TrimSpace(args)
+	if nameOrID == "" {
+		return "error: workspace name or ID required"
+	}
+	ws, err := u.tasks.FindWorkspace(ctx, s.projectID, nameOrID)
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	if err := u.tasks.DeleteWorkspace(ctx, ws.ID); err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	u.mu.Lock()
+	if s.workspaceID == ws.ID {
+		s.workspaceID = ""
+	}
+	u.mu.Unlock()
+	return "deleted: " + ws.Name
+}
+
 func (u *LgUsecase) handleWorkspaceUse(ctx context.Context, s *activeSession, args string) string {
 	if u.tasks == nil {
 		return "error: task writer not configured"
@@ -615,6 +821,9 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 	if s.workspaceID == "" {
 		return "error: no workspace active -- call #lg.workspace.create <name> or #lg.workspace.use <name> first"
 	}
+	if strings.TrimSpace(args) == "" {
+		return `usage: #lg.tasks.checkpoint {"tasks":[{"title":"...","reason":"...","impl":["directive1","directive2"]}]}`
+	}
 	var payload struct {
 		Tasks []struct {
 			Title  string   `json:"title"`
@@ -636,6 +845,14 @@ func (u *LgUsecase) handleCheckpoint(ctx context.Context, s *activeSession, args
 			Impl:        implJSON,
 		}
 	}
+	if s.sessionType == "headless" {
+		created, err := u.tasks.CreateTasks(ctx, s.workspaceID, tasks)
+		if err != nil {
+			return fmt.Sprintf("error: %v", err)
+		}
+		return fmt.Sprintf("saved: %d tasks", len(created))
+	}
+
 	u.mu.Lock()
 	commitments := make([]*commitment, 0, len(s.commitments))
 	for _, c := range s.commitments {

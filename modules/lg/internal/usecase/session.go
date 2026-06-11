@@ -13,13 +13,14 @@ func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args 
 	u.mu.Lock()
 	if u.sessions[sessionID] == nil {
 		u.sessions[sessionID] = &activeSession{
-			key:          sessionID,
-			projectID:    projectID,
-			projectAlias: fmt.Sprintf("project-%d", projectID),
-			sessionType:  "headless",
-			checkpointCh: make(chan checkpointResult, 1),
-			readNodes:    make(map[string]readEntry),
-			commitments:  make(map[string]*commitment),
+			key:            sessionID,
+			projectID:      projectID,
+			projectAlias:   fmt.Sprintf("project-%d", projectID),
+			sessionType:    "headless",
+			checkpointCh:   make(chan checkpointResult, 1),
+			readNodes:      make(map[string]readEntry),
+			commitments:    make(map[string]*commitment),
+			taskStartTimes: make(map[string]time.Time),
 		}
 	}
 	u.mu.Unlock()
@@ -31,13 +32,14 @@ func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking 
 	u.mu.Lock()
 	if u.sessions[key] == nil {
 		u.sessions[key] = &activeSession{
-			key:          key,
-			projectID:    projectID,
-			projectAlias: fmt.Sprintf("project-%d", projectID),
-			sessionType:  "host",
-			checkpointCh: make(chan checkpointResult, 1),
-			readNodes:    make(map[string]readEntry),
-			commitments:  make(map[string]*commitment),
+			key:            key,
+			projectID:      projectID,
+			projectAlias:   fmt.Sprintf("project-%d", projectID),
+			sessionType:    "host",
+			checkpointCh:   make(chan checkpointResult, 1),
+			readNodes:      make(map[string]readEntry),
+			commitments:    make(map[string]*commitment),
+			taskStartTimes: make(map[string]time.Time),
 		}
 	}
 	u.mu.Unlock()
@@ -55,8 +57,9 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 		sessionType:  sessionType,
 		ptySession:   session,
 		checkpointCh: make(chan checkpointResult, 1),
-		readNodes:    make(map[string]readEntry),
-		commitments:  make(map[string]*commitment),
+		readNodes:      make(map[string]readEntry),
+		commitments:    make(map[string]*commitment),
+		taskStartTimes: make(map[string]time.Time),
 	}
 	u.lastActivity[workspaceID] = time.Now()
 }
@@ -74,6 +77,17 @@ func (u *LgUsecase) RespondToCheckpoint(workspaceID string, rejections map[strin
 	default:
 		return fmt.Errorf("no pending checkpoint")
 	}
+}
+
+func (u *LgUsecase) WriteToSession(workspaceID string, msg []byte) error {
+	u.mu.Lock()
+	s := u.sessions[workspaceID]
+	u.mu.Unlock()
+	if s == nil || s.ptySession == nil {
+		return fmt.Errorf("no active session for workspace %s", workspaceID)
+	}
+	_, err := s.ptySession.Write(msg)
+	return err
 }
 
 func (u *LgUsecase) UnregisterSession(workspaceID string) {

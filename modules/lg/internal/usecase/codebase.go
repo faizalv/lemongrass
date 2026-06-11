@@ -346,6 +346,30 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 		return "error: pattern required"
 	}
 
+	var pathScope string
+	if i := strings.LastIndex(pattern, " "); i >= 0 {
+		last := pattern[i+1:]
+		if strings.Contains(last, "/") {
+			pathScope = last
+			pattern = strings.TrimSpace(pattern[:i])
+		}
+	}
+
+	filePaths := u.recon.ListFilePaths(ctx, s.projectID)
+
+	if pathScope != "" {
+		var scoped []string
+		for _, p := range filePaths {
+			if strings.HasPrefix(p, pathScope) {
+				scoped = append(scoped, p)
+			}
+		}
+		if len(scoped) == 0 {
+			return fmt.Sprintf("no results for path %q -- if this is part of your pattern, remove the space or escape the slash", pathScope)
+		}
+		filePaths = scoped
+	}
+
 	re, _ := regexp.Compile("(?i)" + pattern)
 	matchLine := func(line string) bool {
 		if re != nil {
@@ -364,8 +388,6 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 		lineEnd   int
 		content   string
 	}
-
-	filePaths := u.recon.ListFilePaths(ctx, s.projectID)
 
 	var results []match
 	limitReached := false

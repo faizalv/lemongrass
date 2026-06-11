@@ -56,14 +56,20 @@ type AddTextRequirementRequest struct {
 }
 
 type TaskResponse struct {
-	ID          string          `json:"id"`
-	WorkspaceID string          `json:"workspace_id"`
-	Title       string          `json:"title"`
-	Reason      string          `json:"reason"`
-	Impl        json.RawMessage `json:"impl"`
-	Status      string          `json:"status"`
-	CreatedAt   string          `json:"created_at"`
-	ApprovedAt  *string         `json:"approved_at,omitempty"`
+	ID              string          `json:"id"`
+	WorkspaceID     string          `json:"workspace_id"`
+	Title           string          `json:"title"`
+	Reason          string          `json:"reason"`
+	Impl            json.RawMessage `json:"impl"`
+	Status          string          `json:"status"`
+	ExecutionStatus string          `json:"execution_status"`
+	ExecutionNotes  string          `json:"execution_notes"`
+	ExecutionDiff   json.RawMessage `json:"execution_diff,omitempty"`
+	RejectionReason string          `json:"rejection_reason"`
+	StartedAt       *string         `json:"started_at,omitempty"`
+	FinishedAt      *string         `json:"finished_at,omitempty"`
+	CreatedAt       string          `json:"created_at"`
+	ApprovedAt      *string         `json:"approved_at,omitempty"`
 }
 
 type WorkspaceWithRequirementsResponse struct {
@@ -77,9 +83,11 @@ type EchoMessageResponse struct {
 }
 
 type SessionActivityResponse struct {
-	LastActivityAt *string               `json:"last_activity_at"`
-	IdleSeconds    int                   `json:"idle_seconds"`
-	Messages       []EchoMessageResponse `json:"messages"`
+	LastActivityAt   *string               `json:"last_activity_at"`
+	IdleSeconds      int                   `json:"idle_seconds"`
+	Messages         []EchoMessageResponse `json:"messages"`
+	CurrentTaskID    *string               `json:"current_task_id,omitempty"`
+	CurrentTaskTitle *string               `json:"current_task_title,omitempty"`
 }
 
 type TaskDecisionRequest struct {
@@ -89,13 +97,25 @@ type TaskDecisionRequest struct {
 
 func ToTaskResponse(t entity.Task) TaskResponse {
 	r := TaskResponse{
-		ID:          t.ID,
-		WorkspaceID: t.WorkspaceID,
-		Title:       t.Title,
-		Reason:      t.Reason,
-		Impl:        t.Impl,
-		Status:      t.Status,
-		CreatedAt:   t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		ID:              t.ID,
+		WorkspaceID:     t.WorkspaceID,
+		Title:           t.Title,
+		Reason:          t.Reason,
+		Impl:            t.Impl,
+		Status:          t.Status,
+		ExecutionStatus: t.ExecutionStatus,
+		ExecutionNotes:  t.ExecutionNotes,
+		ExecutionDiff:   t.ExecutionDiff,
+		RejectionReason: t.RejectionReason,
+		CreatedAt:       t.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+	}
+	if t.StartedAt != nil {
+		s := t.StartedAt.UTC().Format("2006-01-02T15:04:05Z")
+		r.StartedAt = &s
+	}
+	if t.FinishedAt != nil {
+		s := t.FinishedAt.UTC().Format("2006-01-02T15:04:05Z")
+		r.FinishedAt = &s
 	}
 	if t.ApprovedAt != nil {
 		s := t.ApprovedAt.UTC().Format("2006-01-02T15:04:05Z")

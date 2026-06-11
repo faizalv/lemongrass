@@ -58,6 +58,17 @@ type taskWriter interface {
 	SaveHandoverContext(ctx context.Context, workspaceID, context string) error
 	CreateWorkspace(ctx context.Context, projectID int64, name string) (wsentity.Workspace, error)
 	FindWorkspace(ctx context.Context, projectID int64, nameOrID string) (wsentity.Workspace, error)
+	AddTextRequirement(ctx context.Context, workspaceID, text string) error
+	ListWorkspaces(ctx context.Context, projectID int64) ([]wsentity.Workspace, error)
+	GetWorkspace(ctx context.Context, id string) (wsentity.Workspace, error)
+	DeleteWorkspace(ctx context.Context, id string) error
+	GetTask(ctx context.Context, taskID string) (wsentity.Task, error)
+	GetTaskByNumber(ctx context.Context, workspaceID string, num int) (wsentity.Task, error)
+	StartTask(ctx context.Context, taskID string, startedAt time.Time) error
+	FinishTask(ctx context.Context, taskID, notes string, diff []entity.FileDiff, finishedAt time.Time) error
+	RejectTask(ctx context.Context, taskID, reason string) error
+	GetRejectedTasks(ctx context.Context, workspaceID string) ([]wsentity.Task, error)
+	CountInProgressTasks(ctx context.Context, workspaceID string) (int, error)
 }
 
 type checkpointResult struct {
@@ -87,8 +98,9 @@ type activeSession struct {
 	sessionType  string
 	ptySession   ptyclient.Session
 	checkpointCh chan checkpointResult
-	readNodes    map[string]readEntry        // "path:symbol:kind" -> entry
-	commitments  map[string]*commitment      // path prefix -> commitment
+	readNodes      map[string]readEntry        // "path:symbol:kind" -> entry
+	commitments    map[string]*commitment      // path prefix -> commitment
+	taskStartTimes map[string]time.Time        // task_id -> started_at
 }
 
 type LgUsecase struct {
@@ -346,6 +358,14 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		resp := u.handleTasksRead(ctx, s)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
+	case "tasks.start":
+		resp := u.handleTasksStart(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "tasks.finish":
+		resp := u.handleTasksFinish(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "handover":
 		go func() {
 			u.handleHandover(s, args)
@@ -384,6 +404,22 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return resp
 	case "workspace.use":
 		resp := u.handleWorkspaceUse(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "workspace.requirement.add":
+		resp := u.handleWorkspaceRequirementAdd(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "workspace.list":
+		resp := u.handleWorkspaceList(ctx, s)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "workspace.search":
+		resp := u.handleWorkspaceSearch(ctx, s, args)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
+	case "workspace.delete":
+		resp := u.handleWorkspaceDelete(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
 	case "codebase.interim":

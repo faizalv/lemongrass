@@ -58,6 +58,7 @@ type sessionUC interface {
 type executionUC interface {
 	StartExecution(ctx context.Context, workspaceID string) error
 	ForceStopExecution(ctx context.Context, workspaceID string) error
+	RejectTask(ctx context.Context, workspaceID, taskID, reason string) error
 }
 
 type amendmentUC interface {
@@ -365,7 +366,8 @@ func (h *WorkspaceHandler) DeleteRequirement(c *gin.Context) {
 }
 
 func (h *WorkspaceHandler) SessionActivity(c *gin.Context) {
-	lastAt, idleSec, echoes, active := h.session.GetSessionActivity(c.Request.Context(), c.Param("id"))
+	wsID := c.Param("id")
+	lastAt, idleSec, echoes, active := h.session.GetSessionActivity(c.Request.Context(), wsID)
 	msgs := make([]transporter.EchoMessageResponse, len(echoes))
 	for i, e := range echoes {
 		msgs[i] = transporter.EchoMessageResponse{
@@ -380,6 +382,16 @@ func (h *WorkspaceHandler) SessionActivity(c *gin.Context) {
 	if active {
 		s := lastAt.UTC().Format("2006-01-02T15:04:05Z")
 		resp.LastActivityAt = &s
+	}
+	if tasks, err := h.checkpoint.GetTasks(c.Request.Context(), wsID); err == nil {
+		for _, t := range tasks {
+			if t.ExecutionStatus == "in_progress" {
+				id, title := t.ID, t.Title
+				resp.CurrentTaskID = &id
+				resp.CurrentTaskTitle = &title
+				break
+			}
+		}
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -414,6 +426,31 @@ func (h *WorkspaceHandler) StartAmendment(c *gin.Context) {
 		if strings.Contains(err.Error(), "no rejected tasks") ||
 			strings.Contains(err.Error(), "must be grooming") {
 			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *WorkspaceHandler) RejectTask(c *gin.Context) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "reason is required"})
+		return
+	}
+	if err := h.execution.RejectTask(c.Request.Context(), c.Param("id"), c.Param("task_id"), req.Reason); err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "can only reject done") {
+			status = http.StatusConflict
+		} else if strings.Contains(err.Error(), "task not found") {
+			status = http.StatusNotFound
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
 		return

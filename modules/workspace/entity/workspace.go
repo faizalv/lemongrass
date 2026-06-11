@@ -28,11 +28,18 @@ type WorkspaceRequirement struct {
 type Task struct {
 	ID                string
 	WorkspaceID       string
+	TaskNumber        int
 	Title             string
 	Reason            string
 	Impl              json.RawMessage
 	Status            string
 	AmendmentFeedback string
+	ExecutionStatus   string
+	ExecutionNotes    string
+	ExecutionDiff     json.RawMessage
+	RejectionReason   string
+	StartedAt         *time.Time
+	FinishedAt        *time.Time
 	CreatedAt         time.Time
 	ApprovedAt        *time.Time
 }

@@ -113,8 +113,22 @@ export interface ApiTask {
   reason: string
   impl: string[]
   status: 'pending' | 'approved' | 'rejected'
+  execution_status: '' | 'in_progress' | 'done' | 'rejected'
+  execution_notes: string
+  execution_diff?: FileDiff[]
+  rejection_reason: string
+  started_at?: string
+  finished_at?: string
   created_at: string
   approved_at?: string
+}
+
+export interface FileDiff {
+  file_path: string
+  diff: string
+  is_new: boolean
+  lines_added: number
+  lines_removed: number
 }
 
 export interface ProjectArtifact {
