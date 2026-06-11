@@ -55,6 +55,16 @@ But again, this all is just hypothetical theory. Electricity was discovered beca
 
 ---
 
+## Headless mode
+
+Lemongrass also runs directly in your own Claude Code sessions without the container pipeline. `lemongrass up` installs `lg-hook-host` into `~/.claude/settings.json` alongside a skill file. After that, any Claude Code session you open gets the same `#lg.*` commands -- the semantic map, knowledge store, codebase workbench, all of it.
+
+The hook intercepts Bash, Read, Write, and Edit calls and routes `#lg.*` commands over a Unix socket to lg-server running in the background. No PTY, no container orchestration. The model navigates the codebase using recon commands, loads relevant code into the workbench, queries it, saves knowledge, and edits files directly. You drive the session; Lemongrass supplies the infrastructure.
+
+This is useful for any work that does not fit the grooming/execution shape: open-ended investigation, a quick annotation run, or drafting a feature design against the live codebase.
+
+---
+
 ## Getting started
 
 Requirements: Go, Node, Docker.
