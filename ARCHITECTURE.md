@@ -7,9 +7,11 @@
   +--------------------------------------------------+
   |                                                  |
   |  browser / lemongrass CLI     ~/.lemongrass/     |
-  |  localhost:9966               config.json        |
-  |                               claude/   (creds)  |
-  |                               projects/ (state)  |
+  |  localhost:9966                                  |
+  |                               config.json        |
+  |  Claude Code (host session)   claude/   (creds)  |
+  |  lg-hook-host ............... lg.sock  (IPC)     |
+  |  PreToolUse / PostCompact     projects/ (state)  |
   |                               postgres/ (data)   |
   |                               logs/              |
   |                               workspaces/        |
@@ -18,7 +20,7 @@
   |                               lemongrass.sock    |
   +-------------------------+------------------------+
                             | :9966 (only exposed port)
-                            |        bind mounts
+                            |        bind mounts (including lg.sock)
   . . . . . DOCKER (lemongrass network) . . . . . . .
                             |
                     +-------v--------+
@@ -26,7 +28,7 @@
                     |   :9966        +-----> lg-postgres
                     |                +-----> lg-embed
                     |   pty manager  +-----> lg-lang
-                    |   session orch |
+                    |   session orch | lg.sock (bind mount)
                     +-------+--------+
                             | docker exec + pty (stdin/stdout)
                     +-------v--------+
@@ -42,9 +44,11 @@
   lg-postgres: projects, workspaces, tasks, semantic nodes
 ```
 
-`lg-server` is the Go HTTP server. It manages sessions, spawns PTY processes into `lg-runner`, routes `#lg` calls to the right handlers, and serves the embedded Vue frontend.
+`lg-server` is the Go HTTP server. It manages sessions, spawns PTY processes into `lg-runner`, routes `#lg` calls to the right handlers, and serves the embedded Vue frontend. It also listens on a Unix socket at `~/.lemongrass/lg.sock` (bind-mounted from the host) for direct connections from `lg-hook-host`.
 
-`lg-runner` is where Claude Code actually runs. It has the Claude CLI and the `lg-hook` binary installed. It holds no state of its own.
+`lg-runner` is where Claude Code actually runs in PTY mode. It has the Claude CLI and the `lg-hook` binary installed. It holds no state of its own.
+
+`lg-hook-host` is the host-side hook binary. `lemongrass up` installs it and registers it in `~/.claude/settings.json` as a PreToolUse and PostCompact hook. It intercepts Bash, Read, Write, and Edit calls in any Claude Code session running on the host and routes `#lg.*` commands to lg-server over the Unix socket.
 
 `lg-postgres` stores everything that needs to persist: projects, workspaces, tasks, and the semantic map.
 
@@ -125,13 +129,17 @@ Every semantic node has a `kind` field (e.g. `vue-method`, `trait`, `blade`). Th
 
 ## How sessions work
 
+Two modes. Both use the same lg-server, semantic map, knowledge store, and `#lg.*` protocol. The mode determines who drives the Claude Code process and how it connects to the server.
+
+### PTY mode (grooming and execution sessions)
+
 The easier path would have been the SDK or `claude -p`. But Anthropic limits SDK usage on subscription plans, which gets in the way of building something more customised on top of Claude Code.
 
 PTY worked, so that is what we use. Claude Code runs inside a Docker container (`lg-runner`). The Go server spawns it via `docker exec` wrapped in a pty allocated through `script(1)`. The pty makes Claude think it has a real terminal.
 
 The second piece is hook interception. Claude Code fires a `PreToolUse` hook binary on every tool call. Lemongrass registers `lg-hook` as that binary. The hook reads the tool event from stdin as JSON, does its routing, and writes a JSON response to stdout. The response is either `allow + updatedInput` (rewrite the tool call) or `deny + reason` (block it). Claude Code reads the response before executing anything.
 
-Three tool types are intercepted:
+Three tool types are intercepted in PTY mode:
 
 **Bash** routes through three tiers:
 ```
@@ -150,8 +158,9 @@ Three tool types are intercepted:
         |
         +-- permitted cmd -> sh -c <command> run locally in lg-runner
         |                    allow + updatedInput: command = printf '<output>'
-        |                    (git log/diff/show/status/blame, cat, ls, find, grep, etc.)
+        |                    (git log/diff/show/status/blame, ls, find, grep, etc.)
         |
+        +-- file reader    -> deny (cat, head, tail are blocked; use #lg.system.read)
         +-- write redirect -> deny (file writes go through the Write tool)
         +-- destructive cmd -> deny with guidance to use #lg.echo
         +-- anything else  -> deny with permitted command list
@@ -159,7 +168,19 @@ Three tool types are intercepted:
 
 **Write** is always allowed. The hook logs the file path and byte count to the write trail via a fire-and-forget POST to `lg-server`, then exits 0.
 
-**Read** is gated in grooming sessions. PDF, image, markdown, plain text, and log files pass through. Everything else is denied with guidance to use `#lg.recon.read` instead. Execution sessions pass all reads through.
+**Read** is gated. Images pass through -- the model reads them natively via vision. PDFs, DOCX, XLSX, and similar document formats are intercepted and converted via the markitdown pipeline (lg-embed), delivering a markdown version instead. Files larger than 10 KB require a line range in the request. Files with lines exceeding 2 000 characters are rejected with guidance to use `#lg.system.read`. Anything else is allowed through.
+
+---
+
+### Headless mode (host Claude Code sessions)
+
+In headless mode there is no PTY and no container spawning. The model runs in an ordinary Claude Code session on the host. `lg-hook-host` is registered as both a PreToolUse and PostCompact hook in `~/.claude/settings.json` by `lemongrass up`.
+
+When the model calls any tool, `lg-hook-host` fires. It applies the same routing logic as `lg-hook` in the PTY runner -- `#lg.*` commands POST to lg-server over the Unix socket, file readers are blocked, Read calls are gated. The response comes back via stdin/stdout exactly as in PTY mode. From the server's perspective a headless call and a PTY call look identical; the difference is only the transport (Unix socket vs HTTP from within the Docker network).
+
+PostCompact fires at the start of each new context window. The hook posts a compact notification to lg-server, which re-injects the Lemongrass skill content as a fresh system reminder.
+
+There is no grooming pipeline, no workspace, and no execution lock in headless mode. The model calls `#lg.*` commands freely in any order. All state (semantic map, knowledge, codebase workbench) is shared with PTY sessions on the same project.
 
 ---
 
@@ -273,20 +294,21 @@ The knowledge store is a project-scoped key-value store (`lg_knowledge`) for non
 
 ## #lg protocol
 
-Commands the model uses to communicate with Lemongrass inside a session. `#lg.` blocks -- the hook waits for the server response before returning to Claude. `#lg!.` fires and returns immediately.
+Commands the model uses to communicate with Lemongrass inside a session. `#lg.` blocks -- the hook waits for the server response before returning to Claude. `#lg!.` fires and returns immediately. "both" means PTY sessions (grooming and execution) and headless sessions alike.
 
 | Command | Session | Blocking | Purpose |
 |---|---|---|---|
 | `#lg.recon.tree [path]` | grooming | yes | full project coverage at all depths; n/m explored; n stale per directory |
 | `#lg.recon.peek <dir>` | grooming | yes | direct-child symbols + subdirectory counts; non-recursive |
 | `#lg.recon.search <query>` | grooming | yes | hybrid vector + full-text search; top 10 results across both, deduplicated |
-| `#lg.recon.read <path:symbol:kind>` | both | yes | raw source; `[STALE]` prefix on stale nodes; pipe-separate for multiple: `a\|b\|c` |
+| `#lg.recon.peruse <path:symbol:kind>` | both | yes | raw source from semantic map; `[STALE]` prefix on stale nodes; pipe-separate for multiple: `a\|b\|c` |
 | `#lg.recon.related <path:symbol:kind>` | grooming | yes | callers and callees from the call graph |
 | `#lg.commitment <path>` | grooming | yes | declare annotation scope; min(30%, 15 methods / 8 funcs) threshold; root requires 70% coverage |
 | `#lg.commitment.status` | grooming | yes | progress per commitment; call before checkpoint |
-| `#lg.knowledge.save <key>:<content>` | both | yes | upsert a project insight; response includes `[similar: ...]` when overlapping entries exist |
+| `#lg.knowledge.save <key>:<content> [labels]` | both | yes | upsert a project insight; response includes `[similar: ...]` when overlapping entries exist |
 | `#lg.knowledge.read <key>` | both | yes | retrieve a saved insight by key |
-| `#lg.knowledge.search <query>` | both | yes | vector search across saved knowledge; top 5 results |
+| `#lg.knowledge.search <query>[:<label>]` | both | yes | vector search across saved knowledge; top 5 results |
+| `#lg.knowledge.labels [query]` | both | yes | list all labels or vector search for relevant ones |
 | `#lg.knowledge.delete <key>` | both | yes | remove a stale or superseded insight |
 | `#lg!.annotate <path:symbol:kind>:"desc":return:deps` | both | no | store description, return type, deps; generate embedding |
 | `#lg!.recon.drop <path>` | execution | no | remove all nodes for a path from the semantic map |
@@ -296,6 +318,11 @@ Commands the model uses to communicate with Lemongrass inside a session. `#lg.` 
 | `#lg.tasks.start <task_id>` | execution | yes | mark task in_progress; response includes pending rejection note if any |
 | `#lg.tasks.finish <task_id>:<notes>` | execution | yes | mark task done; capture per-task diff; response includes rejection note if any |
 | `#lg!.done` | execution | no | end execution, workspace moves to done |
+| `#lg.codebase.interim <inputs>` | both | yes | load files/symbols into session workbench; pipe-separate: `S:path:symbol:kind`, `F:relpath`, `R:glob` |
+| `#lg.codebase.query <question>` | both | yes | semantic search across everything loaded into the workbench |
+| `#lg.codebase.search <pattern>` | both | yes | grep replacement; searches all project files with 2-line context; supports regex |
+| `#lg.system.read <path>` | both | yes | inspect file; delivers if <=150 lines and <=10k chars, otherwise warns and asks for a range |
+| `#lg.system.read.confirm <path> [N-M]` | both | yes | deliver file content unconditionally; optional 1-indexed line range |
 | `#lg.echo <message>` | both | no | send a status message visible in the UI activity feed |
 
 ---
