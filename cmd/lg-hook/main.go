@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -47,8 +51,10 @@ func findLgConfig() *lgHostConfig {
 }
 
 type hookEvent struct {
-	ToolName  string          `json:"tool_name"`
-	ToolInput json.RawMessage `json:"tool_input"`
+	ToolName      string          `json:"tool_name"`
+	ToolInput     json.RawMessage `json:"tool_input"`
+	SessionID     string          `json:"session_id"`
+	HookEventName string          `json:"hook_event_name"`
 }
 
 type bashInput struct {
@@ -103,14 +109,17 @@ var gitApprovalOps = map[string]bool{
 	"cherry-pick": true,
 }
 
-var permittedCommands = map[string]bool{
+var fileReaderCommands = map[string]bool{
 	"cat":  true,
+	"head": true,
+	"tail": true,
+}
+
+var permittedCommands = map[string]bool{
 	"ls":   true,
 	"find": true,
 	"grep": true,
 	"pwd":  true,
-	"head": true,
-	"tail": true,
 	"wc":   true,
 	"echo": true,
 }
@@ -128,9 +137,19 @@ func main() {
 		}
 	}
 
+	var rawInput []byte
+	rawInput, _ = io.ReadAll(os.Stdin)
+	fmt.Fprintf(os.Stderr, "[lg-hook] raw stdin: %s\n", rawInput)
+
 	var event hookEvent
-	if err := json.NewDecoder(os.Stdin).Decode(&event); err != nil {
+	if err := json.Unmarshal(rawInput, &event); err != nil {
 		os.Exit(0)
+	}
+	fmt.Fprintf(os.Stderr, "[lg-hook] tool=%q session=%q hookEvent=%q projectID=%d\n",
+		event.ToolName, event.SessionID, event.HookEventName, activeProjectID)
+
+	if event.HookEventName == "PostCompact" {
+		handlePostCompact(event.SessionID)
 	}
 
 	switch event.ToolName {
@@ -138,8 +157,12 @@ func main() {
 		handleWrite(event.ToolInput)
 	case "Read":
 		handleRead(event.ToolInput)
+	case "Edit":
+		fmt.Fprintf(os.Stderr, "[lg-hook] Edit intercepted: %s\n", string(event.ToolInput))
+		allowTool()
+
 	case "Bash":
-		handleBash(event.ToolInput)
+		handleBash(event.ToolInput, event.SessionID)
 	default:
 		os.Exit(0)
 	}
@@ -177,14 +200,88 @@ var groomingAllowedExts = map[string]bool{
 	".log":  true,
 }
 
+var imageExts = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true,
+	".gif": true, ".webp": true, ".svg": true,
+}
+
+var documentExts = map[string]bool{
+	".pdf": true, ".docx": true, ".xlsx": true, ".pptx": true,
+}
+
 func handleRead(raw json.RawMessage) {
+	var input struct {
+		FilePath string `json:"file_path"`
+		Offset   *int   `json:"offset"`
+		Limit    *int   `json:"limit"`
+	}
+
 	if isHost == "true" {
+		json.Unmarshal(raw, &input)
+		ext := strings.ToLower(filepath.Ext(input.FilePath))
+
+		if imageExts[ext] {
+			allowTool()
+			return
+		}
+
+		if documentExts[ext] {
+			deny("use #lg.system.read " + input.FilePath + " -- markitdown will extract readable text")
+			return
+		}
+
+		hasRange := input.Offset != nil || input.Limit != nil
+
+		if !hasRange {
+			info, err := os.Stat(input.FilePath)
+			if err != nil {
+				allowTool()
+				return
+			}
+			if info.Size() > 10000 {
+				deny(fmt.Sprintf("%s is large -- specify a range: Read(file_path=%q, offset=N, limit=M)", input.FilePath, input.FilePath))
+				return
+			}
+			allowTool()
+			return
+		}
+
+		f, err := os.Open(input.FilePath)
+		if err != nil {
+			allowTool()
+			return
+		}
+		defer f.Close()
+
+		start := 0
+		if input.Offset != nil {
+			start = *input.Offset
+		}
+		end := start + 999999
+		if input.Limit != nil {
+			end = start + *input.Limit
+		}
+
+		scanner := bufio.NewScanner(f)
+		scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+		lineNum := 0
+		for scanner.Scan() {
+			if lineNum >= end {
+				break
+			}
+			if lineNum >= start {
+				if len(scanner.Bytes()) > 2000 {
+					deny(fmt.Sprintf("line %d has %d chars -- use #lg.system.read %s for this file", lineNum+1, len(scanner.Bytes()), input.FilePath))
+					return
+				}
+			}
+			lineNum++
+		}
+
 		allowTool()
 		return
 	}
-	var input struct {
-		FilePath string `json:"file_path"`
-	}
+
 	if err := json.Unmarshal(raw, &input); err != nil {
 		os.Exit(0)
 	}
@@ -210,7 +307,7 @@ func handleRead(raw json.RawMessage) {
 	}
 }
 
-func handleBash(raw json.RawMessage) {
+func handleBash(raw json.RawMessage, sessionID string) {
 	var input bashInput
 	if err := json.Unmarshal(raw, &input); err != nil {
 		os.Exit(0)
@@ -218,17 +315,27 @@ func handleBash(raw json.RawMessage) {
 	cmd := input.Command
 
 	switch {
+	case strings.HasPrefix(cmd, "#lg.system.read.confirm "):
+		handleSystemReadConfirm(strings.TrimPrefix(cmd, "#lg.system.read.confirm "))
+	case strings.HasPrefix(cmd, "#lg.system.read "):
+		handleSystemRead(strings.TrimPrefix(cmd, "#lg.system.read "))
 	case strings.HasPrefix(cmd, "#lg!.") || strings.HasPrefix(cmd, "#lg."):
 		if isHost == "true" && activeProjectID == 0 {
 			deliver("lemongrass is not initialised for this project -- run `lemongrass init` in the project root first")
 			return
 		}
 		if strings.HasPrefix(cmd, "#lg!.") {
-			forwardToServer(strings.TrimPrefix(cmd, "#lg!."), false)
+			forwardToServerWithSession(strings.TrimPrefix(cmd, "#lg!."), false, sessionID)
 		} else {
-			forwardToServer(strings.TrimPrefix(cmd, "#lg."), true)
+			forwardToServerWithSession(strings.TrimPrefix(cmd, "#lg."), true, sessionID)
 		}
 	default:
+		leading := leadingToken(cmd)
+		if fileReaderCommands[leading] {
+			reject(leading+" is not available",
+				"Use #lg.system.read <path> for file access.")
+			return
+		}
 		if isHost == "true" {
 			allowTool()
 			return
@@ -237,11 +344,32 @@ func handleBash(raw json.RawMessage) {
 	}
 }
 
+func buildHTTPClient(timeout time.Duration) *http.Client {
+	socketPath := filepath.Join(os.Getenv("HOME"), ".lemongrass", "lg.sock")
+	if _, err := os.Stat(socketPath); err == nil {
+		return &http.Client{
+			Timeout: timeout,
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					return (&net.Dialer{}).DialContext(ctx, "unix", socketPath)
+				},
+			},
+		}
+	}
+	return &http.Client{Timeout: timeout}
+}
+
+
 func forwardToServer(rest string, blocking bool) {
+	forwardToServerWithSession(rest, blocking, "")
+}
+
+func forwardToServerWithSession(rest string, blocking bool, sessionID string) {
 	lgCmd, args := splitCmd(rest)
 	req := lgRequest{Cmd: lgCmd, Args: args, Blocking: blocking}
 	if activeProjectID > 0 {
 		req.ProjectID = activeProjectID
+		req.SessionID = sessionID
 	} else {
 		req.SessionID = os.Getenv("LG_SESSION_ID")
 	}
@@ -252,7 +380,7 @@ func forwardToServer(rest string, blocking bool) {
 		timeout = 10 * time.Minute
 	}
 
-	client := &http.Client{Timeout: timeout}
+	client := buildHTTPClient(timeout)
 	resp, err := client.Post(activeServerURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		if blocking {
@@ -264,19 +392,186 @@ func forwardToServer(rest string, blocking bool) {
 	}
 	defer resp.Body.Close()
 
+	var r lgResponse
+	json.NewDecoder(resp.Body).Decode(&r)
+	fmt.Fprintf(os.Stderr, "[lg-hook] server response: %q\n", r.Text)
+
 	if !blocking {
-		deliver("ok")
+		if strings.HasPrefix(r.Text, "error:") {
+			deliver(r.Text)
+		} else {
+			deliver("ok")
+		}
 		return
 	}
 
-	var r lgResponse
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		deliver(fmt.Sprintf("error: could not parse server response: %v", err))
-	} else if r.Text == "" {
+	if r.Text == "" {
 		deliver("error: server returned empty response -- session may not be active")
 	} else {
 		deliver(r.Text)
 	}
+}
+
+func handlePostCompact(sessionID string) {
+	logPath := filepath.Join(os.Getenv("HOME"), ".lemongrass", "logs", "post-compact.log")
+	if lf, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		fmt.Fprintf(lf, "=== POST-COMPACT FIRED === sessionID=%q projectID=%d\n", sessionID, activeProjectID)
+		lf.Close()
+	}
+	if sessionID != "" && activeProjectID > 0 {
+		req := lgRequest{Cmd: "session.compact", Args: "", Blocking: true, SessionID: sessionID, ProjectID: activeProjectID}
+		body, _ := json.Marshal(req)
+		client := &http.Client{Timeout: 5 * time.Second}
+		client.Post(activeServerURL, "application/json", bytes.NewReader(body))
+	}
+	skillPath := filepath.Join(os.Getenv("HOME"), ".claude", "skills", "lemongrass", "SKILL.md")
+	fmt.Printf("[lemongrass] compacted -- load lemongrass skill again: %s\n", skillPath)
+	os.Exit(0)
+}
+
+func projectTmpDir() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return os.TempDir()
+	}
+	return filepath.Join(dir, ".lemongrass", "tmp")
+}
+
+func convertDocument(path string) {
+	tmpDir := projectTmpDir()
+	cachedPath := filepath.Join(tmpDir, filepath.Base(path)+".md")
+
+	if _, err := os.Stat(cachedPath); err == nil {
+		handleSystemRead(cachedPath)
+		return
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		deliver(fmt.Sprintf("error: %v", err))
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	body, _ := json.Marshal(map[string]string{
+		"content": base64.StdEncoding.EncodeToString(data),
+		"ext":     ext,
+	})
+	convertURL := strings.Replace(activeServerURL, "/api/lg", "/api/convert", 1)
+	client := buildHTTPClient(30 * time.Second)
+	resp, err := client.Post(convertURL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		deliver(fmt.Sprintf("error: convert unavailable (%v)", err))
+		return
+	}
+	defer resp.Body.Close()
+	var r struct {
+		Markdown string `json:"markdown"`
+		Error    string `json:"error"`
+	}
+	json.NewDecoder(resp.Body).Decode(&r)
+	if r.Error != "" {
+		deliver("error: " + r.Error)
+		return
+	}
+
+	os.MkdirAll(tmpDir, 0755)
+	os.WriteFile(cachedPath, []byte(r.Markdown), 0644)
+	handleSystemRead(cachedPath)
+}
+
+func handleSystemRead(args string) {
+	parts := strings.SplitN(strings.TrimSpace(args), " ", 2)
+	path := parts[0]
+	if path == "" {
+		deliver("error: path required")
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	if documentExts[ext] {
+		convertDocument(path)
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		deliver(fmt.Sprintf("error: %v", err))
+		return
+	}
+	lines := strings.Split(string(data), "\n")
+	lineCount := len(lines)
+	charCount := len(data)
+	if len(parts) == 2 && strings.TrimSpace(parts[1]) != "" {
+		rangeStr := strings.TrimSpace(parts[1])
+		sep := strings.IndexByte(rangeStr, '-')
+		if sep < 0 {
+			deliver("error: range must be N-M (e.g. 10-50)")
+			return
+		}
+		var start, end int
+		fmt.Sscanf(rangeStr[:sep], "%d", &start)
+		fmt.Sscanf(rangeStr[sep+1:], "%d", &end)
+		if start < 1 {
+			start = 1
+		}
+		if end > lineCount {
+			end = lineCount
+		}
+		if start > end {
+			deliver("error: start must be <= end")
+			return
+		}
+		deliver(fmt.Sprintf("%s L%d-%d\n%s", path, start, end, strings.Join(lines[start-1:end], "\n")))
+		return
+	}
+	const maxLines = 150
+	const maxChars = 10000
+	if lineCount <= maxLines && charCount <= maxChars {
+		deliver(fmt.Sprintf("%s (%d lines, %d chars)\n%s", path, lineCount, charCount, string(data)))
+		return
+	}
+	deliver(fmt.Sprintf("%s is %d lines and %d chars -- too large to deliver in full.\n"+
+		"Call: #lg.system.read.confirm %s <N-M> to read specific lines.\n"+
+		"Or use #lg.recon.peruse <path:symbol:kind> for symbol-level access.\n"+
+		"Or use #lg.codebase.interim F:%s to load into the workbench.",
+		path, lineCount, charCount, path, path))
+}
+
+func handleSystemReadConfirm(args string) {
+	parts := strings.SplitN(strings.TrimSpace(args), " ", 2)
+	path := parts[0]
+	if path == "" {
+		deliver("error: path required")
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		deliver(fmt.Sprintf("error: %v", err))
+		return
+	}
+	if len(parts) < 2 || strings.TrimSpace(parts[1]) == "" {
+		deliver(string(data))
+		return
+	}
+	rangeStr := strings.TrimSpace(parts[1])
+	sep := strings.IndexByte(rangeStr, '-')
+	if sep < 0 {
+		deliver("error: range must be N-M (e.g. 10-50)")
+		return
+	}
+	var start, end int
+	fmt.Sscanf(rangeStr[:sep], "%d", &start)
+	fmt.Sscanf(rangeStr[sep+1:], "%d", &end)
+	lines := strings.Split(string(data), "\n")
+	if start < 1 {
+		start = 1
+	}
+	if end > len(lines) {
+		end = len(lines)
+	}
+	if start > end {
+		deliver("error: start must be <= end")
+		return
+	}
+	deliver(strings.Join(lines[start-1:end], "\n"))
 }
 
 func handlePermitted(cmd string) {
@@ -293,6 +588,12 @@ func handlePermitted(cmd string) {
 		return
 	}
 
+
+	if fileReaderCommands[leading] {
+		reject(leading+" is not available",
+			"Use #lg.system.read <path> for file access.")
+		return
+	}
 	if leading == "git" {
 		sub := gitSubcommand(cmd)
 		if permittedGitSubs[sub] {
@@ -315,7 +616,7 @@ func handlePermitted(cmd string) {
 	}
 
 	reject(leading+" not in permitted command set",
-		"Available: git log/diff/show/status/blame, cat, ls, find, grep, pwd, head, tail, wc, echo.\nFor anything else, use #lg.echo to ask the user.")
+		"Available: git log/diff/show/status/blame, ls, find, grep, pwd, wc, echo.\nFor anything else, use #lg.echo to ask the user.")
 }
 
 func runLocal(cmd, leading, sub string) {
@@ -412,11 +713,14 @@ func shellEscape(s string) string {
 }
 
 func deliver(content string) {
+	fmt.Fprintf(os.Stderr, "[lg-hook] deliver: %q\n", content)
+	tmpFile := fmt.Sprintf("/tmp/lg-deliver-%d", os.Getpid())
+	os.WriteFile(tmpFile, []byte(content), 0644)
 	out := hookOutput{
 		HookSpecificOutput: hookSpecificOutput{
 			HookEventName:      "PreToolUse",
 			PermissionDecision: "allow",
-			UpdatedInput:       map[string]string{"command": "printf '%s' " + shellEscape(content)},
+			UpdatedInput:       map[string]string{"command": "cat " + tmpFile + "; rm " + tmpFile},
 		},
 	}
 	json.NewEncoder(os.Stdout).Encode(out)

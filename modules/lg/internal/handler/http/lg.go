@@ -30,9 +30,12 @@ func (h *LgHandler) Receive(c *gin.Context) {
 		return
 	}
 	var text string
-	if req.ProjectID > 0 && req.SessionID == "" {
+	switch {
+	case req.ProjectID > 0 && req.SessionID != "":
+		text = h.uc.HandleOrCreateSession(req.ProjectID, req.SessionID, req.Cmd, req.Args, req.Blocking)
+	case req.ProjectID > 0:
 		text = h.uc.HandleByProject(req.ProjectID, req.Cmd, req.Args, req.Blocking)
-	} else {
+	default:
 		text = h.uc.Handle(req.SessionID, req.Cmd, req.Args, req.Blocking)
 	}
 	c.JSON(http.StatusOK, gin.H{"text": text})

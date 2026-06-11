@@ -7,9 +7,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -341,17 +341,22 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 	}
 	projectDir := filepath.Join("/projects", filepath.Base(rawPath))
 
-	pattern := strings.ToLower(strings.TrimSpace(args))
+	pattern := strings.TrimSpace(args)
 	if pattern == "" {
 		return "error: pattern required"
+	}
+
+	re, _ := regexp.Compile("(?i)" + pattern)
+	matchLine := func(line string) bool {
+		if re != nil {
+			return re.MatchString(line)
+		}
+		return strings.Contains(strings.ToLower(line), strings.ToLower(pattern))
 	}
 
 	const contextLines = 2
 	const maxResults = 50
 
-	skipDirs := map[string]bool{
-		".git": true, "node_modules": true, "vendor": true, ".lemongrass": true,
-	}
 
 	type match struct {
 		filePath  string
@@ -360,36 +365,76 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 		content   string
 	}
 
+	filePaths := u.recon.ListFilePaths(ctx, s.projectID)
+
 	var results []match
 	limitReached := false
 
-	// Path and directory matching from cache -- no disk access
-	if cached := u.recon.ListFilePaths(ctx, s.projectID); len(cached) > 0 {
-		dirSeen := make(map[string]bool)
-		for _, p := range cached {
-			if strings.Contains(strings.ToLower(p), pattern) {
-				results = append(results, match{filePath: p, content: "[path]"})
+	// Path and directory matching -- lgignore-filtered list, no disk access
+	dirSeen := make(map[string]bool)
+	for _, p := range filePaths {
+		if matchLine(p) {
+			results = append(results, match{filePath: p, content: "[path]"})
+			if len(results) >= maxResults {
+				limitReached = true
+				break
+			}
+		}
+		for d := filepath.Dir(p); d != "." && d != ""; d = filepath.Dir(d) {
+			if dirSeen[d] {
+				break
+			}
+			dirSeen[d] = true
+		}
+	}
+	if !limitReached {
+		dirs := make([]string, 0, len(dirSeen))
+		for d := range dirSeen {
+			dirs = append(dirs, d)
+		}
+		sort.Strings(dirs)
+		for _, d := range dirs {
+			if matchLine(d) {
+				results = append(results, match{filePath: d + "/", content: "[dir]"})
 				if len(results) >= maxResults {
 					limitReached = true
 					break
 				}
 			}
-			for d := filepath.Dir(p); d != "." && d != ""; d = filepath.Dir(d) {
-				if dirSeen[d] {
-					break
-				}
-				dirSeen[d] = true
-			}
 		}
-		if !limitReached {
-			dirs := make([]string, 0, len(dirSeen))
-			for d := range dirSeen {
-				dirs = append(dirs, d)
+	}
+
+	// Content matching -- iterate lgignore-filtered file list
+	if !limitReached {
+		for _, relPath := range filePaths {
+			if limitReached {
+				break
 			}
-			sort.Strings(dirs)
-			for _, d := range dirs {
-				if strings.Contains(strings.ToLower(d), pattern) {
-					results = append(results, match{filePath: d + "/", content: "[dir]"})
+			absPath := filepath.Join(projectDir, relPath)
+			data, err := os.ReadFile(absPath)
+			if err != nil {
+				continue
+			}
+			if bytes.IndexByte(data, 0) >= 0 {
+				continue
+			}
+			fileLines := strings.Split(string(data), "\n")
+			for i, line := range fileLines {
+				if matchLine(line) {
+					start := i - contextLines
+					if start < 0 {
+						start = 0
+					}
+					end := i + contextLines
+					if end >= len(fileLines) {
+						end = len(fileLines) - 1
+					}
+					results = append(results, match{
+						filePath:  relPath,
+						lineStart: start + 1,
+						lineEnd:   end + 1,
+						content:   strings.Join(fileLines[start:end+1], "\n"),
+					})
 					if len(results) >= maxResults {
 						limitReached = true
 						break
@@ -398,57 +443,6 @@ func (u *LgUsecase) handleCodebaseSearch(ctx context.Context, _ string, s *activ
 			}
 		}
 	}
-
-	// Content matching -- direct filesystem walk
-	if !limitReached {
-		_ = filepath.WalkDir(projectDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || limitReached {
-				return nil
-			}
-			if d.IsDir() {
-				if skipDirs[d.Name()] {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return nil
-			}
-			if bytes.IndexByte(data, 0) >= 0 {
-				return nil
-			}
-			rel, err := filepath.Rel(projectDir, path)
-			if err != nil {
-				return nil
-			}
-			lines := strings.Split(string(data), "\n")
-			for i, line := range lines {
-				if strings.Contains(strings.ToLower(line), pattern) {
-					start := i - contextLines
-					if start < 0 {
-						start = 0
-					}
-					end := i + contextLines
-					if end >= len(lines) {
-						end = len(lines) - 1
-					}
-					results = append(results, match{
-						filePath:  rel,
-						lineStart: start + 1,
-						lineEnd:   end + 1,
-						content:   strings.Join(lines[start:end+1], "\n"),
-					})
-					if len(results) >= maxResults {
-						limitReached = true
-						return nil
-					}
-				}
-			}
-			return nil
-		})
-	}
-
 	if len(results) == 0 {
 		return "no results"
 	}

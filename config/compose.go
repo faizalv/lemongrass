@@ -36,6 +36,7 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
     container_name: lg-runner
     image: lemongrass-runner:latest
     volumes:
+      - {{.LGDir}}:/home/lg/.lemongrass:rw
       - {{.LGDir}}/claude:/home/lg/.lemongrass/claude
       - {{.LGDir}}/workspaces:/home/lg/.lemongrass/workspaces:ro
       - {{.LGDir}}/logs:/var/log/lemongrass

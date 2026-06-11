@@ -9,6 +9,23 @@ import (
 	ptyclient "github.com/faizalv/lemongrass/modules/pty/client"
 )
 
+func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args string, blocking bool) string {
+	u.mu.Lock()
+	if u.sessions[sessionID] == nil {
+		u.sessions[sessionID] = &activeSession{
+			key:          sessionID,
+			projectID:    projectID,
+			projectAlias: fmt.Sprintf("project-%d", projectID),
+			sessionType:  "headless",
+			checkpointCh: make(chan checkpointResult, 1),
+			readNodes:    make(map[string]readEntry),
+			commitments:  make(map[string]*commitment),
+		}
+	}
+	u.mu.Unlock()
+	return u.Handle(sessionID, cmd, args, blocking)
+}
+
 func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking bool) string {
 	key := fmt.Sprintf("host:%d", projectID)
 	u.mu.Lock()
@@ -38,8 +55,8 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 		sessionType:  sessionType,
 		ptySession:   session,
 		checkpointCh: make(chan checkpointResult, 1),
-		readNodes:   make(map[string]readEntry),
-		commitments: make(map[string]*commitment),
+		readNodes:    make(map[string]readEntry),
+		commitments:  make(map[string]*commitment),
 	}
 	u.lastActivity[workspaceID] = time.Now()
 }

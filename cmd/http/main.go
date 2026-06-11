@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -53,6 +56,34 @@ func main() {
 	api := r.Group("/api")
 	api.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "version": cfg.Version})
+	})
+
+	api.POST("/convert", func(c *gin.Context) {
+		var req struct {
+			Content string `json:"content"`
+			Ext     string `json:"ext"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		body, _ := json.Marshal(req)
+		resp, err := http.Post("http://lg-embed:8080/convert-content", "application/json", bytes.NewReader(body))
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "embed unavailable: " + err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+		var result struct {
+			Markdown string `json:"markdown"`
+			Detail   string `json:"detail"`
+		}
+		json.NewDecoder(resp.Body).Decode(&result)
+		if resp.StatusCode != http.StatusOK {
+			c.JSON(resp.StatusCode, gin.H{"error": result.Detail})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"markdown": result.Markdown})
 	})
 
 	ptyMod := &lgpty.Pty{}
@@ -119,6 +150,17 @@ func main() {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: r,
+	}
+
+	socketPath := filepath.Join("/root/.lemongrass", "lg.sock")
+	os.Remove(socketPath)
+	if unixLn, err := net.Listen("unix", socketPath); err != nil {
+		log.Printf("unix socket unavailable: %v", err)
+	} else {
+		os.Chmod(socketPath, 0666)
+		go http.Serve(unixLn, r)
+		defer os.Remove(socketPath)
+		log.Printf("unix socket: %s", socketPath)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

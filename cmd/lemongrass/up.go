@@ -129,7 +129,7 @@ func mergeClaudeSettings(hookPath string) {
 		"type":    "command",
 		"command": hookPath,
 	}
-	matchers := []string{"Bash", "Write", "Read"}
+	matchers := []string{"Bash", "Write", "Read", "Edit"}
 	pre, _ := hooks["PreToolUse"].([]any)
 	for _, m := range matchers {
 		already := false
@@ -152,6 +152,28 @@ func mergeClaudeSettings(hookPath string) {
 		}
 	}
 	hooks["PreToolUse"] = pre
+
+	postCompact, _ := hooks["PostCompact"].([]any)
+	for _, matcher := range []string{"auto", "manual"} {
+		already := false
+		for _, item := range postCompact {
+			if h, ok := item.(map[string]any); ok && h["matcher"] == matcher {
+				for _, hk := range toSlice(h["hooks"]) {
+					if c, ok := hk.(map[string]any); ok && c["command"] == hookPath {
+						already = true
+					}
+				}
+			}
+		}
+		if !already {
+			postCompact = append(postCompact, map[string]any{
+				"matcher": matcher,
+				"hooks":   []any{entry},
+			})
+		}
+	}
+	hooks["PostCompact"] = postCompact
+
 	root["hooks"] = hooks
 
 	data, _ := json.MarshalIndent(root, "", "  ")

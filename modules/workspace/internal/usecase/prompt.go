@@ -29,7 +29,7 @@ func buildExecutionPrompt(projectAlias, handoverContext string) string {
 		"",
 		"#lg.tasks.read -- approved task list with title, reason, impl. Call this first.",
 		lgprompt.CmdReconPeek,
-		lgprompt.CmdReconRead,
+		lgprompt.CmdReconPeruse,
 		lgprompt.CmdReconRelated,
 		lgprompt.CmdReconSearch,
 		lgprompt.CmdKnowledgeSave,

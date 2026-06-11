@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir \
     fastapi \
     "uvicorn[standard]" \
     sentence-transformers \
-    markitdown
+    "markitdown[all]"
 
 # Bake model weights into the image layer at build time.
 # No network dependency at runtime.

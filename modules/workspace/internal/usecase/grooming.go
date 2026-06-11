@@ -165,7 +165,7 @@ func buildGroomingPrompt(requirements []entity.WorkspaceRequirement, projectPath
 		"#lg.recon.tree [path] -- full project coverage at all directory depths. No argument = whole project. Pass a path to filter to that subtree. Shows n/m explored; n stale per directory.",
 		lgprompt.CmdReconPeek,
 		"#lg.recon.search <query> -- vector search across annotated nodes. Returns coverage context so you can reason about sparse results.",
-		lgprompt.CmdReconRead,
+		lgprompt.CmdReconPeruse,
 		lgprompt.CmdReconRelated,
 		lgprompt.CmdKnowledgeSave,
 		lgprompt.CmdKnowledgeRead,

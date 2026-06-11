@@ -160,7 +160,7 @@ func activityMessage(cmd, args string) string {
 		return "Peeking at " + args
 	case "recon.search":
 		return "Searching for " + args
-	case "recon.read":
+	case "recon.peruse":
 		parts := strings.SplitN(args, ":", 3)
 		if len(parts) >= 2 {
 			return "Reading " + parts[1] + " in " + parts[0]
@@ -255,6 +255,15 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return args
 	}
 
+	if cmd == "session.compact" {
+		if s != nil {
+			u.mu.Lock()
+			s.readNodes = make(map[string]readEntry)
+			u.mu.Unlock()
+		}
+		return "ok"
+	}
+
 	if s == nil {
 		resp := "error: no active session for this workspace"
 		u.logCall(sessionID, "", cmd, args, resp, start)
@@ -280,7 +289,7 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		resp := u.handleSearch(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
-	case "recon.read":
+	case "recon.peruse":
 		resp := u.handleRead(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
@@ -295,11 +304,30 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		}()
 		return ""
 	case "annotate":
+		if s.sessionType == "headless" {
+			filePath, symbol, kind, _, _, _, parseErr := parseAnnotateFormat(args)
+			if parseErr != nil {
+				resp := "error: " + parseErr.Error()
+				u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+				return resp
+			}
+			filePath = stripProjectPrefix(s.projectAlias, filePath)
+			symbol = stripReceiver(symbol)
+			key := filePath + ":" + symbol + ":" + kind
+			u.mu.Lock()
+			_, perused := s.readNodes[key]
+			u.mu.Unlock()
+			if !perused {
+				resp := "error: peruse required -- call #lg.recon.peruse " + filePath + ":" + symbol + ":" + kind + " first"
+				u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+				return resp
+			}
+		}
 		go func() {
 			resp := u.handleAnnotate(ctx, s, args)
 			u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		}()
-		return ""
+		return "ok"
 	case "commitment":
 		resp := u.handleCommitment(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
