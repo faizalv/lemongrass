@@ -50,6 +50,8 @@ func BuildSkillContent() string {
 	return strings.Join([]string{
 		"Lemongrass maintains a live semantic map of every symbol in this codebase. Every time you peruse a symbol and annotate it, the map gets more useful -- for you later in this session and for every model that works on this project after you. This is PASM: Progressive Annotated Semantic Map. The map only compounds if each session leaves it richer than it found it.",
 		"",
+		"The hook is watching. Use bash/grep/find instead of lemongrass tools and you will be blocked. Call #lg.skill.loaded to acknowledge skill reload and clear the block -- but only after 3 real #lg.* calls. Gaming it prolongs the block.",
+		"",
 		"Before starting any task, run #lg.knowledge.labels to surface existing project knowledge.",
 		"",
 		HookCallInstruction,
