@@ -16,6 +16,7 @@ import (
 
 type reconProvider interface {
 	TreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]reconentity.DirectoryCoverage, error)
+	FindNodesBySymbol(ctx context.Context, projectID int64, filePath, symbol string) ([]reconentity.SemanticNode, error)
 	ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (reconentity.SemanticNode, string, error)
 	Annotate(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error)
 	Search(ctx context.Context, projectID int64, query string) ([]reconentity.SemanticNode, error)
@@ -39,6 +40,7 @@ type reconProvider interface {
 	ProjectDir(ctx context.Context, projectID int64) (string, error)
 	ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]reconentity.SemanticNode, error)
 	ListFilePaths(ctx context.Context, projectID int64) []string
+	SyncStatus(projectID int64) (syncing bool, lastSyncedNano int64)
 }
 
 type taskProvider interface {

@@ -23,6 +23,10 @@ func (u *ReconUsecase) TreeCoverage(ctx context.Context, projectID int64, pathPr
 	return u.repo.GetTreeCoverage(ctx, projectID, pathPrefix)
 }
 
+func (u *ReconUsecase) FindNodesBySymbol(ctx context.Context, projectID int64, filePath, symbol string) ([]entity.SemanticNode, error) {
+	return u.repo.FindNodesBySymbol(ctx, projectID, filePath, symbol)
+}
+
 func (u *ReconUsecase) ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, string, error) {
 	node, err := u.repo.GetNode(ctx, projectID, filePath, symbol, kind)
 	if err != nil {

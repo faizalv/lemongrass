@@ -161,6 +161,26 @@ func (r *ReconRepository) GetNode(ctx context.Context, projectID int64, filePath
 	return toEntity(rec), nil
 }
 
+func (r *ReconRepository) FindNodesBySymbol(ctx context.Context, projectID int64, filePath, symbol string) ([]entity.SemanticNode, error) {
+	var recs []nodeRecord
+	err := r.db.SelectContext(ctx, &recs,
+		`SELECT id, project_id, file_path, line_start, line_end, package, symbol, kind,
+		        language, receiver, signature, exported, depends_on, status,
+		        description, return_type, content_hash, calls, explored_at, created_at
+		 FROM lg_semantic_nodes
+		 WHERE project_id = $1 AND file_path = $2 AND symbol = $3 AND status != 'removed'`,
+		projectID, filePath, symbol,
+	)
+	if err != nil {
+		return nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+	return nodes, nil
+}
+
 func (r *ReconRepository) AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error) {
 	c := pq.StringArray(calls)
 	res, err := r.db.ExecContext(ctx,

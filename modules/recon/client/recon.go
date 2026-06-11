@@ -19,6 +19,10 @@ func (c *ReconClient) TreeCoverage(ctx context.Context, projectID int64, pathPre
 	return c.uc.TreeCoverage(ctx, projectID, pathPrefix)
 }
 
+func (c *ReconClient) FindNodesBySymbol(ctx context.Context, projectID int64, filePath, symbol string) ([]entity.SemanticNode, error) {
+	return c.uc.FindNodesBySymbol(ctx, projectID, filePath, symbol)
+}
+
 func (c *ReconClient) ReadNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, string, error) {
 	return c.uc.ReadNode(ctx, projectID, filePath, symbol, kind)
 }
@@ -109,4 +113,8 @@ func (c *ReconClient) ProjectDir(ctx context.Context, projectID int64) (string, 
 
 func (c *ReconClient) ListFilePaths(ctx context.Context, projectID int64) []string {
 	return c.uc.ListFilePaths(ctx, projectID)
+}
+
+func (c *ReconClient) SyncStatus(projectID int64) (bool, int64) {
+	return c.uc.SyncStatus(projectID)
 }
