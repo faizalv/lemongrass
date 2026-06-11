@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 
 	reconentity "github.com/faizalv/lemongrass/modules/recon/entity"
@@ -81,8 +82,20 @@ func stripProjectPrefix(projectAlias, path string) string {
 func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args string) string {
 	pathPrefix := stripProjectPrefix(s.projectAlias, strings.TrimSpace(args))
 	if pathPrefix == "" {
-		return "error: recon.peek requires a directory path"
+		return "error: recon.peek requires a directory or file path"
 	}
+
+	if filepath.Ext(pathPrefix) != "" {
+		nodes, err := u.recon.ListFileNodes(ctx, s.projectID, pathPrefix)
+		if err != nil {
+			return fmt.Sprintf("error: %v", err)
+		}
+		if len(nodes) == 0 {
+			return "no symbols found in " + pathPrefix
+		}
+		return formatPeekNodes(pathPrefix, nodes)
+	}
+
 	nodes, subdirs, err := u.recon.PeekDir(ctx, s.projectID, pathPrefix)
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
@@ -102,7 +115,11 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 	if len(nodes) == 0 {
 		return strings.TrimRight(sb.String(), "\n")
 	}
+	sb.WriteString(formatPeekNodes("", nodes))
+	return strings.TrimRight(sb.String(), "\n")
+}
 
+func formatPeekNodes(singleFile string, nodes []reconentity.SemanticNode) string {
 	type fileGroup struct {
 		path    string
 		regular []reconentity.SemanticNode
@@ -123,12 +140,14 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 			files[idx].regular = append(files[idx].regular, n)
 		}
 	}
-
+	var sb strings.Builder
 	for i, f := range files {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		sb.WriteString(f.path + "\n")
+		if singleFile == "" {
+			sb.WriteString(f.path + "\n")
+		}
 		all := append(f.regular, f.imports...)
 		for _, n := range all {
 			sym := n.Symbol
@@ -188,7 +207,27 @@ func (u *LgUsecase) readOne(ctx context.Context, s *activeSession, ref string) s
 	symbol = stripReceiver(symbol)
 	node, code, err := u.recon.ReadNode(ctx, s.projectID, filePath, symbol, kind)
 	if err != nil {
-		return fmt.Sprintf("error: %v", err)
+		if alts, altErr := u.recon.FindNodesBySymbol(ctx, s.projectID, filePath, symbol); altErr == nil && len(alts) > 0 {
+			var sb strings.Builder
+			fmt.Fprintf(&sb, "%s not found as %s -- did you mean:\n", symbol, kind)
+			for _, a := range alts {
+				sym := a.Symbol
+				if a.Receiver != "" {
+					sym = a.Receiver + "." + a.Symbol
+				}
+				marker := ""
+				if a.Status == "stale" {
+					marker = "   *stale"
+				}
+				fmt.Fprintf(&sb, "  %-8s %-44s %d-%d%s\n", a.Kind, sym, a.LineStart, a.LineEnd, marker)
+			}
+			return strings.TrimRight(sb.String(), "\n")
+		}
+		syncing, _ := u.recon.SyncStatus(s.projectID)
+		if syncing {
+			return "not in semantic map yet (recon is still scanning) -- use system.read or codebase.search in the meantime; check recon.tree for coverage once scanning finishes"
+		}
+		return "not in semantic map -- use system.read or codebase.search; check recon.tree for coverage"
 	}
 	u.mu.Lock()
 	s.readNodes[filePath+":"+symbol+":"+node.Kind] = readEntry{
