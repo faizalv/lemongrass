@@ -89,8 +89,10 @@ type hookSpecificOutput struct {
 	UpdatedInput             map[string]string `json:"updatedInput,omitempty"`
 }
 
-var hashRe = regexp.MustCompile(`[0-9a-f]{40}`)
-var indexLineRe = regexp.MustCompile(`(?m)^index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?$\n?`)
+var hashRe       = regexp.MustCompile(`[0-9a-f]{40}`)
+var indexLineRe  = regexp.MustCompile(`(?m)^index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?$\n?`)
+var diffHeaderRe = regexp.MustCompile(`(?m)^[-+]{3} [ab]/.+$\n?`)
+var noNewlineRe  = regexp.MustCompile(`(?m)^\\ No newline at end of file\n?`)
 
 var permittedGitSubs = map[string]bool{
 	"log":    true,
@@ -620,6 +622,11 @@ func handlePermitted(cmd string) {
 }
 
 func runLocal(cmd, leading, sub string) {
+	if leading == "git" && sub == "log" {
+		if !strings.Contains(cmd, "--format") && !strings.Contains(cmd, "--oneline") && !strings.Contains(cmd, "--pretty") {
+			cmd = cmd + " --oneline --no-decorate"
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
@@ -627,7 +634,114 @@ func runLocal(cmd, leading, sub string) {
 	if err != nil && len(out) == 0 {
 		result = fmt.Sprintf("error: %v", err)
 	}
-	deliver(result)
+	if leading == "grep" {
+		result = transformGrep(result)
+	}
+	deliver(capOutput(result))
+}
+
+func transformGrep(output string) string {
+	type match struct {
+		lineno  string
+		content string
+	}
+	fileMatches := map[string][]match{}
+	fileOrder   := []string{}
+
+	for _, line := range strings.Split(output, "\n") {
+		if line == "" {
+			continue
+		}
+		// try file:lineno:content (grep -n)
+		first := strings.IndexByte(line, ':')
+		if first < 0 {
+			return output
+		}
+		rest := line[first+1:]
+		second := strings.IndexByte(rest, ':')
+		if second >= 0 {
+			file    := line[:first]
+			lineno  := rest[:second]
+			content := strings.TrimSpace(rest[second+1:])
+			// only treat as file:lineno:content if lineno is numeric
+			isNum := lineno != "" && func() bool {
+				for _, c := range lineno {
+					if c < '0' || c > '9' {
+						return false
+					}
+				}
+				return true
+			}()
+			if isNum {
+				if _, seen := fileMatches[file]; !seen {
+					fileOrder = append(fileOrder, file)
+				}
+				fileMatches[file] = append(fileMatches[file], match{lineno, content})
+				continue
+			}
+		}
+		// fallback: not a parseable grep line, return raw
+		return output
+	}
+
+	if len(fileOrder) == 0 {
+		return output
+	}
+
+	var sb strings.Builder
+	for _, file := range fileOrder {
+		matches := fileMatches[file]
+		// deduplicate consecutive repeated content within the file
+		deduped := []match{}
+		counts  := []int{}
+		for _, m := range matches {
+			if len(deduped) > 0 && deduped[len(deduped)-1].content == m.content {
+				counts[len(counts)-1]++
+			} else {
+				deduped = append(deduped, m)
+				counts  = append(counts, 1)
+			}
+		}
+		n := len(matches)
+		word := "matches"
+		if n == 1 {
+			word = "match"
+		}
+		fmt.Fprintf(&sb, "%s (%d %s)\n", file, n, word)
+		for i, m := range deduped {
+			if counts[i] > 1 {
+				fmt.Fprintf(&sb, "  %s: %s (x%d)\n", m.lineno, m.content, counts[i])
+			} else {
+				fmt.Fprintf(&sb, "  %s: %s\n", m.lineno, m.content)
+			}
+		}
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func capOutput(output string) string {
+	const maxLines    = 100
+	const maxLineLen  = 2000
+
+	lines := strings.Split(output, "\n")
+	capped := false
+	truncated := false
+
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+		capped = true
+	}
+	for i, line := range lines {
+		if len(line) > maxLineLen {
+			lines[i] = line[:maxLineLen] + " [line truncated]"
+			truncated = true
+		}
+	}
+	result := strings.Join(lines, "\n")
+	if capped || truncated {
+		result += "\n!! output capped -- use codebase.search for text searches"
+	}
+	return result
 }
 
 func reject(reason, guidance string) {
@@ -687,6 +801,8 @@ func transform(leading, sub, output string) string {
 		return hashRe.ReplaceAllStringFunc(output, abbrevHash)
 	case "diff", "show":
 		result := indexLineRe.ReplaceAllString(output, "")
+		result = diffHeaderRe.ReplaceAllString(result, "")
+		result = noNewlineRe.ReplaceAllString(result, "")
 		return hashRe.ReplaceAllStringFunc(result, abbrevHash)
 	case "blame":
 		return hashRe.ReplaceAllStringFunc(output, abbrevHash)
