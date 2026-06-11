@@ -4,7 +4,9 @@ import "strings"
 
 const EnvironmentPreamble = `You are running inside Lemongrass (lg-runner). Terminal output goes to a log file -- no user reads it. Text outside #lg.* commands (summaries, narration, step recaps) is invisible and burns context. Use #lg.echo for status only.`
 
-const HookCallInstruction = `Every #lg.* and #lg!.* is a direct Bash tool call -- not prose. # routes to lg-hook; ! means fire-and-forget. One command per Bash call.
+const HookCallInstruction = `Every #lg.* and #lg!.* is a direct Bash tool call -- not prose. # routes to lg-hook; ! means fire-and-forget. One command per Bash call -- do not pipe two #lg.* into a single shell invocation.
+
+Blocking calls (#lg.*) must be sequential -- each waits for a response. Fire-and-forget calls (#lg!.*) return immediately, so multiple can be issued in parallel as separate Bash tool calls.
 
 After #lg.recon.peruse, annotate: #lg!.annotate path:symbol:kind:"description":return_type_or_nil:dep1,dep2_or_nil
 Annotation is gated -- rejected if you have not perused the symbol this session.
@@ -46,7 +48,7 @@ const CmdCodebaseSearch  = `#lg.codebase.search <pattern> -- grep replacement; s
 
 func BuildSkillContent() string {
 	return strings.Join([]string{
-		"Lemongrass enriches your work on this project. It maintains a live semantic map of every symbol in the codebase -- use it to navigate and annotate rather than reading raw files. The native Read tool is blocked on project files; use #lg.system.read for raw access or #lg.recon.peruse for symbol-level access that counts toward annotation.",
+		"Lemongrass maintains a live semantic map of every symbol in this codebase. Every time you peruse a symbol and annotate it, the map gets more useful -- for you later in this session and for every model that works on this project after you. This is PASM: Progressive Annotated Semantic Map. The map only compounds if each session leaves it richer than it found it.",
 		"",
 		"Before starting any task, run #lg.knowledge.labels to surface existing project knowledge.",
 		"",
@@ -87,12 +89,12 @@ func BuildSkillContent() string {
 		"",
 		"Load once, query many times. Each new interim call replaces the previous workbench.",
 		"",
-		"ANNOTATION",
+		"ANNOTATION -- leave the map better than you found it",
 		"",
 		"  " + CmdAnnotate,
 		"  " + AnnotateHookNote,
 		"",
-		"Annotating unexplored nodes improves the semantic map for every future session. Always peruse then annotate.",
+		"Annotate every symbol you peruse, without being asked. Re-annotate every symbol you modify. If you hit a stale node, re-read it and update the annotation before moving on. An unexplored codebase forces the next model to rediscover everything from scratch. An annotated one lets it navigate by meaning alone. That is the point of PASM.",
 		"",
 		"KNOWLEDGE",
 		"",
