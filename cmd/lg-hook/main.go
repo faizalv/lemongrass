@@ -21,7 +21,7 @@ import (
 
 const defaultServerURL = "http://lg-server:9966/api/lg"
 
-var isHost = "false"
+var isHost = "false" // stamped with -X during build
 var activeServerURL = defaultServerURL
 var activeProjectID int64
 var activeSessionDir string
@@ -60,7 +60,8 @@ type hookEvent struct {
 }
 
 type bashInput struct {
-	Command string `json:"command"`
+	Command                   string `json:"command"`
+	DangerouslyDisableSandbox bool   `json:"dangerouslyDisableSandbox"`
 }
 
 type writeInput struct {
@@ -91,10 +92,10 @@ type hookSpecificOutput struct {
 	UpdatedInput             map[string]string `json:"updatedInput,omitempty"`
 }
 
-var hashRe       = regexp.MustCompile(`[0-9a-f]{40}`)
-var indexLineRe  = regexp.MustCompile(`(?m)^index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?$\n?`)
+var hashRe = regexp.MustCompile(`[0-9a-f]{40}`)
+var indexLineRe = regexp.MustCompile(`(?m)^index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?$\n?`)
 var diffHeaderRe = regexp.MustCompile(`(?m)^[-+]{3} [ab]/.+$\n?`)
-var noNewlineRe  = regexp.MustCompile(`(?m)^\\ No newline at end of file\n?`)
+var noNewlineRe = regexp.MustCompile(`(?m)^\\ No newline at end of file\n?`)
 
 var permittedGitSubs = map[string]bool{
 	"log":    true,
@@ -202,7 +203,7 @@ func trackBashCall() {
 }
 
 func skillReloadMsg() string {
-	msg := "[lemongrass] skill not loaded -- call #lg.skill.loaded to acknowledge reload"
+	msg := "[lg] skill not loaded -- call #lg.skill.loaded to acknowledge reload"
 	if elapsed := elapsedSinceLg(); elapsed > 0 {
 		msg += fmt.Sprintf(" (%d min since last lg call)", int(elapsed.Minutes()))
 	}
@@ -329,7 +330,7 @@ func handleRead(raw json.RawMessage) {
 		}
 
 		if documentExts[ext] {
-			deny("use #lg.system.read " + input.FilePath + " -- markitdown will extract readable text")
+			deny("[lg] use #lg.system.read " + input.FilePath + ". We use markitdown for docs")
 			return
 		}
 
@@ -415,6 +416,9 @@ func handleBash(raw json.RawMessage, sessionID string) {
 	if err := json.Unmarshal(raw, &input); err != nil {
 		os.Exit(0)
 	}
+	if input.DangerouslyDisableSandbox {
+		deny("[lg] dangerouslyDisableSandbox is banned. Behave!")
+	}
 	cmd := input.Command
 
 	if isHost == "true" && (strings.HasPrefix(cmd, "#lg.") || strings.HasPrefix(cmd, "#lg!.")) {
@@ -436,14 +440,14 @@ func handleBash(raw json.RawMessage, sessionID string) {
 		lgCmdsData, _ := os.ReadFile(filepath.Join(activeSessionDir, ".lg-cmds-since-loaded"))
 		lgCmdsCount, _ := strconv.Atoi(strings.TrimSpace(string(lgCmdsData)))
 		if !timeExpired && lgCmdsCount < skillLoadedCmdThreshold {
-			deny(fmt.Sprintf("[lemongrass] skill.loaded denied -- only %d/%d #lg.* commands used since last reload; use lemongrass tools first", lgCmdsCount, skillLoadedCmdThreshold))
+			deny(fmt.Sprintf("[lg] skill.loaded denied. only %d/%d #lg.* commands used since last reload; use lemongrass tools first", lgCmdsCount, skillLoadedCmdThreshold))
 			return
 		}
 		clearSkillFlag()
 		ts := strconv.FormatInt(time.Now().Unix(), 10)
 		os.WriteFile(filepath.Join(activeSessionDir, ".last-skill-loaded-time"), []byte(ts), 0644)
 		os.WriteFile(filepath.Join(activeSessionDir, ".lg-cmds-since-loaded"), []byte("0"), 0644)
-		deliver("[lemongrass] skill reload acknowledged")
+		deliver("[lg] skill reload acknowledged")
 	case strings.HasPrefix(cmd, "#lg!.") || strings.HasPrefix(cmd, "#lg."):
 		if isHost == "true" && activeProjectID == 0 {
 			deliver("lemongrass is not initialised for this project -- run `lemongrass init` in the project root first")
@@ -474,7 +478,7 @@ func handleBash(raw json.RawMessage, sessionID string) {
 				}
 				if (leading == "grep" || leading == "find") && !grepReminderShown() {
 					setGrepReminder()
-					deny("[lemongrass] check #lg.knowledge.search first -- the store may already have this. For text and file path search use #lg.codebase.search instead. Re-run your command if you still need it.")
+					deny("[lg] #lg.knowledge.search or #lg.codebase.search may have it. Re-run your command if you still need it.")
 					return
 				}
 				trackBashCall()
@@ -500,7 +504,6 @@ func buildHTTPClient(timeout time.Duration) *http.Client {
 	}
 	return &http.Client{Timeout: timeout}
 }
-
 
 func forwardToServer(rest string, blocking bool) {
 	forwardToServerWithSession(rest, blocking, "")
@@ -548,7 +551,7 @@ func forwardToServerWithSession(rest string, blocking bool, sessionID string) {
 	}
 
 	if r.Text == "" {
-		deliver("error: server returned empty response -- session may not be active")
+		deliver("error: server returned empty response. Session may not be active")
 	} else {
 		deliver(r.Text)
 	}
@@ -569,7 +572,7 @@ func handlePostCompact(sessionID string) {
 	setSkillFlag()
 	os.WriteFile(filepath.Join(activeSessionDir, ".bash-since-lg"), []byte("0"), 0644)
 	os.Remove(filepath.Join(activeSessionDir, ".last-skill-loaded-time"))
-	fmt.Printf("[lemongrass] compacted -- call #lg.skill.loaded to continue\n")
+	fmt.Printf("[lg] compacted. Call #lg.skill.loaded to continue\n")
 	os.Exit(0)
 }
 
@@ -673,9 +676,9 @@ func handleSystemRead(args string) {
 		return
 	}
 	deliver(fmt.Sprintf("%s is %d lines and %d chars -- too large to deliver in full.\n"+
-		"Call: #lg.system.read.confirm %s <N-M> to read specific lines.\n"+
-		"Or use #lg.recon.peruse <path:symbol:kind> for symbol-level access.\n"+
-		"Or use #lg.codebase.interim F:%s to load into the workbench.",
+		"Use: #lg.system.read.confirm %s <N-M> to read specific lines.\n"+
+		"Or #lg.recon.peruse <path:symbol:kind> for symbol-level access.\n"+
+		"Or #lg.codebase.interim F:%s to load into the workbench.",
 		path, lineCount, charCount, path, path))
 }
 
@@ -732,7 +735,6 @@ func handlePermitted(cmd string) {
 		return
 	}
 
-
 	if fileReaderCommands[leading] {
 		reject(leading+" is not available",
 			"Use #lg.system.read <path> for file access.")
@@ -788,7 +790,7 @@ func transformGrep(output string) string {
 		content string
 	}
 	fileMatches := map[string][]match{}
-	fileOrder   := []string{}
+	fileOrder := []string{}
 
 	for _, line := range strings.Split(output, "\n") {
 		if line == "" {
@@ -802,8 +804,8 @@ func transformGrep(output string) string {
 		rest := line[first+1:]
 		second := strings.IndexByte(rest, ':')
 		if second >= 0 {
-			file    := line[:first]
-			lineno  := rest[:second]
+			file := line[:first]
+			lineno := rest[:second]
 			content := strings.TrimSpace(rest[second+1:])
 			// only treat as file:lineno:content if lineno is numeric
 			isNum := lineno != "" && func() bool {
@@ -835,13 +837,13 @@ func transformGrep(output string) string {
 		matches := fileMatches[file]
 		// deduplicate consecutive repeated content within the file
 		deduped := []match{}
-		counts  := []int{}
+		counts := []int{}
 		for _, m := range matches {
 			if len(deduped) > 0 && deduped[len(deduped)-1].content == m.content {
 				counts[len(counts)-1]++
 			} else {
 				deduped = append(deduped, m)
-				counts  = append(counts, 1)
+				counts = append(counts, 1)
 			}
 		}
 		n := len(matches)
@@ -862,8 +864,8 @@ func transformGrep(output string) string {
 }
 
 func capOutput(output string) string {
-	const maxLines    = 100
-	const maxLineLen  = 2000
+	const maxLines = 100
+	const maxLineLen = 2000
 
 	lines := strings.Split(output, "\n")
 	capped := false
@@ -881,7 +883,7 @@ func capOutput(output string) string {
 	}
 	result := strings.Join(lines, "\n")
 	if capped || truncated {
-		result += "\n!! output capped -- use codebase.search for text searches"
+		result += "\n!! output capped. Use codebase.search for text or file searches"
 	}
 	return result
 }

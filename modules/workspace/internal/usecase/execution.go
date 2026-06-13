@@ -97,7 +97,7 @@ func (u *ExecutionUsecase) RejectTask(ctx context.Context, workspaceID, taskID, 
 	if err != nil || n > 0 {
 		return nil
 	}
-	msg := fmt.Sprintf("[lemongrass] Task %q was rejected: %s. Re-do this task before calling #lg!.done.\r", task.Title, reason)
+	msg := fmt.Sprintf("[lg] Task %q was rejected: %s. Re-do this task before calling #lg!.done.\r", task.Title, reason)
 	_ = u.lgSess.WriteToSession(workspaceID, []byte(msg))
 	return nil
 }
