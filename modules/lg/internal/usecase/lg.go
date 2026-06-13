@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -101,6 +102,7 @@ type activeSession struct {
 	readNodes      map[string]readEntry        // "path:symbol:kind" -> entry
 	commitments    map[string]*commitment      // path prefix -> commitment
 	taskStartTimes map[string]time.Time        // task_id -> started_at
+	locks          map[string]*os.File         // normalized path -> open fd holding flock
 }
 
 type LgUsecase struct {

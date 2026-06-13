@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/faizalv/lemongrass/modules/lg/entity"
@@ -99,6 +100,36 @@ func (h *LgHandler) GetWriteTrail(c *gin.Context) {
 func (h *LgHandler) Usage(c *gin.Context) {
 	data := h.uc.GetUsage(c.Request.Context())
 	c.JSON(http.StatusOK, data)
+}
+
+func (h *LgHandler) LockAcquire(c *gin.Context) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		FilePath  string `json:"file_path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.SessionID == "" || req.FilePath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "session_id and file_path required"})
+		return
+	}
+	holder, err := h.uc.AcquireLock(req.SessionID, req.FilePath)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"text": fmt.Sprintf("locked: session %s", holder)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"text": "ok"})
+}
+
+func (h *LgHandler) LockRelease(c *gin.Context) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		FilePath  string `json:"file_path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	h.uc.ReleaseLock(req.SessionID, req.FilePath)
+	c.Status(http.StatusOK)
 }
 
 func (h *LgHandler) ExecutionDiff(c *gin.Context) {

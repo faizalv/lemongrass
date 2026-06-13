@@ -93,6 +93,9 @@ func (u *LgUsecase) WriteToSession(workspaceID string, msg []byte) error {
 func (u *LgUsecase) UnregisterSession(workspaceID string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	if s := u.sessions[workspaceID]; s != nil {
+		releaseSessionLocks(s)
+	}
 	delete(u.sessions, workspaceID)
 	delete(u.lastActivity, workspaceID)
 }

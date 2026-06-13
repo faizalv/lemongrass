@@ -241,16 +241,11 @@ func main() {
 
 	switch event.ToolName {
 	case "Write":
-		handleWrite(event.ToolInput)
+		handleWrite(event.ToolInput, event.HookEventName)
 	case "Read":
 		handleRead(event.ToolInput, event.SessionID)
 	case "Edit":
-		fmt.Fprintf(os.Stderr, "[lg-hook] Edit intercepted: %s\n", string(event.ToolInput))
-		if isHost == "true" && activeProjectID > 0 && skillFlagIsSet() {
-			deny(skillReloadMsg())
-		}
-		allowTool()
-
+		handleEdit(event.ToolInput, event.HookEventName)
 	case "Bash":
 		handleBash(event.ToolInput, event.SessionID)
 	default:
@@ -258,7 +253,7 @@ func main() {
 	}
 }
 
-func handleWrite(raw json.RawMessage) {
+func handleWrite(raw json.RawMessage, hookEvent string) {
 	if isHost == "true" {
 		if activeProjectID > 0 && skillFlagIsSet() {
 			deny(skillReloadMsg())
@@ -271,14 +266,79 @@ func handleWrite(raw json.RawMessage) {
 		os.Exit(0)
 	}
 	sessionID := os.Getenv("LG_SESSION_ID")
+	if hookEvent == "PostToolUse" {
+		logWriteTrail(sessionID, input.FilePath, len(input.Content))
+		releaseLock(sessionID, input.FilePath)
+		allowTool()
+		return
+	}
+	acquireLockOrDeny(sessionID, input.FilePath)
+}
+
+type editInput struct {
+	FilePath string `json:"file_path"`
+}
+
+func handleEdit(raw json.RawMessage, hookEvent string) {
+	if isHost == "true" {
+		if activeProjectID > 0 && skillFlagIsSet() {
+			deny(skillReloadMsg())
+		}
+		allowTool()
+		return
+	}
+	var input editInput
+	if err := json.Unmarshal(raw, &input); err != nil {
+		allowTool()
+		return
+	}
+	sessionID := os.Getenv("LG_SESSION_ID")
+	if hookEvent == "PostToolUse" {
+		releaseLock(sessionID, input.FilePath)
+		allowTool()
+		return
+	}
+	acquireLockOrDeny(sessionID, input.FilePath)
+}
+
+func logWriteTrail(sessionID, filePath string, byteCount int) {
 	body, _ := json.Marshal(map[string]any{
 		"session_id": sessionID,
-		"file_path":  input.FilePath,
-		"byte_count": len(input.Content),
+		"file_path":  filePath,
+		"byte_count": byteCount,
 	})
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := buildHTTPClient(5 * time.Second)
 	client.Post(activeServerURL+"/write-trail", "application/json", bytes.NewReader(body))
-	os.Exit(0)
+}
+
+func acquireLockOrDeny(sessionID, filePath string) {
+	body, _ := json.Marshal(map[string]any{
+		"session_id": sessionID,
+		"file_path":  filePath,
+	})
+	client := buildHTTPClient(5 * time.Second)
+	resp, err := client.Post(activeServerURL+"/lock-acquire", "application/json", bytes.NewReader(body))
+	if err != nil {
+		allowTool()
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusConflict {
+		var r lgResponse
+		json.NewDecoder(resp.Body).Decode(&r)
+		deny(r.Text)
+		return
+	}
+	allowTool()
+}
+
+func releaseLock(sessionID, filePath string) {
+	body, _ := json.Marshal(map[string]any{
+		"session_id": sessionID,
+		"file_path":  filePath,
+	})
+	client := buildHTTPClient(5 * time.Second)
+	client.Post(activeServerURL+"/lock-release", "application/json", bytes.NewReader(body))
 }
 
 var groomingAllowedExts = map[string]bool{
@@ -490,9 +550,19 @@ func handleBash(raw json.RawMessage, sessionID string) {
 					deny(skillReloadMsg())
 					return
 				}
-				if (leading == "grep" || leading == "find") && !grepReminderShown() {
-					setGrepReminder()
-					deny("[lg] #lg.knowledge.search or #lg.codebase.search may have it. Re-run your command if you still need it.")
+				if leading == "grep" || leading == "find" {
+					trackBashCall()
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					out, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
+					result := string(out)
+					if err != nil && len(out) == 0 {
+						result = fmt.Sprintf("error: %v", err)
+					}
+					if leading == "grep" {
+						result = transformGrep(result)
+					}
+					deliver(capOutput("[lg] btw: #lg.codebase.search or #lg.knowledge.search might get you there faster.\n\n" + result))
 					return
 				}
 				trackBashCall()

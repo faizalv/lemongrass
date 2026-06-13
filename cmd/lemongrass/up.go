@@ -174,6 +174,27 @@ func mergeClaudeSettings(hookPath string) {
 	}
 	hooks["PostCompact"] = postCompact
 
+	postToolUse, _ := hooks["PostToolUse"].([]any)
+	for _, m := range []string{"Write", "Edit"} {
+		already := false
+		for _, item := range postToolUse {
+			if h, ok := item.(map[string]any); ok && h["matcher"] == m {
+				for _, hk := range toSlice(h["hooks"]) {
+					if c, ok := hk.(map[string]any); ok && c["command"] == hookPath {
+						already = true
+					}
+				}
+			}
+		}
+		if !already {
+			postToolUse = append(postToolUse, map[string]any{
+				"matcher": m,
+				"hooks":   []any{entry},
+			})
+		}
+	}
+	hooks["PostToolUse"] = postToolUse
+
 	root["hooks"] = hooks
 
 	data, _ := json.MarshalIndent(root, "", "  ")

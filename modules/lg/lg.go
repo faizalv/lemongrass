@@ -111,4 +111,6 @@ func (l *Lg) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/execution-diff", l.h.ExecutionDiff)
 	g.GET("/usage", l.h.Usage)
 	g.GET("/calls", l.h.Calls)
+	g.POST("/lock-acquire", l.h.LockAcquire)
+	g.POST("/lock-release", l.h.LockRelease)
 }
