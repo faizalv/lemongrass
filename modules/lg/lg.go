@@ -45,6 +45,12 @@ type reconProvider interface {
 	SyncStatus(projectID int64) (syncing bool, lastSyncedNano int64)
 }
 
+type codebaseProvider interface {
+	Ls(ctx context.Context, projectID int64, projectDir, args string) string
+	Files(ctx context.Context, projectID int64, projectDir, args string) string
+	Search(ctx context.Context, projectID int64, projectDir string, filePaths []string, args string) string
+}
+
 type taskProvider interface {
 	CreateTasks(ctx context.Context, workspaceID string, tasks []wsentity.Task) ([]wsentity.Task, error)
 	UpdateStatus(ctx context.Context, id, status string) error
@@ -66,15 +72,19 @@ type taskProvider interface {
 }
 
 type Lg struct {
-	ReconClient reconProvider
-	uc          *usecase.LgUsecase
-	h           *handler.LgHandler
+	ReconClient    reconProvider
+	CodebaseClient codebaseProvider
+	uc             *usecase.LgUsecase
+	h              *handler.LgHandler
 }
 
 func (l *Lg) LoadMe(_ config.Config, db *sqlx.DB) {
 	l.uc = usecase.New()
 	if l.ReconClient != nil {
 		l.uc.SetRecon(l.ReconClient)
+	}
+	if l.CodebaseClient != nil {
+		l.uc.SetCodebase(l.CodebaseClient)
 	}
 	if db != nil {
 		l.uc.SetInterimRepo(repository.NewInterim(db))

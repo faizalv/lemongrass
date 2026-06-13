@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/faizalv/lemongrass/bus"
 	"github.com/faizalv/lemongrass/modules/lg/entity"
 )
 
@@ -38,6 +39,9 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 
 	if s != nil && u.recon != nil {
 		u.recon.SyncGitProject(s.projectID)
+	}
+	if s != nil {
+		bus.Default.Emit(bus.EventFileChanged, s.projectID)
 	}
 }
 

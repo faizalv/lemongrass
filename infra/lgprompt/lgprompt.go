@@ -17,6 +17,8 @@ const WorkbenchDecisionTree = `When to reach for each tool:
   known symbol identity                 → recon.peruse
   blast radius before touching          → recon.related
   exact identifier or string in files   → codebase.search
+  find files by name or glob            → codebase.fl
+  browse project tree with sizes        → codebase.ls
   understand an area across many files  → codebase.interim + codebase.query
   raw file access                       → system.read (inspect first, confirm if large)`
 
@@ -50,9 +52,11 @@ const CmdWorkspaceList = `#lg.workspace.list -- list all workspaces with name, c
 const CmdWorkspaceSearch = `#lg.workspace.search <query> -- filter workspaces by name`
 const CmdWorkspaceDelete = `#lg.workspace.delete <name> -- delete a workspace (must be idle)`
 
+const CmdCodebaseLs = `#lg.codebase.ls [path] -- directory listing from project root; shows child counts for dirs and sizes for files`
+const CmdCodebaseFiles = `#lg.codebase.fl <pattern> -- all files under project root matching a glob or substring; grouped by directory`
 const CmdCodebaseInterim = `#lg.codebase.interim <inputs> -- load files/symbols into session workbench; pipe-separate: S:path:symbol:kind | F:path | R:glob`
 const CmdCodebaseQuery = `#lg.codebase.query <question> -- semantic search across everything loaded into the workbench`
-const CmdCodebaseSearch = `#lg.codebase.search <pattern> [path/prefix] -- grep replacement; last token with / is a path scope filter; supports regex; use | for alternation (not \|); no quotes around pattern`
+const CmdCodebaseSearch = `#lg.codebase.search <pattern> [path/prefix] [--force] -- grep replacement; last token with / is a path scope filter; supports regex; use | for alternation (not \|); no quotes around pattern; blacklisted dirs (node_modules, vendor, dist, .git, .next, __pycache__) require --force`
 
 func BuildSkillContent() string {
 	return strings.Join([]string{
@@ -82,6 +86,8 @@ func BuildSkillContent() string {
 		"  " + CmdReconSearch,
 		"  " + CmdReconPeruse,
 		"  " + CmdReconRelated,
+		"  " + CmdCodebaseLs,
+		"  " + CmdCodebaseFiles,
 		"  " + CmdCodebaseSearch,
 		"",
 		"peek displays methods as Receiver.Method. recon.peruse, recon.related, codebase.interim S: all take the bare name.",

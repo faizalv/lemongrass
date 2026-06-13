@@ -3,6 +3,7 @@ package bus
 import "sync"
 
 const EventProjectRemoved = "project.removed"
+const EventFileChanged = "file.changed"
 
 type Handler func(payload any)
 

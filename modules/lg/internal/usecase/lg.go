@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -72,6 +73,12 @@ type taskWriter interface {
 	CountInProgressTasks(ctx context.Context, workspaceID string) (int, error)
 }
 
+type codebaseClient interface {
+	Ls(ctx context.Context, projectID int64, projectDir, args string) string
+	Files(ctx context.Context, projectID int64, projectDir, args string) string
+	Search(ctx context.Context, projectID int64, projectDir string, filePaths []string, args string) string
+}
+
 type checkpointResult struct {
 	rejections map[string]string
 }
@@ -110,6 +117,7 @@ type LgUsecase struct {
 	tasks           taskWriter
 	usage           usageProvider
 	interim         interimRepository
+	codebase        codebaseClient
 	mu              sync.Mutex
 	calls           []entity.Call
 	writeTrail      []entity.WriteTrailEntry
@@ -217,12 +225,19 @@ func activityMessage(cmd, args string) string {
 		return "Deleting knowledge: " + args
 	case "knowledge.labels":
 		return "Searching knowledge labels: " + args
+	case "codebase.ls":
+		if args == "" {
+			return "Listing project root"
+		}
+		return "Listing " + args
+	case "codebase.fl":
+		return "Finding files: " + args
 	case "codebase.interim":
 		return "Loading workbench: " + args
 	case "codebase.query":
 		return "Querying workbench: " + args
 	case "codebase.search":
-		return "Searching workbench: " + args
+		return "Searching: " + args
 	}
 	return ""
 }
@@ -237,6 +252,10 @@ func (u *LgUsecase) SetTaskWriter(tw taskWriter) {
 
 func (u *LgUsecase) SetInterimRepo(r interimRepository) {
 	u.interim = r
+}
+
+func (u *LgUsecase) SetCodebase(c codebaseClient) {
+	u.codebase = c
 }
 
 func (u *LgUsecase) logCall(sessionID, sessionType, cmd, args, response string, start time.Time) {
@@ -432,8 +451,28 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		resp := u.handleCodebaseQuery(ctx, sessionID, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
-	case "codebase.search":
-		resp := u.handleCodebaseSearch(ctx, sessionID, s, args)
+	case "codebase.ls", "codebase.fl", "codebase.search":
+		if u.codebase == nil {
+			resp := "error: codebase module not available"
+			u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+			return resp
+		}
+		rawPath, err := u.recon.ProjectDir(ctx, s.projectID)
+		var resp string
+		if err != nil {
+			resp = "error: project path unavailable"
+		} else {
+			projDir := filepath.Join("/projects", filepath.Base(rawPath))
+			switch cmd {
+			case "codebase.ls":
+				resp = u.codebase.Ls(ctx, s.projectID, projDir, args)
+			case "codebase.fl":
+				resp = u.codebase.Files(ctx, s.projectID, projDir, args)
+			case "codebase.search":
+				filePaths := u.recon.ListFilePaths(ctx, s.projectID)
+				resp = u.codebase.Search(ctx, s.projectID, projDir, filePaths, args)
+			}
+		}
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
 	}

@@ -14,8 +14,9 @@ import (
 )
 
 type lgProjectConfig struct {
-	ProjectID int64  `json:"project_id"`
-	ServerURL string `json:"server_url"`
+	ProjectID  int64  `json:"project_id"`
+	ServerURL  string `json:"server_url"`
+	ProjectDir string `json:"project_dir"`
 }
 
 func cmdInit(args []string) {
@@ -79,7 +80,7 @@ func cmdInit(args []string) {
 		os.Exit(1)
 	}
 
-	lgCfgData, _ := json.MarshalIndent(lgProjectConfig{ProjectID: projectID, ServerURL: serverURL}, "", "  ")
+	lgCfgData, _ := json.MarshalIndent(lgProjectConfig{ProjectID: projectID, ServerURL: serverURL, ProjectDir: abs}, "", "  ")
 	if err := os.WriteFile(lgConfigPath, lgCfgData, 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

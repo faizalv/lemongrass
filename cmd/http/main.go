@@ -21,6 +21,7 @@ import (
 	"github.com/faizalv/lemongrass/infra"
 
 	"github.com/faizalv/lemongrass/migrations"
+	lgcodebase "github.com/faizalv/lemongrass/modules/codebase"
 	lgdebug "github.com/faizalv/lemongrass/modules/debug"
 	lgfs "github.com/faizalv/lemongrass/modules/fs"
 	lglg "github.com/faizalv/lemongrass/modules/lg"
@@ -100,7 +101,10 @@ func main() {
 	defer reconModule.Close()
 	reconModule.StartHTTPRouter(api)
 
-	lgMod := &lglg.Lg{ReconClient: reconModule.Client()}
+	codebaseMod := &lgcodebase.Codebase{}
+	codebaseMod.LoadMe(cfg, db)
+
+	lgMod := &lglg.Lg{ReconClient: reconModule.Client(), CodebaseClient: codebaseMod.Client()}
 	lgMod.LoadMe(cfg, db)
 	lgMod.SetUsageProvider(ptyMod.Client())
 	lgMod.StartUsageScheduler(context.Background())

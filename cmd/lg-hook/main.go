@@ -24,11 +24,13 @@ const defaultServerURL = "http://lg-server:9966/api/lg"
 var isHost = "false" // stamped with -X during build
 var activeServerURL = defaultServerURL
 var activeProjectID int64
+var activeProjectDir string
 var activeSessionDir string
 
 type lgHostConfig struct {
-	ProjectID int64  `json:"project_id"`
-	ServerURL string `json:"server_url"`
+	ProjectID  int64  `json:"project_id"`
+	ServerURL  string `json:"server_url"`
+	ProjectDir string `json:"project_dir"`
 }
 
 func findLgConfig() *lgHostConfig {
@@ -122,9 +124,6 @@ var fileReaderCommands = map[string]bool{
 }
 
 var permittedCommands = map[string]bool{
-	"ls":   true,
-	"find": true,
-	"grep": true,
 	"pwd":  true,
 	"wc":   true,
 	"echo": true,
@@ -232,6 +231,7 @@ func main() {
 		if cfg := findLgConfig(); cfg != nil {
 			activeServerURL = cfg.ServerURL + "/api/lg"
 			activeProjectID = cfg.ProjectID
+			activeProjectDir = cfg.ProjectDir
 		}
 	}
 
@@ -543,8 +543,9 @@ func handleBash(raw json.RawMessage, sessionID string) {
 	}
 	cmd := input.Command
 
+	isSkillLoaded := cmd == "#lg.skill.loaded" || strings.HasPrefix(cmd, "#lg.skill.loaded ")
 	if isHost == "true" && (strings.HasPrefix(cmd, "#lg.") || strings.HasPrefix(cmd, "#lg!.")) {
-		if cmd != "#lg.skill.loaded" {
+		if !isSkillLoaded {
 			clearSkillFlag()
 			incrementLgCmdCount()
 		}
@@ -555,7 +556,7 @@ func handleBash(raw json.RawMessage, sessionID string) {
 		handleSystemReadConfirm(strings.TrimPrefix(cmd, "#lg.system.read.confirm "))
 	case strings.HasPrefix(cmd, "#lg.system.read "):
 		handleSystemRead(strings.TrimPrefix(cmd, "#lg.system.read "))
-	case cmd == "#lg.skill.loaded":
+	case isSkillLoaded:
 		lastLoadedData, _ := os.ReadFile(filepath.Join(activeSessionDir, ".last-skill-loaded-time"))
 		lastLoadedTs, _ := strconv.ParseInt(strings.TrimSpace(string(lastLoadedData)), 10, 64)
 		timeExpired := lastLoadedTs == 0 || time.Since(time.Unix(lastLoadedTs, 0)) >= 1*time.Minute
@@ -597,20 +598,21 @@ func handleBash(raw json.RawMessage, sessionID string) {
 				return
 			}
 			if activeProjectID > 0 {
-				if leading == "grep" || leading == "find" {
-					trackBashCall()
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					out, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
-					result := string(out)
-					if err != nil && len(out) == 0 {
-						result = fmt.Sprintf("error: %v", err)
+				if cmdTargetsProject(cmd, activeProjectDir) {
+					switch leading {
+					case "ls":
+						reject("ls is not available inside the project",
+							"Use #lg.codebase.ls [path] for directory listing.")
+						return
+					case "find":
+						reject("find is not available inside the project",
+							"Use #lg.codebase.fl <pattern> to find files by name or glob.")
+						return
+					case "grep":
+						reject("grep is not available inside the project",
+							"Use #lg.codebase.search <pattern> [path/] for code search.")
+						return
 					}
-					if leading == "grep" {
-						result = transformGrep(result)
-					}
-					deliver(capOutput("[lg] btw: #lg.codebase.search or #lg.knowledge.search might get you there faster.\n\n" + result))
-					return
 				}
 				trackBashCall()
 			}
@@ -901,13 +903,28 @@ func handlePermitted(cmd string) {
 		return
 	}
 
+	switch leading {
+	case "ls":
+		reject("ls is not available in a lemongrass project",
+			"Use #lg.codebase.ls [path] for directory listing.")
+		return
+	case "find":
+		reject("find is not available in a lemongrass project",
+			"Use #lg.codebase.fl <pattern> to find files by name or glob.")
+		return
+	case "grep":
+		reject("grep is not available in a lemongrass project",
+			"Use #lg.codebase.search <pattern> [path/] for code search.")
+		return
+	}
+
 	if permittedCommands[leading] {
 		runLocal(cmd, leading, "")
 		return
 	}
 
 	reject(leading+" not in permitted command set",
-		"Available: git log/diff/show/status/blame, ls, find, grep, pwd, wc, echo.\nFor anything else, use #lg.echo to ask the user.")
+		"Available: git log/diff/show/status/blame, pwd, wc, echo.\nFor anything else, use #lg.echo to ask the user.")
 }
 
 func runLocal(cmd, leading, sub string) {
@@ -1035,6 +1052,58 @@ func capOutput(output string) string {
 
 func reject(reason, guidance string) {
 	deny(fmt.Sprintf("Rejected: %s.\n%s", reason, guidance))
+}
+
+// cmdTargetsProject returns true if the command is operating on a path inside
+// projectDir (or has no explicit path, implying CWD = project). Returns true
+// when projectDir is empty so old configs without the field stay blocked.
+func cmdTargetsProject(cmd, projectDir string) bool {
+	if projectDir == "" {
+		return true
+	}
+	parts := strings.Fields(cmd)
+	if len(parts) == 0 {
+		return true
+	}
+	home, _ := os.UserHomeDir()
+	var pathArgs []string
+	for _, p := range parts[1:] {
+		if strings.HasPrefix(p, "-") {
+			continue
+		}
+		if strings.HasPrefix(p, "/") || strings.HasPrefix(p, "~") ||
+			strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../") ||
+			p == "." || p == ".." || strings.Contains(p, "/") {
+			pathArgs = append(pathArgs, p)
+		}
+	}
+	if len(pathArgs) == 0 {
+		return true // no explicit path = CWD = project
+	}
+	realProject := projectDir
+	if r, err := filepath.EvalSymlinks(projectDir); err == nil {
+		realProject = r
+	}
+	for _, p := range pathArgs {
+		if strings.HasPrefix(p, "~") {
+			p = home + p[1:]
+		}
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if r, err := filepath.EvalSymlinks(abs); err == nil {
+			abs = r
+		}
+		rel, err := filepath.Rel(realProject, abs)
+		if err != nil {
+			continue
+		}
+		if !strings.HasPrefix(rel, "..") {
+			return true
+		}
+	}
+	return false
 }
 
 func leadingToken(cmd string) string {
