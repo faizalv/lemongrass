@@ -18,6 +18,18 @@ func files(projectDir, pattern string) string {
 	if pattern == "" {
 		return "error: pattern required"
 	}
+
+	var pathScope string
+	if i := strings.LastIndex(pattern, " "); i >= 0 {
+		last := pattern[i+1:]
+		if strings.Contains(last, `\/`) {
+			pattern = strings.ReplaceAll(pattern, `\/`, "/")
+		} else {
+			pathScope = last
+			pattern = strings.TrimSpace(pattern[:i])
+		}
+	}
+
 	isGlob := strings.ContainsAny(pattern, "*?[")
 
 	type rawMatch struct {
@@ -53,6 +65,9 @@ func files(projectDir, pattern string) string {
 		if !matched {
 			return nil
 		}
+		if pathScope != "" && !strings.HasPrefix(rel, pathScope) {
+			return nil
+		}
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil
@@ -65,6 +80,9 @@ func files(projectDir, pattern string) string {
 		return nil
 	})
 	if len(allMatches) == 0 {
+		if pathScope != "" {
+			return fmt.Sprintf("no results for path %q -- if this is part of your pattern, remove the space or escape the slash", pathScope)
+		}
 		return "no results"
 	}
 
