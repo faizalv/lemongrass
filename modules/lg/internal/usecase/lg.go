@@ -107,6 +107,7 @@ type activeSession struct {
 	ptySession     ptyclient.Session
 	checkpointCh   chan checkpointResult
 	readNodes      map[string]readEntry   // "path:symbol:kind" -> entry
+	writtenFiles   map[string]bool        // file paths written or edited this session
 	commitments    map[string]*commitment // path prefix -> commitment
 	taskStartTimes map[string]time.Time   // task_id -> started_at
 	locks          map[string]*os.File    // normalized path -> open fd holding flock
@@ -351,8 +352,9 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 			key := filePath + ":" + symbol + ":" + kind
 			u.mu.Lock()
 			_, perused := s.readNodes[key]
+			written := s.writtenFiles[filePath]
 			u.mu.Unlock()
-			if !perused {
+			if !perused && !written {
 				resp := "error: peruse required -- call #lg.recon.peruse " + filePath + ":" + symbol + ":" + kind + " first"
 				u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 				return resp

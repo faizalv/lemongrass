@@ -325,6 +325,7 @@ func handleEdit(raw json.RawMessage, hookEvent string) {
 	}
 	sessionID := os.Getenv("LG_SESSION_ID")
 	if hookEvent == "PostToolUse" {
+		logWriteTrail(sessionID, input.FilePath, 0)
 		releaseLock(sessionID, input.FilePath)
 		allowTool()
 		return

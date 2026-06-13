@@ -57,10 +57,18 @@ func search(projectDir string, filePaths []string, args string) string {
 		filePaths = scoped
 	}
 
-	warnPrefix := ""
+	var warns []string
 	if len(pattern) >= 2 && pattern[0] == '"' && pattern[len(pattern)-1] == '"' {
 		pattern = pattern[1 : len(pattern)-1]
-		warnPrefix = "note: quotes removed from pattern -- codebase.search takes bare patterns, no quotes\n\n"
+		warns = append(warns, "quotes removed")
+	}
+	if strings.Contains(pattern, `\|`) {
+		pattern = strings.ReplaceAll(pattern, `\|`, "|")
+		warns = append(warns, `\| replaced with | for alternation`)
+	}
+	warnPrefix := ""
+	if len(warns) > 0 {
+		warnPrefix = "note: " + strings.Join(warns, "; ") + " -- use bare patterns with | for alternation, no quotes\n\n"
 	}
 
 	re, _ := regexp.Compile("(?i)" + pattern)

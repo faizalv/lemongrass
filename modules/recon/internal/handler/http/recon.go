@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/faizalv/lemongrass/config"
+	"github.com/faizalv/lemongrass/infra/lgart"
 	"github.com/faizalv/lemongrass/modules/recon/internal/usecase"
 	transporter "github.com/faizalv/lemongrass/modules/recon/transporter/http"
 	"github.com/gin-gonic/gin"
@@ -183,6 +186,50 @@ func (h *ReconHandler) EmbedStatus(c *gin.Context) {
 		"current": current,
 		"recent":  recent,
 	})
+}
+
+func (h *ReconHandler) Export(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	f, err := h.uc.ExportArtifacts(c.Request.Context(), projectID, config.ReadOriginID())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	data, err := lgart.Encode(f)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Data(http.StatusOK, "application/octet-stream", data)
+}
+
+func (h *ReconHandler) Import(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
+		return
+	}
+	f, err := lgart.Decode(body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid lgart file: " + err.Error()})
+		return
+	}
+	force := c.Query("force") == "true"
+	result, err := h.uc.ImportArtifacts(c.Request.Context(), projectID, f, force)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *ReconHandler) GetLgIgnore(c *gin.Context) {

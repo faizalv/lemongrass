@@ -1,7 +1,9 @@
 package config
 
 import (
+	crand "crypto/rand"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -89,4 +91,31 @@ func EnsureScaffold() {
 		data, _ := json.MarshalIndent(defaults, "", "  ")
 		os.WriteFile(cfgPath, data, 0644)
 	}
+
+	identityPath := filepath.Join(Dir(), "identity.json")
+	if _, err := os.Stat(identityPath); os.IsNotExist(err) {
+		data, _ := json.MarshalIndent(map[string]string{"origin_id": generateOriginID()}, "", "  ")
+		os.WriteFile(identityPath, data, 0644)
+	}
+}
+
+func ReadOriginID() string {
+	data, err := os.ReadFile(filepath.Join(Dir(), "identity.json"))
+	if err != nil {
+		return ""
+	}
+	var m map[string]string
+	if err := json.Unmarshal(data, &m); err != nil {
+		return ""
+	}
+	return m["origin_id"]
+}
+
+func generateOriginID() string {
+	b := make([]byte, 16)
+	crand.Read(b)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }

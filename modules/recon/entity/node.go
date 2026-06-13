@@ -53,5 +53,6 @@ type FileHash struct {
 type KnowledgeEntry struct {
 	Key       string
 	Content   string
+	Labels    []string
 	UpdatedAt time.Time
 }

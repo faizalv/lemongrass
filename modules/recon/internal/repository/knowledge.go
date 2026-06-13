@@ -65,7 +65,7 @@ func (r *ReconRepository) SearchKnowledge(ctx context.Context, projectID int64, 
 
 func (r *ReconRepository) ListKnowledge(ctx context.Context, projectID int64) ([]entity.KnowledgeEntry, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT key, content, updated_at FROM lg_knowledge
+		`SELECT key, content, labels, updated_at FROM lg_knowledge
 		 WHERE project_id = $1
 		 ORDER BY updated_at DESC`,
 		projectID,
@@ -77,7 +77,7 @@ func (r *ReconRepository) ListKnowledge(ctx context.Context, projectID int64) ([
 	var out []entity.KnowledgeEntry
 	for rows.Next() {
 		var e entity.KnowledgeEntry
-		if err := rows.Scan(&e.Key, &e.Content, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&e.Key, &e.Content, pq.Array(&e.Labels), &e.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

@@ -32,6 +32,8 @@ func main() {
 		cmdSetLang(os.Args[2:])
 	case "rmlang":
 		cmdRmLang(os.Args[2:])
+	case "artifacts":
+		cmdArtifacts(os.Args[2:])
 	case "_scaffold":
 		config.EnsureScaffold()
 		fmt.Println("~/.lemongrass/ initialized")

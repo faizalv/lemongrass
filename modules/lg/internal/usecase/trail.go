@@ -23,6 +23,9 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 	s := u.sessions[sessionID]
 	isExec := s != nil && s.sessionType == "execution"
 	_, alreadySnapped := u.beforeSnapshots[sessionID][filePath]
+	if s != nil {
+		s.writtenFiles[filePath] = true
+	}
 	u.mu.Unlock()
 
 	if isExec && !alreadySnapped {

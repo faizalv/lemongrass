@@ -61,6 +61,8 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.POST("/projects/:id/git/init", r.h.GitInit)
 	g.GET("/projects/:id/embed-status", r.h.EmbedStatus)
 	g.GET("/projects/:id/knowledge", r.h.ListKnowledge)
+	g.GET("/projects/:id/export", r.h.Export)
+	g.POST("/projects/:id/import", r.h.Import)
 }
 
 func (r *Recon) StartScheduler(ctx context.Context) {

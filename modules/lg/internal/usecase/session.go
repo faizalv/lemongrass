@@ -19,6 +19,7 @@ func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args 
 			sessionType:    "headless",
 			checkpointCh:   make(chan checkpointResult, 1),
 			readNodes:      make(map[string]readEntry),
+			writtenFiles:   make(map[string]bool),
 			commitments:    make(map[string]*commitment),
 			taskStartTimes: make(map[string]time.Time),
 		}
@@ -38,6 +39,7 @@ func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking 
 			sessionType:    "host",
 			checkpointCh:   make(chan checkpointResult, 1),
 			readNodes:      make(map[string]readEntry),
+			writtenFiles:   make(map[string]bool),
 			commitments:    make(map[string]*commitment),
 			taskStartTimes: make(map[string]time.Time),
 		}
@@ -58,6 +60,7 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 		ptySession:     session,
 		checkpointCh:   make(chan checkpointResult, 1),
 		readNodes:      make(map[string]readEntry),
+		writtenFiles:   make(map[string]bool),
 		commitments:    make(map[string]*commitment),
 		taskStartTimes: make(map[string]time.Time),
 	}
