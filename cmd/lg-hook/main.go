@@ -243,7 +243,7 @@ func main() {
 	case "Write":
 		handleWrite(event.ToolInput)
 	case "Read":
-		handleRead(event.ToolInput)
+		handleRead(event.ToolInput, event.SessionID)
 	case "Edit":
 		fmt.Fprintf(os.Stderr, "[lg-hook] Edit intercepted: %s\n", string(event.ToolInput))
 		if isHost == "true" && activeProjectID > 0 && skillFlagIsSet() {
@@ -302,7 +302,19 @@ var documentExts = map[string]bool{
 	".pdf": true, ".docx": true, ".xlsx": true, ".pptx": true,
 }
 
-func handleRead(raw json.RawMessage) {
+func notifyFileRead(filePath, sessionID string) {
+	if activeProjectID == 0 {
+		return
+	}
+	body, _ := json.Marshal(map[string]any{
+		"session_id": sessionID,
+		"file_path":  filePath,
+	})
+	client := &http.Client{Timeout: 2 * time.Second}
+	client.Post(activeServerURL+"/read-trail", "application/json", bytes.NewReader(body))
+}
+
+func handleRead(raw json.RawMessage, sessionID string) {
 	var input struct {
 		FilePath string `json:"file_path"`
 		Offset   *int   `json:"offset"`
@@ -346,6 +358,7 @@ func handleRead(raw json.RawMessage) {
 				deny(fmt.Sprintf("%s is large -- specify a range: Read(file_path=%q, offset=N, limit=M)", input.FilePath, input.FilePath))
 				return
 			}
+			notifyFileRead(input.FilePath, sessionID)
 			allowTool()
 			return
 		}
@@ -382,6 +395,7 @@ func handleRead(raw json.RawMessage) {
 			lineNum++
 		}
 
+		notifyFileRead(input.FilePath, sessionID)
 		allowTool()
 		return
 	}

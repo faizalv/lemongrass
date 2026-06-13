@@ -106,6 +106,7 @@ func (l *Lg) StartHTTPRouter(rg *gin.RouterGroup) {
 	g := rg.Group("/lg")
 	g.POST("", l.h.Receive)
 	g.POST("/write-trail", l.h.WriteTrail)
+	g.POST("/read-trail", l.h.ReadTrail)
 	g.GET("/write-trail", l.h.GetWriteTrail)
 	g.GET("/execution-diff", l.h.ExecutionDiff)
 	g.GET("/usage", l.h.Usage)

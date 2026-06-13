@@ -69,6 +69,19 @@ func (h *LgHandler) WriteTrail(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+func (h *LgHandler) ReadTrail(c *gin.Context) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		FilePath  string `json:"file_path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	h.uc.LogRead(req.SessionID, req.FilePath)
+	c.Status(http.StatusOK)
+}
+
 func (h *LgHandler) GetWriteTrail(c *gin.Context) {
 	sessionID := c.Query("session")
 	if sessionID == "" {

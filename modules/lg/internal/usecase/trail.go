@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -38,6 +39,30 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 	if s != nil && u.recon != nil {
 		u.recon.SyncGitProject(s.projectID)
 	}
+}
+
+func (u *LgUsecase) LogRead(sessionID, filePath string) {
+	if u.recon == nil {
+		return
+	}
+	u.mu.Lock()
+	s := u.sessions[sessionID]
+	u.mu.Unlock()
+	if s == nil {
+		return
+	}
+	nodes, err := u.recon.ListFileNodes(context.Background(), s.projectID, filePath)
+	if err != nil || len(nodes) == 0 {
+		return
+	}
+	u.mu.Lock()
+	for _, node := range nodes {
+		key := filePath + ":" + node.Symbol + ":" + node.Kind
+		if _, exists := s.readNodes[key]; !exists {
+			s.readNodes[key] = readEntry{kind: node.Kind, signature: node.Signature}
+		}
+	}
+	u.mu.Unlock()
 }
 
 func (u *LgUsecase) GetWriteTrail(sessionID string) []entity.WriteTrailEntry {
