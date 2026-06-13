@@ -57,6 +57,7 @@ type hookEvent struct {
 	ToolInput     json.RawMessage `json:"tool_input"`
 	SessionID     string          `json:"session_id"`
 	HookEventName string          `json:"hook_event_name"`
+	ToolResponse  json.RawMessage `json:"tool_response"`
 }
 
 type bashInput struct {
@@ -134,9 +135,8 @@ var destructiveCommands = map[string]bool{
 	"rmdir": true,
 }
 
-const skillBashThreshold = 3
+const skillBashThreshold = 5
 const skillLoadedCmdThreshold = 3
-const lgTimeThreshold = 1 * time.Minute
 
 func lgDir() string { return filepath.Join(os.Getenv("HOME"), ".lemongrass") }
 
@@ -147,6 +147,23 @@ func skillFlagIsSet() bool {
 
 func setSkillFlag() {
 	os.WriteFile(filepath.Join(activeSessionDir, ".skill-reload-needed"), nil, 0644)
+}
+
+func skillCompactFlagIsSet() bool {
+	_, err := os.Stat(filepath.Join(activeSessionDir, ".skill-compact-pending"))
+	return err == nil
+}
+
+func setSkillCompactFlag() {
+	os.WriteFile(filepath.Join(activeSessionDir, ".skill-compact-pending"), nil, 0644)
+}
+
+func clearSkillCompactFlag() {
+	os.Remove(filepath.Join(activeSessionDir, ".skill-compact-pending"))
+}
+
+func skillCompactMsg() string {
+	return "[lg] context was compacted -- load the skill first:\n  Read ~/.claude/skills/lemongrass/SKILL.md\n  or call Skill(lemongrass)"
 }
 
 func updateLgTime() {
@@ -243,11 +260,13 @@ func main() {
 	case "Write":
 		handleWrite(event.ToolInput, event.HookEventName)
 	case "Read":
-		handleRead(event.ToolInput, event.SessionID)
+		handleRead(event.ToolInput, event.SessionID, event.HookEventName, event.ToolResponse)
 	case "Edit":
 		handleEdit(event.ToolInput, event.HookEventName)
 	case "Bash":
 		handleBash(event.ToolInput, event.SessionID)
+	case "Skill":
+		handleSkillPostUse(event.ToolInput, event.HookEventName)
 	default:
 		os.Exit(0)
 	}
@@ -255,6 +274,12 @@ func main() {
 
 func handleWrite(raw json.RawMessage, hookEvent string) {
 	if isHost == "true" {
+		if hookEvent == "PostToolUse" {
+			os.Exit(0)
+		}
+		if activeProjectID > 0 && skillCompactFlagIsSet() {
+			deny(skillCompactMsg())
+		}
 		if activeProjectID > 0 && skillFlagIsSet() {
 			deny(skillReloadMsg())
 		}
@@ -281,6 +306,12 @@ type editInput struct {
 
 func handleEdit(raw json.RawMessage, hookEvent string) {
 	if isHost == "true" {
+		if hookEvent == "PostToolUse" {
+			os.Exit(0)
+		}
+		if activeProjectID > 0 && skillCompactFlagIsSet() {
+			deny(skillCompactMsg())
+		}
 		if activeProjectID > 0 && skillFlagIsSet() {
 			deny(skillReloadMsg())
 		}
@@ -300,6 +331,7 @@ func handleEdit(raw json.RawMessage, hookEvent string) {
 	}
 	acquireLockOrDeny(sessionID, input.FilePath)
 }
+
 
 func logWriteTrail(sessionID, filePath string, byteCount int) {
 	body, _ := json.Marshal(map[string]any{
@@ -374,19 +406,35 @@ func notifyFileRead(filePath, sessionID string) {
 	client.Post(activeServerURL+"/read-trail", "application/json", bytes.NewReader(body))
 }
 
-func handleRead(raw json.RawMessage, sessionID string) {
+func handleRead(raw json.RawMessage, sessionID, hookEvent string, toolResponse json.RawMessage) {
 	var input struct {
 		FilePath string `json:"file_path"`
 		Offset   *int   `json:"offset"`
 		Limit    *int   `json:"limit"`
 	}
 
+	if hookEvent == "PostToolUse" {
+		json.Unmarshal(raw, &input)
+		if strings.HasSuffix(input.FilePath, "skills/lemongrass/SKILL.md") {
+			clearSkillCompactFlag()
+		}
+		os.Exit(0)
+	}
+
 	if isHost == "true" {
 		json.Unmarshal(raw, &input)
 
 		skillFile := filepath.Join(os.Getenv("HOME"), ".claude", "skills", "lemongrass", "SKILL.md")
+		isSkillFile := input.FilePath == skillFile || strings.HasSuffix(input.FilePath, "skills/lemongrass/SKILL.md")
+
+		if activeProjectID > 0 && skillCompactFlagIsSet() {
+			if !isSkillFile {
+				deny(skillCompactMsg())
+				return
+			}
+		}
 		if activeProjectID > 0 && skillFlagIsSet() {
-			if input.FilePath == skillFile {
+			if isSkillFile {
 				clearSkillFlag()
 			} else {
 				deny(skillReloadMsg())
@@ -510,7 +558,7 @@ func handleBash(raw json.RawMessage, sessionID string) {
 	case cmd == "#lg.skill.loaded":
 		lastLoadedData, _ := os.ReadFile(filepath.Join(activeSessionDir, ".last-skill-loaded-time"))
 		lastLoadedTs, _ := strconv.ParseInt(strings.TrimSpace(string(lastLoadedData)), 10, 64)
-		timeExpired := lastLoadedTs == 0 || time.Since(time.Unix(lastLoadedTs, 0)) >= lgTimeThreshold
+		timeExpired := lastLoadedTs == 0 || time.Since(time.Unix(lastLoadedTs, 0)) >= 1*time.Minute
 		lgCmdsData, _ := os.ReadFile(filepath.Join(activeSessionDir, ".lg-cmds-since-loaded"))
 		lgCmdsCount, _ := strconv.Atoi(strings.TrimSpace(string(lgCmdsData)))
 		if !timeExpired && lgCmdsCount < skillLoadedCmdThreshold {
@@ -540,16 +588,15 @@ func handleBash(raw json.RawMessage, sessionID string) {
 			return
 		}
 		if isHost == "true" {
+			if activeProjectID > 0 && skillCompactFlagIsSet() {
+				deny(skillCompactMsg())
+				return
+			}
 			if activeProjectID > 0 && skillFlagIsSet() {
 				deny(skillReloadMsg())
 				return
 			}
 			if activeProjectID > 0 {
-				if elapsed := elapsedSinceLg(); elapsed > 0 && elapsed > lgTimeThreshold {
-					setSkillFlag()
-					deny(skillReloadMsg())
-					return
-				}
 				if leading == "grep" || leading == "find" {
 					trackBashCall()
 					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -653,10 +700,24 @@ func handlePostCompact(sessionID string) {
 		client := &http.Client{Timeout: 5 * time.Second}
 		client.Post(activeServerURL, "application/json", bytes.NewReader(body))
 	}
-	setSkillFlag()
+	setSkillCompactFlag()
 	os.WriteFile(filepath.Join(activeSessionDir, ".bash-since-lg"), []byte("0"), 0644)
 	os.Remove(filepath.Join(activeSessionDir, ".last-skill-loaded-time"))
-	fmt.Printf("[lg] compacted. Call #lg.skill.loaded to continue\n")
+	fmt.Printf("[lg] context compacted -- load the skill to continue:\n  Read ~/.claude/skills/lemongrass/SKILL.md\n  or call Skill(lemongrass)\n")
+	os.Exit(0)
+}
+
+func handleSkillPostUse(raw json.RawMessage, hookEvent string) {
+	if hookEvent != "PostToolUse" {
+		os.Exit(0)
+	}
+	var input struct {
+		Skill string `json:"skill"`
+	}
+	json.Unmarshal(raw, &input)
+	if strings.Contains(strings.ToLower(input.Skill), "lemongrass") {
+		clearSkillCompactFlag()
+	}
 	os.Exit(0)
 }
 

@@ -50,13 +50,13 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.sessions[workspaceID] = &activeSession{
-		key:          workspaceID,
-		workspaceID:  workspaceID,
-		projectID:    projectID,
-		projectAlias: projectAlias,
-		sessionType:  sessionType,
-		ptySession:   session,
-		checkpointCh: make(chan checkpointResult, 1),
+		key:            workspaceID,
+		workspaceID:    workspaceID,
+		projectID:      projectID,
+		projectAlias:   projectAlias,
+		sessionType:    sessionType,
+		ptySession:     session,
+		checkpointCh:   make(chan checkpointResult, 1),
 		readNodes:      make(map[string]readEntry),
 		commitments:    make(map[string]*commitment),
 		taskStartTimes: make(map[string]time.Time),

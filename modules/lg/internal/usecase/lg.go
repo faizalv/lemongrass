@@ -92,17 +92,17 @@ type readEntry struct {
 }
 
 type activeSession struct {
-	key          string
-	workspaceID  string
-	projectID    int64
-	projectAlias string
-	sessionType  string
-	ptySession   ptyclient.Session
-	checkpointCh chan checkpointResult
-	readNodes      map[string]readEntry        // "path:symbol:kind" -> entry
-	commitments    map[string]*commitment      // path prefix -> commitment
-	taskStartTimes map[string]time.Time        // task_id -> started_at
-	locks          map[string]*os.File         // normalized path -> open fd holding flock
+	key            string
+	workspaceID    string
+	projectID      int64
+	projectAlias   string
+	sessionType    string
+	ptySession     ptyclient.Session
+	checkpointCh   chan checkpointResult
+	readNodes      map[string]readEntry   // "path:symbol:kind" -> entry
+	commitments    map[string]*commitment // path prefix -> commitment
+	taskStartTimes map[string]time.Time   // task_id -> started_at
+	locks          map[string]*os.File    // normalized path -> open fd holding flock
 }
 
 type LgUsecase struct {

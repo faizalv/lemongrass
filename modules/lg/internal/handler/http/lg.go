@@ -102,6 +102,7 @@ func (h *LgHandler) Usage(c *gin.Context) {
 	c.JSON(http.StatusOK, data)
 }
 
+
 func (h *LgHandler) LockAcquire(c *gin.Context) {
 	var req struct {
 		SessionID string `json:"session_id"`

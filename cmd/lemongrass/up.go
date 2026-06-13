@@ -175,7 +175,7 @@ func mergeClaudeSettings(hookPath string) {
 	hooks["PostCompact"] = postCompact
 
 	postToolUse, _ := hooks["PostToolUse"].([]any)
-	for _, m := range []string{"Write", "Edit"} {
+	for _, m := range []string{"Write", "Edit", "Read", "Skill"} {
 		already := false
 		for _, item := range postToolUse {
 			if h, ok := item.(map[string]any); ok && h["matcher"] == m {
