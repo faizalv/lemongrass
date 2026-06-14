@@ -28,10 +28,8 @@ func main() {
 		cmdInit(os.Args[2:])
 	case "remount":
 		cmdRemount(os.Args[2:])
-	case "setlang":
-		cmdSetLang(os.Args[2:])
-	case "rmlang":
-		cmdRmLang(os.Args[2:])
+	case "language":
+		cmdLanguage(os.Args[2:])
 	case "artifacts":
 		cmdArtifacts(os.Args[2:])
 	case "_scaffold":
@@ -48,11 +46,18 @@ func usage() {
 	fmt.Print(`lemongrass -- Claude Code orchestrator
 
 COMMANDS
-  auth              Run Claude auth inside lg-runner container
-  up                Start all containers
-  down              Stop all containers
-  status            Show container status
-  init [path]       Register a project directory with lemongrass (default: current directory)
-  remount <paths>   Recreate server container with given project paths mounted
+  auth                        Run Claude auth inside lg-runner container
+  up                          Start all containers
+  down                        Stop all containers
+  status                      Show container status
+  init [path]                 Register a project directory (default: current directory)
+  remount <paths>             Recreate server container with given project paths mounted
+  language add <lang...>      Enable one or more language parsers
+  language remove <lang>      Disable a language parser
+  language clear              Disable all language parsers
+  language list               Show active and available language parsers
+  artifacts export [path]     Export knowledge and annotations to a .lgart file
+  artifacts import [flags] <path>  Import a .lgart file (--force, --dry-run)
+  artifacts inspect <path>    Inspect a .lgart file for content and warnings
 `)
 }
