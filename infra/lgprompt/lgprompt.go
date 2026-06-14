@@ -8,9 +8,9 @@ const HookCallInstruction = `Every #lg.* and #lg!.* is a direct Bash tool call -
 
 Blocking calls (#lg.*) must be sequential -- each waits for a response. Fire-and-forget calls (#lg!.*) return immediately, so multiple can be issued in parallel as separate Bash tool calls.
 
-After #lg.recon.peruse, annotate: #lg!.annotate path:symbol:kind:"description":return_type_or_nil:dep1,dep2_or_nil
-Annotation is gated -- rejected if you have not perused the symbol this session.
-After context compaction, peruse state resets -- re-peruse before annotating.`
+After reading symbols, annotate: #lg.annotate path:symbol:kind:"description":return_type_or_nil:dep1,dep2_or_nil
+Batch multiple with ||: #lg.annotate ref1||ref2||ref3 -- grouped response: [1][2][3] ok  [4][5] error: symbol not read
+After context compaction, peruse state resets -- re-peruse or re-query before annotating.`
 
 const WorkbenchDecisionTree = `When to reach for each tool:
   concept or term you cannot place      → recon.search
@@ -29,8 +29,8 @@ const CmdReconPeek = `#lg.recon.peek <dir> -- symbols in a directory (non-recurs
 const CmdReconPeruse = `#lg.recon.peruse <path:symbol:kind> -- symbol body from semantic map; counts toward annotation gate; | within any field expands that field: path:sym1|sym2:kind reads both syms from same path; || separates independent full refs: path1:sym1:kind1||path2:sym2:kind2`
 const CmdReconRelated = `#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol`
 
-const CmdAnnotate = `#lg!.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil`
-const AnnotateHookNote = `nil means field absent. Must have called recon.peruse on the same path:symbol:kind first.`
+const CmdAnnotate = `#lg.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil [|| path2:...]`
+const AnnotateHookNote = `nil means field absent. Gate passes if the symbol was perused or its lines appeared in a codebase.query result this session. || separates multiple entries; returns indexed results.`
 
 const CmdSystemRead = `#lg.system.read <path> -- inspect file; delivers content if <=150 lines and <=10k chars, otherwise warns and asks for a range`
 const CmdSystemReadConfirm = `#lg.system.read.confirm <path> [N-M] -- deliver file content unconditionally; N-M is optional 1-indexed line range`
@@ -93,7 +93,7 @@ func BuildSkillContent() string {
 		"  recon.related <path:sym:kind> -> understand blast radius first",
 		"",
 		"After any modification:",
-		"  #lg!.annotate <path:sym:kind>:\"description\":return_type_or_nil:deps",
+		"  #lg.annotate <path:sym:kind>:\"description\":return_type_or_nil:deps [|| ref2 || ...]",
 		"",
 		"TOOLS",
 		"",
@@ -115,7 +115,7 @@ func BuildSkillContent() string {
 		"  " + CmdAnnotate,
 		"  nil = field absent. Must have perused the symbol this session first.",
 		"",
-		"Annotate every symbol you peruse or read. Re-annotate every symbol you modify.",
+		"Annotate every symbol you peruse, read, or that appeared in a codebase.query result. Re-annotate every symbol you modify.",
 		"",
 		"KNOWLEDGE -- never use built-in memory; persist with #lg.knowledge.*",
 		"",

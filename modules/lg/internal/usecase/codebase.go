@@ -325,6 +325,31 @@ func (u *LgUsecase) handleCodebaseQuery(ctx context.Context, sessionID string, s
 	if err != nil {
 		return "error: query failed"
 	}
+	if len(chunks) > 0 {
+		fileChunks := map[string][]lge.InterimChunk{}
+		for _, ch := range chunks {
+			fileChunks[ch.FilePath] = append(fileChunks[ch.FilePath], ch)
+		}
+		u.mu.Lock()
+		for filePath, fchunks := range fileChunks {
+			nodes, err := u.recon.ListFileNodes(ctx, s.projectID, filePath)
+			if err != nil {
+				continue
+			}
+			for _, node := range nodes {
+				for _, ch := range fchunks {
+					if node.LineStart <= ch.LineEnd && node.LineEnd >= ch.LineStart {
+						key := filePath + ":" + node.Symbol + ":" + node.Kind
+						if _, exists := s.readNodes[key]; !exists {
+							s.readNodes[key] = readEntry{kind: node.Kind, signature: node.Signature}
+						}
+						break
+					}
+				}
+			}
+		}
+		u.mu.Unlock()
+	}
 	return formatChunks(chunks)
 }
 

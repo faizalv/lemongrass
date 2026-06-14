@@ -340,31 +340,56 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		}()
 		return ""
 	case "annotate":
-		if s.sessionType == "headless" {
-			filePath, symbol, kind, _, _, _, parseErr := parseAnnotateFormat(args)
-			if parseErr != nil {
-				resp := "error: " + parseErr.Error()
-				u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-				return resp
-			}
-			filePath = stripProjectPrefix(s.projectAlias, filePath)
-			symbol = stripReceiver(symbol)
-			key := filePath + ":" + symbol + ":" + kind
-			u.mu.Lock()
-			_, perused := s.readNodes[key]
-			written := s.writtenFiles[filePath]
-			u.mu.Unlock()
-			if !perused && !written {
-				resp := "error: peruse required -- call #lg.recon.peruse " + filePath + ":" + symbol + ":" + kind + " first"
-				u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-				return resp
-			}
+		entries := strings.Split(args, "||")
+		type result struct {
+			idx int
+			msg string
 		}
-		go func() {
-			resp := u.handleAnnotate(ctx, s, args)
-			u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		}()
-		return "ok"
+		results := make([]result, 0, len(entries))
+		for i, raw := range entries {
+			raw = strings.TrimSpace(raw)
+			msg := ""
+			if s.sessionType == "headless" {
+				filePath, symbol, kind, _, _, _, parseErr := parseAnnotateFormat(raw)
+				if parseErr != nil {
+					msg = "error: " + parseErr.Error()
+				} else {
+					filePath = stripProjectPrefix(s.projectAlias, filePath)
+					symbol = stripReceiver(symbol)
+					key := filePath + ":" + symbol + ":" + kind
+					u.mu.Lock()
+					_, perused := s.readNodes[key]
+					written := s.writtenFiles[filePath]
+					u.mu.Unlock()
+					if !perused && !written {
+						msg = "error: symbol not read -- use Read, recon.peruse, or codebase.query first"
+					}
+				}
+			}
+			if msg == "" {
+				msg = u.handleAnnotate(ctx, s, raw)
+			}
+			results = append(results, result{i + 1, msg})
+		}
+		var msgOrder []string
+		msgIndices := map[string][]int{}
+		for _, r := range results {
+			if _, seen := msgIndices[r.msg]; !seen {
+				msgOrder = append(msgOrder, r.msg)
+			}
+			msgIndices[r.msg] = append(msgIndices[r.msg], r.idx)
+		}
+		var lines []string
+		for _, msg := range msgOrder {
+			var sb strings.Builder
+			for _, idx := range msgIndices[msg] {
+				fmt.Fprintf(&sb, "[%d]", idx)
+			}
+			lines = append(lines, sb.String()+" "+msg)
+		}
+		resp := strings.Join(lines, "\n")
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "commitment":
 		resp := u.handleCommitment(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
