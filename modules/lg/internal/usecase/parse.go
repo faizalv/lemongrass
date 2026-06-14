@@ -26,6 +26,25 @@ func formatAnnotate(n reconentity.SemanticNode) string {
 		n.FilePath, n.Symbol, n.LineStart, n.LineEnd, desc, n.ReturnType, calls)
 }
 
+func expandRefs(ref string) []string {
+	parts := strings.SplitN(ref, ":", 3)
+	if len(parts) < 3 {
+		return []string{ref}
+	}
+	paths := strings.Split(parts[0], "|")
+	symbols := strings.Split(parts[1], "|")
+	kinds := strings.Split(parts[2], "|")
+	var refs []string
+	for _, p := range paths {
+		for _, s := range symbols {
+			for _, k := range kinds {
+				refs = append(refs, strings.TrimSpace(p)+":"+strings.TrimSpace(s)+":"+strings.TrimSpace(k))
+			}
+		}
+	}
+	return refs
+}
+
 func parseRef(s string) (filePath, symbol, kind string, err error) {
 	parts := strings.SplitN(s, ":", 3)
 	if len(parts) < 3 {

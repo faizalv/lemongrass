@@ -26,7 +26,7 @@ const EchoRule = `Call #lg.echo <message> at each major step. No quotes around m
 
 const CmdReconSearch = `#lg.recon.search <query> -- vector search across annotated nodes`
 const CmdReconPeek = `#lg.recon.peek <dir> -- symbols in a directory (non-recursive); pass file path for that file's symbols`
-const CmdReconPeruse = `#lg.recon.peruse <path:symbol:kind> -- symbol body from semantic map; counts toward annotation gate (pipe-separate for multiple: a|b|c)`
+const CmdReconPeruse = `#lg.recon.peruse <path:symbol:kind> -- symbol body from semantic map; counts toward annotation gate; | within any field expands that field: path:sym1|sym2:kind reads both syms from same path; || separates independent full refs: path1:sym1:kind1||path2:sym2:kind2`
 const CmdReconRelated = `#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol`
 
 const CmdAnnotate = `#lg!.annotate <path:symbol:kind>:"description":return_type_or_nil:dep1,dep2_or_nil`

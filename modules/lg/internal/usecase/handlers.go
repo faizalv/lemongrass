@@ -189,13 +189,16 @@ func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query st
 }
 
 func (u *LgUsecase) handleRead(ctx context.Context, s *activeSession, args string) string {
-	refs := strings.Split(args, "|")
-	if len(refs) == 1 {
-		return u.readOne(ctx, s, strings.TrimSpace(refs[0]))
+	var allRefs []string
+	for _, group := range strings.Split(args, "||") {
+		allRefs = append(allRefs, expandRefs(strings.TrimSpace(group))...)
+	}
+	if len(allRefs) == 1 {
+		return u.readOne(ctx, s, allRefs[0])
 	}
 	var parts []string
-	for i, ref := range refs {
-		result := u.readOne(ctx, s, strings.TrimSpace(ref))
+	for i, ref := range allRefs {
+		result := u.readOne(ctx, s, ref)
 		parts = append(parts, fmt.Sprintf("==== [%d] ====\n%s", i+1, result))
 	}
 	return strings.Join(parts, "\n")
