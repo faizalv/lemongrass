@@ -194,7 +194,10 @@ func (h *ReconHandler) Export(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
 		return
 	}
-	f, err := h.uc.ExportArtifacts(c.Request.Context(), projectID, config.ReadOriginID())
+	f, err := h.uc.ExportArtifacts(
+		c.Request.Context(), projectID, config.ReadOriginID(),
+		c.Query("project_label"), c.Query("git_origin"), c.Query("git_user"),
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -226,10 +229,35 @@ func (h *ReconHandler) Import(c *gin.Context) {
 	force := c.Query("force") == "true"
 	result, err := h.uc.ImportArtifacts(c.Request.Context(), projectID, f, force)
 	if err != nil {
+		if err.Error() == "semantic map not ready" {
+			c.JSON(http.StatusConflict, gin.H{"error": "semantic map not ready -- wait for initial sync to complete"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *ReconHandler) ImportOverlap(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	var req struct {
+		Keys []string `json:"keys"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
+		return
+	}
+	matched, total, ready, err := h.uc.NodeOverlap(c.Request.Context(), projectID, req.Keys)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"matched": matched, "total": total, "ready": ready})
 }
 
 func (h *ReconHandler) GetLgIgnore(c *gin.Context) {

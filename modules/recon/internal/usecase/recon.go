@@ -50,6 +50,7 @@ type repo interface {
 	DeleteNodesByFilePaths(ctx context.Context, projectID int64, filePaths []string) error
 	GetEmbedPending(ctx context.Context, projectID int64) (pending, total int, err error)
 	GetStaleCount(ctx context.Context, projectID int64) (int, error)
+	CheckNodeOverlap(ctx context.Context, projectID int64, keys []string) (int, error)
 	SaveKnowledge(ctx context.Context, projectID int64, key, content string, embedding []float32, labels []string) error
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
 	SearchKnowledge(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.KnowledgeEntry, error)

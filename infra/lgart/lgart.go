@@ -10,11 +10,14 @@ import (
 )
 
 type File struct {
-	Version     int            `yaml:"version"`
-	GeneratedBy string         `yaml:"generated_by,omitempty"`
-	ExportedAt  time.Time      `yaml:"exported_at"`
-	Knowledge   []KnowledgeEntry `yaml:"knowledge,omitempty"`
-	Nodes       []Node         `yaml:"nodes,omitempty"`
+	Version      int              `yaml:"version"`
+	GeneratedBy  string           `yaml:"generated_by,omitempty"`
+	ExportedAt   time.Time        `yaml:"exported_at"`
+	ProjectLabel string           `yaml:"project_label,omitempty"`
+	GitOrigin    string           `yaml:"git_origin,omitempty"`
+	GitUser      string           `yaml:"git_user,omitempty"`
+	Knowledge    []KnowledgeEntry `yaml:"knowledge,omitempty"`
+	Nodes        []Node           `yaml:"nodes,omitempty"`
 }
 
 type KnowledgeEntry struct {

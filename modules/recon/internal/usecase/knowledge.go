@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -101,7 +102,20 @@ func (u *ReconUsecase) SearchKnowledgeByLabel(ctx context.Context, projectID int
 	return u.repo.SearchKnowledgeByLabel(ctx, projectID, label, vec, 5)
 }
 
-func (u *ReconUsecase) ExportArtifacts(ctx context.Context, projectID int64, originID string) (*lgart.File, error) {
+func (u *ReconUsecase) NodeOverlap(ctx context.Context, projectID int64, keys []string) (matched, total int, ready bool, err error) {
+	has, err := u.repo.HasNodes(ctx, projectID)
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if !has {
+		return 0, len(keys), false, nil
+	}
+	total = len(keys)
+	matched, err = u.repo.CheckNodeOverlap(ctx, projectID, keys)
+	return matched, total, true, err
+}
+
+func (u *ReconUsecase) ExportArtifacts(ctx context.Context, projectID int64, originID, projectLabel, gitOrigin, gitUser string) (*lgart.File, error) {
 	nodes, err := u.repo.ListNodes(ctx, projectID, "", "", "")
 	if err != nil {
 		return nil, err
@@ -112,9 +126,12 @@ func (u *ReconUsecase) ExportArtifacts(ctx context.Context, projectID int64, ori
 	}
 
 	f := &lgart.File{
-		Version:     1,
-		GeneratedBy: originID,
-		ExportedAt:  time.Now().UTC(),
+		Version:      1,
+		GeneratedBy:  originID,
+		ExportedAt:   time.Now().UTC(),
+		ProjectLabel: projectLabel,
+		GitOrigin:    gitOrigin,
+		GitUser:      gitUser,
 	}
 
 	for _, n := range nodes {
@@ -144,6 +161,14 @@ func (u *ReconUsecase) ExportArtifacts(ctx context.Context, projectID int64, ori
 }
 
 func (u *ReconUsecase) ImportArtifacts(ctx context.Context, projectID int64, f *lgart.File, force bool) (lgart.ImportResult, error) {
+	ready, err := u.repo.HasNodes(ctx, projectID)
+	if err != nil {
+		return lgart.ImportResult{}, err
+	}
+	if !ready {
+		return lgart.ImportResult{}, fmt.Errorf("semantic map not ready")
+	}
+
 	var result lgart.ImportResult
 
 	for _, n := range f.Nodes {

@@ -63,6 +63,7 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/projects/:id/knowledge", r.h.ListKnowledge)
 	g.GET("/projects/:id/export", r.h.Export)
 	g.POST("/projects/:id/import", r.h.Import)
+	g.POST("/projects/:id/import/overlap", r.h.ImportOverlap)
 }
 
 func (r *Recon) StartScheduler(ctx context.Context) {

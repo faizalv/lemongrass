@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -34,37 +37,69 @@ func cmdArtifacts(args []string) {
 }
 
 func cmdArtifactsExport(args []string) {
-	projectID, serverURL := resolveProject()
-
-	outPath := ""
-	if len(args) > 0 {
-		outPath = args[0]
-	} else {
-		cwd, _ := os.Getwd()
-		outPath = filepath.Base(cwd) + ".lgart"
+	label := ""
+	var positional []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--label" && i+1 < len(args) {
+			label = args[i+1]
+			i++
+		} else if strings.HasPrefix(args[i], "--label=") {
+			label = strings.TrimPrefix(args[i], "--label=")
+		} else {
+			positional = append(positional, args[i])
+		}
 	}
 
-	resp, err := http.Get(serverURL + fmt.Sprintf("/api/recon/projects/%d/export", projectID))
+	cfg := resolveProject()
+
+	gitOrigin := gitOutput(cfg.ProjectDir, "remote", "get-url", "origin")
+	gitUser := gitOutput(cfg.ProjectDir, "config", "user.name")
+
+	if gitOrigin == "" && label == "" {
+		fmt.Fprintln(os.Stderr, "error: no git remote found. Provide a label with --label <name>")
+		os.Exit(1)
+	}
+
+	outPath := ""
+	if len(positional) > 0 {
+		outPath = positional[0]
+	} else {
+		outPath = filepath.Base(cfg.ProjectDir) + ".lgart"
+	}
+
+	q := url.Values{}
+	if label != "" {
+		q.Set("project_label", label)
+	}
+	if gitOrigin != "" {
+		q.Set("git_origin", gitOrigin)
+	}
+	if gitUser != "" {
+		q.Set("git_user", gitUser)
+	}
+
+	fmt.Print("Exporting... ")
+	resp, err := http.Get(cfg.ServerURL + fmt.Sprintf("/api/recon/projects/%d/export?%s", cfg.ProjectID, q.Encode()))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: server unreachable: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\nerror: server unreachable: %v\n", err)
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		fmt.Fprintf(os.Stderr, "error: server returned %d: %s\n", resp.StatusCode, body)
+		fmt.Fprintf(os.Stderr, "\nerror: server returned %d: %s\n", resp.StatusCode, body)
 		os.Exit(1)
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: reading response: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\nerror: reading response: %v\n", err)
 		os.Exit(1)
 	}
 
 	f, _ := lgart.Decode(data)
 	if err := os.WriteFile(outPath, data, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "\nerror: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -73,7 +108,7 @@ func cmdArtifactsExport(args []string) {
 		nodeCount = len(f.Nodes)
 		knowledgeCount = len(f.Knowledge)
 	}
-	fmt.Printf("exported %d nodes, %d knowledge entries -> %s\n", nodeCount, knowledgeCount, outPath)
+	fmt.Printf("done\nexported %d nodes, %d knowledge entries -> %s\n", nodeCount, knowledgeCount, outPath)
 }
 
 func cmdArtifactsImport(args []string) {
@@ -108,24 +143,68 @@ func cmdArtifactsImport(args []string) {
 		os.Exit(1)
 	}
 
+	cfg := resolveProject()
+
+	fmt.Println()
+	if f.ProjectLabel != "" {
+		fmt.Printf("  Label:    %s\n", f.ProjectLabel)
+	}
+	if f.GitOrigin != "" {
+		fmt.Printf("  Origin:   %s\n", f.GitOrigin)
+	}
+	if f.GitUser != "" {
+		fmt.Printf("  User:     %s\n", f.GitUser)
+	}
+	fmt.Printf("  Exported: %s\n", f.ExportedAt.UTC().Format(time.RFC3339))
+	fmt.Printf("  Contents: %d nodes, %d knowledge entries\n", len(f.Nodes), len(f.Knowledge))
+	fmt.Printf("  Target:   %s\n", cfg.ProjectDir)
+	fmt.Println()
+
+	keys := sampleNodeKeys(f.Nodes, 50)
+	if len(keys) > 0 {
+		ov := checkOverlap(cfg, keys)
+		if !ov.Ready {
+			fmt.Fprintln(os.Stderr, "error: semantic map not ready -- run `lemongrass up` and wait for the initial sync to complete")
+			os.Exit(1)
+		}
+		fmt.Printf("  Overlap:  %d/%d symbols found in local semantic map\n\n", ov.Matched, ov.Total)
+		if ov.Total > 0 && float64(ov.Matched)/float64(ov.Total) < 0.15 {
+			fmt.Printf("  WARNING: only %d/%d sampled symbols matched. This lgart may not belong to this project.\n\n", ov.Matched, ov.Total)
+			if !dryRun {
+				fmt.Print("Type 'yes' to import anyway: ")
+				scanner := bufio.NewScanner(os.Stdin)
+				scanner.Scan()
+				if strings.TrimSpace(strings.ToLower(scanner.Text())) != "yes" {
+					fmt.Println("import cancelled")
+					return
+				}
+				fmt.Println()
+			}
+		}
+	}
+
 	if dryRun {
 		fmt.Printf("dry run: would import up to %d nodes, %d knowledge entries\n", len(f.Nodes), len(f.Knowledge))
 		return
 	}
 
-	projectID, serverURL := resolveProject()
-
-	url := serverURL + fmt.Sprintf("/api/recon/projects/%d/import", projectID)
+	importURL := cfg.ServerURL + fmt.Sprintf("/api/recon/projects/%d/import", cfg.ProjectID)
 	if force {
-		url += "?force=true"
+		importURL += "?force=true"
 	}
-
-	resp, err := http.Post(url, "application/octet-stream", bytes.NewReader(data))
+	resp, err := http.Post(importURL, "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: server unreachable: %v\n", err)
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusConflict {
+		body, _ := io.ReadAll(resp.Body)
+		var e struct{ Error string `json:"error"` }
+		json.Unmarshal(body, &e)
+		fmt.Fprintf(os.Stderr, "error: %s\n", e.Error)
+		os.Exit(1)
+	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		fmt.Fprintf(os.Stderr, "error: server returned %d: %s\n", resp.StatusCode, body)
@@ -160,7 +239,15 @@ func cmdArtifactsInspect(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Origin:   %s\n", strOrDash(f.GeneratedBy))
+	if f.ProjectLabel != "" {
+		fmt.Printf("Label:    %s\n", f.ProjectLabel)
+	}
+	if f.GitOrigin != "" {
+		fmt.Printf("Origin:   %s\n", f.GitOrigin)
+	}
+	if f.GitUser != "" {
+		fmt.Printf("User:     %s\n", f.GitUser)
+	}
 	fmt.Printf("Exported: %s\n", f.ExportedAt.UTC().Format(time.RFC3339))
 	fmt.Println()
 
@@ -179,7 +266,7 @@ func cmdArtifactsInspect(args []string) {
 	}
 	topDirs := topN(dirCounts, 4)
 
-	fmt.Printf("Nodes:    %d across %d files\n", len(f.Nodes), len(fileCounts))
+	fmt.Printf("Nodes:     %d across %d files\n", len(f.Nodes), len(fileCounts))
 	if len(topDirs) > 0 {
 		parts := make([]string, len(topDirs))
 		for i, d := range topDirs {
@@ -218,14 +305,9 @@ func cmdArtifactsInspect(args []string) {
 
 	for _, k := range f.Knowledge {
 		lower := strings.ToLower(k.Content)
-		if strings.Contains(k.Content, "#lg.") || strings.Contains(k.Content, "#lg!.") {
-			preview := truncate(k.Content, 80)
-			warnings = append(warnings, fmt.Sprintf("[command-injection] knowledge %q: content contains \"#lg.\"\n    preview: %q", k.Key, preview))
-		}
 		for _, phrase := range injectionPhrases {
 			if strings.Contains(lower, phrase) {
-				preview := truncate(k.Content, 80)
-				warnings = append(warnings, fmt.Sprintf("[injection-phrase] knowledge %q: contains %q\n    preview: %q", k.Key, phrase, preview))
+				warnings = append(warnings, fmt.Sprintf("[injection-phrase] knowledge %q contains %q\n    preview: %q", k.Key, phrase, truncate(k.Content, 80)))
 				break
 			}
 		}
@@ -241,36 +323,15 @@ func cmdArtifactsInspect(args []string) {
 
 	for _, n := range f.Nodes {
 		lower := strings.ToLower(n.Description)
-		if strings.Contains(n.Description, "#lg.") || strings.Contains(n.Description, "#lg!.") {
-			preview := truncate(n.Description, 80)
-			warnings = append(warnings, fmt.Sprintf("[command-injection] node %s:%s:%s: description contains \"#lg.\"\n    preview: %q", n.File, n.Symbol, n.Kind, preview))
-		}
 		for _, phrase := range injectionPhrases {
 			if strings.Contains(lower, phrase) {
-				preview := truncate(n.Description, 80)
-				warnings = append(warnings, fmt.Sprintf("[injection-phrase] node %s:%s:%s: contains %q\n    preview: %q", n.File, n.Symbol, n.Kind, phrase, preview))
+				warnings = append(warnings, fmt.Sprintf("[injection-phrase] node %s:%s:%s contains %q\n    preview: %q", n.File, n.Symbol, n.Kind, phrase, truncate(n.Description, 80)))
 				break
 			}
 		}
 		if len(n.Description) > 500 {
 			warnings = append(warnings, fmt.Sprintf("[oversized] node %s:%s:%s: description %d chars (limit 500)", n.File, n.Symbol, n.Kind, len(n.Description)))
 		}
-	}
-
-	var phantomFiles []string
-	for path := range fileCounts {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			phantomFiles = append(phantomFiles, path)
-		}
-	}
-	if len(phantomFiles) > 0 {
-		sort.Strings(phantomFiles)
-		examples := phantomFiles
-		if len(examples) > 5 {
-			examples = examples[:5]
-		}
-		warnings = append(warnings, fmt.Sprintf("[phantom-file] %d node file(s) not found in current directory:\n    %s",
-			len(phantomFiles), strings.Join(examples, "\n    ")))
 	}
 
 	if len(warnings) == 0 {
@@ -284,7 +345,52 @@ func cmdArtifactsInspect(args []string) {
 	}
 }
 
-type kv struct{ key string; val int }
+type overlapResult struct {
+	Matched int  `json:"matched"`
+	Total   int  `json:"total"`
+	Ready   bool `json:"ready"`
+}
+
+func sampleNodeKeys(nodes []lgart.Node, max int) []string {
+	keys := make([]string, 0, len(nodes))
+	for _, n := range nodes {
+		keys = append(keys, n.File+":"+n.Symbol+":"+n.Kind)
+	}
+	if len(keys) > max {
+		keys = keys[:max]
+	}
+	return keys
+}
+
+func checkOverlap(cfg lgProjectConfig, keys []string) overlapResult {
+	body, _ := json.Marshal(map[string][]string{"keys": keys})
+	resp, err := http.Post(
+		cfg.ServerURL+fmt.Sprintf("/api/recon/projects/%d/import/overlap", cfg.ProjectID),
+		"application/json",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return overlapResult{Ready: true}
+	}
+	defer resp.Body.Close()
+	var result overlapResult
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result
+}
+
+func gitOutput(dir string, args ...string) string {
+	allArgs := append([]string{"-C", dir}, args...)
+	out, err := exec.Command("git", allArgs...).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+type kv struct {
+	key string
+	val int
+}
 
 func topN(m map[string]int, n int) []kv {
 	all := make([]kv, 0, len(m))
@@ -317,7 +423,7 @@ func truncate(s string, max int) string {
 	return s[:max] + "..."
 }
 
-func resolveProject() (int64, string) {
+func resolveProject() lgProjectConfig {
 	dir, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error: cannot determine current directory")
@@ -326,12 +432,9 @@ func resolveProject() (int64, string) {
 	for {
 		cfgPath := filepath.Join(dir, ".lemongrass", "config.json")
 		if data, err := os.ReadFile(cfgPath); err == nil {
-			var cfg struct {
-				ProjectID int64  `json:"project_id"`
-				ServerURL string `json:"server_url"`
-			}
+			var cfg lgProjectConfig
 			if json.Unmarshal(data, &cfg) == nil && cfg.ProjectID > 0 {
-				return cfg.ProjectID, cfg.ServerURL
+				return cfg
 			}
 		}
 		parent := filepath.Dir(dir)
@@ -342,5 +445,5 @@ func resolveProject() (int64, string) {
 	}
 	fmt.Fprintln(os.Stderr, "error: project not initialised -- run `lemongrass init` first")
 	os.Exit(1)
-	return 0, ""
+	return lgProjectConfig{}
 }

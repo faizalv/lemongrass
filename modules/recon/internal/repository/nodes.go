@@ -579,3 +579,18 @@ func (r *ReconRepository) GetStaleCount(ctx context.Context, projectID int64) (i
 		projectID).Scan(&count)
 	return count, err
 }
+
+func (r *ReconRepository) CheckNodeOverlap(ctx context.Context, projectID int64, keys []string) (int, error) {
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM lg_semantic_nodes
+		 WHERE project_id = $1
+		   AND status != 'removed'
+		   AND (file_path || ':' || symbol || ':' || kind) = ANY($2)`,
+		projectID, pq.Array(keys),
+	).Scan(&count)
+	return count, err
+}
