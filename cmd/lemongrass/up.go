@@ -15,6 +15,7 @@ import (
 
 func cmdUp() {
 	config.EnsureScaffold()
+	config.DetectAndSaveDevice()
 
 	credFile := filepath.Join(config.Dir(), "claude", ".credentials.json")
 	info, err := os.Stat(credFile)

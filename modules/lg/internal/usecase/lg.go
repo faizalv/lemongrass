@@ -239,6 +239,8 @@ func activityMessage(cmd, args string) string {
 		return "Querying workbench: " + args
 	case "codebase.search":
 		return "Searching: " + args
+	case "project.stat":
+		return "Loading project stat"
 	}
 	return ""
 }
@@ -313,6 +315,10 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 
 	ctx := context.Background()
 	switch cmd {
+	case "project.stat":
+		resp := u.handleProjectStat(ctx, s)
+		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+		return resp
 	case "recon.tree":
 		resp := u.handleTree(ctx, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)

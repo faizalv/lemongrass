@@ -135,7 +135,6 @@ var destructiveCommands = map[string]bool{
 }
 
 const skillBashThreshold = 5
-const skillLoadedCmdThreshold = 3
 
 func lgDir() string { return filepath.Join(os.Getenv("HOME"), ".lemongrass") }
 
@@ -198,13 +197,6 @@ func setGrepReminder() {
 	os.WriteFile(filepath.Join(activeSessionDir, ".grep-reminder-shown"), nil, 0644)
 }
 
-func incrementLgCmdCount() {
-	path := filepath.Join(activeSessionDir, ".lg-cmds-since-loaded")
-	data, _ := os.ReadFile(path)
-	n, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	os.WriteFile(path, []byte(strconv.Itoa(n+1)), 0644)
-}
-
 func trackBashCall() {
 	counterPath := filepath.Join(activeSessionDir, ".bash-since-lg")
 	data, _ := os.ReadFile(counterPath)
@@ -219,7 +211,7 @@ func trackBashCall() {
 }
 
 func skillReloadMsg() string {
-	msg := "[lg] skill not loaded -- call #lg.skill.loaded to acknowledge reload"
+	msg := "[lg] skill not loaded -- reload via Skill(lemongrass) or Read ~/.claude/skills/lemongrass/SKILL.md"
 	if elapsed := elapsedSinceLg(); elapsed > 0 {
 		msg += fmt.Sprintf(" (%d min since last lg call)", int(elapsed.Minutes()))
 	}
@@ -544,12 +536,8 @@ func handleBash(raw json.RawMessage, sessionID string) {
 	}
 	cmd := input.Command
 
-	isSkillLoaded := cmd == "#lg.skill.loaded" || strings.HasPrefix(cmd, "#lg.skill.loaded ")
 	if isHost == "true" && (strings.HasPrefix(cmd, "#lg.") || strings.HasPrefix(cmd, "#lg!.")) {
-		if !isSkillLoaded {
-			clearSkillFlag()
-			incrementLgCmdCount()
-		}
+		clearSkillFlag()
 	}
 
 	switch {
@@ -557,21 +545,6 @@ func handleBash(raw json.RawMessage, sessionID string) {
 		handleSystemReadConfirm(strings.TrimPrefix(cmd, "#lg.system.read.confirm "))
 	case strings.HasPrefix(cmd, "#lg.system.read "):
 		handleSystemRead(strings.TrimPrefix(cmd, "#lg.system.read "))
-	case isSkillLoaded:
-		lastLoadedData, _ := os.ReadFile(filepath.Join(activeSessionDir, ".last-skill-loaded-time"))
-		lastLoadedTs, _ := strconv.ParseInt(strings.TrimSpace(string(lastLoadedData)), 10, 64)
-		timeExpired := lastLoadedTs == 0 || time.Since(time.Unix(lastLoadedTs, 0)) >= 1*time.Minute
-		lgCmdsData, _ := os.ReadFile(filepath.Join(activeSessionDir, ".lg-cmds-since-loaded"))
-		lgCmdsCount, _ := strconv.Atoi(strings.TrimSpace(string(lgCmdsData)))
-		if !timeExpired && lgCmdsCount < skillLoadedCmdThreshold {
-			deny(fmt.Sprintf("[lg] skill.loaded denied. only %d/%d #lg.* commands used since last reload; use lemongrass tools first", lgCmdsCount, skillLoadedCmdThreshold))
-			return
-		}
-		clearSkillFlag()
-		ts := strconv.FormatInt(time.Now().Unix(), 10)
-		os.WriteFile(filepath.Join(activeSessionDir, ".last-skill-loaded-time"), []byte(ts), 0644)
-		os.WriteFile(filepath.Join(activeSessionDir, ".lg-cmds-since-loaded"), []byte("0"), 0644)
-		deliver("[lg] skill reload acknowledged")
 	case strings.HasPrefix(cmd, "#lg!.") || strings.HasPrefix(cmd, "#lg."):
 		if isHost == "true" && activeProjectID == 0 {
 			deliver("lemongrass is not initialised for this project -- run `lemongrass init` in the project root first")
@@ -705,7 +678,6 @@ func handlePostCompact(sessionID string) {
 	}
 	setSkillCompactFlag()
 	os.WriteFile(filepath.Join(activeSessionDir, ".bash-since-lg"), []byte("0"), 0644)
-	os.Remove(filepath.Join(activeSessionDir, ".last-skill-loaded-time"))
 	fmt.Printf("[lg] context compacted -- load the skill to continue:\n  Read ~/.claude/skills/lemongrass/SKILL.md\n  or call Skill(lemongrass)\n")
 	os.Exit(0)
 }

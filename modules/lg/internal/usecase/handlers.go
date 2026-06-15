@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/faizalv/lemongrass/config"
 	"github.com/faizalv/lemongrass/modules/lg/entity"
 	reconentity "github.com/faizalv/lemongrass/modules/recon/entity"
 	wsentity "github.com/faizalv/lemongrass/modules/workspace/entity"
@@ -46,6 +47,43 @@ func bestMatchCommitment(commitments map[string]*commitment, filePath string) *c
 		}
 	}
 	return best
+}
+
+func (u *LgUsecase) handleProjectStat(ctx context.Context, s *activeSession) string {
+	total, explored, _ := u.recon.GetProjectCoverage(ctx, s.projectID)
+	dir, _ := u.recon.ProjectDir(ctx, s.projectID)
+	device := config.LoadDevice()
+
+	var sb strings.Builder
+	if dir != "" {
+		sb.WriteString("project: " + filepath.Base(dir) + "\n")
+	}
+
+	pct := 0
+	if total > 0 {
+		pct = 100 * explored / total
+		sb.WriteString(fmt.Sprintf("coverage: %d%% (%d/%d explored)\n", pct, explored, total))
+	} else {
+		sb.WriteString("coverage: 0% (no symbols mapped yet)\n")
+	}
+
+	if device.Tier != "unknown" {
+		sb.WriteString(fmt.Sprintf("device: %s (%dMB RAM, %d cores)\n", device.Tier, device.MemoryMB, device.CPUCores))
+	} else {
+		sb.WriteString("device: unknown (run lemongrass up to detect)\n")
+	}
+
+	sb.WriteString("advice: ")
+	switch {
+	case pct >= 60:
+		sb.WriteString("recon.search is primary; use codebase.interim for unexplored areas")
+	case pct >= 20:
+		sb.WriteString("partial coverage -- recon.search for annotated areas; codebase.interim+query for unexplored")
+	default:
+		sb.WriteString("annotation sparse -- prefer codebase.interim+query; recon.search unreliable until coverage grows")
+	}
+
+	return strings.TrimRight(sb.String(), "\n")
 }
 
 func (u *LgUsecase) handleTree(ctx context.Context, s *activeSession, args string) string {
