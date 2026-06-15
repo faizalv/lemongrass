@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/faizalv/lemongrass/bus"
@@ -24,7 +25,8 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 	isExec := s != nil && s.sessionType == "execution"
 	_, alreadySnapped := u.beforeSnapshots[sessionID][filePath]
 	if s != nil {
-		s.writtenFiles[filePath] = true
+		rel := toRelPath(filePath, u.recon, s.projectID)
+		s.writtenFiles[rel] = true
 	}
 	u.mu.Unlock()
 
@@ -58,18 +60,34 @@ func (u *LgUsecase) LogRead(sessionID, filePath string) {
 	if s == nil {
 		return
 	}
-	nodes, err := u.recon.ListFileNodes(context.Background(), s.projectID, filePath)
+	rel := toRelPath(filePath, u.recon, s.projectID)
+	nodes, err := u.recon.ListFileNodes(context.Background(), s.projectID, rel)
 	if err != nil || len(nodes) == 0 {
 		return
 	}
 	u.mu.Lock()
 	for _, node := range nodes {
-		key := filePath + ":" + node.Symbol + ":" + node.Kind
+		key := rel + ":" + node.Symbol + ":" + node.Kind
 		if _, exists := s.readNodes[key]; !exists {
 			s.readNodes[key] = readEntry{kind: node.Kind, signature: node.Signature}
 		}
 	}
 	u.mu.Unlock()
+}
+
+func toRelPath(filePath string, recon reconClient, projectID int64) string {
+	if !filepath.IsAbs(filePath) {
+		return filePath
+	}
+	dir, err := recon.ProjectDir(context.Background(), projectID)
+	if err != nil || dir == "" {
+		return filePath
+	}
+	rel, err := filepath.Rel(dir, filePath)
+	if err != nil {
+		return filePath
+	}
+	return rel
 }
 
 func (u *LgUsecase) GetWriteTrail(sessionID string) []entity.WriteTrailEntry {
