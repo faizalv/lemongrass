@@ -96,7 +96,7 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 		if len(nodes) == 0 {
 			return "no symbols found in " + pathPrefix
 		}
-		return formatPeekNodes(pathPrefix, nodes)
+		return formatPeekNodes(nodes)
 	}
 
 	nodes, subdirs, err := u.recon.PeekDir(ctx, s.projectID, pathPrefix)
@@ -109,33 +109,33 @@ func (u *LgUsecase) handlePeek(ctx context.Context, s *activeSession, args strin
 
 
 	var sb strings.Builder
+	sb.WriteString(strings.TrimSuffix(pathPrefix, "/") + "/\n")
 	for _, sd := range subdirs {
-		sb.WriteString(fmt.Sprintf("%-50s %d symbols\n", sd.Path, sd.Count))
+		name := filepath.Base(sd.Path) + "/"
+		sb.WriteString(fmt.Sprintf("  %-24s %d symbols\n", name, sd.Count))
 	}
-	if len(subdirs) > 0 && len(nodes) > 0 {
-		sb.WriteByte('\n')
+	if len(nodes) > 0 {
+		sb.WriteString(formatPeekDir(pathPrefix, nodes))
 	}
-	if len(nodes) == 0 {
-		return strings.TrimRight(sb.String(), "\n")
-	}
-	sb.WriteString(formatPeekNodes("", nodes))
 	return strings.TrimRight(sb.String(), "\n")
 }
 
-func formatPeekNodes(singleFile string, nodes []reconentity.SemanticNode) string {
+func formatPeekDir(dirPrefix string, nodes []reconentity.SemanticNode) string {
 	type fileGroup struct {
-		path    string
+		name    string
 		regular []reconentity.SemanticNode
 		imports []reconentity.SemanticNode
 	}
 	var files []fileGroup
 	fileIdx := map[string]int{}
+	prefix := strings.TrimSuffix(dirPrefix, "/") + "/"
 	for _, n := range nodes {
-		idx, ok := fileIdx[n.FilePath]
+		name := strings.TrimPrefix(n.FilePath, prefix)
+		idx, ok := fileIdx[name]
 		if !ok {
 			idx = len(files)
-			files = append(files, fileGroup{path: n.FilePath})
-			fileIdx[n.FilePath] = idx
+			files = append(files, fileGroup{name: name})
+			fileIdx[name] = idx
 		}
 		if n.Kind == "imports" {
 			files[idx].imports = append(files[idx].imports, n)
@@ -144,31 +144,36 @@ func formatPeekNodes(singleFile string, nodes []reconentity.SemanticNode) string
 		}
 	}
 	var sb strings.Builder
-	for i, f := range files {
-		if i > 0 {
-			sb.WriteByte('\n')
-		}
-		if singleFile == "" {
-			sb.WriteString(f.path + "\n")
-		}
-		all := append(f.regular, f.imports...)
-		for _, n := range all {
-			sym := n.Symbol
-			if n.Kind == "method" && n.Receiver != "" {
-				sym = n.Receiver + "." + n.Symbol
-			}
-			marker := ""
-			switch n.Status {
-			case "stale":
-				marker = "   *stale"
-			case "unexplored":
-				marker = "   ?unexplored"
-			}
-			sb.WriteString(fmt.Sprintf("  %-8s %-44s %d-%d%s\n",
-				n.Kind, sym, n.LineStart, n.LineEnd, marker))
+	for _, f := range files {
+		sb.WriteString("  " + f.name + "\n")
+		for _, n := range append(f.regular, f.imports...) {
+			sb.WriteString(formatSymbolLine("    ", n))
 		}
 	}
+	return sb.String()
+}
+
+func formatPeekNodes(nodes []reconentity.SemanticNode) string {
+	var sb strings.Builder
+	for _, n := range nodes {
+		sb.WriteString(formatSymbolLine("  ", n))
+	}
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+func formatSymbolLine(indent string, n reconentity.SemanticNode) string {
+	sym := n.Symbol
+	if n.Kind == "method" && n.Receiver != "" {
+		sym = n.Receiver + "." + n.Symbol
+	}
+	marker := ""
+	switch n.Status {
+	case "stale":
+		marker = "  *"
+	case "unexplored":
+		marker = "  ?"
+	}
+	return fmt.Sprintf("%s%-9s %-36s %d-%d%s\n", indent, n.Kind, sym, n.LineStart, n.LineEnd, marker)
 }
 
 func (u *LgUsecase) handleSearch(ctx context.Context, s *activeSession, query string) string {
