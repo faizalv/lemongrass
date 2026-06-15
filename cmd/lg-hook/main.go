@@ -218,6 +218,19 @@ func skillReloadMsg() string {
 	return msg
 }
 
+func shouldWarnFile(kind string, cooldown time.Duration) bool {
+	p := filepath.Join(activeSessionDir, ".warn-"+kind)
+	data, err := os.ReadFile(p)
+	if err == nil {
+		ts, parseErr := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+		if parseErr == nil && time.Since(time.Unix(ts, 0)) < cooldown {
+			return false
+		}
+	}
+	os.WriteFile(p, []byte(strconv.FormatInt(time.Now().Unix(), 10)), 0644)
+	return true
+}
+
 func main() {
 	if isHost == "true" {
 		if cfg := findLgConfig(); cfg != nil {
@@ -443,7 +456,11 @@ func handleRead(raw json.RawMessage, sessionID, hookEvent string, toolResponse j
 		}
 
 		if documentExts[ext] {
-			deny("[lg] use #lg.system.read " + input.FilePath + ". We use markitdown for docs")
+			if shouldWarnFile("read-docs-redirect", 3*time.Minute) {
+				deny("[lg] use #lg.system.read " + input.FilePath + ". We use markitdown for docs")
+			} else {
+				deny("[lg] use #lg.system.read " + input.FilePath)
+			}
 			return
 		}
 
@@ -456,7 +473,11 @@ func handleRead(raw json.RawMessage, sessionID, hookEvent string, toolResponse j
 				return
 			}
 			if info.Size() > 10000 {
-				deny(fmt.Sprintf("%s is large -- specify a range: Read(file_path=%q, offset=N, limit=M)", input.FilePath, input.FilePath))
+				if shouldWarnFile("read-large", 2*time.Minute) {
+					deny(fmt.Sprintf("%s is large -- specify a range: Read(file_path=%q, offset=N, limit=M)", input.FilePath, input.FilePath))
+				} else {
+					deny(fmt.Sprintf("%s is large -- use offset=N, limit=M", input.FilePath))
+				}
 				return
 			}
 			notifyFileRead(input.FilePath, sessionID)
@@ -558,8 +579,11 @@ func handleBash(raw json.RawMessage, sessionID string) {
 	default:
 		leading := leadingToken(cmd)
 		if fileReaderCommands[leading] {
-			reject(leading+" is not available",
-				"Use #lg.system.read <path> for file access.")
+			if shouldWarnFile("file-reader-blocked", 5*time.Minute) {
+				reject(leading+" is not available", "Use #lg.system.read <path> for file access.")
+			} else {
+				deny(leading + " -- use #lg.system.read")
+			}
 			return
 		}
 		if isHost == "true" {
@@ -575,16 +599,28 @@ func handleBash(raw json.RawMessage, sessionID string) {
 				if cmdTargetsProject(cmd, activeProjectDir) {
 					switch leading {
 					case "ls":
-						reject("ls is not available inside the project",
-							"Use #lg.codebase.ls [path] for directory listing.")
+						if shouldWarnFile("ls-blocked", 5*time.Minute) {
+							reject("ls is not available inside the project",
+								"Use #lg.codebase.ls [path] for directory listing.")
+						} else {
+							deny("ls -- use #lg.codebase.ls")
+						}
 						return
 					case "find":
-						reject("find is not available inside the project",
-							"Use #lg.codebase.fl <pattern> to find files by name or glob.")
+						if shouldWarnFile("find-blocked", 5*time.Minute) {
+							reject("find is not available inside the project",
+								"Use #lg.codebase.fl <pattern> to find files by name or glob.")
+						} else {
+							deny("find -- use #lg.codebase.fl")
+						}
 						return
 					case "grep":
-						reject("grep is not available inside the project",
-							"Use #lg.codebase.search <pattern> [path/] for code search.")
+						if shouldWarnFile("grep-blocked", 5*time.Minute) {
+							reject("grep is not available inside the project",
+								"Use #lg.codebase.search <pattern> [path/] for code search.")
+						} else {
+							deny("grep -- use #lg.codebase.search")
+						}
 						return
 					}
 				}
@@ -795,11 +831,15 @@ func handleSystemRead(args string) {
 		deliver(fmt.Sprintf("%s (%d lines, %d chars)\n%s", path, lineCount, charCount, string(data)))
 		return
 	}
-	deliver(fmt.Sprintf("%s is %d lines and %d chars -- too large to deliver in full.\n"+
-		"Use: #lg.system.read.confirm %s <N-M> to read specific lines.\n"+
-		"Or #lg.recon.peruse <path:symbol:kind> for symbol-level access.\n"+
-		"Or #lg.codebase.interim F:%s to load into the workbench.",
-		path, lineCount, charCount, path, path))
+	if shouldWarnFile("read-large", 2*time.Minute) {
+		deliver(fmt.Sprintf("%s is %d lines and %d chars -- too large to deliver in full.\n"+
+			"Use: #lg.system.read.confirm %s <N-M> to read specific lines.\n"+
+			"Or #lg.recon.peruse <path:symbol:kind> for symbol-level access.\n"+
+			"Or #lg.codebase.interim F:%s to load into the workbench.",
+			path, lineCount, charCount, path, path))
+	} else {
+		deliver(fmt.Sprintf("%s is large -- use #lg.system.read.confirm %s <N-M>", path, path))
+	}
 }
 
 func handleSystemReadConfirm(args string) {
@@ -856,8 +896,11 @@ func handlePermitted(cmd string) {
 	}
 
 	if fileReaderCommands[leading] {
-		reject(leading+" is not available",
-			"Use #lg.system.read <path> for file access.")
+		if shouldWarnFile("file-reader-blocked", 5*time.Minute) {
+			reject(leading+" is not available", "Use #lg.system.read <path> for file access.")
+		} else {
+			deny(leading + " -- use #lg.system.read")
+		}
 		return
 	}
 	if leading == "git" {
@@ -878,16 +921,25 @@ func handlePermitted(cmd string) {
 
 	switch leading {
 	case "ls":
-		reject("ls is not available in a lemongrass project",
-			"Use #lg.codebase.ls [path] for directory listing.")
+		if shouldWarnFile("ls-blocked", 5*time.Minute) {
+			reject("ls is not available in a lemongrass project", "Use #lg.codebase.ls [path] for directory listing.")
+		} else {
+			deny("ls -- use #lg.codebase.ls")
+		}
 		return
 	case "find":
-		reject("find is not available in a lemongrass project",
-			"Use #lg.codebase.fl <pattern> to find files by name or glob.")
+		if shouldWarnFile("find-blocked", 5*time.Minute) {
+			reject("find is not available in a lemongrass project", "Use #lg.codebase.fl <pattern> to find files by name or glob.")
+		} else {
+			deny("find -- use #lg.codebase.fl")
+		}
 		return
 	case "grep":
-		reject("grep is not available in a lemongrass project",
-			"Use #lg.codebase.search <pattern> [path/] for code search.")
+		if shouldWarnFile("grep-blocked", 5*time.Minute) {
+			reject("grep is not available in a lemongrass project", "Use #lg.codebase.search <pattern> [path/] for code search.")
+		} else {
+			deny("grep -- use #lg.codebase.search")
+		}
 		return
 	}
 

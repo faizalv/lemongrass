@@ -111,6 +111,8 @@ type activeSession struct {
 	commitments    map[string]*commitment // path prefix -> commitment
 	taskStartTimes map[string]time.Time   // task_id -> started_at
 	locks          map[string]*os.File    // normalized path -> open fd holding flock
+	searchCount    int                    // codebase.search calls since last codebase.interim
+	warnedAt       map[string]time.Time   // warning kind -> last fire time
 }
 
 type LgUsecase struct {
@@ -146,6 +148,16 @@ func New() *LgUsecase {
 		uc.mu.Unlock()
 	})
 	return uc
+}
+
+func (u *LgUsecase) shouldWarn(s *activeSession, kind string, cooldown time.Duration) bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if t, ok := s.warnedAt[kind]; ok && time.Since(t) < cooldown {
+		return false
+	}
+	s.warnedAt[kind] = time.Now()
+	return true
 }
 
 func (u *LgUsecase) GetSessionActivity(workspaceID string) (lastAt time.Time, idleSec int, echoes []entity.EchoMessage, active bool) {
@@ -244,6 +256,7 @@ func activityMessage(cmd, args string) string {
 	}
 	return ""
 }
+
 
 func (u *LgUsecase) SetRecon(r reconClient) {
 	u.recon = r
@@ -477,6 +490,9 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
 	case "codebase.interim":
+		u.mu.Lock()
+		s.searchCount = 0
+		u.mu.Unlock()
 		resp := u.handleCodebaseInterim(ctx, sessionID, s, args)
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
 		return resp
@@ -504,6 +520,18 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 			case "codebase.search":
 				filePaths := u.recon.ListFilePaths(ctx, s.projectID)
 				resp = u.codebase.Search(ctx, s.projectID, projDir, filePaths, args)
+				if strings.HasPrefix(resp, "note: ") && !u.shouldWarn(s, "search-quotes", 3*time.Minute) {
+					if idx := strings.Index(resp, "\n\n"); idx >= 0 {
+						resp = resp[idx+2:]
+					}
+				}
+				u.mu.Lock()
+				s.searchCount++
+				nudge := s.searchCount == 3
+				u.mu.Unlock()
+				if nudge {
+					resp += "\n\n[lg] tip: codebase.interim <files> + codebase.query may be faster now that you know what's relevant"
+				}
 			}
 		}
 		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
