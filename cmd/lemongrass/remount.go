@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/faizalv/lemongrass/cmd/lemongrass/version"
 	"github.com/faizalv/lemongrass/config"
 )
 
@@ -13,7 +14,7 @@ func cmdRemount(paths []string) {
 	cfg := config.LoadOrDefault()
 	composePath := filepath.Join(config.Dir(), "docker-compose.yml")
 
-	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, paths), 0644); err != nil {
+	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, paths, version.Version), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write compose: %v\n", err)
 		os.Exit(1)
 	}

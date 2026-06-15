@@ -1,30 +1,31 @@
-.PHONY: build build-ui dev tooling embed lemongrass
+.PHONY: build build-ui build-images dev grammars tooling lemongrass
+
+VERSION ?= dev
 
 build-ui:
 	cd ui && npm install && npm run build
 
 build: build-ui
 	mkdir -p bin
-	go build -o bin/server ./cmd/http
+	go build \
+	  -ldflags "-X github.com/faizalv/lemongrass/cmd/lemongrass/version.Version=$(VERSION)" \
+	  -o bin/lemongrass ./cmd/lemongrass/
+	go build -o bin/lemongrass-server ./cmd/http/
+	go build -ldflags "-X main.isHost=true" -o bin/lg-hook-host ./cmd/lg-hook/
+
+build-images:
+	docker build -f Dockerfile.server -t lemongrass-server:local .
+	docker build -f Dockerfile.runner -t lemongrass-runner:local .
+	docker build -f Dockerfile.embed  -t lemongrass-embed:local  .
+	docker build -f Dockerfile.lang   -t lemongrass-lang:local   .
+
+grammars:
+	cd grammars && make all
 
 dev:
 	go run ./cmd/http
 
-tooling:
-	mkdir -p bin
-	go build -o bin/migrategen ./cmd/tooling/migrategen
-	go build -o bin/domigrate ./cmd/tooling/domigrate
-
-embed:
-	docker build -f Dockerfile.embed -t lemongrass-embed:latest .
-
-lemongrass: build-ui embed
-	docker build -f Dockerfile.lang   -t lemongrass-lang:latest   .
-	docker build -f Dockerfile.server -t lemongrass-server:latest .
-	docker build -f Dockerfile.runner -t lemongrass-runner:latest .
-	mkdir -p bin
-	go build -o bin/lemongrass ./cmd/lemongrass
-	go build -ldflags "-X main.isHost=true" -o bin/lg-hook-host ./cmd/lg-hook
+lemongrass: build build-images
 	@if [ -d "$$HOME/.local/bin" ]; then \
 		install -m 755 bin/lemongrass $$HOME/.local/bin/lemongrass; \
 		install -m 755 bin/lg-hook-host $$HOME/.local/bin/lg-hook-host; \

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/faizalv/lemongrass/cmd/lemongrass/version"
 	"github.com/faizalv/lemongrass/config"
 )
 
@@ -24,7 +25,7 @@ func isSupportedLang(l string) bool {
 func restartLgLang() {
 	cfg := config.LoadOrDefault()
 	composePath := filepath.Join(config.Dir(), "docker-compose.yml")
-	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, queryProjectPaths()), 0644); err != nil {
+	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, queryProjectPaths(), version.Version), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not update compose file: %v\n", err)
 		return
 	}

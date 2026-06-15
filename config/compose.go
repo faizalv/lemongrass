@@ -7,10 +7,17 @@ import (
 	"text/template"
 )
 
+func imageRef(ver, name string) string {
+	if ver == "dev" {
+		return "lemongrass-" + name + ":local"
+	}
+	return "ghcr.io/faizalv/lemongrass/lg-" + name + ":v" + ver
+}
+
 var tmpl = template.Must(template.New("compose").Parse(`services:
   lg-server:
     container_name: lg-server
-    image: lemongrass-server:latest
+    image: {{.ImageServer}}
     ports:
       - "{{.Port}}:9966"
     volumes:
@@ -34,7 +41,7 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
 
   lg-runner:
     container_name: lg-runner
-    image: lemongrass-runner:latest
+    image: {{.ImageRunner}}
     volumes:
       - {{.LGDir}}:/home/lg/.lemongrass:rw
       - {{.LGDir}}/claude:/home/lg/.lemongrass/claude
@@ -49,7 +56,7 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
 
   lg-embed:
     container_name: lg-embed
-    image: lemongrass-embed:latest
+    image: {{.ImageEmbed}}
     volumes:
       - {{.LGDir}}/workspaces:/home/lg/.lemongrass/workspaces:ro
     healthcheck:
@@ -62,7 +69,7 @@ var tmpl = template.Must(template.New("compose").Parse(`services:
 
   lg-lang:
     container_name: lg-lang
-    image: lemongrass-lang:latest
+    image: {{.ImageLang}}
     volumes:
       - {{.LGDir}}/grammars:/home/lg/.lemongrass/grammars:ro
 {{- range .ProjectMounts}}
@@ -111,9 +118,13 @@ type composeData struct {
 	LGDir         string
 	ProjectMounts []projectMount
 	LangList      string
+	ImageServer   string
+	ImageRunner   string
+	ImageEmbed    string
+	ImageLang     string
 }
 
-func GenerateCompose(cfg Config, projectPaths []string) []byte {
+func GenerateCompose(cfg Config, projectPaths []string, ver string) []byte {
 	mounts := make([]projectMount, len(projectPaths))
 	for i, p := range projectPaths {
 		mounts[i] = projectMount{HostPath: p, Alias: filepath.Base(p)}
@@ -128,6 +139,10 @@ func GenerateCompose(cfg Config, projectPaths []string) []byte {
 		LGDir:         lgDir,
 		ProjectMounts: mounts,
 		LangList:      strings.Join(cfg.Languages, ","),
+		ImageServer:   imageRef(ver, "server"),
+		ImageRunner:   imageRef(ver, "runner"),
+		ImageEmbed:    imageRef(ver, "embed"),
+		ImageLang:     imageRef(ver, "lang"),
 	})
 	return buf.Bytes()
 }

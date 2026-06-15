@@ -65,19 +65,40 @@ This is useful for any work that does not fit the grooming/execution shape: open
 
 ---
 
-## Getting started
+## Install
 
-Requirements: Go, Node, Docker.
-
-```shell
-make lemongrass
-lemongrass auth
+```sh
+curl -fsSL https://raw.githubusercontent.com/faizalv/lemongrass/main/install/install.sh | sh
 lemongrass up
 ```
 
 `auth` opens the Claude Code auth flow inside `lg-runner` and writes credentials to `~/.lemongrass/claude/`. The host machine does not need Claude Code installed.
 
 `lemongrass up` generates a Docker Compose file from `~/.lemongrass/config.json` and starts all containers. The UI is at `http://localhost:9966`. Add a project from the UI and the Reconnaissance page shows the full symbol tree with coverage stats.
+
+## Language support (optional)
+
+```sh
+lemongrass language add ts py php
+lemongrass up
+```
+
+## Update
+
+```sh
+lemongrass update
+```
+
+---
+
+## Development
+
+Requirements: Go, Node, Docker.
+
+```sh
+make lemongrass      # build Go binaries + all Docker images (including lg-lang)
+make grammars        # recompile grammar .so files locally
+```
 
 For how the internals work, see [ARCHITECTURE.md](ARCHITECTURE.md).
 

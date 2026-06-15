@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/faizalv/lemongrass/cmd/lemongrass/version"
 	"github.com/faizalv/lemongrass/config"
 )
 
@@ -32,6 +33,12 @@ func main() {
 		cmdLanguage(os.Args[2:])
 	case "artifacts":
 		cmdArtifacts(os.Args[2:])
+	case "version":
+		fmt.Println(version.Version)
+	case "completion":
+		cmdCompletion(os.Args[2:])
+	case "update":
+		cmdUpdate()
 	case "_scaffold":
 		config.EnsureScaffold()
 		fmt.Println("~/.lemongrass/ initialized")
@@ -59,5 +66,8 @@ COMMANDS
   artifacts export [path]     Export knowledge and annotations to a .lgart file
   artifacts import [flags] <path>  Import a .lgart file (--force, --dry-run)
   artifacts inspect <path>    Inspect a .lgart file for content and warnings
+  completion <bash|zsh|fish>  Print shell completion script
+  version                     Print version
+  update                      Update to the latest release
 `)
 }

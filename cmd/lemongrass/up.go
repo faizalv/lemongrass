@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/faizalv/lemongrass/cmd/lemongrass/version"
 	"github.com/faizalv/lemongrass/config"
 	"github.com/faizalv/lemongrass/infra/lgprompt"
 )
@@ -36,8 +37,10 @@ func cmdUp() {
 	writeHookSettings(cfg)
 	installAndStartDaemon(cfg.BinPath)
 
+	pullImages(version.Version)
+
 	composePath := filepath.Join(config.Dir(), "docker-compose.yml")
-	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, nil), 0644); err != nil {
+	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, nil, version.Version), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write compose file: %v\n", err)
 		os.Exit(1)
 	}
@@ -52,7 +55,7 @@ func cmdUp() {
 
 	projectPaths := queryProjectPaths()
 
-	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, projectPaths), 0644); err != nil {
+	if err := os.WriteFile(composePath, config.GenerateCompose(cfg, projectPaths, version.Version), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write compose file: %v\n", err)
 		os.Exit(1)
 	}
@@ -225,6 +228,30 @@ func writeSkillFile() {
 		return
 	}
 	fmt.Printf("wrote skill file -> %s\n", skillPath)
+}
+
+func pullImages(ver string) {
+	if ver == "dev" {
+		return
+	}
+	images := []string{"server", "runner", "embed", "lang"}
+	refs := make([]string, len(images))
+	for i, name := range images {
+		refs[i] = "ghcr.io/faizalv/lemongrass/lg-" + name + ":v" + ver
+	}
+
+	fmt.Printf("Pulling images  (v%s)\n\n", ver)
+	for _, ref := range refs {
+		fmt.Printf("  %s  pulling...\n", ref)
+		cmd := exec.Command("docker", "pull", ref)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "\npull failed: %s: %v\n", ref, err)
+			os.Exit(1)
+		}
+	}
+	fmt.Println()
 }
 
 func queryProjectPaths() []string {
