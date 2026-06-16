@@ -23,6 +23,7 @@ func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args 
 			commitments:    make(map[string]*commitment),
 			taskStartTimes: make(map[string]time.Time),
 			warnedAt:       make(map[string]time.Time),
+			obligation:     make(map[string]time.Time),
 		}
 	}
 	u.mu.Unlock()
@@ -44,6 +45,7 @@ func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking 
 			commitments:    make(map[string]*commitment),
 			taskStartTimes: make(map[string]time.Time),
 			warnedAt:       make(map[string]time.Time),
+			obligation:     make(map[string]time.Time),
 		}
 	}
 	u.mu.Unlock()
@@ -66,6 +68,7 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 		commitments:    make(map[string]*commitment),
 		taskStartTimes: make(map[string]time.Time),
 		warnedAt:       make(map[string]time.Time),
+		obligation:     make(map[string]time.Time),
 	}
 	u.lastActivity[workspaceID] = time.Now()
 }

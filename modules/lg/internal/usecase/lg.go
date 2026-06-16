@@ -110,9 +110,11 @@ type activeSession struct {
 	writtenFiles   map[string]bool        // file paths written or edited this session
 	commitments    map[string]*commitment // path prefix -> commitment
 	taskStartTimes map[string]time.Time   // task_id -> started_at
-	locks          map[string]*os.File    // normalized path -> open fd holding flock
-	searchCount    int                    // codebase.search calls since last codebase.interim
-	warnedAt       map[string]time.Time   // warning kind -> last fire time
+	locks             map[string]*os.File    // normalized path -> open fd holding flock
+	searchCount       int                    // codebase.search calls since last codebase.interim
+	warnedAt          map[string]time.Time   // warning kind -> last fire time
+	obligation        map[string]time.Time   // "path:symbol:kind" -> when added; symbols needing annotation
+	obligationStart   time.Time              // when first symbol entered obligation (zero = no obligation)
 }
 
 type LgUsecase struct {
@@ -158,6 +160,40 @@ func (u *LgUsecase) shouldWarn(s *activeSession, kind string, cooldown time.Dura
 	}
 	s.warnedAt[kind] = time.Now()
 	return true
+}
+
+// addObligationLocked adds a symbol to the session's annotation obligation.
+// Caller must hold u.mu.
+func addObligationLocked(s *activeSession, key string) {
+	if _, exists := s.obligation[key]; exists {
+		return
+	}
+	if len(s.obligation) == 0 {
+		s.obligationStart = time.Now()
+	}
+	s.obligation[key] = time.Now()
+}
+
+// obligationCheck returns a block signal and/or suffix message based on obligation state.
+// Returns (true, blockMsg) when past the 5-min deadline.
+// Returns (false, suffixMsg) when past the halfway warning threshold.
+// Returns (false, "") when no obligation or within safe window.
+func (u *LgUsecase) obligationCheck(s *activeSession) (block bool, msg string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if len(s.obligation) == 0 || s.obligationStart.IsZero() {
+		return false, ""
+	}
+	n := len(s.obligation)
+	elapsed := time.Since(s.obligationStart)
+	remaining := 5*time.Minute - elapsed
+	if remaining <= 0 {
+		return true, fmt.Sprintf("[obligation] blocked: %d symbol(s) need annotation -- #lg.obligation", n)
+	}
+	if elapsed >= 2*time.Minute+30*time.Second {
+		return false, fmt.Sprintf("\n\n[obligation] %d symbol(s) due in %ds -- #lg.obligation", n, int(remaining.Seconds()))
+	}
+	return false, ""
 }
 
 func (u *LgUsecase) GetSessionActivity(workspaceID string) (lastAt time.Time, idleSec int, echoes []entity.EchoMessage, active bool) {
@@ -253,6 +289,8 @@ func activityMessage(cmd, args string) string {
 		return "Searching: " + args
 	case "project.stat":
 		return "Loading project stat"
+	case "obligation":
+		return "Checking annotation obligation"
 	}
 	return ""
 }
@@ -327,37 +365,54 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 	}
 
 	ctx := context.Background()
+
+	// Fire-and-forget commands bypass obligation and logging.
 	switch cmd {
-	case "project.stat":
-		resp := u.handleProjectStat(ctx, s)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
-	case "recon.tree":
-		resp := u.handleTree(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
-	case "recon.peek":
-		resp := u.handlePeek(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
-	case "recon.search":
-		resp := u.handleSearch(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
-	case "recon.peruse":
-		resp := u.handleRead(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
-	case "recon.related":
-		resp := u.handleRelated(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
 	case "recon.drop":
 		go func() {
 			u.handleReconDrop(ctx, s, args)
 			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
 		}()
 		return ""
+	case "handover":
+		go func() {
+			u.handleHandover(s, args)
+			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
+		}()
+		return ""
+	case "done":
+		go func() {
+			u.handleDone(s)
+			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
+		}()
+		return ""
+	}
+
+	// Obligation gate -- annotate and obligation always pass through.
+	obligationExempt := cmd == "annotate" || cmd == "obligation"
+	if !obligationExempt {
+		if block, msg := u.obligationCheck(s); block {
+			u.logCall(sessionID, s.sessionType, cmd, args, msg, start)
+			return msg
+		}
+	}
+
+	var resp string
+	switch cmd {
+	case "obligation":
+		resp = u.handleObligation(s)
+	case "project.stat":
+		resp = u.handleProjectStat(ctx, s)
+	case "recon.tree":
+		resp = u.handleTree(ctx, s, args)
+	case "recon.peek":
+		resp = u.handlePeek(ctx, s, args)
+	case "recon.search":
+		resp = u.handleSearch(ctx, s, args)
+	case "recon.peruse":
+		resp = u.handleRead(ctx, s, args)
+	case "recon.related":
+		resp = u.handleRelated(ctx, s, args)
 	case "annotate":
 		entries := strings.Split(args, "||")
 		type result struct {
@@ -406,136 +461,89 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 			}
 			lines = append(lines, sb.String()+" "+msg)
 		}
-		resp := strings.Join(lines, "\n")
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = strings.Join(lines, "\n")
 	case "commitment":
-		resp := u.handleCommitment(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleCommitment(ctx, s, args)
 	case "commitment.status":
-		resp := u.handleCommitmentStatus(s)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleCommitmentStatus(s)
 	case "tasks.checkpoint":
-		resp := u.handleCheckpoint(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleCheckpoint(ctx, s, args)
 	case "tasks.read":
-		resp := u.handleTasksRead(ctx, s)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleTasksRead(ctx, s)
 	case "tasks.start":
-		resp := u.handleTasksStart(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleTasksStart(ctx, s, args)
 	case "tasks.finish":
-		resp := u.handleTasksFinish(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
-	case "handover":
-		go func() {
-			u.handleHandover(s, args)
-			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
-		}()
-		return ""
-	case "done":
-		go func() {
-			u.handleDone(s)
-			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
-		}()
-		return ""
+		resp = u.handleTasksFinish(ctx, s, args)
 	case "knowledge.save":
-		resp := u.handleKnowledgeSave(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleKnowledgeSave(ctx, s, args)
 	case "knowledge.read":
-		resp := u.handleKnowledgeRead(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleKnowledgeRead(ctx, s, args)
 	case "knowledge.search":
-		resp := u.handleKnowledgeSearch(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleKnowledgeSearch(ctx, s, args)
 	case "knowledge.delete":
-		resp := u.handleKnowledgeDelete(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleKnowledgeDelete(ctx, s, args)
 	case "knowledge.labels":
-		resp := u.handleKnowledgeLabels(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleKnowledgeLabels(ctx, s, args)
 	case "workspace.create":
-		resp := u.handleWorkspaceCreate(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleWorkspaceCreate(ctx, s, args)
 	case "workspace.use":
-		resp := u.handleWorkspaceUse(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleWorkspaceUse(ctx, s, args)
 	case "workspace.requirement.add":
-		resp := u.handleWorkspaceRequirementAdd(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleWorkspaceRequirementAdd(ctx, s, args)
 	case "workspace.list":
-		resp := u.handleWorkspaceList(ctx, s)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleWorkspaceList(ctx, s)
 	case "workspace.search":
-		resp := u.handleWorkspaceSearch(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleWorkspaceSearch(ctx, s, args)
 	case "workspace.delete":
-		resp := u.handleWorkspaceDelete(ctx, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleWorkspaceDelete(ctx, s, args)
 	case "codebase.interim":
 		u.mu.Lock()
 		s.searchCount = 0
 		u.mu.Unlock()
-		resp := u.handleCodebaseInterim(ctx, sessionID, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleCodebaseInterim(ctx, sessionID, s, args)
 	case "codebase.query":
-		resp := u.handleCodebaseQuery(ctx, sessionID, s, args)
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
+		resp = u.handleCodebaseQuery(ctx, sessionID, s, args)
 	case "codebase.ls", "codebase.fl", "codebase.search":
 		if u.codebase == nil {
-			resp := "error: codebase module not available"
-			u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-			return resp
-		}
-		rawPath, err := u.recon.ProjectDir(ctx, s.projectID)
-		var resp string
-		if err != nil {
-			resp = "error: project path unavailable"
+			resp = "error: codebase module not available"
 		} else {
-			projDir := filepath.Join("/projects", filepath.Base(rawPath))
-			switch cmd {
-			case "codebase.ls":
-				resp = u.codebase.Ls(ctx, s.projectID, projDir, args)
-			case "codebase.fl":
-				resp = u.codebase.Files(ctx, s.projectID, projDir, args)
-			case "codebase.search":
-				filePaths := u.recon.ListFilePaths(ctx, s.projectID)
-				resp = u.codebase.Search(ctx, s.projectID, projDir, filePaths, args)
-				if strings.HasPrefix(resp, "note: ") && !u.shouldWarn(s, "search-quotes", 3*time.Minute) {
-					if idx := strings.Index(resp, "\n\n"); idx >= 0 {
-						resp = resp[idx+2:]
+			rawPath, err := u.recon.ProjectDir(ctx, s.projectID)
+			if err != nil {
+				resp = "error: project path unavailable"
+			} else {
+				projDir := filepath.Join("/projects", filepath.Base(rawPath))
+				switch cmd {
+				case "codebase.ls":
+					resp = u.codebase.Ls(ctx, s.projectID, projDir, args)
+				case "codebase.fl":
+					resp = u.codebase.Files(ctx, s.projectID, projDir, args)
+				case "codebase.search":
+					filePaths := u.recon.ListFilePaths(ctx, s.projectID)
+					resp = u.codebase.Search(ctx, s.projectID, projDir, filePaths, args)
+					if strings.HasPrefix(resp, "note: ") && !u.shouldWarn(s, "search-quotes", 3*time.Minute) {
+						if idx := strings.Index(resp, "\n\n"); idx >= 0 {
+							resp = resp[idx+2:]
+						}
 					}
-				}
-				u.mu.Lock()
-				s.searchCount++
-				nudge := s.searchCount == 3
-				u.mu.Unlock()
-				if nudge {
-					resp += "\n\n[lg] tip: codebase.interim <files> + codebase.query may be faster now that you know what's relevant"
+					u.mu.Lock()
+					s.searchCount++
+					nudge := s.searchCount == 3
+					u.mu.Unlock()
+					if nudge {
+						resp += "\n\n[lg] tip: codebase.interim <files> + codebase.query may be faster now that you know what's relevant"
+					}
 				}
 			}
 		}
-		u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
-		return resp
 	}
-	return ""
+
+	u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+
+	if !obligationExempt {
+		if _, suffix := u.obligationCheck(s); suffix != "" {
+			resp += suffix
+		}
+	}
+
+	return resp
 }

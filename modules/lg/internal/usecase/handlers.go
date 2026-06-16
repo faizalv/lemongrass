@@ -279,10 +279,14 @@ func (u *LgUsecase) readOne(ctx context.Context, s *activeSession, ref string) s
 		return "not in semantic map -- use system.read or codebase.search; check recon.tree for coverage"
 	}
 	u.mu.Lock()
-	s.readNodes[filePath+":"+symbol+":"+node.Kind] = readEntry{
+	key := filePath + ":" + symbol + ":" + node.Kind
+	s.readNodes[key] = readEntry{
 		kind:      node.Kind,
 		signature: node.Signature,
 		receiver:  node.Receiver,
+	}
+	if node.Status == "stale" || node.Status == "unexplored" {
+		addObligationLocked(s, key)
 	}
 	u.mu.Unlock()
 	hint := ""
@@ -693,6 +697,26 @@ func (u *LgUsecase) handleKnowledgeDelete(ctx context.Context, s *activeSession,
 	return "deleted: " + key
 }
 
+func (u *LgUsecase) handleObligation(s *activeSession) string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if len(s.obligation) == 0 {
+		return "no obligation"
+	}
+	elapsed := time.Since(s.obligationStart)
+	remaining := 5*time.Minute - elapsed
+	var sb strings.Builder
+	if remaining > 0 {
+		fmt.Fprintf(&sb, "obligation: %d symbol(s) -- annotate within %ds\n", len(s.obligation), int(remaining.Seconds()))
+	} else {
+		fmt.Fprintf(&sb, "obligation: %d symbol(s) -- OVERDUE by %ds\n", len(s.obligation), int(-remaining.Seconds()))
+	}
+	for key := range s.obligation {
+		fmt.Fprintf(&sb, "  #lg.annotate %s:\"description\":nil:nil\n", key)
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
 func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args string) string {
 	filePath, symbol, kind, description, returnType, calls, err := parseAnnotateFormat(args)
 	if err != nil {
@@ -722,6 +746,12 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 	if n == 0 {
 		return "not found: " + symbol + " (" + kind + ")"
 	}
+	u.mu.Lock()
+	delete(s.obligation, key)
+	if len(s.obligation) == 0 {
+		s.obligationStart = time.Time{}
+	}
+	u.mu.Unlock()
 	return "ok"
 }
 

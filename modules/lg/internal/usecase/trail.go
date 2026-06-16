@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/faizalv/lemongrass/bus"
@@ -27,6 +28,12 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 	if s != nil {
 		rel := toRelPath(filePath, u.recon, s.projectID)
 		s.writtenFiles[rel] = true
+		prefix := rel + ":"
+		for key := range s.readNodes {
+			if strings.HasPrefix(key, prefix) {
+				addObligationLocked(s, key)
+			}
+		}
 	}
 	u.mu.Unlock()
 
@@ -70,6 +77,9 @@ func (u *LgUsecase) LogRead(sessionID, filePath string) {
 		key := rel + ":" + node.Symbol + ":" + node.Kind
 		if _, exists := s.readNodes[key]; !exists {
 			s.readNodes[key] = readEntry{kind: node.Kind, signature: node.Signature}
+		}
+		if node.Status == "stale" || node.Status == "unexplored" {
+			addObligationLocked(s, key)
 		}
 	}
 	u.mu.Unlock()
