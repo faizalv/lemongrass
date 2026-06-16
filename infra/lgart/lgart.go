@@ -16,6 +16,7 @@ type File struct {
 	ProjectLabel string           `yaml:"project_label,omitempty"`
 	GitOrigin    string           `yaml:"git_origin,omitempty"`
 	GitUser      string           `yaml:"git_user,omitempty"`
+	EmbedModel   string           `yaml:"embed_model,omitempty"`
 	Knowledge    []KnowledgeEntry `yaml:"knowledge,omitempty"`
 	Nodes        []Node           `yaml:"nodes,omitempty"`
 }
@@ -31,13 +32,17 @@ type Node struct {
 	Symbol      string   `yaml:"symbol"`
 	Kind        string   `yaml:"kind"`
 	Receiver    string   `yaml:"receiver,omitempty"`
+	ContentHash string   `yaml:"content_hash,omitempty"`
+	Branches    []string `yaml:"branches,omitempty"`
 	Description string   `yaml:"description"`
 	ReturnType  string   `yaml:"return_type,omitempty"`
 	DependsOn   []string `yaml:"depends_on,omitempty"`
+	Embedding   []byte   `yaml:"embedding,omitempty"`
 }
 
 type ImportResult struct {
 	NodesImported     int `json:"nodes_imported"`
+	NodesInserted     int `json:"nodes_inserted"`
 	NodesSkipped      int `json:"nodes_skipped"`
 	KnowledgeImported int `json:"knowledge_imported"`
 	KnowledgeSkipped  int `json:"knowledge_skipped"`

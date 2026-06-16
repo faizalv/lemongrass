@@ -70,6 +70,21 @@ func (u *ReconUsecase) GetSyncInterval(ctx context.Context, projectID int64) (st
 	return u.repo.GetSyncInterval(ctx, projectID)
 }
 
+func (u *ReconUsecase) DeleteExpiredOrphans(ctx context.Context) {
+	cutoff := time.Now().Add(-30 * 24 * time.Hour)
+	_ = u.repo.DeleteExpiredOrphans(ctx, cutoff)
+}
+
+func (u *ReconUsecase) Prune(ctx context.Context, projectID int64, orphanDays int) (superseded, orphans int, err error) {
+	superseded, err = u.repo.PruneSuperseded(ctx, projectID)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-time.Duration(orphanDays) * 24 * time.Hour)
+	orphans, err = u.repo.PruneOrphans(ctx, projectID, cutoff)
+	return
+}
+
 func intervalDuration(s string) time.Duration {
 	switch s {
 	case "5m":

@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -126,19 +128,20 @@ func (u *ReconUsecase) ExportArtifacts(ctx context.Context, projectID int64, ori
 	}
 
 	f := &lgart.File{
-		Version:      1,
+		Version:      2,
 		GeneratedBy:  originID,
 		ExportedAt:   time.Now().UTC(),
 		ProjectLabel: projectLabel,
 		GitOrigin:    gitOrigin,
 		GitUser:      gitUser,
+		EmbedModel:   u.embed.Model(ctx),
 	}
 
 	for _, n := range nodes {
 		if n.Description == "" {
 			continue
 		}
-		f.Nodes = append(f.Nodes, lgart.Node{
+		node := lgart.Node{
 			File:        n.FilePath,
 			Symbol:      n.Symbol,
 			Kind:        n.Kind,
@@ -146,7 +149,12 @@ func (u *ReconUsecase) ExportArtifacts(ctx context.Context, projectID int64, ori
 			Description: n.Description,
 			ReturnType:  n.ReturnType,
 			DependsOn:   n.Calls,
-		})
+		}
+		if n.ContentHash != "" {
+			node.ContentHash = n.ContentHash
+			node.Branches = n.Branches
+		}
+		f.Nodes = append(f.Nodes, node)
 	}
 
 	for _, k := range knowledge {
@@ -170,29 +178,14 @@ func (u *ReconUsecase) ImportArtifacts(ctx context.Context, projectID int64, f *
 	}
 
 	var result lgart.ImportResult
+	localModel := u.embed.Model(ctx)
 
 	for _, n := range f.Nodes {
-		if !force {
-			existing, err := u.repo.GetNode(ctx, projectID, n.File, n.Symbol, n.Kind)
-			if err == nil && existing.Description != "" {
-				result.NodesSkipped++
-				continue
-			}
+		if n.ContentHash != "" {
+			u.importV2Node(ctx, projectID, f, n, &result, force, localModel)
+		} else {
+			u.importV1Node(ctx, projectID, n, &result, force)
 		}
-		imported, err := u.repo.AnnotateNode(ctx, projectID, n.File, n.Symbol, n.Kind, n.Description, n.ReturnType, n.DependsOn)
-		if err != nil || imported == 0 {
-			continue
-		}
-		result.NodesImported++
-		u.annotating.Add(1)
-		go func(filePath, symbol, desc string) {
-			defer u.annotating.Add(-1)
-			vec, err := u.embed.Embed(context.Background(), desc)
-			if err != nil {
-				return
-			}
-			u.repo.SetEmbedding(context.Background(), projectID, filePath, symbol, vec)
-		}(n.File, n.Symbol, n.Description)
 	}
 
 	for _, k := range f.Knowledge {
@@ -213,4 +206,118 @@ func (u *ReconUsecase) ImportArtifacts(ctx context.Context, projectID int64, f *
 	}
 
 	return result, nil
+}
+
+func (u *ReconUsecase) importV2Node(ctx context.Context, projectID int64, f *lgart.File, n lgart.Node, result *lgart.ImportResult, force bool, localModel string) {
+	existing, err := u.repo.GetNodeByHash(ctx, projectID, n.File, n.Symbol, n.Kind, n.ContentHash)
+
+	if err != nil {
+		// Not found -- INSERT with placeholder structurals
+		lang := langFromExt(n.File)
+		branches := n.Branches
+		if len(branches) == 0 {
+			branches = []string{}
+		}
+		if err2 := u.repo.InsertLgartNode(ctx, projectID, n.File, n.Symbol, n.Kind, lang, n.ContentHash, n.Description, n.ReturnType, n.DependsOn, branches); err2 != nil {
+			return
+		}
+		result.NodesInserted++
+		u.triggerEmbed(ctx, projectID, n, f.EmbedModel, localModel, true)
+		return
+	}
+
+	if existing.Status == "explored" && !force {
+		result.NodesSkipped++
+		return
+	}
+
+	// Annotate in place (unexplored, or explored+force)
+	rows, err := u.repo.AnnotateNodeByHash(ctx, projectID, n.File, n.Symbol, n.Kind, n.ContentHash, n.Description, n.ReturnType, n.DependsOn)
+	if err != nil || rows == 0 {
+		return
+	}
+	result.NodesImported++
+	u.triggerEmbed(ctx, projectID, n, f.EmbedModel, localModel, false)
+}
+
+func (u *ReconUsecase) importV1Node(ctx context.Context, projectID int64, n lgart.Node, result *lgart.ImportResult, force bool) {
+	all, err := u.repo.FindNodesBySymbol(ctx, projectID, n.File, n.Symbol)
+	if err != nil || len(all) != 1 {
+		// Ambiguous or not found -- skip
+		return
+	}
+	existing := all[0]
+	if existing.Status == "explored" && !force {
+		result.NodesSkipped++
+		return
+	}
+	rows, err := u.repo.AnnotateNode(ctx, projectID, n.File, n.Symbol, n.Kind, n.Description, n.ReturnType, n.DependsOn)
+	if err != nil || rows == 0 {
+		return
+	}
+	result.NodesImported++
+	u.annotating.Add(1)
+	go func(filePath, symbol, desc string) {
+		defer u.annotating.Add(-1)
+		vec, err := u.embed.Embed(context.Background(), desc)
+		if err != nil {
+			return
+		}
+		u.repo.SetEmbedding(context.Background(), projectID, filePath, symbol, vec)
+	}(n.File, n.Symbol, n.Description)
+}
+
+func (u *ReconUsecase) triggerEmbed(ctx context.Context, projectID int64, n lgart.Node, fileModel, localModel string, isInsert bool) {
+	if fileModel != "" && localModel != "" && fileModel == localModel && len(n.Embedding) > 0 {
+		vec := bytesToFloat32(n.Embedding)
+		if len(vec) > 0 {
+			u.annotating.Add(1)
+			go func() {
+				defer u.annotating.Add(-1)
+				u.repo.SetNodeEmbeddingByHash(context.Background(), projectID, n.File, n.Symbol, n.Kind, n.ContentHash, vec)
+			}()
+			return
+		}
+	}
+	u.annotating.Add(1)
+	go func(filePath, symbol, kind, hash, desc string) {
+		defer u.annotating.Add(-1)
+		vec, err := u.embed.Embed(context.Background(), desc)
+		if err != nil {
+			return
+		}
+		u.repo.SetNodeEmbeddingByHash(context.Background(), projectID, filePath, symbol, kind, hash, vec)
+	}(n.File, n.Symbol, n.Kind, n.ContentHash, n.Description)
+}
+
+func langFromExt(filePath string) string {
+	switch {
+	case strings.HasSuffix(filePath, ".go"):
+		return "go"
+	case strings.HasSuffix(filePath, ".ts"), strings.HasSuffix(filePath, ".tsx"):
+		return "typescript"
+	case strings.HasSuffix(filePath, ".js"), strings.HasSuffix(filePath, ".jsx"):
+		return "javascript"
+	case strings.HasSuffix(filePath, ".py"):
+		return "python"
+	case strings.HasSuffix(filePath, ".rb"):
+		return "ruby"
+	case strings.HasSuffix(filePath, ".java"):
+		return "java"
+	case strings.HasSuffix(filePath, ".rs"):
+		return "rust"
+	default:
+		return "unknown"
+	}
+}
+
+func bytesToFloat32(b []byte) []float32 {
+	if len(b)%4 != 0 {
+		return nil
+	}
+	v := make([]float32, len(b)/4)
+	for i := range v {
+		v[i] = math.Float32frombits(binary.LittleEndian.Uint32(b[i*4:]))
+	}
+	return v
 }

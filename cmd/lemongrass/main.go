@@ -33,6 +33,8 @@ func main() {
 		cmdLanguage(os.Args[2:])
 	case "artifacts":
 		cmdArtifacts(os.Args[2:])
+	case "map":
+		cmdMap(os.Args[2:])
 	case "version":
 		fmt.Println(version.Version)
 	case "completion":
@@ -66,6 +68,7 @@ COMMANDS
   artifacts export [path]     Export knowledge and annotations to a .lgart file
   artifacts import [flags] <path>  Import a .lgart file (--force, --dry-run)
   artifacts inspect <path>    Inspect a .lgart file for content and warnings
+  map prune [--orphan-days N] Remove superseded and orphaned map entries
   completion <bash|zsh|fish>  Print shell completion script
   version                     Print version
   update                      Update to the latest release

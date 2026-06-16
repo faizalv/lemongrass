@@ -64,6 +64,7 @@ func (r *Recon) StartHTTPRouter(rg *gin.RouterGroup) {
 	g.GET("/projects/:id/export", r.h.Export)
 	g.POST("/projects/:id/import", r.h.Import)
 	g.POST("/projects/:id/import/overlap", r.h.ImportOverlap)
+	g.POST("/projects/:id/prune", r.h.Prune)
 }
 
 func (r *Recon) StartScheduler(ctx context.Context) {
@@ -71,8 +72,10 @@ func (r *Recon) StartScheduler(ctx context.Context) {
 	go func() {
 		ticker60 := time.NewTicker(60 * time.Second)
 		ticker5 := time.NewTicker(5 * time.Second)
+		ticker24h := time.NewTicker(24 * time.Hour)
 		defer ticker60.Stop()
 		defer ticker5.Stop()
+		defer ticker24h.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -81,6 +84,8 @@ func (r *Recon) StartScheduler(ctx context.Context) {
 				r.uc.TickScheduler(ctx)
 			case <-ticker5.C:
 				r.uc.TickGitPoller(ctx)
+			case <-ticker24h.C:
+				r.uc.DeleteExpiredOrphans(ctx)
 			}
 		}
 	}()

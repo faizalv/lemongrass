@@ -21,6 +21,8 @@ type SemanticNode struct {
 	ReturnType  string
 	ContentHash string
 	Calls       []string
+	Branches    []string
+	OrphanedAt  *time.Time
 	ExploredAt  *time.Time
 	CreatedAt   time.Time
 }

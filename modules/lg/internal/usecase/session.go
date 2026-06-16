@@ -3,6 +3,8 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 )
 
 func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args string, blocking bool) string {
+	branch := u.resolveProjectBranch(projectID)
 	u.mu.Lock()
 	if u.sessions[sessionID] == nil {
 		u.sessions[sessionID] = &activeSession{
@@ -17,6 +20,7 @@ func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args 
 			projectID:      projectID,
 			projectAlias:   fmt.Sprintf("project-%d", projectID),
 			sessionType:    "headless",
+			currentBranch:  branch,
 			checkpointCh:   make(chan checkpointResult, 1),
 			readNodes:      make(map[string]readEntry),
 			writtenFiles:   make(map[string]bool),
@@ -32,6 +36,7 @@ func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args 
 
 func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking bool) string {
 	key := fmt.Sprintf("host:%d", projectID)
+	branch := u.resolveProjectBranch(projectID)
 	u.mu.Lock()
 	if u.sessions[key] == nil {
 		u.sessions[key] = &activeSession{
@@ -39,6 +44,7 @@ func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking 
 			projectID:      projectID,
 			projectAlias:   fmt.Sprintf("project-%d", projectID),
 			sessionType:    "host",
+			currentBranch:  branch,
 			checkpointCh:   make(chan checkpointResult, 1),
 			readNodes:      make(map[string]readEntry),
 			writtenFiles:   make(map[string]bool),
@@ -53,6 +59,7 @@ func (u *LgUsecase) HandleByProject(projectID int64, cmd, args string, blocking 
 }
 
 func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType string, projectID int64, session ptyclient.Session) {
+	branch := u.resolveProjectBranch(projectID)
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.sessions[workspaceID] = &activeSession{
@@ -61,6 +68,7 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 		projectID:      projectID,
 		projectAlias:   projectAlias,
 		sessionType:    sessionType,
+		currentBranch:  branch,
 		ptySession:     session,
 		checkpointCh:   make(chan checkpointResult, 1),
 		readNodes:      make(map[string]readEntry),
@@ -71,6 +79,26 @@ func (u *LgUsecase) RegisterSession(workspaceID, projectAlias, sessionType strin
 		obligation:     make(map[string]time.Time),
 	}
 	u.lastActivity[workspaceID] = time.Now()
+}
+
+func (u *LgUsecase) resolveProjectBranch(projectID int64) string {
+	if u.recon == nil {
+		return "init"
+	}
+	rawPath, err := u.recon.ProjectDir(context.Background(), projectID)
+	if err != nil {
+		return "init"
+	}
+	dir := "/projects/" + filepath.Base(rawPath)
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return "init"
+	}
+	b := strings.TrimSpace(string(out))
+	if b == "" {
+		return "init"
+	}
+	return b
 }
 
 func (u *LgUsecase) RespondToCheckpoint(workspaceID string, rejections map[string]string) error {

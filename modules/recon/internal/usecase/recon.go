@@ -21,7 +21,8 @@ import (
 type repo interface {
 	ProjectDir(ctx context.Context, projectID int64) (string, error)
 	HasNodes(ctx context.Context, projectID int64) (bool, error)
-	UpsertNodes(ctx context.Context, nodes []entity.SemanticNode) error
+	UpsertNodes(ctx context.Context, nodes []entity.SemanticNode, branch string) error
+	InsertLgartNode(ctx context.Context, projectID int64, filePath, symbol, kind, language, contentHash, description, returnType string, calls []string, branches []string) error
 	MarkRemoved(ctx context.Context, projectID int64, parsedPaths []string, ignoredExisting []string) error
 	DeleteByProject(ctx context.Context, projectID int64) error
 	ListNodes(ctx context.Context, projectID int64, language, kind, status string) ([]entity.SemanticNode, error)
@@ -33,12 +34,15 @@ type repo interface {
 	GetSyncInterval(ctx context.Context, projectID int64) (string, error)
 	UpdateSyncInterval(ctx context.Context, projectID int64, interval string) error
 	GetNode(ctx context.Context, projectID int64, filePath, symbol, kind string) (entity.SemanticNode, error)
+	GetNodeByHash(ctx context.Context, projectID int64, filePath, symbol, kind, contentHash string) (entity.SemanticNode, error)
 	FindNodesBySymbol(ctx context.Context, projectID int64, filePath, symbol string) ([]entity.SemanticNode, error)
 	AnnotateNode(ctx context.Context, projectID int64, filePath, symbol, kind, description, returnType string, calls []string) (int64, error)
+	AnnotateNodeByHash(ctx context.Context, projectID int64, filePath, symbol, kind, contentHash, description, returnType string, calls []string) (int64, error)
 	ListByPathDirect(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, []entity.SubdirSummary, error)
 	ListAllNodesByPrefix(ctx context.Context, projectID int64, pathPrefix string) ([]entity.SemanticNode, error)
 	ListFileNodes(ctx context.Context, projectID int64, filePath string) ([]entity.SemanticNode, error)
 	SetEmbedding(ctx context.Context, projectID int64, filePath, symbol string, embedding []float32) error
+	SetNodeEmbeddingByHash(ctx context.Context, projectID int64, filePath, symbol, kind, contentHash string, embedding []float32) error
 	GetTreeCoverage(ctx context.Context, projectID int64, pathPrefix string) ([]entity.DirectoryCoverage, error)
 	ListUnembedded(ctx context.Context, limit int) ([]entity.SemanticNode, error)
 	SearchByVector(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.SemanticNode, error)
@@ -47,10 +51,17 @@ type repo interface {
 	GetProjectCoverage(ctx context.Context, projectID int64) (total, explored int, err error)
 	GetLastSyncedCommit(ctx context.Context, projectID int64) (string, error)
 	SetLastSyncedCommit(ctx context.Context, projectID int64, commit string) error
+	GetLastSyncedBranch(ctx context.Context, projectID int64) (string, error)
+	SetLastSyncedBranch(ctx context.Context, projectID int64, branch string) error
+	BulkStampBranch(ctx context.Context, projectID int64, oldBranch, newBranch string) error
+	BulkStampBranchForFiles(ctx context.Context, projectID int64, oldBranch, newBranch string, excludePaths []string) error
+	DeleteExpiredOrphans(ctx context.Context, olderThan time.Time) error
 	DeleteNodesByFilePaths(ctx context.Context, projectID int64, filePaths []string) error
 	GetEmbedPending(ctx context.Context, projectID int64) (pending, total int, err error)
 	GetStaleCount(ctx context.Context, projectID int64) (int, error)
 	CheckNodeOverlap(ctx context.Context, projectID int64, keys []string) (int, error)
+	PruneSuperseded(ctx context.Context, projectID int64) (int, error)
+	PruneOrphans(ctx context.Context, projectID int64, olderThan time.Time) (int, error)
 	SaveKnowledge(ctx context.Context, projectID int64, key, content string, embedding []float32, labels []string) error
 	ReadKnowledge(ctx context.Context, projectID int64, key string) (string, error)
 	SearchKnowledge(ctx context.Context, projectID int64, embedding []float32, limit int) ([]entity.KnowledgeEntry, error)
@@ -120,6 +131,10 @@ func (u *ReconUsecase) Embed(ctx context.Context, text string) ([]float32, error
 	return u.embed.Embed(ctx, text)
 }
 
+func (u *ReconUsecase) EmbedModel(ctx context.Context) string {
+	return u.embed.Model(ctx)
+}
+
 func (u *ReconUsecase) ProjectDir(ctx context.Context, projectID int64) (string, error) {
 	return u.repo.ProjectDir(ctx, projectID)
 }
@@ -145,7 +160,8 @@ func (u *ReconUsecase) Map(ctx context.Context, projectID int64, dir string, ign
 		return err
 	}
 	nodes := u.NodesToInsert(projectID, results)
-	if err := u.repo.UpsertNodes(ctx, nodes); err != nil {
+	branch := resolveBranch(dir)
+	if err := u.repo.UpsertNodes(ctx, nodes, branch); err != nil {
 		return err
 	}
 	return u.repo.MarkRemoved(ctx, projectID, u.ActiveFilePaths(results), ignoredExisting)

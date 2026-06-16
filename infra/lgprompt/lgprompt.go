@@ -24,7 +24,7 @@ const WorkbenchDecisionTree = `When to reach for each tool:
 
 const EchoRule = `Call #lg.echo <message> at each major step. No quotes around message:`
 
-const CmdReconSearch = `#lg.recon.search <query> -- vector search across annotated nodes`
+const CmdReconSearch = `#lg.recon.search <query> -- vector search across the full map; all nodes have signature embeddings, not just explored ones`
 const CmdReconPeek = `#lg.recon.peek <dir> -- symbols in a directory (non-recursive); pass file path for that file's symbols`
 const CmdReconPeruse = `#lg.recon.peruse <path:symbol:kind> -- symbol body from semantic map; counts toward annotation gate; | within any field expands that field: path:sym1|sym2:kind reads both syms from same path; || separates independent full refs: path1:sym1:kind1||path2:sym2:kind2`
 const CmdReconRelated = `#lg.recon.related <path:symbol:kind> -- callees and callers for an annotated symbol`
@@ -62,6 +62,8 @@ func BuildSkillContent() string {
 	return strings.Join([]string{
 		"Lemongrass is law. PASM (Progressive Annotated Semantic Map) is the ideology -- a live symbol map that grows with every annotation, persisting across all sessions and every model that follows. Leave it better than you found it.",
 		"",
+		"You are responsible for working effectively -- use every bespoke tool lemongrass provides.",
+		"",
 		"ANNOTATION OBLIGATION -- automatic, enforced, no exceptions:",
 		"  Every symbol you peruse that is unexplored or stale enters your obligation.",
 		"  Every file you write pushes all symbols you read from it into obligation.",
@@ -84,11 +86,13 @@ func BuildSkillContent() string {
 		"  Where things? -> #lg.recon.peek on areas that seem relevant, or browse with #lg.codebase.ls",
 		"  Form a picture of the project before you act.",
 		"",
-		"USE CASES",
+		"TOOL SELECTION -- pick deliberately, not habitually:",
+		"  recon.search       don't know what you're looking for -- discover first",
+		"  interim+query      know what to load -- fastest path to an answer",
+		"  codebase.search    know the symbol -- find references or definitions",
 		"",
 		"Entering an unfamiliar area:",
-		"  recon.peek -> recon.search -> recon.peruse -> Read if needed",
-		"  recon.peek codebase.search | recon.search -> codebase.interim -> codebase.query. PREFERABLE, MOST TIME and TOKEN EFFECTIVE",
+		"  recon.search -> recon.peek -> recon.peruse -> Read if needed",
 		"",
 		"After any modification:",
 		" #lg.annotate <path:sym:kind>:\"description\":return_type_or_nil:deps [|| ref2 || ...]",
@@ -99,7 +103,7 @@ func BuildSkillContent() string {
 		"  #lg.project.stat                                  annotation coverage + device tier + tooling advice",
 		"  #lg.recon.tree [path]                             coverage map",
 		"  #lg.recon.peek <dir|file>                         symbols in a dir or file; methods shown as Receiver.Method",
-		"  #lg.recon.search <query>                          vector search across annotated nodes",
+		"  #lg.recon.search <query>                          vector search across the full map; all nodes have signature embeddings, not just explored ones",
 		"  #lg.recon.peruse <path:symbol:kind>               symbol body; pipe-separate: a|b|c; takes bare symbol name",
 		"  #lg.recon.related <path:symbol:kind>              callees and callers",
 		"  #lg.codebase.ls [path]                            directory listing with sizes",

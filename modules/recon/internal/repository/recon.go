@@ -38,6 +38,8 @@ type nodeRecord struct {
 	ReturnType  *string        `db:"return_type"`
 	ContentHash *string        `db:"content_hash"`
 	Calls       pq.StringArray `db:"calls"`
+	Branches    pq.StringArray `db:"branches"`
+	OrphanedAt  *time.Time     `db:"orphaned_at"`
 	ExploredAt  *time.Time     `db:"explored_at"`
 	CreatedAt   time.Time      `db:"created_at"`
 }
@@ -53,6 +55,10 @@ func toEntity(r nodeRecord) entity.SemanticNode {
 	calls := []string(r.Calls)
 	if calls == nil {
 		calls = []string{}
+	}
+	branches := []string(r.Branches)
+	if branches == nil {
+		branches = []string{}
 	}
 	return entity.SemanticNode{
 		ID:          r.ID,
@@ -73,6 +79,8 @@ func toEntity(r nodeRecord) entity.SemanticNode {
 		ReturnType:  deref(r.ReturnType),
 		ContentHash: deref(r.ContentHash),
 		Calls:       calls,
+		Branches:    branches,
+		OrphanedAt:  r.OrphanedAt,
 		ExploredAt:  r.ExploredAt,
 		CreatedAt:   r.CreatedAt,
 	}

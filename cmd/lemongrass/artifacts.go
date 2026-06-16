@@ -184,7 +184,16 @@ func cmdArtifactsImport(args []string) {
 	}
 
 	if dryRun {
-		fmt.Printf("dry run: would import up to %d nodes, %d knowledge entries\n", len(f.Nodes), len(f.Knowledge))
+		withHash := 0
+		for _, n := range f.Nodes {
+			if n.ContentHash != "" {
+				withHash++
+			}
+		}
+		withoutHash := len(f.Nodes) - withHash
+		fmt.Printf("dry run:\n")
+		fmt.Printf("  would process  %d nodes (%d with content_hash, %d v1-matched)\n", len(f.Nodes), withHash, withoutHash)
+		fmt.Printf("  would process  %d knowledge entries\n", len(f.Knowledge))
 		return
 	}
 
@@ -217,8 +226,13 @@ func cmdArtifactsImport(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("imported %d nodes, %d knowledge entries (%d nodes skipped, %d knowledge skipped)\n",
-		result.NodesImported, result.KnowledgeImported, result.NodesSkipped, result.KnowledgeSkipped)
+	if result.NodesInserted > 0 {
+		fmt.Printf("imported %d nodes, inserted %d nodes, %d knowledge entries (%d nodes skipped, %d knowledge skipped)\n",
+			result.NodesImported, result.NodesInserted, result.KnowledgeImported, result.NodesSkipped, result.KnowledgeSkipped)
+	} else {
+		fmt.Printf("imported %d nodes, %d knowledge entries (%d nodes skipped, %d knowledge skipped)\n",
+			result.NodesImported, result.KnowledgeImported, result.NodesSkipped, result.KnowledgeSkipped)
+	}
 }
 
 func cmdArtifactsInspect(args []string) {
@@ -248,12 +262,30 @@ func cmdArtifactsInspect(args []string) {
 	if f.GitUser != "" {
 		fmt.Printf("User:     %s\n", f.GitUser)
 	}
+	fmt.Printf("Version:  %d\n", f.Version)
 	fmt.Printf("Exported: %s\n", f.ExportedAt.UTC().Format(time.RFC3339))
+	if f.EmbedModel != "" {
+		fmt.Printf("Embed:    %s\n", f.EmbedModel)
+	}
 	fmt.Println()
 
 	fileCounts := map[string]int{}
+	branchCounts := map[string]int{}
+	withHash, withHashEmbed, withoutHash := 0, 0, 0
 	for _, n := range f.Nodes {
 		fileCounts[n.File]++
+		if n.ContentHash != "" {
+			if len(n.Embedding) > 0 {
+				withHashEmbed++
+			} else {
+				withHash++
+			}
+			for _, b := range n.Branches {
+				branchCounts[b]++
+			}
+		} else {
+			withoutHash++
+		}
 	}
 	dirCounts := map[string]int{}
 	for path, count := range fileCounts {
@@ -267,12 +299,23 @@ func cmdArtifactsInspect(args []string) {
 	topDirs := topN(dirCounts, 4)
 
 	fmt.Printf("Nodes:     %d across %d files\n", len(f.Nodes), len(fileCounts))
+	if f.Version >= 2 {
+		fmt.Printf("  v2 breakdown: %d hash+embed, %d hash only, %d without hash\n", withHashEmbed, withHash, withoutHash)
+	}
 	if len(topDirs) > 0 {
 		parts := make([]string, len(topDirs))
 		for i, d := range topDirs {
 			parts[i] = fmt.Sprintf("%s (%d)", d.key, d.val)
 		}
 		fmt.Printf("  Top dirs: %s\n", strings.Join(parts, "  "))
+	}
+	if len(branchCounts) > 0 {
+		topBranches := topN(branchCounts, 5)
+		parts := make([]string, len(topBranches))
+		for i, b := range topBranches {
+			parts[i] = fmt.Sprintf("%s (%d)", b.key, b.val)
+		}
+		fmt.Printf("  Branches: %s\n", strings.Join(parts, "  "))
 	}
 
 	labelCounts := map[string]int{}
@@ -293,6 +336,10 @@ func cmdArtifactsInspect(args []string) {
 	fmt.Println()
 
 	var warnings []string
+
+	if f.Version >= 2 && withoutHash > 0 {
+		warnings = append(warnings, fmt.Sprintf("[missing-hash] %d nodes in a v2 file have no content_hash -- will be matched as v1 entries on import", withoutHash))
+	}
 
 	injectionPhrases := []string{
 		"ignore previous", "you are now", "your new instructions",

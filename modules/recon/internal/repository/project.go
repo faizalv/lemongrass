@@ -47,3 +47,19 @@ func (r *ReconRepository) SetLastSyncedCommit(ctx context.Context, projectID int
 		`UPDATE lg_projects SET last_synced_commit = $1 WHERE id = $2`, commit, projectID)
 	return err
 }
+
+func (r *ReconRepository) GetLastSyncedBranch(ctx context.Context, projectID int64) (string, error) {
+	var branch sql.NullString
+	err := r.db.QueryRowContext(ctx,
+		`SELECT last_synced_branch FROM lg_projects WHERE id = $1`, projectID).Scan(&branch)
+	if err != nil {
+		return "", err
+	}
+	return branch.String, nil
+}
+
+func (r *ReconRepository) SetLastSyncedBranch(ctx context.Context, projectID int64, branch string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE lg_projects SET last_synced_branch = $1 WHERE id = $2`, branch, projectID)
+	return err
+}

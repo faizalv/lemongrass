@@ -10,6 +10,8 @@ import (
 
 const defaultURL = "http://lg-embed:8080"
 
+const DefaultModel = "intfloat/e5-base"
+
 type Client struct {
 	url        string
 	httpClient *http.Client
@@ -17,6 +19,28 @@ type Client struct {
 
 func New() *Client {
 	return &Client{url: defaultURL, httpClient: &http.Client{}}
+}
+
+func (c *Client) Model(ctx context.Context) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url+"/model", nil)
+	if err != nil {
+		return DefaultModel
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return DefaultModel
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return DefaultModel
+	}
+	var result struct {
+		Model string `json:"model"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil || result.Model == "" {
+		return DefaultModel
+	}
+	return result.Model
 }
 
 func (c *Client) Embed(ctx context.Context, text string) ([]float32, error) {

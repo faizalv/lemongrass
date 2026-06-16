@@ -98,7 +98,7 @@ func (u *ReconUsecase) Sync(ctx context.Context, projectID int64, dir string) er
 
 // MapFiles re-parses only the listed file paths and upserts the resulting nodes.
 // Nodes for paths that produce no output (deleted files) are removed.
-func (u *ReconUsecase) MapFiles(ctx context.Context, projectID int64, dir string, paths []string) error {
+func (u *ReconUsecase) MapFiles(ctx context.Context, projectID int64, dir string, paths []string, branch string) error {
 	ig := loadIgnore(dir)
 	var filtered []string
 	for _, p := range paths {
@@ -124,7 +124,7 @@ func (u *ReconUsecase) MapFiles(ctx context.Context, projectID int64, dir string
 	}
 
 	if len(allNodes) > 0 {
-		if err := u.repo.UpsertNodes(ctx, allNodes); err != nil {
+		if err := u.repo.UpsertNodes(ctx, allNodes, branch); err != nil {
 			return err
 		}
 	}
@@ -147,6 +147,9 @@ func (u *ReconUsecase) MapFiles(ctx context.Context, projectID int64, dir string
 
 // SyncGit uses git diff to detect changed files and re-maps only those.
 // Falls back to full Sync if the directory is not a git repository.
+// On branch switch, applies a two-tier strategy:
+//   - same HEAD tip: bulk-stamp all nodes with the new branch, no rescan
+//   - different HEAD tips: bulk-stamp unchanged files + rescan only the delta
 func (u *ReconUsecase) SyncGit(ctx context.Context, projectID int64, dir string) error {
 	head, err := gitCmd(dir, "rev-parse", "HEAD")
 	if err != nil {
@@ -154,7 +157,39 @@ func (u *ReconUsecase) SyncGit(ctx context.Context, projectID int64, dir string)
 	}
 	head = strings.TrimSpace(head)
 
+	currentBranch := resolveBranch(dir)
 	lastCommit, _ := u.repo.GetLastSyncedCommit(ctx, projectID)
+	lastBranch, _ := u.repo.GetLastSyncedBranch(ctx, projectID)
+
+	if lastBranch != "" && currentBranch != lastBranch {
+		if lastCommit != "" && lastCommit == head {
+			if err := u.repo.BulkStampBranch(ctx, projectID, lastBranch, currentBranch); err != nil {
+				return err
+			}
+		} else if lastCommit != "" {
+			changedSet := make(map[string]bool)
+			collectGitPaths(changedSet, dir, "diff", "--name-only", lastCommit, head)
+			changed := make([]string, 0, len(changedSet))
+			for p := range changedSet {
+				changed = append(changed, p)
+			}
+			if err := u.repo.BulkStampBranchForFiles(ctx, projectID, lastBranch, currentBranch, changed); err != nil {
+				return err
+			}
+			if len(changed) > 0 {
+				if err := u.MapFiles(ctx, projectID, dir, changed, currentBranch); err != nil {
+					return err
+				}
+			}
+		} else {
+			if err := u.Map(ctx, projectID, dir, nil); err != nil {
+				return err
+			}
+		}
+		_ = u.repo.SetLastSyncedBranch(ctx, projectID, currentBranch)
+		_ = u.repo.SetLastSyncedCommit(ctx, projectID, head)
+		return nil
+	}
 
 	pathSet := make(map[string]bool)
 	collectGitPaths(pathSet, dir, "diff", "--name-only")
@@ -166,6 +201,9 @@ func (u *ReconUsecase) SyncGit(ctx context.Context, projectID int64, dir string)
 	if err := u.repo.SetLastSyncedCommit(ctx, projectID, head); err != nil {
 		return err
 	}
+	if lastBranch == "" {
+		_ = u.repo.SetLastSyncedBranch(ctx, projectID, currentBranch)
+	}
 
 	if len(pathSet) == 0 {
 		return nil
@@ -175,7 +213,7 @@ func (u *ReconUsecase) SyncGit(ctx context.Context, projectID int64, dir string)
 	for p := range pathSet {
 		paths = append(paths, p)
 	}
-	if err := u.MapFiles(ctx, projectID, dir, paths); err != nil {
+	if err := u.MapFiles(ctx, projectID, dir, paths, currentBranch); err != nil {
 		return err
 	}
 	if cached, err := u.repo.ListFilePaths(ctx, projectID); err == nil {
@@ -222,6 +260,20 @@ func (u *ReconUsecase) TickGitPoller(ctx context.Context) {
 		return
 	}
 	u.ActivateGitSync(activeID)
+}
+
+// resolveBranch returns the current git branch name.
+// Returns "HEAD" for detached HEAD state, "init" if git is unavailable.
+func resolveBranch(dir string) string {
+	out, err := gitCmd(dir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "init"
+	}
+	b := strings.TrimSpace(out)
+	if b == "" {
+		return "init"
+	}
+	return b
 }
 
 func hashFile(path string) (string, error) {

@@ -104,6 +104,7 @@ type activeSession struct {
 	projectID      int64
 	projectAlias   string
 	sessionType    string
+	currentBranch  string
 	ptySession     ptyclient.Session
 	checkpointCh   chan checkpointResult
 	readNodes      map[string]readEntry   // "path:symbol:kind" -> entry
@@ -176,8 +177,7 @@ func addObligationLocked(s *activeSession, key string) {
 
 // obligationCheck returns a block signal and/or suffix message based on obligation state.
 // Returns (true, blockMsg) when past the 5-min deadline.
-// Returns (false, suffixMsg) when past the halfway warning threshold.
-// Returns (false, "") when no obligation or within safe window.
+// Returns (false, suffixMsg) on every call while obligation is active.
 func (u *LgUsecase) obligationCheck(s *activeSession) (block bool, msg string) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -190,10 +190,7 @@ func (u *LgUsecase) obligationCheck(s *activeSession) (block bool, msg string) {
 	if remaining <= 0 {
 		return true, fmt.Sprintf("[obligation] blocked: %d symbol(s) need annotation -- #lg.obligation", n)
 	}
-	if elapsed >= 2*time.Minute+30*time.Second {
-		return false, fmt.Sprintf("\n\n[obligation] %d symbol(s) due in %ds -- #lg.obligation", n, int(remaining.Seconds()))
-	}
-	return false, ""
+	return false, fmt.Sprintf("\n[obligation] %d symbol(s) -- %ds remaining", n, int(remaining.Seconds()))
 }
 
 func (u *LgUsecase) GetSessionActivity(workspaceID string) (lastAt time.Time, idleSec int, echoes []entity.EchoMessage, active bool) {
@@ -348,6 +345,8 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		if s != nil {
 			u.mu.Lock()
 			s.readNodes = make(map[string]readEntry)
+			s.obligation = make(map[string]time.Time)
+			s.obligationStart = time.Time{}
 			u.mu.Unlock()
 		}
 		return "ok"
@@ -388,8 +387,8 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		return ""
 	}
 
-	// Obligation gate -- annotate and obligation always pass through.
-	obligationExempt := cmd == "annotate" || cmd == "obligation"
+	// Obligation gate -- annotate, obligation, and recon.peruse always pass through.
+	obligationExempt := cmd == "annotate" || cmd == "obligation" || cmd == "recon.peruse"
 	if !obligationExempt {
 		if block, msg := u.obligationCheck(s); block {
 			u.logCall(sessionID, s.sessionType, cmd, args, msg, start)

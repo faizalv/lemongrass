@@ -275,3 +275,23 @@ func (h *ReconHandler) GetLgIgnore(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"patterns": patterns})
 }
+
+func (h *ReconHandler) Prune(c *gin.Context) {
+	projectID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+	orphanDays := 30
+	if s := c.Query("orphan_days"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			orphanDays = n
+		}
+	}
+	superseded, orphans, err := h.uc.Prune(c.Request.Context(), projectID, orphanDays)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"superseded": superseded, "orphans": orphans})
+}
