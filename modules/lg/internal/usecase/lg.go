@@ -96,6 +96,7 @@ type readEntry struct {
 	kind      string
 	signature string
 	receiver  string
+	readAt    time.Time
 }
 
 type activeSession struct {
@@ -116,6 +117,7 @@ type activeSession struct {
 	warnedAt          map[string]time.Time   // warning kind -> last fire time
 	obligation        map[string]time.Time   // "path:symbol:kind" -> when added; symbols needing annotation
 	obligationStart   time.Time              // when first symbol entered obligation (zero = no obligation)
+	lastPersistedAt   time.Time
 }
 
 type LgUsecase struct {
@@ -537,6 +539,10 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 	}
 
 	u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+
+	if s.sessionType == "headless" && time.Since(s.lastPersistedAt) > time.Minute {
+		go u.persistHeadlessSession(s)
+	}
 
 	if !obligationExempt {
 		if _, suffix := u.obligationCheck(s); suffix != "" {

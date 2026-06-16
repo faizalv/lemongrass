@@ -284,9 +284,7 @@ func (u *LgUsecase) readOne(ctx context.Context, s *activeSession, ref string) s
 		kind:      node.Kind,
 		signature: node.Signature,
 		receiver:  node.Receiver,
-	}
-	if node.Status == "stale" || node.Status == "unexplored" {
-		addObligationLocked(s, key)
+		readAt:    time.Now(),
 	}
 	u.mu.Unlock()
 	hint := ""

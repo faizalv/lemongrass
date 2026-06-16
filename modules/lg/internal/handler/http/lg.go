@@ -74,12 +74,14 @@ func (h *LgHandler) ReadTrail(c *gin.Context) {
 	var req struct {
 		SessionID string `json:"session_id"`
 		FilePath  string `json:"file_path"`
+		LineStart int    `json:"line_start"`
+		LineEnd   int    `json:"line_end"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	h.uc.LogRead(req.SessionID, req.FilePath)
+	h.uc.LogRead(req.SessionID, req.FilePath, req.LineStart, req.LineEnd)
 	c.Status(http.StatusOK)
 }
 

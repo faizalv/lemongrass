@@ -1,8 +1,11 @@
 package usecase
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -14,6 +17,7 @@ import (
 func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args string, blocking bool) string {
 	branch := u.resolveProjectBranch(projectID)
 	u.mu.Lock()
+	created := false
 	if u.sessions[sessionID] == nil {
 		u.sessions[sessionID] = &activeSession{
 			key:            sessionID,
@@ -29,8 +33,13 @@ func (u *LgUsecase) HandleOrCreateSession(projectID int64, sessionID, cmd, args 
 			warnedAt:       make(map[string]time.Time),
 			obligation:     make(map[string]time.Time),
 		}
+		created = true
 	}
+	s := u.sessions[sessionID]
 	u.mu.Unlock()
+	if created {
+		go u.persistHeadlessSession(s)
+	}
 	return u.Handle(sessionID, cmd, args, blocking)
 }
 
@@ -194,4 +203,63 @@ func (u *LgUsecase) handleDone(s *activeSession) {
 	}
 	u.UnregisterSession(s.workspaceID)
 	go u.refreshUsageCache()
+}
+
+type sessionRecord struct {
+	Key        string    `json:"key"`
+	ProjectID  int64     `json:"project_id"`
+	LastActive time.Time `json:"last_active"`
+}
+
+func (u *LgUsecase) persistHeadlessSession(s *activeSession) {
+	if u.recon == nil {
+		return
+	}
+	rawPath, err := u.recon.ProjectDir(context.Background(), s.projectID)
+	if err != nil || rawPath == "" {
+		return
+	}
+	lgDir := filepath.Join("/projects", filepath.Base(rawPath), ".lemongrass")
+	if err := os.MkdirAll(lgDir, 0o755); err != nil {
+		return
+	}
+	sessionsPath := filepath.Join(lgDir, "sessions.jsonl")
+
+	records := map[string]sessionRecord{}
+	if f, err := os.Open(sessionsPath); err == nil {
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
+			var rec sessionRecord
+			if json.Unmarshal(sc.Bytes(), &rec) == nil {
+				records[rec.Key] = rec
+			}
+		}
+		f.Close()
+	}
+
+	now := time.Now()
+	records[s.key] = sessionRecord{Key: s.key, ProjectID: s.projectID, LastActive: now}
+
+	cutoff := now.Add(-7 * 24 * time.Hour)
+	for key, rec := range records {
+		if rec.LastActive.Before(cutoff) {
+			delete(records, key)
+		}
+	}
+
+	tmp, err := os.CreateTemp(lgDir, "sessions-*.jsonl")
+	if err != nil {
+		return
+	}
+	tmpName := tmp.Name()
+	enc := json.NewEncoder(tmp)
+	for _, rec := range records {
+		enc.Encode(rec)
+	}
+	tmp.Close()
+	os.Rename(tmpName, sessionsPath)
+
+	u.mu.Lock()
+	s.lastPersistedAt = now
+	u.mu.Unlock()
 }

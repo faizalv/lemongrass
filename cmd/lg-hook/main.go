@@ -400,13 +400,15 @@ var documentExts = map[string]bool{
 	".pdf": true, ".docx": true, ".xlsx": true, ".pptx": true,
 }
 
-func notifyFileRead(filePath, sessionID string) {
+func notifyFileRead(filePath, sessionID string, lineStart, lineEnd int) {
 	if activeProjectID == 0 {
 		return
 	}
 	body, _ := json.Marshal(map[string]any{
 		"session_id": sessionID,
 		"file_path":  filePath,
+		"line_start": lineStart,
+		"line_end":   lineEnd,
 	})
 	client := &http.Client{Timeout: 2 * time.Second}
 	client.Post(activeServerURL+"/read-trail", "application/json", bytes.NewReader(body))
@@ -480,7 +482,7 @@ func handleRead(raw json.RawMessage, sessionID, hookEvent string, toolResponse j
 				}
 				return
 			}
-			notifyFileRead(input.FilePath, sessionID)
+			notifyFileRead(input.FilePath, sessionID, 0, 0)
 			allowTool()
 			return
 		}
@@ -517,7 +519,7 @@ func handleRead(raw json.RawMessage, sessionID, hookEvent string, toolResponse j
 			lineNum++
 		}
 
-		notifyFileRead(input.FilePath, sessionID)
+		notifyFileRead(input.FilePath, sessionID, start+1, end)
 		allowTool()
 		return
 	}

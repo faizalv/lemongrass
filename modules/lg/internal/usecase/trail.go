@@ -29,8 +29,9 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 		rel := toRelPath(filePath, u.recon, s.projectID)
 		s.writtenFiles[rel] = true
 		prefix := rel + ":"
-		for key := range s.readNodes {
-			if strings.HasPrefix(key, prefix) {
+		cutoff := time.Now().Add(-15 * time.Minute)
+		for key, entry := range s.readNodes {
+			if strings.HasPrefix(key, prefix) && entry.readAt.After(cutoff) {
 				addObligationLocked(s, key)
 			}
 		}
@@ -57,7 +58,7 @@ func (u *LgUsecase) LogWrite(sessionID, filePath string, byteCount int) {
 	}
 }
 
-func (u *LgUsecase) LogRead(sessionID, filePath string) {
+func (u *LgUsecase) LogRead(sessionID, filePath string, lineStart, lineEnd int) {
 	if u.recon == nil {
 		return
 	}
@@ -72,14 +73,15 @@ func (u *LgUsecase) LogRead(sessionID, filePath string) {
 	if err != nil || len(nodes) == 0 {
 		return
 	}
+	now := time.Now()
 	u.mu.Lock()
 	for _, node := range nodes {
+		if lineEnd > 0 && !(node.LineStart <= lineEnd && node.LineEnd >= lineStart) {
+			continue
+		}
 		key := rel + ":" + node.Symbol + ":" + node.Kind
 		if _, exists := s.readNodes[key]; !exists {
-			s.readNodes[key] = readEntry{kind: node.Kind, signature: node.Signature}
-		}
-		if node.Status == "stale" || node.Status == "unexplored" {
-			addObligationLocked(s, key)
+			s.readNodes[key] = readEntry{kind: node.Kind, signature: node.Signature, readAt: now}
 		}
 	}
 	u.mu.Unlock()
