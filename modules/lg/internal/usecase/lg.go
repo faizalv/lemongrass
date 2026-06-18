@@ -114,6 +114,7 @@ type activeSession struct {
 	taskStartTimes map[string]time.Time   // task_id -> started_at
 	locks             map[string]*os.File    // normalized path -> open fd holding flock
 	searchCount       int                    // codebase.search calls since last codebase.interim
+	sessionDeclared   bool                   // true after codebase.session has been called
 	warnedAt          map[string]time.Time   // warning kind -> last fire time
 	obligation        map[string]time.Time   // "path:symbol:kind" -> when added; symbols needing annotation
 	obligationStart   time.Time              // when first symbol entered obligation (zero = no obligation)
@@ -280,6 +281,8 @@ func activityMessage(cmd, args string) string {
 		return "Listing " + args
 	case "codebase.fl":
 		return "Finding files: " + args
+	case "codebase.session":
+		return "Declaring session: " + args
 	case "codebase.interim":
 		return "Loading workbench: " + args
 	case "codebase.query":
@@ -387,6 +390,19 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 			u.logCall(sessionID, s.sessionType, cmd, args, "ok", start)
 		}()
 		return ""
+	}
+
+	// Session gate -- most commands blocked until codebase.session is declared.
+	sessionExempt := cmd == "codebase.session" || cmd == "obligation" || cmd == "annotate" || cmd == "project.stat"
+	if !sessionExempt {
+		u.mu.Lock()
+		declared := s.sessionDeclared
+		u.mu.Unlock()
+		if !declared {
+			resp := "error: declare session first -- #lg.codebase.session idea1,idea2:question"
+			u.logCall(sessionID, s.sessionType, cmd, args, resp, start)
+			return resp
+		}
 	}
 
 	// Obligation gate -- annotate, obligation, and recon.peruse always pass through.
@@ -497,6 +513,8 @@ func (u *LgUsecase) Handle(sessionID, cmd, args string, blocking bool) string {
 		resp = u.handleWorkspaceSearch(ctx, s, args)
 	case "workspace.delete":
 		resp = u.handleWorkspaceDelete(ctx, s, args)
+	case "codebase.session":
+		resp = u.handleCodebaseSession(ctx, sessionID, s, args)
 	case "codebase.interim":
 		u.mu.Lock()
 		s.searchCount = 0

@@ -8,7 +8,7 @@ const HookCallInstruction = `Every #lg.* and #lg!.* is a direct Bash tool call -
 
 Blocking calls (#lg.*) must be sequential -- each waits for a response. Fire-and-forget calls (#lg!.*) return immediately, so multiple can be issued in parallel as separate Bash tool calls.
 
-After reading symbols, annotate: #lg.annotate path:symbol:kind:"description":return_type_or_nil:dep1,dep2_or_nil
+Annotate when #lg.obligation lists symbols: #lg.annotate path:symbol:kind:"description":return_type_or_nil:dep1,dep2_or_nil
 Batch multiple with ||: #lg.annotate ref1||ref2||ref3 -- grouped response: [1][2][3] ok  [4][5] error: symbol not read
 After context compaction, peruse state resets -- re-peruse or re-query before annotating.`
 
@@ -54,6 +54,7 @@ const CmdWorkspaceDelete = `#lg.workspace.delete <name> -- delete a workspace (m
 
 const CmdCodebaseLs = `#lg.codebase.ls [path] -- directory listing from project root; shows child counts for dirs and sizes for files`
 const CmdCodebaseFiles = `#lg.codebase.fl <pattern> [path] -- all files under project root matching a glob or substring; last token after a space is always a path scope; use \/ in the last token to escape and treat everything as the pattern; grouped by directory; prefix* lines are filename prefix groups -- each indented entry is a suffix, full filename = prefix + suffix`
+const CmdCodebaseSession = `#lg.codebase.session <idea1,idea2,...>:<question> -- declare session; idea keywords + HyDE question → symbol search → callee/caller expansion → top files by density into workbench; required before any other command`
 const CmdCodebaseInterim = `#lg.codebase.interim <inputs> -- load files/symbols into session workbench; pipe-separate: S:path:symbol:kind | F:path | R:glob`
 const CmdCodebaseQuery = `#lg.codebase.query <question> -- semantic search across everything loaded into the workbench`
 const CmdCodebaseSearch = `#lg.codebase.search <pattern> [path/prefix] [--force] -- grep replacement; last token with / is a path scope filter; supports regex; use | for alternation (not \|); no quotes around pattern; blacklisted dirs (node_modules, vendor, dist, .git, .next, __pycache__) require --force`
@@ -71,7 +72,7 @@ func BuildSkillContent() string {
 		"",
 		"PARALLELISM -- reads: parallel Bash calls ok. writes: sequential:",
 		"  parallel      recon.search, recon.peek, recon.tree, recon.related, codebase.search, codebase.query, codebase.fl, codebase.ls, knowledge.read, knowledge.search, knowledge.labels, project.stat, tasks.read, system.read",
-		"  sequential    annotate, knowledge.save, knowledge.delete, codebase.interim, tasks.start, tasks.finish, workspace.*, recon.peruse",
+		"  sequential    annotate, knowledge.save, knowledge.delete, codebase.session, codebase.interim, tasks.start, tasks.finish, workspace.*, recon.peruse",
 		"  #lg!.*        always parallel",
 		"  annotate: || batching not parallel -- #lg.annotate ref1||ref2||ref3",
 		"",
@@ -83,13 +84,18 @@ func BuildSkillContent() string {
 		"",
 		"OUTSIDE PROJECT -- codebase.* anchored to root; outside paths fail. Use native Bash.",
 		"",
-		"TOOL SELECTION:",
-		"  unknown area       recon.search",
-		"  know what to load  codebase.interim + query",
-		"  know the symbol    codebase.search",
-		"  unfamiliar area    recon.search → peek → peruse → Read",
+		"SESSION GATE -- codebase.session required before all other commands (except obligation, annotate, project.stat).",
+		"  ideas + question → auto-builds workbench. re-call replaces previous.",
 		"",
-		"After modify: #lg.annotate <path:sym:kind>:\"description\":return_type_or_nil:deps [|| ref2 || ...]",
+		"TOOL SELECTION:",
+		"  session start       codebase.session (required)",
+		"  explore workbench   codebase.query",
+		"  exact identifier    codebase.search",
+		"  symbol body         recon.peruse",
+		"  call graph           recon.related",
+		"  manual workbench    codebase.interim (overrides session workbench)",
+		"",
+		"After modify: check #lg.obligation -- annotate what it lists.",
 		"",
 		"TOOLS",
 		"",
@@ -100,6 +106,7 @@ func BuildSkillContent() string {
 		"  #lg.recon.search <query>                          vector search across all nodes; signatures indexed from day 0",
 		"  #lg.recon.peruse <path:symbol:kind>               symbol body; | expands any field, || is new ref: path1|path2:sym:kind||path3:sym2:kind1|kind2",
 		"  #lg.recon.related <path:symbol:kind>              callees and callers",
+		"  " + CmdCodebaseSession,
 		"  #lg.codebase.ls [path]                            directory listing with sizes",
 		"  " + CmdCodebaseFiles,
 		"  " + CmdCodebaseSearch,
@@ -113,7 +120,7 @@ func BuildSkillContent() string {
 		"  " + CmdAnnotate,
 		"  nil = field absent.",
 		"",
-		"Annotate every symbol perused or appeared in codebase.query result. Re-annotate on modify.",
+		"Annotate when #lg.obligation lists symbols. Re-annotate on modify.",
 		"",
 		"KNOWLEDGE -- lg.knowledge.*: codebase insights, shared across all models. Built-in memory: user/session prefs, pre-loaded free. Use both.",
 		"",

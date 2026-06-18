@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -351,5 +352,153 @@ func (u *LgUsecase) handleCodebaseQuery(ctx context.Context, sessionID string, s
 		u.mu.Unlock()
 	}
 	return formatChunks(chunks)
+}
+
+const sessionMaxFiles = 15
+
+func (u *LgUsecase) handleCodebaseSession(ctx context.Context, sessionID string, s *activeSession, args string) string {
+	if u.interim == nil {
+		return "error: interim store not available"
+	}
+	if u.recon == nil {
+		return "error: recon not available"
+	}
+
+	colonIdx := strings.Index(args, ":")
+	if colonIdx < 0 {
+		return "error: format -- codebase.session idea1,idea2:question"
+	}
+	ideasRaw := strings.TrimSpace(args[:colonIdx])
+	question := strings.TrimSpace(args[colonIdx+1:])
+	if ideasRaw == "" || question == "" {
+		return "error: format -- codebase.session idea1,idea2:question"
+	}
+
+	var ideas []string
+	for _, raw := range strings.Split(ideasRaw, ",") {
+		if t := strings.TrimSpace(raw); t != "" {
+			ideas = append(ideas, t)
+		}
+	}
+	if len(ideas) == 0 {
+		return "error: at least one idea keyword required"
+	}
+
+	queries := make([]string, 0, len(ideas)+1)
+	queries = append(queries, ideas...)
+	queries = append(queries, question)
+
+	seen := map[string]bool{}
+	var allNodes []reconentity.SemanticNode
+	for _, q := range queries {
+		nodes, err := u.recon.Search(ctx, s.projectID, q)
+		if err != nil {
+			continue
+		}
+		for _, n := range nodes {
+			if !seen[n.ID] {
+				seen[n.ID] = true
+				allNodes = append(allNodes, n)
+			}
+		}
+	}
+
+	if len(allNodes) == 0 {
+		return "error: no symbols matched -- try different idea keywords"
+	}
+
+	fileDensity := map[string]int{}
+	for _, n := range allNodes {
+		fileDensity[n.FilePath]++
+	}
+
+	for _, n := range allNodes {
+		callees, callers, err := u.recon.Related(ctx, s.projectID, n.FilePath, n.Symbol, n.Kind)
+		if err != nil {
+			continue
+		}
+		for _, rel := range append(callees, callers...) {
+			fileDensity[rel.FilePath]++
+		}
+	}
+
+	type ranked struct {
+		path  string
+		count int
+	}
+	files := make([]ranked, 0, len(fileDensity))
+	for p, c := range fileDensity {
+		files = append(files, ranked{p, c})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].count > files[j].count })
+	if len(files) > sessionMaxFiles {
+		files = files[:sessionMaxFiles]
+	}
+
+	rawPath, err := u.recon.ProjectDir(ctx, s.projectID)
+	if err != nil {
+		return "error: project path unavailable"
+	}
+	projectDir := filepath.Join("/projects", filepath.Base(rawPath))
+
+	u.interim.DropInterim(ctx, s.key)
+
+	type fileJob struct {
+		filePath string
+		chunks   []chunkResult
+	}
+	var jobs []fileJob
+	for _, f := range files {
+		diskPath := filepath.Join(projectDir, f.path)
+		data, err := os.ReadFile(diskPath)
+		if err != nil {
+			continue
+		}
+		var nodes []reconentity.SemanticNode
+		if !strings.HasSuffix(f.path, ".go") {
+			nodes, _ = u.recon.ListFileNodes(ctx, s.projectID, f.path)
+		}
+		jobs = append(jobs, fileJob{
+			filePath: f.path,
+			chunks:   chunksForFile(f.path, string(data), nodes),
+		})
+	}
+
+	if len(jobs) == 0 {
+		return "error: no files could be loaded"
+	}
+
+	var wg sync.WaitGroup
+	var totalChunks atomic.Int64
+	for _, job := range jobs {
+		job := job
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			totalChunks.Add(int64(len(job.chunks)))
+			for i, chunk := range job.chunks {
+				var vec []float32
+				vec, _ = u.recon.Embed(ctx, chunk.content)
+				u.interim.InsertChunk(ctx, s.key, job.filePath, i, chunk.lineStart, chunk.lineEnd, chunk.content, vec)
+			}
+		}()
+	}
+	wg.Wait()
+
+	u.mu.Lock()
+	s.sessionDeclared = true
+	s.searchCount = 0
+	u.mu.Unlock()
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "session ready: %d files, %d chunks\n", len(jobs), totalChunks.Load())
+	sb.WriteString("ideas: ")
+	sb.WriteString(strings.Join(ideas, ", "))
+	sb.WriteString("\nfiles loaded:\n")
+	for _, f := range files[:len(jobs)] {
+		fmt.Fprintf(&sb, "  %s (%d hits)\n", f.path, f.count)
+	}
+	sb.WriteString("\nuse #lg.codebase.query to explore")
+	return sb.String()
 }
 
