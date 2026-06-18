@@ -291,7 +291,7 @@ The grooming and execution flow is the structured pipeline for UI-driven work. H
         | #lg.project.stat      -- coverage, device tier, tooling advice
         | #lg.recon.tree [path] -- full coverage map; n/m explored; n stale per dir
         | #lg.recon.peek <dir>  -- direct-child symbols with status markers
-        | #lg.recon.search      -- vector search across annotated nodes
+        | #lg.recon.search      -- vector search across the full map; all nodes indexed from day 0
         | #lg.recon.peruse      -- raw source; counts toward obligation
         | #lg.annotate          -- write annotation; clears obligation entry
         | #lg.knowledge.*       -- save and retrieve architectural insights
@@ -335,7 +335,7 @@ The grooming and execution flow is the structured pipeline for UI-driven work. H
 | `#lg.project.stat` | both | yes | annotation coverage, device tier, tooling advice |
 | `#lg.recon.tree [path]` | both | yes | full coverage map; explored/total/stale per directory |
 | `#lg.recon.peek <dir\|file>` | both | yes | direct-child symbols with status markers; subdirectory counts |
-| `#lg.recon.search <query>` | both | yes | vector + full-text search across annotated nodes; top 10 deduplicated |
+| `#lg.recon.search <query>` | both | yes | vector search across the full map; all nodes have signature embeddings from day 0; top 10 deduplicated |
 | `#lg.recon.peruse <path:symbol:kind>` | both | yes | raw source from semantic map; `[STALE]` prefix on stale nodes; pipe-separate for multiple |
 | `#lg.recon.related <path:symbol:kind>` | both | yes | callers and callees from the call graph |
 | `#lg.commitment <path>` | grooming | yes | declare annotation scope; 30% threshold; root requires 70% project coverage |
