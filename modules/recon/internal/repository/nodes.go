@@ -177,6 +177,23 @@ func (r *ReconRepository) BulkStampBranchForFiles(ctx context.Context, projectID
 	return err
 }
 
+func (r *ReconRepository) ListNodesInFilesWithBranch(ctx context.Context, projectID int64, filePaths []string, branch string) ([]entity.SemanticNode, error) {
+	query := `SELECT ` + nodeColumns + `
+	          FROM lg_semantic_nodes
+	          WHERE project_id = $1
+	            AND file_path = ANY($2)
+	            AND $3 = ANY(branches)`
+	var recs []nodeRecord
+	if err := r.db.SelectContext(ctx, &recs, query, projectID, pq.StringArray(filePaths), branch); err != nil {
+		return nil, err
+	}
+	nodes := make([]entity.SemanticNode, len(recs))
+	for i, rec := range recs {
+		nodes[i] = toEntity(rec)
+	}
+	return nodes, nil
+}
+
 func (r *ReconRepository) MarkRemoved(ctx context.Context, projectID int64, parsedPaths []string, ignoredExisting []string) error {
 	alive := append(parsedPaths, ignoredExisting...)
 	_, err := r.db.ExecContext(ctx, `

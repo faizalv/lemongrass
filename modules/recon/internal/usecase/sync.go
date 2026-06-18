@@ -129,6 +129,22 @@ func (u *ReconUsecase) MapFiles(ctx context.Context, projectID int64, dir string
 		}
 	}
 
+	if branch != "" {
+		existing, err := u.repo.ListNodesInFilesWithBranch(ctx, projectID, filtered, branch)
+		if err != nil {
+			return err
+		}
+		alive := make(map[string]bool, len(allNodes))
+		for _, n := range allNodes {
+			alive[n.FilePath+"\x00"+n.Symbol+"\x00"+n.Kind+"\x00"+n.ContentHash] = true
+		}
+		for _, n := range existing {
+			if !alive[n.FilePath+"\x00"+n.Symbol+"\x00"+n.Kind+"\x00"+n.ContentHash] {
+				_ = u.repo.RemoveBranchFromNode(ctx, projectID, n.FilePath, n.Symbol, n.Kind, n.ContentHash, branch)
+			}
+		}
+	}
+
 	producedPaths := make(map[string]bool, len(allNodes))
 	for _, n := range allNodes {
 		producedPaths[n.FilePath] = true

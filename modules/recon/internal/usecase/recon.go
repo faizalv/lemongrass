@@ -55,6 +55,8 @@ type repo interface {
 	SetLastSyncedBranch(ctx context.Context, projectID int64, branch string) error
 	BulkStampBranch(ctx context.Context, projectID int64, oldBranch, newBranch string) error
 	BulkStampBranchForFiles(ctx context.Context, projectID int64, oldBranch, newBranch string, excludePaths []string) error
+	ListNodesInFilesWithBranch(ctx context.Context, projectID int64, filePaths []string, branch string) ([]entity.SemanticNode, error)
+	RemoveBranchFromNode(ctx context.Context, projectID int64, filePath, symbol, kind, contentHash, branch string) error
 	DeleteExpiredOrphans(ctx context.Context, olderThan time.Time) error
 	DeleteNodesByFilePaths(ctx context.Context, projectID int64, filePaths []string) error
 	GetEmbedPending(ctx context.Context, projectID int64) (pending, total int, err error)
