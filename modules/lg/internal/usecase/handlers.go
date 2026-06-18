@@ -78,9 +78,9 @@ func (u *LgUsecase) handleProjectStat(ctx context.Context, s *activeSession) str
 	case pct >= 60:
 		sb.WriteString("recon.search is primary; use codebase.interim for unexplored areas")
 	case pct >= 20:
-		sb.WriteString("partial coverage -- recon.search for annotated areas; codebase.interim+query for unexplored")
+		sb.WriteString("partial coverage -- recon.search across all signatures; codebase.interim+query for deeper unexplored areas")
 	default:
-		sb.WriteString("annotation sparse -- prefer codebase.interim+query; recon.search unreliable until coverage grows")
+		sb.WriteString("annotation sparse -- recon.search works on signatures from day 0; codebase.interim+query for full file context")
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
@@ -746,6 +746,7 @@ func (u *LgUsecase) handleAnnotate(ctx context.Context, s *activeSession, args s
 	}
 	u.mu.Lock()
 	delete(s.obligation, key)
+	delete(s.readNodes, key)
 	if len(s.obligation) == 0 {
 		s.obligationStart = time.Time{}
 	}
