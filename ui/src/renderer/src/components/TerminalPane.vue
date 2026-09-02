@@ -5,8 +5,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 
 // Renders one PTY session. Raw bytes only, in both directions -- this
-// component never inspects or reacts to what's in the stream. See
-// CLAUDE.md: PTY is display-only, never a control-signal source.
+// component never inspects or reacts to what's in the stream. PTY is
+// display-only, never a control-signal source.
 
 const props = defineProps<{
   /** The agent binary to spawn, e.g. "claude". Never a shell. */

@@ -5,6 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerKnowledgeHandlers } from './knowledge'
+import { registerLayoutHandlers } from './layouts'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
 
 let mainWindow: BrowserWindow | undefined
@@ -52,6 +53,7 @@ app.whenReady().then(() => {
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerKnowledgeHandlers()
+  registerLayoutHandlers()
   registerWindowControlHandlers(() => mainWindow)
 
   createWindow()

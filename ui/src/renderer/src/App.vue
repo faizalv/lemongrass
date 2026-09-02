@@ -1,70 +1,143 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import TerminalPane from './components/TerminalPane.vue'
 import ProjectSidebar from './components/ProjectSidebar.vue'
 import KnowledgePanel from './components/KnowledgePanel.vue'
 import HeaderBar from './components/HeaderBar.vue'
-import type { Project } from '../../preload'
-
-interface Tab {
-  id: number
-  label: string
-}
+import PaneLayout from './components/PaneLayout.vue'
+import {
+  createTab,
+  createLeaf,
+  countTabs,
+  firstLeafId,
+  findLeaf,
+  addTabToPane,
+  setActiveTab,
+  closeTab as closeTabInLayout,
+  closePane as closePaneInLayout,
+  splitPane,
+  setSplitSizes
+} from './paneLayout'
+import type { Project, PaneLayoutNode } from '../../preload'
 
 const projects = ref<Project[]>([])
 const activeProjectId = ref<string | null>(null)
 const showKnowledge = ref(false)
 
-// Shells are scoped per project -- each project keeps its own tab set,
-// and switching projects switches which shells show.
-const tabsByProject = reactive<Record<string, Tab[]>>({})
-const activeTabByProject = reactive<Record<string, number>>({})
-let nextTabId = 1
+// Layout is scoped per project -- each project keeps its own split-pane
+// tree, and switching projects switches which one shows. Persisted to
+// ~/.lemongrass/layouts.json (see main/layouts.ts) so the arrangement
+// survives a restart; each restored leaf spawns a fresh shell in place.
+const layoutByProject = reactive<Record<string, PaneLayoutNode | null>>({})
+const focusedPaneByProject = reactive<Record<string, string | null>>({})
+const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
 )
-const currentTabs = computed((): Tab[] =>
-  activeProjectId.value ? (tabsByProject[activeProjectId.value] ?? []) : []
+const currentLayout = computed((): PaneLayoutNode | null =>
+  activeProjectId.value ? (layoutByProject[activeProjectId.value] ?? null) : null
+)
+const focusedPaneId = computed((): string | null =>
+  activeProjectId.value ? (focusedPaneByProject[activeProjectId.value] ?? null) : null
 )
 
 async function loadProjects(): Promise<void> {
   projects.value = await window.api.projects.list()
   if (!activeProjectId.value && projects.value.length > 0) {
-    selectProject(projects.value[0].id)
+    await selectProject(projects.value[0].id)
   }
 }
 
-function selectProject(id: string): void {
+async function selectProject(id: string): Promise<void> {
   activeProjectId.value = id
-  if (!tabsByProject[id]) tabsByProject[id] = []
+  if (id in layoutByProject) return
+  const loaded = await window.api.layouts.load(id)
+  layoutByProject[id] = loaded
+  focusedPaneByProject[id] = firstLeafId(loaded)
 }
 
 async function addProject(): Promise<void> {
   const project = await window.api.projects.add()
   if (!project) return
   if (!projects.value.find((p) => p.id === project.id)) projects.value.push(project)
-  selectProject(project.id)
+  await selectProject(project.id)
 }
 
-function addTab(): void {
-  const id = activeProjectId.value
-  if (!id) return
-  const tab = { id: nextTabId++, label: `claude ${nextTabId - 1}` }
-  tabsByProject[id].push(tab)
-  activeTabByProject[id] = tab.id
+function saveLayout(projectId: string): void {
+  clearTimeout(saveTimers[projectId])
+  saveTimers[projectId] = setTimeout(() => {
+    const layout = layoutByProject[projectId] ?? null
+    // layoutByProject is reactive -- IPC's structured clone can't carry a
+    // Vue proxy across the boundary, so this needs to cross as plain data.
+    window.api.layouts.save(projectId, layout && JSON.parse(JSON.stringify(layout)))
+  }, 400)
 }
 
-function closeTab(tabId: number): void {
+function withLayout(mutate: (layout: PaneLayoutNode) => PaneLayoutNode | null): void {
   const id = activeProjectId.value
-  if (!id) return
-  const tabs = tabsByProject[id]
-  const idx = tabs.findIndex((t) => t.id === tabId)
-  if (idx === -1) return
-  tabs.splice(idx, 1)
-  if (activeTabByProject[id] === tabId) {
-    activeTabByProject[id] = tabs[Math.max(0, idx - 1)]?.id
+  const layout = id ? layoutByProject[id] : undefined
+  if (!id || !layout) return
+  layoutByProject[id] = mutate(layout)
+  saveLayout(id)
+}
+
+function newTab(): ReturnType<typeof createTab> | undefined {
+  if (!activeProjectId.value || !activeProject.value) return undefined
+  const count = countTabs(layoutByProject[activeProjectId.value] ?? null)
+  return createTab('claude', activeProject.value.path, `claude ${count + 1}`)
+}
+
+function addTab(paneId?: string): void {
+  const id = activeProjectId.value
+  const tab = newTab()
+  if (!id || !tab) return
+
+  const layout = layoutByProject[id]
+  const targetPane = paneId ?? focusedPaneByProject[id] ?? firstLeafId(layout) ?? undefined
+
+  if (!layout) {
+    const leaf = createLeaf([tab])
+    layoutByProject[id] = leaf
+    focusedPaneByProject[id] = leaf.id
+  } else if (targetPane && findLeaf(layout, targetPane)) {
+    layoutByProject[id] = addTabToPane(layout, targetPane, tab)
+  } else {
+    return
   }
+  saveLayout(id)
+}
+
+function onFocus(paneId: string): void {
+  if (activeProjectId.value) focusedPaneByProject[activeProjectId.value] = paneId
+}
+
+function onSelectTab(paneId: string, tabId: string): void {
+  withLayout((layout) => setActiveTab(layout, paneId, tabId))
+}
+
+function onCloseTab(paneId: string, tabId: string): void {
+  withLayout((layout) => closeTabInLayout(layout, paneId, tabId))
+}
+
+function onClosePane(paneId: string): void {
+  withLayout((layout) => closePaneInLayout(layout, paneId))
+}
+
+function onSplit(paneId: string, direction: 'row' | 'column'): void {
+  const id = activeProjectId.value
+  const tab = newTab()
+  if (!id || !tab) return
+  const newLeaf = createLeaf([tab])
+  withLayout((layout) => splitPane(layout, paneId, direction, newLeaf))
+  focusedPaneByProject[id] = newLeaf.id
+}
+
+function onResize(splitId: string, sizes: number[]): void {
+  withLayout((layout) => setSplitSizes(layout, splitId, sizes))
+}
+
+function onExit(paneId: string, tabId: string): void {
+  onCloseTab(paneId, tabId)
 }
 
 onMounted(loadProjects)
@@ -98,31 +171,22 @@ onMounted(loadProjects)
 
       <div v-if="activeProject" class="main">
         <div class="terminal-area">
-          <div class="tab-bar">
-            <button
-              v-for="tab in currentTabs"
-              :key="tab.id"
-              class="tab"
-              :class="{ active: tab.id === activeTabByProject[activeProject.id] }"
-              @click="activeTabByProject[activeProject.id] = tab.id"
-            >
-              {{ tab.label }}
-              <span class="tab-close" @click.stop="closeTab(tab.id)">&times;</span>
-            </button>
-            <button class="tab-add" @click="addTab">+</button>
-          </div>
-          <div class="panes">
-            <p v-if="currentTabs.length === 0" class="empty">
-              No shells open. Click + to start one.
-            </p>
-            <TerminalPane
-              v-for="tab in currentTabs"
-              v-show="tab.id === activeTabByProject[activeProject.id]"
-              :key="`${activeProject.id}-${tab.id}`"
-              command="claude"
-              :cwd="activeProject.path"
-              @exit="closeTab(tab.id)"
-            />
+          <PaneLayout
+            v-if="currentLayout"
+            :node="currentLayout"
+            :focused-pane-id="focusedPaneId"
+            @focus="onFocus"
+            @select-tab="onSelectTab"
+            @close-tab="onCloseTab"
+            @add-tab="addTab"
+            @split="onSplit"
+            @close-pane="onClosePane"
+            @exit="onExit"
+            @resize="onResize"
+          />
+          <div v-else class="empty-pane">
+            <p class="empty">No shells open.</p>
+            <button class="knowledge-toggle" @click="addTab()">+ New shell</button>
           </div>
         </div>
 
@@ -202,74 +266,14 @@ onMounted(loadProjects)
   flex-direction: column;
 }
 
-.tab-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4) var(--space-2);
-}
-
-.tab {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.tab:hover {
-  background: var(--color-surface-1);
-}
-
-.tab.active {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
-}
-
-.tab-close {
-  color: var(--color-fg-muted);
-  border-radius: var(--radius-pill);
-}
-
-.tab-close:hover {
-  color: var(--color-fg-primary);
-}
-
-.tab-add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-accent);
-  font-size: var(--text-md);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.tab-add:hover {
-  background: var(--color-surface-1);
-}
-
-.panes {
+.empty-pane {
   flex: 1;
   min-height: 0;
-  position: relative;
-  padding: 0 var(--space-4) var(--space-4);
-}
-
-.panes > .terminal-card {
-  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
 }
 
 .empty {

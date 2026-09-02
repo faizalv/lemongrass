@@ -33,8 +33,19 @@ export interface TreeNode {
   children?: TreeNode[]
 }
 
+export interface PaneTab {
+  id: string
+  label: string
+  command: string
+  cwd?: string
+}
+
+export type PaneLayoutNode =
+  | { type: 'leaf'; id: string; tabs: PaneTab[]; activeTabId: string | null }
+  | { type: 'split'; id: string; direction: 'row' | 'column'; children: PaneLayoutNode[]; sizes: number[] }
+
 // Custom APIs for renderer -- raw PTY bytes only, never a control-signal
-// channel. See CLAUDE.md: PTY is display-only.
+// channel. PTY is display-only.
 const pty = {
   spawn: (opts: PtySpawnOptions): Promise<{ id: string }> => ipcRenderer.invoke('pty:spawn', opts),
   write: (id: string, data: string): void => ipcRenderer.send('pty:write', { id, data }),
@@ -67,6 +78,13 @@ const knowledge = {
     ipcRenderer.invoke('knowledge:read', { projectPath, filePath })
 }
 
+const layouts = {
+  load: (projectId: string): Promise<PaneLayoutNode | null> =>
+    ipcRenderer.invoke('layouts:load', projectId),
+  save: (projectId: string, layout: PaneLayoutNode | null): void =>
+    ipcRenderer.send('layouts:save', { projectId, layout })
+}
+
 const windowControls = {
   minimize: (): void => ipcRenderer.send('window:minimize'),
   toggleMaximize: (): void => ipcRenderer.send('window:toggle-maximize'),
@@ -80,7 +98,7 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, knowledge, windowControls }
+const api = { pty, projects, knowledge, layouts, windowControls }
 
 if (process.contextIsolated) {
   try {

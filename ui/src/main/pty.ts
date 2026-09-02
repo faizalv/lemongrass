@@ -1,13 +1,11 @@
 import { ipcMain, WebContents } from 'electron'
-import { existsSync, readFileSync } from 'fs'
 import { homedir } from 'os'
-import { join } from 'path'
 import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
 
-// PTY is display-only, never a control-signal source -- see CLAUDE.md.
-// Every shell spawns an agent binary directly (e.g. `claude`), never a
-// login shell -- no `cd`/arbitrary commands as a first-class surface.
+// PTY is display-only, never a control-signal source. Every shell spawns
+// an agent binary directly (e.g. `claude`), never a login shell -- no
+// `cd`/arbitrary commands as a first-class surface.
 
 interface SpawnOptions {
   /** The agent binary to spawn, e.g. "claude". Never a shell like bash/zsh. */
@@ -20,27 +18,19 @@ interface SpawnOptions {
   rows?: number
 }
 
-// System prompt injection on shell open: the project's own CLAUDE.md,
-// delivered via Claude Code's own --append-system-prompt flag -- no
-// custom injection mechanism. Claude-only for now; other agent CLIs'
-// equivalent flag is a separate, open question.
-function resolveArgs(opts: SpawnOptions): string[] {
-  const args = [...(opts.args ?? [])]
-  if (opts.command === 'claude' && opts.cwd) {
-    const claudeMd = join(opts.cwd, 'CLAUDE.md')
-    if (existsSync(claudeMd)) {
-      args.push('--append-system-prompt', readFileSync(claudeMd, 'utf-8'))
-    }
-  }
-  return args
-}
+// No system-prompt injection here: Claude Code already loads a project's
+// own CLAUDE.md itself the moment it starts in that cwd, so re-injecting
+// it via --append-system-prompt would just duplicate it into context.
+// That flag is reserved for phase 2, once `lgrass` exists to add its own
+// knowledge on top of what the agent CLI already loads natively -- see
+// the PRD's Phase 2 section.
 
 const shells = new Map<string, pty.IPty>()
 
 export function registerPtyHandlers(getSender: () => WebContents | undefined): void {
   ipcMain.handle('pty:spawn', (_event, opts: SpawnOptions) => {
     const id = randomUUID()
-    const proc = pty.spawn(opts.command, resolveArgs(opts), {
+    const proc = pty.spawn(opts.command, opts.args ?? [], {
       name: 'xterm-256color',
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
