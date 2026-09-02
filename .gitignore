@@ -1,0 +1,6 @@
+context/
+node_modules/
+dist/
+dist_electron/
+out/
+.DS_Store
