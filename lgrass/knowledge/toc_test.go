@@ -48,7 +48,7 @@ func TestFormatTOCCollapsedBook(t *testing.T) {
 		t.Errorf("FormatTOC output missing %q, got:\n%s", want, got)
 	}
 
-	// Never leaks a chapter body -- only the pointer fields.
+	// Never leaks a chapter body, only the pointer fields.
 	if strings.Contains(got, "the old system used sessions") {
 		t.Error("FormatTOC leaked chapter body content into the TOC")
 	}

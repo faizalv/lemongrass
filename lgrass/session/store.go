@@ -42,8 +42,8 @@ CREATE INDEX IF NOT EXISTS idx_file_activity_dir ON file_activity(project_id, di
 
 // Open opens (creating and migrating if needed) the shared session
 // database at dbPath, scoped to one project. This is very often the
-// first lgrass call in a project at all -- a hook fires before any
-// knowledge command ever runs -- so it can't assume config.Dir() exists
+// first lgrass call in a project at all, since a hook fires before any
+// knowledge command ever runs, so it can't assume config.Dir() exists
 // yet.
 func Open(dbPath, projectID string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {

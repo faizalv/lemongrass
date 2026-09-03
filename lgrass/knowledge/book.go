@@ -8,7 +8,7 @@ import (
 )
 
 // Book groups a set of entries (its chapters) under one title. A book is
-// its own file on disk, frontmatter only -- no body of its own.
+// its own file on disk, frontmatter only, with no body of its own.
 type Book struct {
 	ID          string   `yaml:"id"`
 	Title       string   `yaml:"title"`

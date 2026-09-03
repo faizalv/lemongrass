@@ -7,8 +7,8 @@ import (
 
 // FormatCollisionWarning renders a PreToolUse heads-up for hits returned
 // by RecentActivity. Returns "" when hits is empty, so a caller can skip
-// attaching additionalContext entirely -- the tool call is always
-// allowed either way, this only ever adds visibility.
+// attaching additionalContext entirely. The tool call is always allowed
+// either way; this only ever adds visibility.
 func FormatCollisionWarning(hits []ActivityHit) string {
 	if len(hits) == 0 {
 		return ""

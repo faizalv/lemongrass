@@ -33,6 +33,15 @@ linux:
     - deb
   maintainer: electronjs.org
   category: Utility
+  extraResources:
+    # Both arches bundled unconditionally rather than relying on
+    # electron-builder's ${arch} path templating across AppImage/deb/snap
+    # -- the main process picks the right one at install time via
+    # process.arch. mac/Windows equivalents are follow-on work.
+    - from: "../lgrass/dist/linux-amd64/lgrass"
+      to: "bin/linux-amd64/lgrass"
+    - from: "../lgrass/dist/linux-arm64/lgrass"
+      to: "bin/linux-arm64/lgrass"
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

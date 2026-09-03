@@ -6,6 +6,7 @@ import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerLayoutHandlers } from './layouts'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
+import { installLgrass, mergeLgrassHooks } from './lgrassInstall'
 
 let mainWindow: BrowserWindow | undefined
 
@@ -30,7 +31,7 @@ function createWindow(): void {
   })
 
   // Otherwise mainWindow keeps pointing at a destroyed BrowserWindow after
-  // close -- accessing .webContents on it throws "Object has been
+  // close. Accessing .webContents on it throws "Object has been
   // destroyed" for any handler still holding this getter.
   win.on('closed', () => {
     mainWindow = undefined
@@ -56,7 +57,13 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  registerPtyHandlers(() => mainWindow?.webContents)
+  const lgrassPath = installLgrass()
+  if (lgrassPath) mergeLgrassHooks(lgrassPath)
+
+  registerPtyHandlers(
+    () => mainWindow?.webContents,
+    () => lgrassPath
+  )
   registerProjectHandlers(() => mainWindow)
   registerLayoutHandlers()
   registerWindowControlHandlers(() => mainWindow)

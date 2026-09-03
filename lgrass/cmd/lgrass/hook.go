@@ -11,8 +11,7 @@ import (
 	"github.com/faizalv/lemongrass/session"
 )
 
-// Tunable defaults -- not pinned by the PRD, chosen here and flagged as
-// adjustable rather than deeply bikeshedded.
+// Tunable defaults, adjustable independently of everything else here.
 const (
 	collisionWindow = 15 * time.Minute
 	idleThreshold   = 5 * time.Minute
@@ -20,7 +19,7 @@ const (
 )
 
 // hookPayload is the subset of Claude Code's hook JSON (on stdin) that
-// lgrass cares about -- the full payload carries more fields depending on
+// lgrass cares about. The full payload carries more fields depending on
 // hook_event_name, all ignored here.
 type hookPayload struct {
 	SessionID string          `json:"session_id"`
@@ -44,10 +43,10 @@ type hookSpecificOutput struct {
 }
 
 // cmdHook implements `lgrass hook <event>`, invoked by Claude Code's own
-// hook system with the event JSON on stdin. Every failure mode here --
-// unparseable JSON, an unregistered project, a db error -- fails soft:
-// exit 0 with no output, never break the hook chain over an lgrass-side
-// issue.
+// hook system with the event JSON on stdin. Every failure mode here
+// (unparseable JSON, an unregistered project, a db error) fails soft:
+// exit 0 with no output, never breaking the hook chain over an
+// lgrass-side issue.
 func cmdHook(args []string) {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse>")

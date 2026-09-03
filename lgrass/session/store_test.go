@@ -162,7 +162,7 @@ func TestRecentActivityExcludesStaleAndEndedSessions(t *testing.T) {
 		t.Fatalf("hits = %+v, want none (activity is stale)", hits)
 	}
 
-	// Fresh activity, but the session has since ended -- no longer "live".
+	// Fresh activity, but the session has since ended and is no longer "live".
 	if err := store.LogFileActivity("session-b", "/proj/pkg/foo.go"); err != nil {
 		t.Fatalf("LogFileActivity: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestIncrementNudgeCounterFiresAtThresholdThenResets(t *testing.T) {
 		t.Fatalf("did not fire on call %d", threshold)
 	}
 
-	// Counter should have reset -- another threshold-1 calls shouldn't fire again.
+	// Counter should have reset, so another threshold-1 calls shouldn't fire again.
 	for i := 1; i < threshold; i++ {
 		fire, err := store.IncrementNudgeCounter("session-a", threshold)
 		if err != nil {
@@ -217,7 +217,7 @@ func TestIncrementNudgeCounterFiresAtThresholdThenResets(t *testing.T) {
 
 func TestIncrementNudgeCounterWithoutPriorStart(t *testing.T) {
 	store := openTestStore(t)
-	// No Start call -- defensive upsert path should still work.
+	// No Start call. The defensive upsert path should still work.
 	fire, err := store.IncrementNudgeCounter("session-a", 1)
 	if err != nil {
 		t.Fatalf("IncrementNudgeCounter: %v", err)

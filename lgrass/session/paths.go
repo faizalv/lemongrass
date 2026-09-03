@@ -1,6 +1,6 @@
 // Package session tracks per-project session liveness and recent file
-// activity, fed entirely by Claude Code's own hook events -- no PTY
-// access, no Electron dependency, same domain-split principle as
+// activity, fed entirely by Claude Code's own hook events. It needs no
+// PTY access and no Electron dependency, the same domain split as
 // lgrass/knowledge.
 package session
 

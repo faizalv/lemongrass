@@ -93,7 +93,7 @@ func Read(projectID, id string) (Entry, error) {
 
 // Edit replaces an inclusive, 1-indexed line range in an existing entry's
 // body with replacement, then re-saves and re-indexes it. Unlike Write,
-// this only ever touches Body -- ID, Title, Tags, BookID, Chapter, and
+// this only ever touches Body. ID, Title, Tags, BookID, Chapter, and
 // CreatedAt are left as they were.
 func Edit(projectID, id string, startLine, endLine int, replacement string) (Entry, error) {
 	entry, err := Read(projectID, id)

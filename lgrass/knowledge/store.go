@@ -11,7 +11,7 @@ import (
 )
 
 // Store is the derived, regenerable index over one project's knowledge
-// entries and books -- tags and full-text search live here; the entries
+// entries and books. Tags and full-text search live here; the entries
 // and books themselves stay plain markdown files on disk. Deleting this
 // database and running Reindex rebuilds it from scratch.
 type Store struct {
@@ -176,7 +176,7 @@ func (s *Store) IndexBook(b Book) error {
 	return tx.Commit()
 }
 
-// SearchResult holds a search hit's metadata -- either a standalone entry,
+// SearchResult holds a search hit's metadata: either a standalone entry,
 // an entry belonging to a book, or (when IsBook is true) a book collapsed
 // to a single line representing all of its chapters.
 type SearchResult struct {

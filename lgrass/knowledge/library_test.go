@@ -228,8 +228,8 @@ func TestEditOnMultiLineBody(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	// Replace the middle two lines with three new ones -- the body should
-	// grow by one line and the untouched head/tail lines survive.
+	// Replace the middle two lines with three new ones. The body grows by
+	// one line; the untouched head/tail lines survive.
 	edited, err := Edit(testProjectID, "multi-line", 2, 3, "replacement a\nreplacement b\nreplacement c")
 	if err != nil {
 		t.Fatalf("Edit: %v", err)
