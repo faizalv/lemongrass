@@ -7,10 +7,6 @@ import (
 	"github.com/faizalv/lemongrass/cmd/lgrass/version"
 )
 
-// Scaffolding only: real command bodies land once the storage/protocol design
-// in context/scratchpad/lgrass-core/PRD.md is settled (still has open questions
-// as of this commit). Recognized-but-unbuilt commands say so explicitly rather
-// than falling through to "unknown command".
 func main() {
 	if len(os.Args) < 2 {
 		usage()
@@ -22,7 +18,9 @@ func main() {
 		fmt.Println(version.Version)
 	case "--help", "-h", "help":
 		usage()
-	case "knowledge", "thread", "mention", "rules", "session":
+	case "knowledge":
+		cmdKnowledge(os.Args[2:])
+	case "thread", "mention", "rules", "session":
 		notBuiltYet(os.Args[1])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
@@ -44,6 +42,7 @@ COMMANDS
   knowledge search "<query>"        Titles + tags + ids, not content
   knowledge read <id>               One entry's full body
   knowledge read --series <id>      Whole series, in order
+  knowledge reindex                 Rebuild the search index from disk
 
   thread open <session-id> "message"  Mints a thread id, delivers it, backgroundable
   thread reply <thread-id> "message"
@@ -59,6 +58,6 @@ COMMANDS
 
   version                           Print version
 
-Most of the above are not built yet -- see context/scratchpad/lgrass-core/PRD.md.
+thread, mention, rules, and session are not built yet.
 `)
 }
