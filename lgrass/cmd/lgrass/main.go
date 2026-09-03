@@ -45,6 +45,7 @@ COMMANDS
   knowledge read --book <id>        Whole book, chapters in order
   knowledge reindex                 Rebuild the search index from disk
   knowledge book create --title "..." [--tags a,b] [--description "..."]
+  knowledge toc                     Pointers only, for system-prompt injection
 
   thread open <session-id> "message"  Mints a thread id, delivers it, backgroundable
   thread reply <thread-id> "message"

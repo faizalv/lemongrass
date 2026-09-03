@@ -13,7 +13,7 @@ import (
 
 func cmdKnowledge(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge <write|edit|search|read|reindex|book> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge <write|edit|search|read|reindex|book|toc> ...")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -29,6 +29,8 @@ func cmdKnowledge(args []string) {
 		cmdKnowledgeReindex()
 	case "book":
 		cmdKnowledgeBook(args[1:])
+	case "toc":
+		cmdKnowledgeToc()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown knowledge command: %s\n", args[0])
 		os.Exit(1)
@@ -253,6 +255,24 @@ func cmdKnowledgeReindex() {
 		os.Exit(1)
 	}
 	fmt.Printf("reindexed %d entries, %d books\n", entries, books)
+}
+
+func cmdKnowledgeToc() {
+	p := currentProject()
+
+	store, err := knowledge.Open(knowledge.DBPath(), p.ID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	results, err := store.Search("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(knowledge.FormatTOC(results))
 }
 
 func cmdKnowledgeBook(args []string) {

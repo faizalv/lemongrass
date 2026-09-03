@@ -2,6 +2,10 @@ import { ipcMain, WebContents } from 'electron'
 import { homedir } from 'os'
 import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+
+const execFileAsync = promisify(execFile)
 
 // PTY is display-only, never a control-signal source. Every shell spawns
 // an agent binary directly (e.g. `claude`), never a login shell -- no
@@ -18,14 +22,29 @@ interface SpawnOptions {
   rows?: number
 }
 
-// No system-prompt injection here: Claude Code already loads a project's
-// own CLAUDE.md itself the moment it starts in that cwd, so re-injecting
-// it via --append-system-prompt would just duplicate it into context.
-// That flag is reserved for phase 2, once `lgrass` exists to add its own
-// knowledge on top of what the agent CLI already loads natively -- see
-// the PRD's Phase 2 section.
-
 const shells = new Map<string, pty.IPty>()
+
+// Appends a knowledge TOC to a `claude` spawn's args via
+// --append-system-prompt, shelling out to `lgrass knowledge toc` in the
+// target cwd. Fails soft: if `lgrass` isn't on PATH, the cwd isn't a
+// registered project, or the project has no knowledge yet, the shell
+// still spawns, just without the extra prompt.
+async function withKnowledgeToc(opts: SpawnOptions): Promise<string[]> {
+  const args = opts.args ?? []
+  if (opts.command !== 'claude') return args
+
+  try {
+    const { stdout } = await execFileAsync('lgrass', ['knowledge', 'toc'], {
+      cwd: opts.cwd ?? homedir()
+    })
+    const toc = stdout.trim()
+    if (!toc) return args
+    return [...args, '--append-system-prompt', toc]
+  } catch (err) {
+    console.error('lgrass knowledge toc failed, spawning claude without injected knowledge:', err)
+    return args
+  }
+}
 
 // proc.onData/onExit fire on the child process's own timing, not the
 // window's -- a shell can still be emitting output while the window is
@@ -37,9 +56,10 @@ function send(sender: WebContents | undefined, channel: string, payload: unknown
 }
 
 export function registerPtyHandlers(getSender: () => WebContents | undefined): void {
-  ipcMain.handle('pty:spawn', (_event, opts: SpawnOptions) => {
+  ipcMain.handle('pty:spawn', async (_event, opts: SpawnOptions) => {
     const id = randomUUID()
-    const proc = pty.spawn(opts.command, opts.args ?? [], {
+    const args = await withKnowledgeToc(opts)
+    const proc = pty.spawn(opts.command, args, {
       name: 'xterm-256color',
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,

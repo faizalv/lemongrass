@@ -180,6 +180,7 @@ type SearchResult struct {
 	Chapter      int
 	IsBook       bool
 	ChapterCount int
+	Description  string // books only
 }
 
 func (s *Store) scanEntryRows(rows *sql.Rows) ([]SearchResult, error) {
@@ -260,7 +261,7 @@ func (s *Store) bookSummary(bookID string) (SearchResult, error) {
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM entries WHERE project_id = ? AND book_id = ?`, s.projectID, bookID).Scan(&count); err != nil {
 		return SearchResult{}, err
 	}
-	return SearchResult{ID: bookID, Title: title, Tags: tags, IsBook: true, ChapterCount: count}, nil
+	return SearchResult{ID: bookID, Title: title, Tags: tags, IsBook: true, ChapterCount: count, Description: description.String}, nil
 }
 
 func (s *Store) searchEntries(query string) ([]SearchResult, error) {
