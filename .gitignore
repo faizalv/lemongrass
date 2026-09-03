@@ -5,3 +5,5 @@ dist_electron/
 out/
 .DS_Store
 .idea/
+.eslintcache
+*.log*

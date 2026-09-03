@@ -37,7 +37,7 @@ const emit = defineEmits<{
         :class="{ active: tab.id === activeTabId }"
         @click="emit('select-tab', tab.id)"
       >
-        {{ titles[tab.id] ?? tab.label }}
+        <span class="tab-label">{{ titles[tab.id] ?? tab.label }}</span>
         <span class="tab-close" @click.stop="emit('close-tab', tab.id)">&times;</span>
       </button>
       <button class="tab-add" title="New shell" @click="emit('add-tab')">+</button>
@@ -102,6 +102,7 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   padding: var(--space-2) var(--space-4);
   background: transparent;
   border: none;
@@ -122,12 +123,35 @@ const emit = defineEmits<{
   color: var(--color-fg-primary);
 }
 
+.tab-label {
+  /* A floor, not 0 -- without one, several tabs competing for a narrow
+     pane can shrink this to nothing instead of a readable truncated
+     sliver (min-width:0 is still what lets it shrink at all instead of
+     forcing the tab wide enough for its full, untruncated text). */
+  min-width: 3ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  font-size: var(--text-md);
+  line-height: 1;
   color: var(--color-fg-muted);
   border-radius: var(--radius-pill);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .tab-close:hover {
+  background: var(--color-surface-2);
   color: var(--color-fg-primary);
 }
 

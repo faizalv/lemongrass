@@ -26,13 +26,6 @@ export interface Project {
   path: string
 }
 
-export interface TreeNode {
-  name: string
-  path: string
-  type: 'file' | 'dir'
-  children?: TreeNode[]
-}
-
 export interface PaneTab {
   id: string
   label: string
@@ -71,13 +64,6 @@ const projects = {
   add: (): Promise<Project | null> => ipcRenderer.invoke('projects:add')
 }
 
-const knowledge = {
-  tree: (projectPath: string): Promise<TreeNode[]> =>
-    ipcRenderer.invoke('knowledge:tree', projectPath),
-  read: (projectPath: string, filePath: string): Promise<string> =>
-    ipcRenderer.invoke('knowledge:read', { projectPath, filePath })
-}
-
 const layouts = {
   load: (projectId: string): Promise<PaneLayoutNode | null> =>
     ipcRenderer.invoke('layouts:load', projectId),
@@ -98,7 +84,7 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, knowledge, layouts, windowControls }
+const api = { pty, projects, layouts, windowControls }
 
 if (process.contextIsolated) {
   try {

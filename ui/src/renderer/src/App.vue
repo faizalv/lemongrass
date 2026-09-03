@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import ProjectSidebar from './components/ProjectSidebar.vue'
-import KnowledgePanel from './components/KnowledgePanel.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import PaneLayout from './components/PaneLayout.vue'
 import {
@@ -21,7 +20,6 @@ import type { Project, PaneLayoutNode } from '../../preload'
 
 const projects = ref<Project[]>([])
 const activeProjectId = ref<string | null>(null)
-const showKnowledge = ref(false)
 
 // Layout is scoped per project -- each project keeps its own split-pane
 // tree, and switching projects switches which one shows. Persisted to
@@ -164,16 +162,6 @@ onMounted(loadProjects)
       <template #title>
         <span class="app-title">{{ activeProject?.name ?? 'lemongrass' }}</span>
       </template>
-      <template #actions>
-        <button
-          v-if="activeProject"
-          class="knowledge-toggle"
-          :class="{ active: showKnowledge }"
-          @click="showKnowledge = !showKnowledge"
-        >
-          Knowledge
-        </button>
-      </template>
     </HeaderBar>
 
     <div class="body-row">
@@ -203,11 +191,9 @@ onMounted(loadProjects)
           />
           <div v-else class="empty-pane">
             <p class="empty">No shells open.</p>
-            <button class="knowledge-toggle" @click="addTab()">+ New shell</button>
+            <button class="pill-button" @click="addTab()">+ New shell</button>
           </div>
         </div>
-
-        <KnowledgePanel v-if="showKnowledge" :project-path="activeProject.path" />
       </div>
 
       <div v-else class="main empty-state">
@@ -232,7 +218,7 @@ onMounted(loadProjects)
   color: var(--color-fg-primary);
 }
 
-.knowledge-toggle {
+.pill-button {
   padding: var(--space-1) var(--space-3);
   background: transparent;
   border: 1px solid var(--color-border-default);
@@ -246,14 +232,8 @@ onMounted(loadProjects)
     color var(--duration-fast) var(--ease-out);
 }
 
-.knowledge-toggle:hover {
+.pill-button:hover {
   color: var(--color-fg-primary);
-}
-
-.knowledge-toggle.active {
-  background: var(--color-amber-muted);
-  color: var(--color-fg-accent);
-  border-color: transparent;
 }
 
 .body-row {

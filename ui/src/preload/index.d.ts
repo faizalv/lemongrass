@@ -1,12 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type {
-  PtySpawnOptions,
-  PtyDataPayload,
-  PtyExitPayload,
-  Project,
-  TreeNode,
-  PaneLayoutNode
-} from './index'
+import type { PtySpawnOptions, PtyDataPayload, PtyExitPayload, Project, PaneLayoutNode } from './index'
 
 interface Api {
   pty: {
@@ -20,10 +13,6 @@ interface Api {
   projects: {
     list: () => Promise<Project[]>
     add: () => Promise<Project | null>
-  }
-  knowledge: {
-    tree: (projectPath: string) => Promise<TreeNode[]>
-    read: (projectPath: string, filePath: string) => Promise<string>
   }
   layouts: {
     load: (projectId: string) => Promise<PaneLayoutNode | null>
