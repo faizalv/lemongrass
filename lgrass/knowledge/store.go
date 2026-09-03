@@ -3,6 +3,8 @@ package knowledge
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -69,8 +71,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
 `
 
 // Open opens (creating and migrating if needed) the shared index database
-// at dbPath, scoped to one project's entries and books.
+// at dbPath, scoped to one project's entries and books. Callers like
+// `search`/`toc`/`reindex` can reach this before any Write has ever run
+// MkdirAll on config.Dir(), so this can't assume the directory exists.
 func Open(dbPath, projectID string) (*Store, error) {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+		return nil, fmt.Errorf("creating %s: %w", filepath.Dir(dbPath), err)
+	}
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err

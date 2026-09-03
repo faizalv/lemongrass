@@ -20,6 +20,8 @@ func main() {
 		usage()
 	case "knowledge":
 		cmdKnowledge(os.Args[2:])
+	case "hook":
+		cmdHook(os.Args[2:])
 	case "thread", "mention", "rules", "session":
 		notBuiltYet(os.Args[1])
 	default:
@@ -46,6 +48,8 @@ COMMANDS
   knowledge reindex                 Rebuild the search index from disk
   knowledge book create --title "..." [--tags a,b] [--description "..."]
   knowledge toc                     Pointers only, for system-prompt injection
+
+  hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin
 
   thread open <session-id> "message"  Mints a thread id, delivers it, backgroundable
   thread reply <thread-id> "message"
