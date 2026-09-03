@@ -39,6 +39,7 @@ func usage() {
 
 COMMANDS
   knowledge write --tags a,b,c [--book <id> --chapter 2] [--title "..."] < body.md
+  knowledge edit <id> --lines A-B < replacement.md   Targeted patch, not a full overwrite
   knowledge search "<query>"        Titles + tags + ids, not content; books collapse to one line
   knowledge read <id>               One entry's full body
   knowledge read --book <id>        Whole book, chapters in order

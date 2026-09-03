@@ -183,6 +183,82 @@ func TestSearchCollapsesBookToOneLine(t *testing.T) {
 	})
 }
 
+func TestEditReplacesLineRange(t *testing.T) {
+	setupLibrary(t)
+
+	original, err := Read(testProjectID, "chapter-one")
+	if err != nil {
+		t.Fatalf("Read before edit: %v", err)
+	}
+	if original.Body != "the old system used sessions" {
+		t.Fatalf("unexpected fixture body: %q", original.Body)
+	}
+
+	edited, err := Edit(testProjectID, "chapter-one", 1, 1, "the old system used cookies\nand also csrf tokens")
+	if err != nil {
+		t.Fatalf("Edit: %v", err)
+	}
+	wantBody := "the old system used cookies\nand also csrf tokens"
+	if edited.Body != wantBody {
+		t.Errorf("edited.Body = %q, want %q", edited.Body, wantBody)
+	}
+	if edited.CreatedAt != original.CreatedAt {
+		t.Errorf("CreatedAt changed: got %q, want %q", edited.CreatedAt, original.CreatedAt)
+	}
+	if edited.BookID != "auth-redesign" || edited.Chapter != 1 {
+		t.Errorf("book linkage lost after edit: BookID=%q Chapter=%d", edited.BookID, edited.Chapter)
+	}
+
+	reread, err := Read(testProjectID, "chapter-one")
+	if err != nil {
+		t.Fatalf("Read after edit: %v", err)
+	}
+	if reread.Body != wantBody {
+		t.Errorf("body on disk after edit = %q, want %q", reread.Body, wantBody)
+	}
+}
+
+func TestEditOnMultiLineBody(t *testing.T) {
+	setupLibrary(t)
+
+	if _, err := Write(testProjectID, WriteOptions{
+		Title: "Multi Line",
+		Body:  "line one\nline two\nline three\nline four",
+	}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	// Replace the middle two lines with three new ones -- the body should
+	// grow by one line and the untouched head/tail lines survive.
+	edited, err := Edit(testProjectID, "multi-line", 2, 3, "replacement a\nreplacement b\nreplacement c")
+	if err != nil {
+		t.Fatalf("Edit: %v", err)
+	}
+	want := "line one\nreplacement a\nreplacement b\nreplacement c\nline four"
+	if edited.Body != want {
+		t.Errorf("edited.Body = %q, want %q", edited.Body, want)
+	}
+}
+
+func TestEditRejectsOutOfRangeLines(t *testing.T) {
+	setupLibrary(t)
+
+	if _, err := Edit(testProjectID, "chapter-one", 1, 5, "replacement"); err == nil {
+		t.Fatal("Edit past the end of a 1-line body: expected an error, got nil")
+	}
+	if _, err := Edit(testProjectID, "chapter-one", 0, 1, "replacement"); err == nil {
+		t.Fatal("Edit with a 0 start line: expected an error, got nil")
+	}
+}
+
+func TestEditRejectsEmptyResult(t *testing.T) {
+	setupLibrary(t)
+
+	if _, err := Edit(testProjectID, "chapter-one", 1, 1, ""); err == nil {
+		t.Fatal("Edit that empties the whole body: expected an error, got nil")
+	}
+}
+
 func TestReindexRebuildsBooksAndEntries(t *testing.T) {
 	setupLibrary(t)
 

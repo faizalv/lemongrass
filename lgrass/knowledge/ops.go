@@ -91,6 +91,57 @@ func Read(projectID, id string) (Entry, error) {
 	return ParseEntry(data)
 }
 
+// Edit replaces an inclusive, 1-indexed line range in an existing entry's
+// body with replacement, then re-saves and re-indexes it. Unlike Write,
+// this only ever touches Body -- ID, Title, Tags, BookID, Chapter, and
+// CreatedAt are left as they were.
+func Edit(projectID, id string, startLine, endLine int, replacement string) (Entry, error) {
+	entry, err := Read(projectID, id)
+	if err != nil {
+		return Entry{}, err
+	}
+
+	lines := strings.Split(entry.Body, "\n")
+	if startLine < 1 || endLine < startLine || endLine > len(lines) {
+		return Entry{}, fmt.Errorf("line range %d-%d out of bounds for a %d-line body", startLine, endLine, len(lines))
+	}
+
+	var replacementLines []string
+	if trimmed := strings.TrimRight(replacement, "\n"); trimmed != "" {
+		replacementLines = strings.Split(trimmed, "\n")
+	}
+
+	newLines := append([]string{}, lines[:startLine-1]...)
+	newLines = append(newLines, replacementLines...)
+	newLines = append(newLines, lines[endLine:]...)
+	newBody := strings.Join(newLines, "\n")
+	if strings.TrimSpace(newBody) == "" {
+		return Entry{}, fmt.Errorf("edit would leave the entry empty")
+	}
+
+	entry.Body = newBody
+	entry.UpdatedAt = Now()
+
+	data, err := entry.Marshal()
+	if err != nil {
+		return Entry{}, err
+	}
+	if err := os.WriteFile(EntryPath(projectID, id), data, 0o644); err != nil {
+		return Entry{}, err
+	}
+
+	store, err := Open(DBPath(), projectID)
+	if err != nil {
+		return Entry{}, err
+	}
+	defer store.Close()
+	if err := store.Index(entry); err != nil {
+		return Entry{}, err
+	}
+
+	return entry, nil
+}
+
 // BookOptions are the caller-supplied fields for a new or updated book.
 type BookOptions struct {
 	Title       string

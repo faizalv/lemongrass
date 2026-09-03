@@ -13,12 +13,14 @@ import (
 
 func cmdKnowledge(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge <write|search|read|reindex|book> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge <write|edit|search|read|reindex|book> ...")
 		os.Exit(1)
 	}
 	switch args[0] {
 	case "write":
 		cmdKnowledgeWrite(args[1:])
+	case "edit":
+		cmdKnowledgeEdit(args[1:])
 	case "search":
 		cmdKnowledgeSearch(args[1:])
 	case "read":
@@ -93,6 +95,65 @@ func cmdKnowledgeWrite(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("wrote %s (%s)\n", entry.ID, entry.Title)
+}
+
+func cmdKnowledgeEdit(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge edit <id> --lines A-B < replacement.md")
+		os.Exit(1)
+	}
+	id := args[0]
+
+	var lineRange string
+	for i := 1; i < len(args); i++ {
+		if args[i] == "--lines" {
+			i++
+			if i < len(args) {
+				lineRange = args[i]
+			}
+		}
+	}
+	if lineRange == "" {
+		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge edit <id> --lines A-B < replacement.md")
+		os.Exit(1)
+	}
+	start, end, err := parseLineRange(lineRange)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	replacement, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error reading replacement from stdin: %v\n", err)
+		os.Exit(1)
+	}
+
+	p := currentProject()
+	entry, err := knowledge.Edit(p.ID, id, start, end, string(replacement))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("edited %s (%s), lines %d-%d\n", entry.ID, entry.Title, start, end)
+}
+
+// parseLineRange parses "A-B" (or a bare "A" as shorthand for "A-A") into
+// its inclusive, 1-indexed bounds.
+func parseLineRange(s string) (start, end int, err error) {
+	parts := strings.SplitN(s, "-", 2)
+	start, err = strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid line range %q", s)
+	}
+	end = start
+	if len(parts) == 2 {
+		end, err = strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			return 0, 0, fmt.Errorf("invalid line range %q", s)
+		}
+	}
+	return start, end, nil
 }
 
 func cmdKnowledgeSearch(args []string) {
