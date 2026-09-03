@@ -31,6 +31,13 @@ const layoutByProject = reactive<Record<string, PaneLayoutNode | null>>({})
 const focusedPaneByProject = reactive<Record<string, string | null>>({})
 const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
+// Live titles the agent CLI itself has set, keyed by tab id -- kept out of
+// layoutByProject on purpose, same as the live PTY process and its
+// scrollback: it's process state, not shape, so it never reaches
+// layouts.json. A restored tab shows its static label again until its
+// fresh shell sets a new one.
+const titleByTab = reactive<Record<string, string>>({})
+
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
 )
@@ -116,11 +123,19 @@ function onSelectTab(paneId: string, tabId: string): void {
 }
 
 function onCloseTab(paneId: string, tabId: string): void {
+  delete titleByTab[tabId]
   withLayout((layout) => closeTabInLayout(layout, paneId, tabId))
 }
 
 function onClosePane(paneId: string): void {
+  const id = activeProjectId.value
+  const layout = id ? (layoutByProject[id] ?? null) : null
+  for (const tab of findLeaf(layout, paneId)?.tabs ?? []) delete titleByTab[tab.id]
   withLayout((layout) => closePaneInLayout(layout, paneId))
+}
+
+function onTitleChange(_paneId: string, tabId: string, title: string): void {
+  titleByTab[tabId] = title
 }
 
 function onSplit(paneId: string, direction: 'row' | 'column'): void {
@@ -175,6 +190,7 @@ onMounted(loadProjects)
             v-if="currentLayout"
             :node="currentLayout"
             :focused-pane-id="focusedPaneId"
+            :titles="titleByTab"
             @focus="onFocus"
             @select-tab="onSelectTab"
             @close-tab="onCloseTab"
@@ -183,6 +199,7 @@ onMounted(loadProjects)
             @close-pane="onClosePane"
             @exit="onExit"
             @resize="onResize"
+            @title-change="onTitleChange"
           />
           <div v-else class="empty-pane">
             <p class="empty">No shells open.</p>

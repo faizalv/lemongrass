@@ -10,6 +10,7 @@ import type { PaneLayoutNode } from '../../../preload'
 const props = defineProps<{
   node: PaneLayoutNode
   focusedPaneId: string | null
+  titles: Record<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   'close-pane': [paneId: string]
   exit: [paneId: string, tabId: string]
   resize: [splitId: string, sizes: number[]]
+  'title-change': [paneId: string, tabId: string, title: string]
 }>()
 
 const containerEl = ref<HTMLDivElement>()
@@ -70,6 +72,7 @@ function onGutterUp(): void {
     :tabs="node.tabs"
     :active-tab-id="node.activeTabId"
     :focused="node.id === focusedPaneId"
+    :titles="titles"
     @focus="emit('focus', node.id)"
     @select-tab="(tabId) => emit('select-tab', node.id, tabId)"
     @close-tab="(tabId) => emit('close-tab', node.id, tabId)"
@@ -77,6 +80,7 @@ function onGutterUp(): void {
     @split="(direction) => emit('split', node.id, direction)"
     @close-pane="emit('close-pane', node.id)"
     @exit="(tabId) => emit('exit', node.id, tabId)"
+    @title-change="(tabId, title) => emit('title-change', node.id, tabId, title)"
   />
 
   <div v-else ref="containerEl" class="split" :class="node.direction">
@@ -85,6 +89,7 @@ function onGutterUp(): void {
         <PaneLayout
           :node="child"
           :focused-pane-id="focusedPaneId"
+          :titles="titles"
           @focus="(id) => emit('focus', id)"
           @select-tab="(id, tabId) => emit('select-tab', id, tabId)"
           @close-tab="(id, tabId) => emit('close-tab', id, tabId)"
@@ -93,6 +98,7 @@ function onGutterUp(): void {
           @close-pane="(id) => emit('close-pane', id)"
           @exit="(id, tabId) => emit('exit', id, tabId)"
           @resize="(splitId, sizes) => emit('resize', splitId, sizes)"
+          @title-change="(id, tabId, title) => emit('title-change', id, tabId, title)"
         />
       </div>
       <div

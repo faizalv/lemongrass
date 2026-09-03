@@ -30,6 +30,13 @@ function createWindow(): void {
     win.show()
   })
 
+  // Otherwise mainWindow keeps pointing at a destroyed BrowserWindow after
+  // close -- accessing .webContents on it throws "Object has been
+  // destroyed" for any handler still holding this getter.
+  win.on('closed', () => {
+    mainWindow = undefined
+  })
+
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }

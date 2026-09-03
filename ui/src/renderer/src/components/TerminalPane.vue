@@ -17,6 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   exit: [exitCode: number]
+  'title-change': [title: string]
 }>()
 
 const containerEl = ref<HTMLDivElement>()
@@ -77,6 +78,13 @@ onMounted(async () => {
   term.loadAddon(fitAddon)
   term.open(containerEl.value)
   fitAddon.fit()
+
+  // Fires on the standard OSC title escape sequence -- xterm.js already
+  // parses it, so the tab just relays whatever title the agent CLI itself
+  // sets, same as any terminal emulator's tab/window title would.
+  term.onTitleChange((title) => {
+    if (title) emit('title-change', title)
+  })
 
   const { id } = await window.api.pty.spawn({
     command: props.command,

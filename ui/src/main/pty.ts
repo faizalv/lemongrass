@@ -27,6 +27,15 @@ interface SpawnOptions {
 
 const shells = new Map<string, pty.IPty>()
 
+// proc.onData/onExit fire on the child process's own timing, not the
+// window's -- a shell can still be emitting output while the window is
+// mid-teardown, when getSender() may return a wrapper whose underlying
+// native object is already gone. .send() on that throws "Object has been
+// destroyed", so every send here goes through this guard.
+function send(sender: WebContents | undefined, channel: string, payload: unknown): void {
+  if (sender && !sender.isDestroyed()) sender.send(channel, payload)
+}
+
 export function registerPtyHandlers(getSender: () => WebContents | undefined): void {
   ipcMain.handle('pty:spawn', (_event, opts: SpawnOptions) => {
     const id = randomUUID()
@@ -39,11 +48,11 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
     })
 
     proc.onData((data) => {
-      getSender()?.send('pty:data', { id, data })
+      send(getSender(), 'pty:data', { id, data })
     })
 
     proc.onExit(({ exitCode, signal }) => {
-      getSender()?.send('pty:exit', { id, exitCode, signal })
+      send(getSender(), 'pty:exit', { id, exitCode, signal })
       shells.delete(id)
     })
 

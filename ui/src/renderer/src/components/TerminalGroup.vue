@@ -10,6 +10,9 @@ defineProps<{
   tabs: PaneTab[]
   activeTabId: string | null
   focused: boolean
+  /** Live titles the agent CLI itself has set, keyed by tab id -- overlays
+   *  each tab's static spawn-time label until one arrives. */
+  titles: Record<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +23,7 @@ const emit = defineEmits<{
   split: [direction: 'row' | 'column']
   'close-pane': []
   exit: [tabId: string]
+  'title-change': [tabId: string, title: string]
 }>()
 </script>
 
@@ -33,7 +37,7 @@ const emit = defineEmits<{
         :class="{ active: tab.id === activeTabId }"
         @click="emit('select-tab', tab.id)"
       >
-        {{ tab.label }}
+        {{ titles[tab.id] ?? tab.label }}
         <span class="tab-close" @click.stop="emit('close-tab', tab.id)">&times;</span>
       </button>
       <button class="tab-add" title="New shell" @click="emit('add-tab')">+</button>
@@ -67,6 +71,7 @@ const emit = defineEmits<{
         :command="tab.command"
         :cwd="tab.cwd"
         @exit="emit('exit', tab.id)"
+        @title-change="(title) => emit('title-change', tab.id, title)"
       />
     </div>
   </div>
