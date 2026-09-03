@@ -18,9 +18,8 @@ type Entry struct {
 	ID        string   `yaml:"id"`
 	Title     string   `yaml:"title"`
 	Tags      []string `yaml:"tags,omitempty"`
-	Series    string   `yaml:"series,omitempty"`
-	Part      int      `yaml:"part,omitempty"`
-	PartTotal int      `yaml:"part_total,omitempty"`
+	BookID    string   `yaml:"book_id,omitempty"`
+	Chapter   int      `yaml:"chapter,omitempty"`
 	CreatedAt string   `yaml:"created_at"`
 	UpdatedAt string   `yaml:"updated_at"`
 	Body      string   `yaml:"-"`

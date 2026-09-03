@@ -38,11 +38,12 @@ func usage() {
 	fmt.Print(`lgrass -- lemongrass's agent-invoked CLI
 
 COMMANDS
-  knowledge write --tags a,b,c [--series <id> --part 2/5] [--title "..."] < body.md
-  knowledge search "<query>"        Titles + tags + ids, not content
+  knowledge write --tags a,b,c [--book <id> --chapter 2] [--title "..."] < body.md
+  knowledge search "<query>"        Titles + tags + ids, not content; books collapse to one line
   knowledge read <id>               One entry's full body
-  knowledge read --series <id>      Whole series, in order
+  knowledge read --book <id>        Whole book, chapters in order
   knowledge reindex                 Rebuild the search index from disk
+  knowledge book create --title "..." [--tags a,b] [--description "..."]
 
   thread open <session-id> "message"  Mints a thread id, delivers it, backgroundable
   thread reply <thread-id> "message"

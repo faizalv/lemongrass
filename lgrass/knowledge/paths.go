@@ -20,3 +20,13 @@ func DBPath() string {
 func EntryPath(projectID, id string) string {
 	return filepath.Join(Dir(projectID), id+".md")
 }
+
+// BooksDir returns the directory holding one project's book files.
+func BooksDir(projectID string) string {
+	return filepath.Join(Dir(projectID), "books")
+}
+
+// BookPath returns the on-disk path for one book's file.
+func BookPath(projectID, id string) string {
+	return filepath.Join(BooksDir(projectID), id+".md")
+}

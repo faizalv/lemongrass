@@ -13,7 +13,7 @@ import (
 
 func cmdKnowledge(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge <write|search|read|reindex> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge <write|search|read|reindex|book> ...")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -25,6 +25,8 @@ func cmdKnowledge(args []string) {
 		cmdKnowledgeRead(args[1:])
 	case "reindex":
 		cmdKnowledgeReindex()
+	case "book":
+		cmdKnowledgeBook(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown knowledge command: %s\n", args[0])
 		os.Exit(1)
@@ -44,8 +46,8 @@ func currentProject() project.Project {
 
 func cmdKnowledgeWrite(args []string) {
 	var tags []string
-	var series, title string
-	var part, partTotal int
+	var bookID, title string
+	var chapter int
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -54,15 +56,15 @@ func cmdKnowledgeWrite(args []string) {
 			if i < len(args) {
 				tags = splitCSV(args[i])
 			}
-		case "--series":
+		case "--book":
 			i++
 			if i < len(args) {
-				series = args[i]
+				bookID = args[i]
 			}
-		case "--part":
+		case "--chapter":
 			i++
 			if i < len(args) {
-				part, partTotal = parsePart(args[i])
+				chapter, _ = strconv.Atoi(args[i])
 			}
 		case "--title":
 			i++
@@ -80,12 +82,11 @@ func cmdKnowledgeWrite(args []string) {
 
 	p := currentProject()
 	entry, err := knowledge.Write(p.ID, knowledge.WriteOptions{
-		Title:     title,
-		Tags:      tags,
-		Series:    series,
-		Part:      part,
-		PartTotal: partTotal,
-		Body:      string(body),
+		Title:   title,
+		Tags:    tags,
+		BookID:  bookID,
+		Chapter: chapter,
+		Body:    string(body),
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -115,12 +116,20 @@ func cmdKnowledgeSearch(args []string) {
 		return
 	}
 	for _, r := range results {
+		if r.IsBook {
+			line := fmt.Sprintf("%s\t%s\t[book, %d chapters]", r.ID, r.Title, r.ChapterCount)
+			if len(r.Tags) > 0 {
+				line += "\t[" + strings.Join(r.Tags, ", ") + "]"
+			}
+			fmt.Println(line)
+			continue
+		}
 		line := fmt.Sprintf("%s\t%s", r.ID, r.Title)
 		if len(r.Tags) > 0 {
 			line += "\t[" + strings.Join(r.Tags, ", ") + "]"
 		}
-		if r.Series != "" {
-			line += fmt.Sprintf("\t(series %s, part %d/%d)", r.Series, r.Part, r.PartTotal)
+		if r.BookID != "" {
+			line += fmt.Sprintf("\t(book %s, chapter %d)", r.BookID, r.Chapter)
 		}
 		fmt.Println(line)
 	}
@@ -129,12 +138,12 @@ func cmdKnowledgeSearch(args []string) {
 func cmdKnowledgeRead(args []string) {
 	p := currentProject()
 
-	if len(args) >= 2 && args[0] == "--series" {
-		readSeries(p, args[1])
+	if len(args) >= 2 && args[0] == "--book" {
+		readBook(p, args[1])
 		return
 	}
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge read <id> | --series <id>")
+		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge read <id> | --book <id>")
 		os.Exit(1)
 	}
 	entry, err := knowledge.Read(p.ID, args[0])
@@ -145,7 +154,7 @@ func cmdKnowledgeRead(args []string) {
 	printEntry(entry)
 }
 
-func readSeries(p project.Project, seriesID string) {
+func readBook(p project.Project, bookID string) {
 	store, err := knowledge.Open(knowledge.DBPath(), p.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -153,16 +162,16 @@ func readSeries(p project.Project, seriesID string) {
 	}
 	defer store.Close()
 
-	results, err := store.Series(seriesID)
+	chapters, err := store.Chapters(bookID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	if len(results) == 0 {
-		fmt.Fprintf(os.Stderr, "no entries in series %s\n", seriesID)
+	if len(chapters) == 0 {
+		fmt.Fprintf(os.Stderr, "no entries in book %s\n", bookID)
 		os.Exit(1)
 	}
-	for i, r := range results {
+	for i, r := range chapters {
 		entry, err := knowledge.Read(p.ID, r.ID)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", r.ID, err)
@@ -177,12 +186,63 @@ func readSeries(p project.Project, seriesID string) {
 
 func cmdKnowledgeReindex() {
 	p := currentProject()
-	count, err := knowledge.Reindex(p.ID)
+	entries, books, err := knowledge.Reindex(p.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("reindexed %d entries\n", count)
+	fmt.Printf("reindexed %d entries, %d books\n", entries, books)
+}
+
+func cmdKnowledgeBook(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: lgrass knowledge book create --title \"...\" [--tags a,b] [--description \"...\"]")
+		os.Exit(1)
+	}
+	switch args[0] {
+	case "create":
+		cmdKnowledgeBookCreate(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "unknown knowledge book command: %s\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func cmdKnowledgeBookCreate(args []string) {
+	var tags []string
+	var title, description string
+
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--title":
+			i++
+			if i < len(args) {
+				title = args[i]
+			}
+		case "--tags":
+			i++
+			if i < len(args) {
+				tags = splitCSV(args[i])
+			}
+		case "--description":
+			i++
+			if i < len(args) {
+				description = args[i]
+			}
+		}
+	}
+
+	p := currentProject()
+	book, err := knowledge.CreateBook(p.ID, knowledge.BookOptions{
+		Title:       title,
+		Tags:        tags,
+		Description: description,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("created book %s (%s)\n", book.ID, book.Title)
 }
 
 func printEntry(e knowledge.Entry) {
@@ -190,8 +250,8 @@ func printEntry(e knowledge.Entry) {
 	if len(e.Tags) > 0 {
 		fmt.Printf("tags: %s\n", strings.Join(e.Tags, ", "))
 	}
-	if e.Series != "" {
-		fmt.Printf("series: %s (part %d/%d)\n", e.Series, e.Part, e.PartTotal)
+	if e.BookID != "" {
+		fmt.Printf("book: %s (chapter %d)\n", e.BookID, e.Chapter)
 	}
 	fmt.Println()
 	fmt.Println(e.Body)
@@ -206,14 +266,4 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
-}
-
-func parsePart(s string) (int, int) {
-	pieces := strings.SplitN(s, "/", 2)
-	part, _ := strconv.Atoi(strings.TrimSpace(pieces[0]))
-	total := 0
-	if len(pieces) == 2 {
-		total, _ = strconv.Atoi(strings.TrimSpace(pieces[1]))
-	}
-	return part, total
 }
