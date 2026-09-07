@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/faizalv/lemongrass/config"
+	"github.com/google/uuid"
 )
 
 // Project mirrors ui/src/main/projects.ts's shape in
@@ -35,6 +36,47 @@ func loadAll() ([]Project, error) {
 		return nil, fmt.Errorf("parsing %s: %w", registryPath(), err)
 	}
 	return projects, nil
+}
+
+func saveAll(projects []Project) error {
+	if err := os.MkdirAll(config.Dir(), 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(projects, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(registryPath(), data, 0o644)
+}
+
+// Register adds dir to the project registry, deduped by exact path and
+// shaped identically to the Electron UI's own projects:add handler
+// (ui/src/main/projects.ts), so a folder registered from a bare terminal
+// via `lgrass init` and one added through the UI are indistinguishable
+// afterward. Returns the existing entry, unchanged, if dir is already
+// registered.
+func Register(dir string) (Project, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return Project{}, err
+	}
+	abs = filepath.Clean(abs)
+
+	projects, err := loadAll()
+	if err != nil {
+		return Project{}, err
+	}
+	for _, p := range projects {
+		if filepath.Clean(p.Path) == abs {
+			return p, nil
+		}
+	}
+
+	p := Project{ID: uuid.NewString(), Name: filepath.Base(abs), Path: abs}
+	if err := saveAll(append(projects, p)); err != nil {
+		return Project{}, err
+	}
+	return p, nil
 }
 
 // Resolve matches a directory to a registered project: exact path first,

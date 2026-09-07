@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/faizalv/lemongrass/cmd/lgrass/version"
+	"github.com/faizalv/lemongrass/project"
 )
 
 func main() {
@@ -18,17 +19,40 @@ func main() {
 		fmt.Println(version.Version)
 	case "--help", "-h", "help":
 		usage()
+	case "init":
+		cmdInit()
 	case "knowledge":
 		cmdKnowledge(os.Args[2:])
 	case "hook":
 		cmdHook(os.Args[2:])
-	case "thread", "mention", "rules", "session":
+	case "thread":
+		cmdThread(os.Args[2:])
+	case "session":
+		cmdSession(os.Args[2:])
+	case "mention", "rules":
 		notBuiltYet(os.Args[1])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
 		os.Exit(1)
 	}
+}
+
+// cmdInit registers the current directory as a lemongrass project,
+// identically to the Electron UI's own "add project" flow, so a bare
+// terminal session never opened through the UI can still become one.
+func cmdInit() {
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	p, err := project.Register(cwd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("lgrass: %s registered as project %q (%s)\n", p.Path, p.Name, p.ID)
 }
 
 func notBuiltYet(cmd string) {
@@ -40,6 +64,8 @@ func usage() {
 	fmt.Print(`lgrass -- lemongrass's agent-invoked CLI
 
 COMMANDS
+  init                               Register the current directory as a lemongrass project
+
   knowledge write --tags a,b,c [--book <id> --chapter 2] [--title "..."] < body.md
   knowledge edit <id> --lines A-B < replacement.md   Targeted patch, not a full overwrite
   knowledge search "<query>"        Titles + tags + ids, not content; books collapse to one line
@@ -51,20 +77,21 @@ COMMANDS
 
   hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin
 
-  thread open <session-id> "message"  Mints a thread id, delivers it, backgroundable
-  thread reply <thread-id> "message"
-  thread close <thread-id>
-  thread list                       Threads open on / waiting on this session
+  thread post "message" [--mention <session-id>]   Project-wide, not point-to-point; pushed live to other
+                                     sessions' inbox sockets, and mentions surface via hook regardless
+  thread list [--limit N]           Recent thread messages in this project, newest first
+  thread listen [--timeout 10m]     Blocks until a new message arrives or the timeout elapses; meant to
+                                     run backgrounded for a live channel, vendor neutral, relaunch on return
 
   mention <knowledge-id> "comment"  Human-facing, opens a thread against the right session
 
   rules list
   rules add ...                     Human/UI-driven, not a model-facing write path
 
-  session list                      Population + active/idling state, current project
+  session list                      Other live sessions in this project, with active/idling state
 
   version                           Print version
 
-thread, mention, rules, and session are not built yet.
+mention and rules are not built yet.
 `)
 }

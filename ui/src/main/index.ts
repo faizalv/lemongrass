@@ -6,7 +6,7 @@ import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerLayoutHandlers } from './layouts'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
-import { installLgrass, mergeLgrassHooks } from './lgrassInstall'
+import { installLgrass, mergeLgrassHooks, installSkill } from './lgrassInstall'
 
 let mainWindow: BrowserWindow | undefined
 
@@ -59,6 +59,7 @@ app.whenReady().then(() => {
 
   const lgrassPath = installLgrass()
   if (lgrassPath) mergeLgrassHooks(lgrassPath)
+  installSkill()
 
   registerPtyHandlers(
     () => mainWindow?.webContents,

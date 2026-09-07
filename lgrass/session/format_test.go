@@ -46,3 +46,57 @@ func TestFormatNudgeCountsActiveAndIdling(t *testing.T) {
 		t.Errorf("FormatNudge = %q, want a 3/2/1 breakdown", got)
 	}
 }
+
+func TestFormatThreadPushReadsAsNotTheHuman(t *testing.T) {
+	got := FormatThreadPush("session-a", "schema migration finished")
+	if !strings.Contains(got, "not your user") {
+		t.Errorf("FormatThreadPush = %q, missing the not-the-human framing", got)
+	}
+	if !strings.Contains(got, "session session-a: schema migration finished") {
+		t.Errorf("FormatThreadPush = %q, missing sender attribution and body", got)
+	}
+}
+
+func TestFormatMentionsEmpty(t *testing.T) {
+	if got := FormatMentions(nil); got != "" {
+		t.Errorf("FormatMentions(nil) = %q, want empty string", got)
+	}
+}
+
+func TestFormatMentionsListsEachMessage(t *testing.T) {
+	msgs := []ThreadMessage{
+		{SessionID: "session-a", Body: "here's the shape I need"},
+		{SessionID: "session-a", Body: "second message"},
+	}
+	got := FormatMentions(msgs)
+	if !strings.Contains(got, "you were mentioned") {
+		t.Errorf("FormatMentions = %q, missing mention framing", got)
+	}
+	if !strings.Contains(got, "session-a: here's the shape I need") || !strings.Contains(got, "session-a: second message") {
+		t.Errorf("FormatMentions = %q, missing one or both messages", got)
+	}
+}
+
+func TestFormatThreadListEmpty(t *testing.T) {
+	got := FormatThreadList(nil)
+	if !strings.Contains(got, "no thread messages yet") {
+		t.Errorf("FormatThreadList(nil) = %q, want an empty-state message", got)
+	}
+}
+
+func TestFormatThreadListShowsMentionTarget(t *testing.T) {
+	msgs := []ThreadMessage{
+		{SessionID: "session-a", Mention: "session-b", Body: "check this", CreatedAt: "2026-09-04T00:00:00Z"},
+		{SessionID: "session-c", Body: "no target", CreatedAt: "2026-09-04T00:01:00Z"},
+	}
+	got := FormatThreadList(msgs)
+	if !strings.Contains(got, "session-a -> session-b: check this") {
+		t.Errorf("FormatThreadList = %q, missing mention arrow line", got)
+	}
+	if !strings.Contains(got, "session-c: no target") {
+		t.Errorf("FormatThreadList = %q, missing unmentioned line", got)
+	}
+	if strings.Contains(got, "session-c ->") {
+		t.Errorf("FormatThreadList = %q, unmentioned message should not show a -> target", got)
+	}
+}

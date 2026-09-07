@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS sessions (
 	ended_at TEXT,
 	last_activity_at TEXT NOT NULL,
 	nudge_counter INTEGER NOT NULL DEFAULT 0,
+	messaging_socket TEXT,
+	messaging_token TEXT,
+	thread_read_at TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (project_id, session_id)
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_open ON sessions(project_id, ended_at);
@@ -38,6 +41,16 @@ CREATE TABLE IF NOT EXISTS file_activity (
 );
 CREATE INDEX IF NOT EXISTS idx_file_activity_file ON file_activity(project_id, file_path, touched_at);
 CREATE INDEX IF NOT EXISTS idx_file_activity_dir ON file_activity(project_id, dir, touched_at);
+CREATE TABLE IF NOT EXISTS thread_messages (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	project_id TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	body TEXT NOT NULL,
+	mention TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_thread_messages_project ON thread_messages(project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_thread_messages_mention ON thread_messages(project_id, mention, created_at);
 `
 
 // Open opens (creating and migrating if needed) the shared session
@@ -64,23 +77,37 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// RFC3339Nano, not RFC3339: thread_read_at and thread_messages.created_at
+// get compared with a strict ">" (see UnreadMentions), and second-only
+// precision let a Start and an immediately-following PostThreadMessage
+// land on the same string, silently hiding the message from the > check.
 func now() string {
-	return time.Now().UTC().Format(time.RFC3339)
+	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
 // Start records a session beginning, or restarting under a reused id
-// (ended_at and nudge_counter reset either way).
-func (s *Store) Start(sessionID string) error {
+// (ended_at and nudge_counter reset either way). messagingSocket/
+// messagingToken are this session's own Claude Code inbox socket
+// (CLAUDE_CODE_MESSAGING_SOCKET/_TOKEN from its own environment, empty
+// when messaging isn't available); other sessions read these back to
+// push thread messages directly into it. thread_read_at resets to now,
+// so a fresh or restarted session doesn't get flooded with mentions
+// posted before it existed; `thread list` is there to catch up on
+// history deliberately.
+func (s *Store) Start(sessionID, messagingSocket, messagingToken string) error {
 	ts := now()
 	_, err := s.db.Exec(`
-		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter)
-		VALUES (?, ?, ?, NULL, ?, 0)
+		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter, messaging_socket, messaging_token, thread_read_at)
+		VALUES (?, ?, ?, NULL, ?, 0, ?, ?, ?)
 		ON CONFLICT (project_id, session_id) DO UPDATE SET
 			started_at = excluded.started_at,
 			ended_at = NULL,
 			last_activity_at = excluded.last_activity_at,
-			nudge_counter = 0
-	`, s.projectID, sessionID, ts, ts)
+			nudge_counter = 0,
+			messaging_socket = excluded.messaging_socket,
+			messaging_token = excluded.messaging_token,
+			thread_read_at = excluded.thread_read_at
+	`, s.projectID, sessionID, ts, ts, messagingSocket, messagingToken, ts)
 	return err
 }
 
@@ -230,4 +257,152 @@ func (s *Store) IncrementNudgeCounter(sessionID string, threshold int) (fire boo
 		return false, err
 	}
 	return fire, tx.Commit()
+}
+
+// ThreadMessage is one project-wide thread post.
+type ThreadMessage struct {
+	ID        int64
+	SessionID string // author
+	Body      string
+	Mention   string // target session_id, "" when not aimed at anyone specific
+	CreatedAt string
+}
+
+// PostThreadMessage appends a message to the project's shared thread log
+// and returns its id. There is no separate thread/topic object to create
+// first: the project itself is the channel, per the project-wide (not
+// point-to-point) thread model.
+func (s *Store) PostThreadMessage(sessionID, body, mention string) (int64, error) {
+	res, err := s.db.Exec(`
+		INSERT INTO thread_messages (project_id, session_id, body, mention, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, s.projectID, sessionID, body, mention, now())
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// RecentThreadMessages returns the project's most recent thread messages,
+// newest first, for a pane catching up cold via `thread list`.
+func (s *Store) RecentThreadMessages(limit int) ([]ThreadMessage, error) {
+	rows, err := s.db.Query(`
+		SELECT id, session_id, body, mention, created_at FROM thread_messages
+		WHERE project_id = ?
+		ORDER BY created_at DESC, id DESC
+		LIMIT ?
+	`, s.projectID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanThreadMessages(rows)
+}
+
+// UnreadMentions returns messages that mention sessionID and arrived
+// since it last checked (its thread_read_at), oldest first. This is the
+// pull-based fallback surfaced via hook additionalContext, guaranteeing
+// delivery even when the live socket push in deliver.go fails or the
+// target session has no messaging socket at all.
+func (s *Store) UnreadMentions(sessionID string) ([]ThreadMessage, error) {
+	var readAt string
+	if err := s.db.QueryRow(`SELECT thread_read_at FROM sessions WHERE project_id = ? AND session_id = ?`, s.projectID, sessionID).Scan(&readAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	rows, err := s.db.Query(`
+		SELECT id, session_id, body, mention, created_at FROM thread_messages
+		WHERE project_id = ? AND mention = ? AND session_id != ? AND created_at > ?
+		ORDER BY created_at ASC, id ASC
+	`, s.projectID, sessionID, sessionID, readAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanThreadMessages(rows)
+}
+
+// MarkThreadRead advances sessionID's thread_read_at to now, so the same
+// mention isn't surfaced again on the next hook firing.
+func (s *Store) MarkThreadRead(sessionID string) error {
+	_, err := s.db.Exec(`UPDATE sessions SET thread_read_at = ? WHERE project_id = ? AND session_id = ?`, now(), s.projectID, sessionID)
+	return err
+}
+
+func scanThreadMessages(rows *sql.Rows) ([]ThreadMessage, error) {
+	var out []ThreadMessage
+	for rows.Next() {
+		var m ThreadMessage
+		if err := rows.Scan(&m.ID, &m.SessionID, &m.Body, &m.Mention, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// LatestThreadMessageID returns the highest thread_messages id in the
+// project so far, 0 when there are none yet. `lgrass thread listen`
+// calls this once at startup as its polling cursor, so it only ever
+// surfaces messages posted after it started listening, never replays
+// history. `thread list` is there for that.
+func (s *Store) LatestThreadMessageID() (int64, error) {
+	var id sql.NullInt64
+	if err := s.db.QueryRow(`SELECT MAX(id) FROM thread_messages WHERE project_id = ?`, s.projectID).Scan(&id); err != nil {
+		return 0, err
+	}
+	return id.Int64, nil
+}
+
+// NewThreadMessagesAfter returns every project message with an id
+// greater than afterID, oldest first. A message-id cursor, not a
+// timestamp one, so listen's poll loop can't hit the same
+// same-timestamp-collision class of bug UnreadMentions needed
+// RFC3339Nano to avoid.
+func (s *Store) NewThreadMessagesAfter(afterID int64) ([]ThreadMessage, error) {
+	rows, err := s.db.Query(`
+		SELECT id, session_id, body, mention, created_at FROM thread_messages
+		WHERE project_id = ? AND id > ?
+		ORDER BY id ASC
+	`, s.projectID, afterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanThreadMessages(rows)
+}
+
+// MessagingTarget is another live session's own Claude Code inbox
+// socket, for pushing a thread message directly into it.
+type MessagingTarget struct {
+	SessionID string
+	Socket    string
+	Token     string
+}
+
+// LiveMessagingTargets returns every other currently-live session in the
+// project that captured a messaging socket at SessionStart.
+func (s *Store) LiveMessagingTargets(excludeSessionID string) ([]MessagingTarget, error) {
+	rows, err := s.db.Query(`
+		SELECT session_id, messaging_socket, messaging_token FROM sessions
+		WHERE project_id = ? AND ended_at IS NULL AND session_id != ?
+			AND messaging_socket IS NOT NULL AND messaging_socket != ''
+	`, s.projectID, excludeSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []MessagingTarget
+	for rows.Next() {
+		var t MessagingTarget
+		if err := rows.Scan(&t.SessionID, &t.Socket, &t.Token); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }

@@ -21,10 +21,10 @@ func openTestStore(t *testing.T) *Store {
 func TestLivenessExcludesSelfAndReportsActiveIdling(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a"); err != nil {
+	if err := store.Start("session-a", "", ""); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b"); err != nil {
+	if err := store.Start("session-b", "", ""); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 
@@ -55,10 +55,10 @@ func TestLivenessExcludesSelfAndReportsActiveIdling(t *testing.T) {
 func TestEndedSessionExcludedFromLiveness(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a"); err != nil {
+	if err := store.Start("session-a", "", ""); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b"); err != nil {
+	if err := store.Start("session-b", "", ""); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 	if err := store.End("session-b"); err != nil {
@@ -77,10 +77,10 @@ func TestEndedSessionExcludedFromLiveness(t *testing.T) {
 func TestRecentActivitySameFileAndSameFolder(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a"); err != nil {
+	if err := store.Start("session-a", "", ""); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b"); err != nil {
+	if err := store.Start("session-b", "", ""); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 	if err := store.LogFileActivity("session-b", "/proj/pkg/foo.go"); err != nil {
@@ -136,10 +136,10 @@ func TestRecentActivitySameFileAndSameFolder(t *testing.T) {
 func TestRecentActivityExcludesStaleAndEndedSessions(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a"); err != nil {
+	if err := store.Start("session-a", "", ""); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b"); err != nil {
+	if err := store.Start("session-b", "", ""); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 	if err := store.LogFileActivity("session-b", "/proj/pkg/foo.go"); err != nil {
@@ -180,7 +180,7 @@ func TestRecentActivityExcludesStaleAndEndedSessions(t *testing.T) {
 
 func TestIncrementNudgeCounterFiresAtThresholdThenResets(t *testing.T) {
 	store := openTestStore(t)
-	if err := store.Start("session-a"); err != nil {
+	if err := store.Start("session-a", "", ""); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
@@ -212,6 +212,166 @@ func TestIncrementNudgeCounterFiresAtThresholdThenResets(t *testing.T) {
 		if fire {
 			t.Fatalf("fired again too early on post-reset call %d", i)
 		}
+	}
+}
+
+func TestPostThreadMessageAndRecentThreadMessages(t *testing.T) {
+	store := openTestStore(t)
+
+	if _, err := store.PostThreadMessage("session-a", "first", ""); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+	if _, err := store.PostThreadMessage("session-b", "second", "session-a"); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+
+	msgs, err := store.RecentThreadMessages(10)
+	if err != nil {
+		t.Fatalf("RecentThreadMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("len(msgs) = %d, want 2", len(msgs))
+	}
+	// Newest first.
+	if msgs[0].Body != "second" || msgs[0].Mention != "session-a" {
+		t.Errorf("msgs[0] = %+v, want the second, mentioning session-a", msgs[0])
+	}
+	if msgs[1].Body != "first" {
+		t.Errorf("msgs[1] = %+v, want the first message", msgs[1])
+	}
+}
+
+func TestRecentThreadMessagesRespectsLimit(t *testing.T) {
+	store := openTestStore(t)
+	for i := 0; i < 5; i++ {
+		if _, err := store.PostThreadMessage("session-a", "msg", ""); err != nil {
+			t.Fatalf("PostThreadMessage: %v", err)
+		}
+	}
+	msgs, err := store.RecentThreadMessages(2)
+	if err != nil {
+		t.Fatalf("RecentThreadMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("len(msgs) = %d, want 2 (limit)", len(msgs))
+	}
+}
+
+func TestUnreadMentionsOnlyReturnsUnreadMentionsAddressedToSelf(t *testing.T) {
+	store := openTestStore(t)
+	if err := store.Start("session-a", "", ""); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	if _, err := store.PostThreadMessage("session-b", "not a mention", ""); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+	if _, err := store.PostThreadMessage("session-b", "mentions someone else", "session-c"); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+	if _, err := store.PostThreadMessage("session-b", "mentions session-a", "session-a"); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+
+	msgs, err := store.UnreadMentions("session-a")
+	if err != nil {
+		t.Fatalf("UnreadMentions: %v", err)
+	}
+	if len(msgs) != 1 || msgs[0].Body != "mentions session-a" {
+		t.Fatalf("UnreadMentions = %+v, want exactly the one message mentioning session-a", msgs)
+	}
+
+	if err := store.MarkThreadRead("session-a"); err != nil {
+		t.Fatalf("MarkThreadRead: %v", err)
+	}
+	msgs, err = store.UnreadMentions("session-a")
+	if err != nil {
+		t.Fatalf("UnreadMentions after mark-read: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("UnreadMentions after mark-read = %+v, want none (already surfaced once)", msgs)
+	}
+}
+
+func TestUnreadMentionsExcludesSelfMention(t *testing.T) {
+	store := openTestStore(t)
+	if err := store.Start("session-a", "", ""); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if _, err := store.PostThreadMessage("session-a", "mentioning myself", "session-a"); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+	msgs, err := store.UnreadMentions("session-a")
+	if err != nil {
+		t.Fatalf("UnreadMentions: %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("UnreadMentions = %+v, want none (a session's own post never surfaces to itself)", msgs)
+	}
+}
+
+func TestLiveMessagingTargetsExcludesSelfEndedAndSocketless(t *testing.T) {
+	store := openTestStore(t)
+	if err := store.Start("session-a", "/tmp/a.sock", "token-a"); err != nil {
+		t.Fatalf("Start a: %v", err)
+	}
+	if err := store.Start("session-b", "/tmp/b.sock", "token-b"); err != nil {
+		t.Fatalf("Start b: %v", err)
+	}
+	if err := store.Start("session-c", "", ""); err != nil {
+		t.Fatalf("Start c (no socket): %v", err)
+	}
+	if err := store.Start("session-d", "/tmp/d.sock", "token-d"); err != nil {
+		t.Fatalf("Start d: %v", err)
+	}
+	if err := store.End("session-d"); err != nil {
+		t.Fatalf("End d: %v", err)
+	}
+
+	targets, err := store.LiveMessagingTargets("session-a")
+	if err != nil {
+		t.Fatalf("LiveMessagingTargets: %v", err)
+	}
+	if len(targets) != 1 || targets[0].SessionID != "session-b" || targets[0].Socket != "/tmp/b.sock" || targets[0].Token != "token-b" {
+		t.Fatalf("targets = %+v, want exactly session-b (a is self, c has no socket, d has ended)", targets)
+	}
+}
+
+func TestLatestThreadMessageIDEmptyIsZero(t *testing.T) {
+	store := openTestStore(t)
+	id, err := store.LatestThreadMessageID()
+	if err != nil {
+		t.Fatalf("LatestThreadMessageID: %v", err)
+	}
+	if id != 0 {
+		t.Errorf("LatestThreadMessageID on an empty project = %d, want 0", id)
+	}
+}
+
+func TestNewThreadMessagesAfterOnlyReturnsLaterMessages(t *testing.T) {
+	store := openTestStore(t)
+
+	if _, err := store.PostThreadMessage("session-a", "before listening started", ""); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+	cursor, err := store.LatestThreadMessageID()
+	if err != nil {
+		t.Fatalf("LatestThreadMessageID: %v", err)
+	}
+
+	if _, err := store.PostThreadMessage("session-b", "first new", ""); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+	if _, err := store.PostThreadMessage("session-c", "second new", ""); err != nil {
+		t.Fatalf("PostThreadMessage: %v", err)
+	}
+
+	msgs, err := store.NewThreadMessagesAfter(cursor)
+	if err != nil {
+		t.Fatalf("NewThreadMessagesAfter: %v", err)
+	}
+	if len(msgs) != 2 || msgs[0].Body != "first new" || msgs[1].Body != "second new" {
+		t.Fatalf("NewThreadMessagesAfter = %+v, want the two later messages in order, not the earlier one", msgs)
 	}
 }
 

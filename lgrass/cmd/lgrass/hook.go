@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/faizalv/lemongrass/project"
@@ -76,7 +77,7 @@ func cmdHook(args []string) {
 
 	switch event {
 	case "SessionStart":
-		store.Start(payload.SessionID)
+		store.Start(payload.SessionID, os.Getenv("CLAUDE_CODE_MESSAGING_SOCKET"), os.Getenv("CLAUDE_CODE_MESSAGING_TOKEN"))
 	case "SessionEnd":
 		store.End(payload.SessionID)
 	case "PreToolUse":
@@ -87,27 +88,20 @@ func cmdHook(args []string) {
 }
 
 func hookPreToolUse(store *session.Store, payload hookPayload) {
-	if payload.ToolName != "Write" && payload.ToolName != "Edit" {
-		return
-	}
-	filePath := toolFilePath(payload)
-	if filePath == "" {
-		return
-	}
+	var parts []string
 
-	hits, err := store.RecentActivity(payload.SessionID, filePath, collisionWindow)
-	if err != nil || len(hits) == 0 {
-		return
+	if payload.ToolName == "Write" || payload.ToolName == "Edit" {
+		if filePath := toolFilePath(payload); filePath != "" {
+			if hits, err := store.RecentActivity(payload.SessionID, filePath, collisionWindow); err == nil && len(hits) > 0 {
+				if w := session.FormatCollisionWarning(hits); w != "" {
+					parts = append(parts, w)
+				}
+			}
+		}
 	}
-	warning := session.FormatCollisionWarning(hits)
-	if warning == "" {
-		return
-	}
-	emitHookOutput(hookSpecificOutput{
-		HookEventName:      "PreToolUse",
-		PermissionDecision: "allow",
-		AdditionalContext:  warning,
-	})
+	parts = append(parts, mentionContext(store, payload.SessionID)...)
+
+	emitHookContext("PreToolUse", "allow", parts)
 }
 
 func hookPostToolUse(store *session.Store, payload hookPayload) {
@@ -119,18 +113,34 @@ func hookPostToolUse(store *session.Store, payload hookPayload) {
 		}
 	}
 
-	fire, err := store.IncrementNudgeCounter(payload.SessionID, nudgeThreshold)
-	if err != nil || !fire {
-		return
+	var parts []string
+	parts = append(parts, mentionContext(store, payload.SessionID)...)
+
+	if fire, err := store.IncrementNudgeCounter(payload.SessionID, nudgeThreshold); err == nil && fire {
+		if liveness, err := store.Liveness(payload.SessionID, idleThreshold); err == nil {
+			parts = append(parts, session.FormatNudge(liveness))
+		}
 	}
-	liveness, err := store.Liveness(payload.SessionID, idleThreshold)
-	if err != nil {
-		return
+
+	emitHookContext("PostToolUse", "", parts)
+}
+
+// mentionContext is the pull-based fallback for thread @mentions,
+// checked on every hook firing (not throttled like the nudge) so a
+// mention surfaces at the next tool-call boundary regardless of whether
+// deliver.go's live socket push reached this session. Marks them read
+// once surfaced, so the same mention doesn't repeat on the next hook.
+func mentionContext(store *session.Store, sessionID string) []string {
+	msgs, err := store.UnreadMentions(sessionID)
+	if err != nil || len(msgs) == 0 {
+		return nil
 	}
-	emitHookOutput(hookSpecificOutput{
-		HookEventName:     "PostToolUse",
-		AdditionalContext: session.FormatNudge(liveness),
-	})
+	text := session.FormatMentions(msgs)
+	if text == "" {
+		return nil
+	}
+	store.MarkThreadRead(sessionID)
+	return []string{text}
 }
 
 func toolFilePath(payload hookPayload) string {
@@ -141,6 +151,23 @@ func toolFilePath(payload hookPayload) string {
 	return input.FilePath
 }
 
-func emitHookOutput(out hookSpecificOutput) {
-	json.NewEncoder(os.Stdout).Encode(hookOutput{HookSpecificOutput: out})
+// emitHookContext joins non-empty parts (collision warning, mentions,
+// nudge, whichever fired this call) into one additionalContext string,
+// since a hook response carries only one, and emits nothing at all when
+// none fired.
+func emitHookContext(eventName, permissionDecision string, parts []string) {
+	var nonEmpty []string
+	for _, p := range parts {
+		if p != "" {
+			nonEmpty = append(nonEmpty, p)
+		}
+	}
+	if len(nonEmpty) == 0 {
+		return
+	}
+	json.NewEncoder(os.Stdout).Encode(hookOutput{HookSpecificOutput: hookSpecificOutput{
+		HookEventName:      eventName,
+		PermissionDecision: permissionDecision,
+		AdditionalContext:  strings.Join(nonEmpty, "\n\n"),
+	}})
 }
