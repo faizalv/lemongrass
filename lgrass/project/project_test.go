@@ -62,3 +62,38 @@ func TestRegisterIsIdempotentByExactPath(t *testing.T) {
 		t.Fatalf("registry has %d entries after registering the same path twice, want 1", len(projects))
 	}
 }
+
+func TestResolveFollowsSymlinkToRegisteredPath(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	real := t.TempDir()
+	p, err := Register(real)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	resolved, err := Resolve(link)
+	if err != nil {
+		t.Fatalf("Resolve(symlink): %v", err)
+	}
+	if resolved.ID != p.ID {
+		t.Errorf("Resolve(symlink) = %+v, want project %+v", resolved, p)
+	}
+
+	nestedReal := filepath.Join(real, "sub", "dir")
+	if err := os.MkdirAll(nestedReal, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	nestedViaLink := filepath.Join(link, "sub", "dir")
+	resolved, err = Resolve(nestedViaLink)
+	if err != nil {
+		t.Fatalf("Resolve(nested under symlink): %v", err)
+	}
+	if resolved.ID != p.ID {
+		t.Errorf("Resolve(nested under symlink) = %+v, want project %+v", resolved, p)
+	}
+}

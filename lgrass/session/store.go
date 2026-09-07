@@ -51,6 +51,16 @@ CREATE TABLE IF NOT EXISTS thread_messages (
 );
 CREATE INDEX IF NOT EXISTS idx_thread_messages_project ON thread_messages(project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_thread_messages_mention ON thread_messages(project_id, mention, created_at);
+CREATE TABLE IF NOT EXISTS thread_participants (
+	project_id TEXT NOT NULL,
+	name TEXT NOT NULL,
+	claude_session_id TEXT,
+	started_at TEXT NOT NULL,
+	ended_at TEXT,
+	last_activity_at TEXT NOT NULL,
+	PRIMARY KEY (project_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_thread_participants_open ON thread_participants(project_id, ended_at);
 `
 
 // Open opens (creating and migrating if needed) the shared session
@@ -405,4 +415,88 @@ func (s *Store) LiveMessagingTargets(excludeSessionID string) ([]MessagingTarget
 		out = append(out, t)
 	}
 	return out, rows.Err()
+}
+
+// Participant is one thread_participants row, the addressable identity for thread commands.
+type Participant struct {
+	Name            string
+	ClaudeSessionID string
+}
+
+// HasOpenSession reports whether sessionID has a live (not yet ended)
+// row in the hook-driven sessions table.
+func (s *Store) HasOpenSession(sessionID string) (bool, error) {
+	var exists int
+	err := s.db.QueryRow(`
+		SELECT 1 FROM sessions WHERE project_id = ? AND session_id = ? AND ended_at IS NULL
+	`, s.projectID, sessionID).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return exists == 1, err
+}
+
+// BeginParticipant registers name as a live participant, appending -2, -3, ... on collision, and returns the name actually assigned.
+func (s *Store) BeginParticipant(name, claudeSessionID string) (string, error) {
+	assigned := name
+	for suffix := 2; ; suffix++ {
+		var exists int
+		err := s.db.QueryRow(`
+			SELECT 1 FROM thread_participants WHERE project_id = ? AND name = ? AND ended_at IS NULL
+		`, s.projectID, assigned).Scan(&exists)
+		if err == sql.ErrNoRows {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		assigned = fmt.Sprintf("%s-%d", name, suffix)
+	}
+
+	ts := now()
+	_, err := s.db.Exec(`
+		INSERT INTO thread_participants (project_id, name, claude_session_id, started_at, ended_at, last_activity_at)
+		VALUES (?, ?, ?, ?, NULL, ?)
+		ON CONFLICT (project_id, name) DO UPDATE SET
+			claude_session_id = excluded.claude_session_id,
+			started_at = excluded.started_at,
+			ended_at = NULL,
+			last_activity_at = excluded.last_activity_at
+	`, s.projectID, assigned, nullableString(claudeSessionID), ts, ts)
+	if err != nil {
+		return "", err
+	}
+	return assigned, nil
+}
+
+// EndParticipant marks name as no longer live.
+func (s *Store) EndParticipant(name string) error {
+	_, err := s.db.Exec(`UPDATE thread_participants SET ended_at = ? WHERE project_id = ? AND name = ?`, now(), s.projectID, name)
+	return err
+}
+
+// ParticipantByName looks up name's live thread_participants row, zero-value if not found.
+func (s *Store) ParticipantByName(name string) (Participant, error) {
+	p := Participant{Name: name}
+	var claudeID sql.NullString
+	err := s.db.QueryRow(`
+		SELECT claude_session_id FROM thread_participants WHERE project_id = ? AND name = ? AND ended_at IS NULL
+	`, s.projectID, name).Scan(&claudeID)
+	if err == sql.ErrNoRows {
+		return p, nil
+	}
+	if err != nil {
+		return p, err
+	}
+	if claudeID.Valid {
+		p.ClaudeSessionID = claudeID.String
+	}
+	return p, nil
+}
+
+func nullableString(v string) interface{} {
+	if v == "" {
+		return nil
+	}
+	return v
 }

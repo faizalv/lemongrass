@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -23,10 +24,11 @@ const (
 // lgrass cares about. The full payload carries more fields depending on
 // hook_event_name, all ignored here.
 type hookPayload struct {
-	SessionID string          `json:"session_id"`
-	Cwd       string          `json:"cwd"`
-	ToolName  string          `json:"tool_name"`
-	ToolInput json.RawMessage `json:"tool_input"`
+	SessionID      string          `json:"session_id"`
+	Cwd            string          `json:"cwd"`
+	ToolName       string          `json:"tool_name"`
+	ToolInput      json.RawMessage `json:"tool_input"`
+	StopHookActive bool            `json:"stop_hook_active"`
 }
 
 type fileToolInput struct {
@@ -50,7 +52,7 @@ type hookSpecificOutput struct {
 // lgrass-side issue.
 func cmdHook(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse>")
+		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|Stop>")
 		os.Exit(1)
 	}
 	event := args[0]
@@ -84,6 +86,8 @@ func cmdHook(args []string) {
 		hookPreToolUse(store, payload)
 	case "PostToolUse":
 		hookPostToolUse(store, payload)
+	case "Stop":
+		hookStop(store, payload)
 	}
 }
 
@@ -123,6 +127,34 @@ func hookPostToolUse(store *session.Store, payload hookPayload) {
 	}
 
 	emitHookContext("PostToolUse", "", parts)
+}
+
+// hookStop blocks the stop (exit 2, reason on stderr) when another session is live and no thread listener is running.
+func hookStop(store *session.Store, payload hookPayload) {
+	if payload.StopHookActive {
+		return
+	}
+	liveness, err := store.Liveness(payload.SessionID, idleThreshold)
+	if err != nil || len(liveness) == 0 {
+		return
+	}
+	if listenerRunning() {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "lgrass: another session is live in this project but lgrass thread listen isn't running. Relaunch it in the background (lgrass thread listen --timeout 10m) before ending your turn.")
+	os.Exit(2)
+}
+
+// listenerRunning reports whether any `lgrass thread listen` process is alive on this machine.
+func listenerRunning() bool {
+	err := exec.Command("pgrep", "-f", "[l]grass thread listen").Run()
+	if err == nil {
+		return true
+	}
+	if _, ok := err.(*exec.ExitError); ok {
+		return false
+	}
+	return true
 }
 
 // mentionContext is the pull-based fallback for thread @mentions,

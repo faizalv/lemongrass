@@ -33,21 +33,6 @@ func cmdThread(args []string) {
 	}
 }
 
-// currentSessionID reads this invocation's own Claude Code session id.
-// CLAUDE_CODE_SESSION_ID is set in every Bash tool call's environment
-// (confirmed by direct observation, not found spelled out in the public
-// env-vars reference), and this errors clearly rather than posting under
-// a blank identity when it's missing, e.g. lgrass invoked outside Claude
-// Code entirely.
-func currentSessionID() string {
-	id := os.Getenv("CLAUDE_CODE_SESSION_ID")
-	if id == "" {
-		fmt.Fprintln(os.Stderr, "error: CLAUDE_CODE_SESSION_ID not set -- lgrass thread only works invoked from within a Claude Code session")
-		os.Exit(1)
-	}
-	return id
-}
-
 func cmdThreadPost(args []string) {
 	var mention string
 	var body string
@@ -69,7 +54,7 @@ func cmdThreadPost(args []string) {
 		os.Exit(1)
 	}
 
-	sessionID := currentSessionID()
+	authorName := currentParticipantName()
 	proj := currentProject()
 	store, err := session.Open(session.DBPath(), proj.ID)
 	if err != nil {
@@ -78,7 +63,7 @@ func cmdThreadPost(args []string) {
 	}
 	defer store.Close()
 
-	if _, err := store.PostThreadMessage(sessionID, body, mention); err != nil {
+	if _, err := store.PostThreadMessage(authorName, body, mention); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
@@ -88,9 +73,10 @@ func cmdThreadPost(args []string) {
 	// captured socket, or a socket that's gone stale, still gets the
 	// message via the hook-surfaced pull fallback (UnreadMentions) on
 	// its next tool call, for a mention specifically.
-	targets, err := store.LiveMessagingTargets(sessionID)
+	exclude := currentClaudeSessionExclusion(store)
+	targets, err := store.LiveMessagingTargets(exclude)
 	if err == nil && len(targets) > 0 {
-		text := session.FormatThreadPush(sessionID, body)
+		text := session.FormatThreadPush(authorName, body)
 		delivered := session.DeliverAll(targets, text)
 		fmt.Printf("posted. delivered live to %d/%d other session(s).\n", delivered, len(targets))
 		return

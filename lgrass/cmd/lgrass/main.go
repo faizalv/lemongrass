@@ -53,6 +53,11 @@ func cmdInit() {
 		os.Exit(1)
 	}
 	fmt.Printf("lgrass: %s registered as project %q (%s)\n", p.Path, p.Name, p.ID)
+
+	if err := ensureClaudeHooks(); err != nil {
+		fmt.Fprintf(os.Stderr, "lgrass: registered the project, but failed to register Claude Code hooks: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func notBuiltYet(cmd string) {
@@ -64,7 +69,9 @@ func usage() {
 	fmt.Print(`lgrass -- lemongrass's agent-invoked CLI
 
 COMMANDS
-  init                               Register the current directory as a lemongrass project
+  init                               Register the current directory as a lemongrass project, and
+                                     register lgrass's Claude Code hooks (SessionStart/SessionEnd/
+                                     PreToolUse/PostToolUse/Stop) in ~/.claude/settings.json if missing
 
   knowledge write --tags a,b,c [--book <id> --chapter 2] [--title "..."] < body.md
   knowledge edit <id> --lines A-B < replacement.md   Targeted patch, not a full overwrite
@@ -75,7 +82,9 @@ COMMANDS
   knowledge book create --title "..." [--tags a,b] [--description "..."]
   knowledge toc                     Pointers only, for system-prompt injection
 
-  hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin
+  hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
+                                     Stop blocks (exit 2) when another session is live in the project
+                                     and no thread listener is running, so it gets relaunched.
 
   thread post "message" [--mention <session-id>]   Project-wide, not point-to-point; pushed live to other
                                      sessions' inbox sockets, and mentions surface via hook regardless

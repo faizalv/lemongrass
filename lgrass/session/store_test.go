@@ -386,3 +386,92 @@ func TestIncrementNudgeCounterWithoutPriorStart(t *testing.T) {
 		t.Error("threshold of 1 should fire on the first call even without a prior Start")
 	}
 }
+
+func TestBeginParticipantAssignsSuffixOnCollision(t *testing.T) {
+	store := openTestStore(t)
+
+	first, err := store.BeginParticipant("lemongrass-64", "")
+	if err != nil {
+		t.Fatalf("BeginParticipant (first): %v", err)
+	}
+	if first != "lemongrass-64" {
+		t.Errorf("first BeginParticipant = %q, want no suffix", first)
+	}
+
+	second, err := store.BeginParticipant("lemongrass-64", "")
+	if err != nil {
+		t.Fatalf("BeginParticipant (second): %v", err)
+	}
+	if second != "lemongrass-64-2" {
+		t.Errorf("second BeginParticipant = %q, want %q", second, "lemongrass-64-2")
+	}
+}
+
+func TestBeginParticipantReusesNameOnceEnded(t *testing.T) {
+	store := openTestStore(t)
+
+	if _, err := store.BeginParticipant("foo", ""); err != nil {
+		t.Fatalf("BeginParticipant: %v", err)
+	}
+	if err := store.EndParticipant("foo"); err != nil {
+		t.Fatalf("EndParticipant: %v", err)
+	}
+
+	again, err := store.BeginParticipant("foo", "")
+	if err != nil {
+		t.Fatalf("BeginParticipant (after end): %v", err)
+	}
+	if again != "foo" {
+		t.Errorf("BeginParticipant after EndParticipant = %q, want the name freed up, not suffixed", again)
+	}
+}
+
+func TestBeginParticipantLinksClaudeSessionID(t *testing.T) {
+	store := openTestStore(t)
+
+	if _, err := store.BeginParticipant("foo", "claude-session-a"); err != nil {
+		t.Fatalf("BeginParticipant: %v", err)
+	}
+
+	p, err := store.ParticipantByName("foo")
+	if err != nil {
+		t.Fatalf("ParticipantByName: %v", err)
+	}
+	if p.ClaudeSessionID != "claude-session-a" {
+		t.Errorf("ParticipantByName.ClaudeSessionID = %q, want %q", p.ClaudeSessionID, "claude-session-a")
+	}
+}
+
+func TestParticipantByNameUnknownReturnsZeroValueNoError(t *testing.T) {
+	store := openTestStore(t)
+
+	p, err := store.ParticipantByName("nobody")
+	if err != nil {
+		t.Fatalf("ParticipantByName: %v", err)
+	}
+	if p.ClaudeSessionID != "" {
+		t.Errorf("ParticipantByName(unknown).ClaudeSessionID = %q, want empty", p.ClaudeSessionID)
+	}
+}
+
+func TestHasOpenSession(t *testing.T) {
+	store := openTestStore(t)
+
+	if has, err := store.HasOpenSession("session-a"); err != nil || has {
+		t.Fatalf("HasOpenSession before Start = %v, %v, want false, nil", has, err)
+	}
+
+	if err := store.Start("session-a", "", ""); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if has, err := store.HasOpenSession("session-a"); err != nil || !has {
+		t.Fatalf("HasOpenSession after Start = %v, %v, want true, nil", has, err)
+	}
+
+	if err := store.End("session-a"); err != nil {
+		t.Fatalf("End: %v", err)
+	}
+	if has, err := store.HasOpenSession("session-a"); err != nil || has {
+		t.Fatalf("HasOpenSession after End = %v, %v, want false, nil", has, err)
+	}
+}

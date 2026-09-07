@@ -1,0 +1,109 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+type hookCommand struct {
+	Type    string `json:"type"`
+	Command string `json:"command"`
+}
+
+type hookGroup struct {
+	Matcher string        `json:"matcher,omitempty"`
+	Hooks   []hookCommand `json:"hooks"`
+}
+
+type hookSpec struct {
+	event   string
+	matcher string
+}
+
+// lgrassHookSpecs is every Claude Code hook lgrass registers for itself.
+var lgrassHookSpecs = []hookSpec{
+	{event: "SessionStart"},
+	{event: "SessionEnd"},
+	{event: "PreToolUse", matcher: "Write|Edit"},
+	{event: "PostToolUse"},
+	{event: "Stop"},
+}
+
+// ensureClaudeHooks idempotently registers lgrassHookSpecs in ~/.claude/settings.json, preserving everything else in the file.
+func ensureClaudeHooks() error {
+	lgrassPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if resolved, err := filepath.EvalSymlinks(lgrassPath); err == nil {
+		lgrassPath = resolved
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+
+	raw := map[string]json.RawMessage{}
+	if data, err := os.ReadFile(settingsPath); err == nil {
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return fmt.Errorf("parsing %s: %w", settingsPath, err)
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	hooks := map[string][]hookGroup{}
+	if hooksRaw, ok := raw["hooks"]; ok {
+		if err := json.Unmarshal(hooksRaw, &hooks); err != nil {
+			return fmt.Errorf("parsing hooks in %s: %w", settingsPath, err)
+		}
+	}
+
+	changed := false
+	for _, spec := range lgrassHookSpecs {
+		if hasLgrassHook(hooks[spec.event], spec.event) {
+			continue
+		}
+		hooks[spec.event] = append(hooks[spec.event], hookGroup{
+			Matcher: spec.matcher,
+			Hooks:   []hookCommand{{Type: "command", Command: fmt.Sprintf("%s hook %s", lgrassPath, spec.event)}},
+		})
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+
+	hooksJSON, err := json.Marshal(hooks)
+	if err != nil {
+		return err
+	}
+	raw["hooks"] = hooksJSON
+
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		return err
+	}
+	out, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(settingsPath, out, 0o644)
+}
+
+// hasLgrassHook reports whether groups already has a command ending in "hook <event>".
+func hasLgrassHook(groups []hookGroup, event string) bool {
+	want := " hook " + event
+	for _, g := range groups {
+		for _, h := range g.Hooks {
+			if strings.HasSuffix(h.Command, want) {
+				return true
+			}
+		}
+	}
+	return false
+}

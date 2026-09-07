@@ -49,12 +49,7 @@ func saveAll(projects []Project) error {
 	return os.WriteFile(registryPath(), data, 0o644)
 }
 
-// Register adds dir to the project registry, deduped by exact path and
-// shaped identically to the Electron UI's own projects:add handler
-// (ui/src/main/projects.ts), so a folder registered from a bare terminal
-// via `lgrass init` and one added through the UI are indistinguishable
-// afterward. Returns the existing entry, unchanged, if dir is already
-// registered.
+// Register adds dir to the project registry, deduped by symlink-resolved path, returning the existing entry unchanged if already registered.
 func Register(dir string) (Project, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -79,8 +74,16 @@ func Register(dir string) (Project, error) {
 	return p, nil
 }
 
-// Resolve matches a directory to a registered project: exact path first,
-// then the nearest registered ancestor.
+// resolvePath cleans dir and resolves symlinks, falling back to the cleaned path if resolution fails.
+func resolvePath(dir string) string {
+	clean := filepath.Clean(dir)
+	if resolved, err := filepath.EvalSymlinks(clean); err == nil {
+		return resolved
+	}
+	return clean
+}
+
+// Resolve matches a directory to a registered project, both symlink-resolved: exact path first, then the nearest registered ancestor.
 func Resolve(dir string) (Project, error) {
 	projects, err := loadAll()
 	if err != nil {
@@ -94,11 +97,16 @@ func Resolve(dir string) (Project, error) {
 	if err != nil {
 		return Project{}, err
 	}
-	abs = filepath.Clean(abs)
+	abs = resolvePath(abs)
+
+	resolvedPaths := make([]string, len(projects))
+	for i, p := range projects {
+		resolvedPaths[i] = resolvePath(p.Path)
+	}
 
 	for {
-		for _, p := range projects {
-			if filepath.Clean(p.Path) == abs {
+		for i, p := range projects {
+			if resolvedPaths[i] == abs {
 				return p, nil
 			}
 		}
