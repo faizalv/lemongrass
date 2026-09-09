@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import ProjectSidebar from './components/ProjectSidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import PaneLayout from './components/PaneLayout.vue'
@@ -160,7 +160,41 @@ function onExit(paneId: string, tabId: string): void {
   onCloseTab(paneId, tabId)
 }
 
-onMounted(loadProjects)
+const ZOOM_STEP = 0.5
+const ZOOM_MIN = -5
+const ZOOM_MAX = 5
+const zoomLevel = ref(0)
+
+function setZoom(level: number): void {
+  zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, level))
+  window.electron.webFrame.setZoomLevel(zoomLevel.value)
+}
+
+// Captured, not bubbled -- xterm treats some Ctrl+key combos (Ctrl+- among
+// them) as shell input and cancels the browser event on its own element
+// before it would ever bubble up to a window-level listener.
+function onKeydown(event: KeyboardEvent): void {
+  if (!(event.ctrlKey || event.metaKey)) return
+  if (event.key === '=' || event.key === '+') {
+    event.preventDefault()
+    event.stopPropagation()
+    setZoom(zoomLevel.value + ZOOM_STEP)
+  } else if (event.key === '-') {
+    event.preventDefault()
+    event.stopPropagation()
+    setZoom(zoomLevel.value - ZOOM_STEP)
+  } else if (event.key === '0') {
+    event.preventDefault()
+    event.stopPropagation()
+    setZoom(0)
+  }
+}
+
+onMounted(() => {
+  loadProjects()
+  window.addEventListener('keydown', onKeydown, { capture: true })
+})
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture: true }))
 </script>
 
 <template>
