@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -21,11 +20,10 @@ const (
 
 // The full hook JSON carries more fields depending on hook_event_name; this is only the subset lgrass reads.
 type hookPayload struct {
-	SessionID      string          `json:"session_id"`
-	Cwd            string          `json:"cwd"`
-	ToolName       string          `json:"tool_name"`
-	ToolInput      json.RawMessage `json:"tool_input"`
-	StopHookActive bool            `json:"stop_hook_active"`
+	SessionID string          `json:"session_id"`
+	Cwd       string          `json:"cwd"`
+	ToolName  string          `json:"tool_name"`
+	ToolInput json.RawMessage `json:"tool_input"`
 }
 
 type fileToolInput struct {
@@ -45,7 +43,7 @@ type hookSpecificOutput struct {
 // Every failure here fails soft (exit 0, no output) so an lgrass-side problem never breaks Claude Code's own hook chain.
 func cmdHook(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|Stop>")
+		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse>")
 		os.Exit(1)
 	}
 	event := args[0]
@@ -79,8 +77,6 @@ func cmdHook(args []string) {
 		hookPreToolUse(store, payload)
 	case "PostToolUse":
 		hookPostToolUse(store, payload)
-	case "Stop":
-		hookStop(store, payload)
 	}
 }
 
@@ -120,34 +116,6 @@ func hookPostToolUse(store *session.Store, payload hookPayload) {
 	}
 
 	emitHookContext("PostToolUse", "", parts)
-}
-
-// Gated on population so a solo session isn't forced to babysit a listener nobody else needs.
-func hookStop(store *session.Store, payload hookPayload) {
-	if payload.StopHookActive {
-		return
-	}
-	liveness, err := store.Liveness(payload.SessionID, idleThreshold)
-	if err != nil || len(liveness) == 0 {
-		return
-	}
-	if listenerRunning() {
-		return
-	}
-	fmt.Fprintln(os.Stderr, "lgrass: another session is live in this project but lgrass thread listen isn't running. Relaunch it in the background (lgrass thread listen --timeout 10m) before ending your turn.")
-	os.Exit(2)
-}
-
-func listenerRunning() bool {
-	// "[l]grass" keeps pgrep's own pattern argument from matching its own invocation.
-	err := exec.Command("pgrep", "-f", "[l]grass thread listen").Run()
-	if err == nil {
-		return true
-	}
-	if _, ok := err.(*exec.ExitError); ok {
-		return false
-	}
-	return true
 }
 
 // Unthrottled unlike the nudge, so a mention surfaces at the next tool call regardless of whether the live socket push reached this session.

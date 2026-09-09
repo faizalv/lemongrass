@@ -28,7 +28,6 @@ var lgrassHookSpecs = []hookSpec{
 	{event: "SessionEnd"},
 	{event: "PreToolUse", matcher: "Write|Edit"},
 	{event: "PostToolUse"},
-	{event: "Stop"},
 }
 
 // Idempotent, and preserves every other key and hook group already in the file.

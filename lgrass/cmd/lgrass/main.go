@@ -67,11 +67,9 @@ func usage() {
 COMMANDS
   init                               Register the current directory as a lemongrass project, and
                                      register lgrass's Claude Code hooks (SessionStart/SessionEnd/
-                                     PreToolUse/PostToolUse/Stop) in ~/.claude/settings.json if missing
+                                     PreToolUse/PostToolUse) in ~/.claude/settings.json if missing
 
   hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
-                                     Stop blocks (exit 2) when another session is live in the project
-                                     and no thread listener is running, so it gets relaunched.
 
   thread post "message" [--mention <session-id>]   Project-wide, not point-to-point; pushed live to other
                                      sessions' inbox sockets, and mentions surface via hook regardless
