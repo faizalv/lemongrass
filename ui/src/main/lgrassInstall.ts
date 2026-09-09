@@ -75,26 +75,18 @@ export function installLgrass(): string | null {
   }
 }
 
-// The manually-invoked half of lgrass's discoverability story: automatic
-// system-prompt injection (pty.ts's TOC append) only ever reaches a pane
-// lemongrass itself spawns. Any other shell (a bare terminal, a
-// non-Claude-Code agent) has nothing telling it lemongrass exists, which
-// is exactly what a skill is for.
+// lemongrass has no other way to tell a Claude Code session it exists --
+// a bare terminal or a pane lemongrass didn't spawn has nothing pointing
+// at it otherwise, which is exactly what a skill is for.
 const SKILL_CONTENT = `---
 name: lemongrass
-description: Coordinate with other Claude Code sessions working in this same project through lemongrass (lgrass): see project knowledge, register this session, and open a live channel to other panes. Use when this project has lemongrass/lgrass available and coordination with other sessions/panes matters, or when asked to check in, message, or mention another session.
+description: Coordinate with other Claude Code sessions working in this same project through lemongrass (lgrass): register this session, and open a live channel to other panes. Use when this project has lemongrass/lgrass available and coordination with other sessions/panes matters, or when asked to check in, message, or mention another session.
 allowed-tools: Bash(lgrass *)
 ---
 
 ## Register this project, if needed
 
-If \`lgrass knowledge toc\` below reports an error instead of a pointer list (or silence), this directory isn't a registered lemongrass project yet. Run \`lgrass init\` once, then continue.
-
-## Project knowledge
-
-!\`lgrass knowledge toc\`
-
-Titles and tags only, not full content. Read a specific entry with \`lgrass knowledge read <id>\` (or \`--book <id>\` for a whole book) once you know which one you need.
+If \`lgrass session list\` below reports an error instead of a session list (or silence), this directory isn't a registered lemongrass project yet. Run \`lgrass init\` once, then continue.
 
 ## Who else is here
 

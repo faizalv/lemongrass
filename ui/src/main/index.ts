@@ -61,10 +61,7 @@ app.whenReady().then(() => {
   if (lgrassPath) mergeLgrassHooks(lgrassPath)
   installSkill()
 
-  registerPtyHandlers(
-    () => mainWindow?.webContents,
-    () => lgrassPath
-  )
+  registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerLayoutHandlers()
   registerWindowControlHandlers(() => mainWindow)

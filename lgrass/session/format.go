@@ -36,7 +36,6 @@ func FormatNudge(liveness []SessionStatus) string {
 	if len(liveness) > 0 {
 		fmt.Fprintf(&b, " (%d active, %d idling)", active, idling)
 	}
-	b.WriteString(". If you just decided something worth remembering, write it down with `lgrass knowledge write`.")
 	return b.String()
 }
 

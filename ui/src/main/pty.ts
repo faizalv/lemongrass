@@ -2,10 +2,6 @@ import { ipcMain, WebContents } from 'electron'
 import { homedir } from 'os'
 import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
-
-const execFileAsync = promisify(execFile)
 
 // PTY is display-only, never a control-signal source. Every shell spawns
 // an agent binary directly (e.g. `claude`), never a login shell. No
@@ -24,36 +20,6 @@ interface SpawnOptions {
 
 const shells = new Map<string, pty.IPty>()
 
-// Appends a knowledge TOC to a `claude` spawn's args via
-// --append-system-prompt, shelling out to `lgrass knowledge toc` in the
-// target cwd. Fails soft: if lgrass can't be found, the cwd isn't a
-// registered project, or the project has no knowledge yet, the shell
-// still spawns, just without the extra prompt.
-async function withKnowledgeToc(
-  opts: SpawnOptions,
-  getLgrassPath: () => string | null
-): Promise<string[]> {
-  const args = opts.args ?? []
-  if (opts.command !== 'claude') return args
-
-  // Falls back to a bare 'lgrass' (relying on PATH) if self-install
-  // failed or hasn't run, degrading gracefully rather than skipping the
-  // TOC outright.
-  const lgrass = getLgrassPath() ?? 'lgrass'
-
-  try {
-    const { stdout } = await execFileAsync(lgrass, ['knowledge', 'toc'], {
-      cwd: opts.cwd ?? homedir()
-    })
-    const toc = stdout.trim()
-    if (!toc) return args
-    return [...args, '--append-system-prompt', toc]
-  } catch (err) {
-    console.error('lgrass knowledge toc failed, spawning claude without injected knowledge:', err)
-    return args
-  }
-}
-
 // proc.onData/onExit fire on the child process's own timing, not the
 // window's. A shell can still be emitting output while the window is
 // mid-teardown, when getSender() may return a wrapper whose underlying
@@ -63,13 +29,10 @@ function send(sender: WebContents | undefined, channel: string, payload: unknown
   if (sender && !sender.isDestroyed()) sender.send(channel, payload)
 }
 
-export function registerPtyHandlers(
-  getSender: () => WebContents | undefined,
-  getLgrassPath: () => string | null
-): void {
+export function registerPtyHandlers(getSender: () => WebContents | undefined): void {
   ipcMain.handle('pty:spawn', async (_event, opts: SpawnOptions) => {
     const id = randomUUID()
-    const args = await withKnowledgeToc(opts, getLgrassPath)
+    const args = opts.args ?? []
     const proc = pty.spawn(opts.command, args, {
       name: 'xterm-256color',
       cols: opts.cols ?? 80,

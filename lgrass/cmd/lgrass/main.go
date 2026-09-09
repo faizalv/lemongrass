@@ -21,8 +21,6 @@ func main() {
 		usage()
 	case "init":
 		cmdInit()
-	case "knowledge":
-		cmdKnowledge(os.Args[2:])
 	case "hook":
 		cmdHook(os.Args[2:])
 	case "thread":
@@ -71,15 +69,6 @@ COMMANDS
                                      register lgrass's Claude Code hooks (SessionStart/SessionEnd/
                                      PreToolUse/PostToolUse/Stop) in ~/.claude/settings.json if missing
 
-  knowledge write --tags a,b,c [--book <id> --chapter 2] [--title "..."] < body.md
-  knowledge edit <id> --lines A-B < replacement.md   Targeted patch, not a full overwrite
-  knowledge search "<query>"        Titles + tags + ids, not content; books collapse to one line
-  knowledge read <id>               One entry's full body
-  knowledge read --book <id>        Whole book, chapters in order
-  knowledge reindex                 Rebuild the search index from disk
-  knowledge book create --title "..." [--tags a,b] [--description "..."]
-  knowledge toc                     Pointers only, for system-prompt injection
-
   hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
                                      Stop blocks (exit 2) when another session is live in the project
                                      and no thread listener is running, so it gets relaunched.
@@ -90,7 +79,7 @@ COMMANDS
   thread listen [--timeout 10m]     Blocks until a new message arrives or the timeout elapses; meant to
                                      run backgrounded for a live channel, vendor neutral, relaunch on return
 
-  mention <knowledge-id> "comment"  Human-facing, opens a thread against the right session
+  mention <id> "comment"             Human-facing, opens a thread against the right session
 
   rules list
   rules add ...                     Human/UI-driven, not a model-facing write path

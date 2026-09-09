@@ -1,4 +1,4 @@
-// Package session needs no PTY access and no Electron dependency, the same domain split as lgrass/knowledge.
+// Package session needs no PTY access and no Electron dependency.
 package session
 
 import (
