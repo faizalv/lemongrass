@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { marked } from 'marked'
 import BiblioTreeItem from './BiblioTreeItem.vue'
+import MarkdownEditor from './MarkdownEditor.vue'
 import type { BiblioTree } from '../../../preload'
 
 const props = defineProps<{
@@ -9,17 +10,78 @@ const props = defineProps<{
   projectPath: string
 }>()
 
+const emit = defineEmits<{
+  refresh: []
+}>()
+
 const selectedPath = ref<string | null>(null)
 const html = ref('')
+const editableContent = ref('')
 const loading = ref(false)
+
+// Scratchpad is the one tier bibliothek calls user-editable -- every other
+// category stays read-only rendered markdown.
+const isEditable = computed((): boolean => selectedPath.value?.startsWith('scratchpad/') ?? false)
+
+let suppressAutosave = false
 
 async function selectFile(path: string): Promise<void> {
   selectedPath.value = path
   loading.value = true
   const raw = await window.api.biblio.read(props.projectPath, path)
-  html.value =
-    raw !== null ? await marked.parse(raw) : '<p class="error">Could not read this file.</p>'
+  if (path.startsWith('scratchpad/')) {
+    suppressAutosave = true
+    editableContent.value = raw ?? ''
+  } else {
+    html.value =
+      raw !== null ? await marked.parse(raw) : '<p class="error">Could not read this file.</p>'
+  }
   loading.value = false
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+
+watch(editableContent, (value) => {
+  if (suppressAutosave) {
+    suppressAutosave = false
+    return
+  }
+  if (!selectedPath.value) return
+  const path = selectedPath.value
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    window.api.biblio.write(props.projectPath, path, value)
+  }, 600)
+})
+
+const showCreateForm = ref(false)
+const newTitle = ref('')
+const newContent = ref('')
+const creating = ref(false)
+
+function openCreateForm(): void {
+  newTitle.value = ''
+  newContent.value = ''
+  showCreateForm.value = true
+}
+
+function cancelCreate(): void {
+  showCreateForm.value = false
+}
+
+async function submitCreate(): Promise<void> {
+  if (!newTitle.value.trim() || creating.value) return
+  creating.value = true
+  const path = await window.api.biblio.createScratchpad(
+    props.projectPath,
+    newTitle.value,
+    newContent.value
+  )
+  creating.value = false
+  if (!path) return
+  showCreateForm.value = false
+  emit('refresh')
+  await selectFile(path)
 }
 
 const treeWidth = ref(240)
@@ -79,6 +141,7 @@ function onGutterUp(): void {
             :selected-path="selectedPath"
             :depth="0"
             @select="selectFile"
+            @add-scratchpad="openCreateForm"
           />
         </template>
         <p v-else class="empty">Nothing in biblio/ yet.</p>
@@ -90,16 +153,135 @@ function onGutterUp(): void {
     <div class="biblio-reader">
       <p v-if="!selectedPath" class="empty">Select a file to read it.</p>
       <p v-else-if="loading" class="empty">Loading...</p>
+      <MarkdownEditor v-else-if="isEditable" v-model="editableContent" />
       <div v-else class="markdown-body" v-html="html" />
+    </div>
+
+    <div v-if="showCreateForm" class="create-overlay">
+      <div class="create-card">
+        <h3 class="create-title">New scratchpad</h3>
+        <input
+          v-model="newTitle"
+          class="title-input"
+          type="text"
+          placeholder="Title"
+          autofocus
+          @keydown.enter="submitCreate"
+        />
+        <MarkdownEditor v-model="newContent" />
+        <div class="create-actions">
+          <button class="ghost-button" @click="cancelCreate">Cancel</button>
+          <button
+            class="primary-button"
+            :disabled="!newTitle.trim() || creating"
+            @click="submitCreate"
+          >
+            {{ creating ? 'Creating...' : 'Create' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .biblio-pane {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
+}
+
+.create-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  background: var(--color-bg-overlay);
+}
+
+.create-card {
+  width: 100%;
+  max-width: 640px;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  background: var(--color-surface-1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+}
+
+.create-title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+.title-input {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.title-input:focus {
+  outline: none;
+  border-color: var(--color-amber);
+}
+
+.create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.ghost-button,
+.primary-button {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.ghost-button {
+  background: transparent;
+  border: 1px solid var(--color-border-default);
+  color: var(--color-fg-secondary);
+}
+
+.ghost-button:hover {
+  color: var(--color-fg-primary);
+  background: var(--color-surface-2);
+}
+
+.primary-button {
+  background: var(--color-amber);
+  border: none;
+  color: var(--color-black);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--color-amber-dim);
+}
+
+.primary-button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .biblio-tree {

@@ -1,6 +1,14 @@
 import { ipcMain } from 'electron'
-import { readdirSync, readFileSync, realpathSync, statSync } from 'fs'
-import { join, relative, resolve, sep } from 'path'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync
+} from 'fs'
+import { dirname, join, relative, resolve, sep } from 'path'
 
 export interface BiblioNode {
   name: string
@@ -14,6 +22,21 @@ export interface BiblioTree {
   // shown in its own dedicated spot rather than buried inside a category.
   toc: BiblioNode | null
   children: BiblioNode[]
+}
+
+// Guarantees a "scratchpad" entry always exists in the top-level listing,
+// even before it's ever been created on disk -- otherwise the "add
+// scratchpad" affordance would have no row to attach to for a biblio/ that
+// hasn't grown one yet.
+function ensureScratchpad(children: BiblioNode[]): BiblioNode[] {
+  if (children.some((n) => n.type === 'dir' && n.name === 'scratchpad')) return children
+  const scratchpad: BiblioNode = {
+    name: 'scratchpad',
+    path: 'scratchpad',
+    type: 'dir',
+    children: []
+  }
+  return [...children, scratchpad].sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function extractToc(children: BiblioNode[]): BiblioNode | null {
@@ -51,13 +74,22 @@ function resolveInBiblio(biblioRoot: string, relativePath: string): string | nul
   return resolved
 }
 
+function slugify(title: string): string {
+  const slug = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || 'untitled'
+}
+
 export function registerBiblioHandlers(): void {
   ipcMain.handle('biblio:tree', (_event, projectPath: string): BiblioTree | null => {
     const biblioRoot = join(projectPath, 'biblio')
     try {
       if (!statSync(biblioRoot).isDirectory()) return null
       const root = realpathSync(biblioRoot)
-      const children = walk(root, root)
+      const children = ensureScratchpad(walk(root, root))
       return { toc: extractToc(children), children }
     } catch {
       return null
@@ -73,6 +105,55 @@ export function registerBiblioHandlers(): void {
         const target = resolveInBiblio(root, relativePath)
         if (!target || !target.endsWith('.md')) return null
         return readFileSync(target, 'utf-8')
+      } catch {
+        return null
+      }
+    }
+  )
+
+  // Writes are scoped to scratchpad/ only -- that's the one tier bibliothek
+  // itself calls user-editable; laws/handover/books aren't writable here.
+  ipcMain.handle(
+    'biblio:write',
+    (_event, projectPath: string, relativePath: string, content: string): boolean => {
+      if (!relativePath.startsWith(`scratchpad${sep}`) && relativePath !== 'scratchpad')
+        return false
+      const biblioRoot = join(projectPath, 'biblio')
+      try {
+        const root = realpathSync(biblioRoot)
+        const target = resolveInBiblio(root, relativePath)
+        if (!target || !target.endsWith('.md')) return false
+        mkdirSync(dirname(target), { recursive: true })
+        writeFileSync(target, content, 'utf-8')
+        return true
+      } catch {
+        return false
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'biblio:createScratchpad',
+    (_event, projectPath: string, title: string, content: string): string | null => {
+      const biblioRoot = join(projectPath, 'biblio')
+      try {
+        mkdirSync(biblioRoot, { recursive: true })
+        const root = realpathSync(biblioRoot)
+        const scratchpadRoot = join(root, 'scratchpad')
+        mkdirSync(scratchpadRoot, { recursive: true })
+
+        const base = slugify(title)
+        let slug = base
+        let attempt = 2
+        while (existsSync(join(scratchpadRoot, slug))) {
+          slug = `${base}-${attempt}`
+          attempt += 1
+        }
+
+        const taskDir = join(scratchpadRoot, slug)
+        mkdirSync(taskDir, { recursive: true })
+        writeFileSync(join(taskDir, 'notes.md'), content, 'utf-8')
+        return `scratchpad${sep}${slug}${sep}notes.md`
       } catch {
         return null
       }

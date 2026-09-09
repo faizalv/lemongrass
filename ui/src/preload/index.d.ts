@@ -28,6 +28,12 @@ interface Api {
   biblio: {
     tree: (projectPath: string) => Promise<BiblioTree | null>
     read: (projectPath: string, relativePath: string) => Promise<string | null>
+    write: (projectPath: string, relativePath: string, content: string) => Promise<boolean>
+    createScratchpad: (
+      projectPath: string,
+      title: string,
+      content: string
+    ) => Promise<string | null>
   }
   windowControls: {
     minimize: () => void

@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [path: string]
+  'add-scratchpad': []
 }>()
 
 const expanded = ref(false)
@@ -23,6 +24,13 @@ const iconName = computed((): string => {
   if (props.depth === 0 && CATEGORY_ICONS.has(props.node.name)) return props.node.name
   return 'folder'
 })
+
+const showAddButton = computed((): boolean => props.depth === 0 && props.node.name === 'scratchpad')
+
+function onAddClick(): void {
+  expanded.value = true
+  emit('add-scratchpad')
+}
 </script>
 
 <template>
@@ -51,102 +59,122 @@ const iconName = computed((): string => {
     <span class="label">{{ node.name.replace(/\.md$/, '') }}</span>
   </button>
 
-  <button
-    v-else
-    class="tree-item dir"
-    :style="{ paddingLeft: `${depth * 14 + 10}px` }"
-    @click="expanded = !expanded"
-  >
-    <svg
-      class="indent chevron"
-      :class="{ expanded }"
-      width="9"
-      height="9"
-      viewBox="0 0 9 9"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.4"
-      stroke-linecap="round"
-      stroke-linejoin="round"
+  <div v-else class="dir-row">
+    <button
+      class="tree-item tree-item-main"
+      :style="{ paddingLeft: `${depth * 14 + 10}px` }"
+      @click="expanded = !expanded"
     >
-      <path d="M2 1.5 6.5 4.5 2 7.5" />
-    </svg>
+      <svg
+        class="indent chevron"
+        :class="{ expanded }"
+        width="9"
+        height="9"
+        viewBox="0 0 9 9"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.4"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M2 1.5 6.5 4.5 2 7.5" />
+      </svg>
 
-    <svg
-      v-if="iconName === 'books'"
-      class="icon"
-      width="13"
-      height="13"
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <rect x="2" y="1.5" width="10" height="11" rx="1" />
-      <line x1="5" y1="1.5" x2="5" y2="12.5" />
-    </svg>
-    <svg
-      v-else-if="iconName === 'laws'"
-      class="icon"
-      width="13"
-      height="13"
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M7 1 12 3 12 7 7 13 2 7 2 3 Z" />
-    </svg>
-    <svg
-      v-else-if="iconName === 'handover'"
-      class="icon"
-      width="13"
-      height="13"
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M1.5 4.5h9M8 2.5l2.5 2-2.5 2" />
-      <path d="M12.5 9.5h-9M6 11.5l-2.5-2 2.5-2" />
-    </svg>
-    <svg
-      v-else-if="iconName === 'scratchpad'"
-      class="icon"
-      width="13"
-      height="13"
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M9.5 1.5 12.5 4.5 5 12H2V9z" />
-    </svg>
-    <svg
-      v-else
-      class="icon"
-      width="13"
-      height="13"
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M1.5 3.5h4l1.5 2h5.5v6h-11z" />
-    </svg>
+      <svg
+        v-if="iconName === 'books'"
+        class="icon"
+        width="13"
+        height="13"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="2" y="1.5" width="10" height="11" rx="1" />
+        <line x1="5" y1="1.5" x2="5" y2="12.5" />
+      </svg>
+      <svg
+        v-else-if="iconName === 'laws'"
+        class="icon"
+        width="13"
+        height="13"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M7 1 12 3 12 7 7 13 2 7 2 3 Z" />
+      </svg>
+      <svg
+        v-else-if="iconName === 'handover'"
+        class="icon"
+        width="13"
+        height="13"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M1.5 4.5h9M8 2.5l2.5 2-2.5 2" />
+        <path d="M12.5 9.5h-9M6 11.5l-2.5-2 2.5-2" />
+      </svg>
+      <svg
+        v-else-if="iconName === 'scratchpad'"
+        class="icon"
+        width="13"
+        height="13"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M9.5 1.5 12.5 4.5 5 12H2V9z" />
+      </svg>
+      <svg
+        v-else
+        class="icon"
+        width="13"
+        height="13"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M1.5 3.5h4l1.5 2h5.5v6h-11z" />
+      </svg>
 
-    <span class="label">{{ node.name }}</span>
-  </button>
+      <span class="label">{{ node.name }}</span>
+    </button>
+    <button
+      v-if="showAddButton"
+      class="tree-item-add"
+      title="Add scratchpad"
+      @click.stop="onAddClick"
+    >
+      <svg
+        width="10"
+        height="10"
+        viewBox="0 0 10 10"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.3"
+        stroke-linecap="round"
+      >
+        <line x1="5" y1="1" x2="5" y2="9" />
+        <line x1="1" y1="5" x2="9" y2="5" />
+      </svg>
+    </button>
+  </div>
 
   <template v-if="node.children && expanded">
     <BiblioTreeItem
@@ -194,9 +222,40 @@ const iconName = computed((): string => {
   font-weight: var(--weight-medium);
 }
 
-.tree-item.dir {
+.dir-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.tree-item-main {
+  flex: 1;
   color: var(--color-fg-secondary);
   font-weight: var(--weight-medium);
+}
+
+.tree-item-add {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tree-item-add:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg-accent);
 }
 
 .indent {
@@ -221,7 +280,7 @@ const iconName = computed((): string => {
   color: var(--color-fg-muted);
 }
 
-.tree-item.dir .icon {
+.tree-item-main .icon {
   color: var(--color-fg-secondary);
 }
 

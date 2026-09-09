@@ -75,6 +75,12 @@ async function selectProject(id: string): Promise<void> {
   if (project) biblioByProject[id] = await window.api.biblio.tree(project.path)
 }
 
+async function refreshBiblio(): Promise<void> {
+  const id = activeProjectId.value
+  if (!id || !activeProject.value) return
+  biblioByProject[id] = await window.api.biblio.tree(activeProject.value.path)
+}
+
 async function addProject(): Promise<void> {
   const project = await window.api.projects.add()
   if (!project) return
@@ -276,6 +282,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
             v-else-if="activeProject"
             :tree="biblioTree"
             :project-path="activeProject.path"
+            @refresh="refreshBiblio"
           />
         </div>
       </div>

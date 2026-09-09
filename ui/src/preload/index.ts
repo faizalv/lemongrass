@@ -93,7 +93,11 @@ const biblio = {
   tree: (projectPath: string): Promise<BiblioTree | null> =>
     ipcRenderer.invoke('biblio:tree', projectPath),
   read: (projectPath: string, relativePath: string): Promise<string | null> =>
-    ipcRenderer.invoke('biblio:read', projectPath, relativePath)
+    ipcRenderer.invoke('biblio:read', projectPath, relativePath),
+  write: (projectPath: string, relativePath: string, content: string): Promise<boolean> =>
+    ipcRenderer.invoke('biblio:write', projectPath, relativePath, content),
+  createScratchpad: (projectPath: string, title: string, content: string): Promise<string | null> =>
+    ipcRenderer.invoke('biblio:createScratchpad', projectPath, title, content)
 }
 
 const windowControls = {
