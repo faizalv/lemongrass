@@ -5,6 +5,14 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 // a Vue template resolves against the component instance, not globalThis.
 const controls = window.api.windowControls
 
+defineProps<{
+  sidebarCollapsed: boolean
+}>()
+
+const emit = defineEmits<{
+  'toggle-sidebar': []
+}>()
+
 const isMaximized = ref(false)
 let unsubscribe: (() => void) | undefined
 
@@ -20,6 +28,27 @@ onBeforeUnmount(() => unsubscribe?.())
 
 <template>
   <div class="header-bar">
+    <div class="sidebar-toggle-zone">
+      <button
+        class="control"
+        :title="sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'"
+        @click="emit('toggle-sidebar')"
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14">
+          <rect
+            x="0.5"
+            y="0.5"
+            width="13"
+            height="13"
+            rx="2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1"
+          />
+          <line x1="5" y1="0.5" x2="5" y2="13.5" stroke="currentColor" stroke-width="1" />
+        </svg>
+      </button>
+    </div>
     <div class="drag-region">
       <slot name="title" />
     </div>
@@ -87,6 +116,13 @@ onBeforeUnmount(() => unsubscribe?.())
   display: flex;
   align-items: center;
   padding: 0 var(--space-4);
+}
+
+.sidebar-toggle-zone {
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 var(--space-2);
+  -webkit-app-region: no-drag;
 }
 
 .actions {

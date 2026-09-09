@@ -5,6 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerLayoutHandlers } from './layouts'
+import { registerBiblioHandlers } from './biblio'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
 import { installLgrass, mergeLgrassHooks, installSkill } from './lgrassInstall'
 
@@ -64,6 +65,7 @@ app.whenReady().then(() => {
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerLayoutHandlers()
+  registerBiblioHandlers()
   registerWindowControlHandlers(() => mainWindow)
 
   createWindow()

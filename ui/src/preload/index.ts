@@ -26,6 +26,18 @@ export interface Project {
   path: string
 }
 
+export interface BiblioNode {
+  name: string
+  path: string
+  type: 'dir' | 'file'
+  children?: BiblioNode[]
+}
+
+export interface BiblioTree {
+  toc: BiblioNode | null
+  children: BiblioNode[]
+}
+
 export interface PaneTab {
   id: string
   label: string
@@ -35,7 +47,13 @@ export interface PaneTab {
 
 export type PaneLayoutNode =
   | { type: 'leaf'; id: string; tabs: PaneTab[]; activeTabId: string | null }
-  | { type: 'split'; id: string; direction: 'row' | 'column'; children: PaneLayoutNode[]; sizes: number[] }
+  | {
+      type: 'split'
+      id: string
+      direction: 'row' | 'column'
+      children: PaneLayoutNode[]
+      sizes: number[]
+    }
 
 // Custom APIs for renderer -- raw PTY bytes only, never a control-signal
 // channel. PTY is display-only.
@@ -71,6 +89,13 @@ const layouts = {
     ipcRenderer.send('layouts:save', { projectId, layout })
 }
 
+const biblio = {
+  tree: (projectPath: string): Promise<BiblioTree | null> =>
+    ipcRenderer.invoke('biblio:tree', projectPath),
+  read: (projectPath: string, relativePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('biblio:read', projectPath, relativePath)
+}
+
 const windowControls = {
   minimize: (): void => ipcRenderer.send('window:minimize'),
   toggleMaximize: (): void => ipcRenderer.send('window:toggle-maximize'),
@@ -84,7 +109,7 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, layouts, windowControls }
+const api = { pty, projects, layouts, biblio, windowControls }
 
 if (process.contextIsolated) {
   try {

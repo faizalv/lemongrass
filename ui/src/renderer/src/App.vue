@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import ProjectSidebar from './components/ProjectSidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import PaneLayout from './components/PaneLayout.vue'
+import BiblioManager from './components/BiblioManager.vue'
 import {
   createTab,
   createLeaf,
@@ -15,7 +16,7 @@ import {
   splitPane,
   setSplitSizes
 } from './paneLayout'
-import type { Project, PaneLayoutNode } from '../../preload'
+import type { Project, PaneLayoutNode, BiblioTree } from '../../preload'
 
 const projects = ref<Project[]>([])
 const activeProjectId = ref<string | null>(null)
@@ -35,6 +36,12 @@ const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 // fresh shell sets a new one.
 const titleByTab = reactive<Record<string, string>>({})
 
+// Detected once per project, on first visit -- a biblio/ dir created while
+// the app is already running needs that project re-selected to be picked up.
+const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
+const mainView = ref<'workspace' | 'biblio'>('workspace')
+const sidebarCollapsed = ref(false)
+
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
 )
@@ -44,6 +51,10 @@ const currentLayout = computed((): PaneLayoutNode | null =>
 const focusedPaneId = computed((): string | null =>
   activeProjectId.value ? (focusedPaneByProject[activeProjectId.value] ?? null) : null
 )
+const biblioTree = computed((): BiblioTree | null =>
+  activeProjectId.value ? (biblioByProject[activeProjectId.value] ?? null) : null
+)
+const hasBiblio = computed((): boolean => biblioTree.value !== null)
 
 async function loadProjects(): Promise<void> {
   projects.value = await window.api.projects.list()
@@ -54,10 +65,14 @@ async function loadProjects(): Promise<void> {
 
 async function selectProject(id: string): Promise<void> {
   activeProjectId.value = id
+  mainView.value = 'workspace'
   if (id in layoutByProject) return
   const loaded = await window.api.layouts.load(id)
   layoutByProject[id] = loaded
   focusedPaneByProject[id] = firstLeafId(loaded)
+
+  const project = projects.value.find((p) => p.id === id)
+  if (project) biblioByProject[id] = await window.api.biblio.tree(project.path)
 }
 
 async function addProject(): Promise<void> {
@@ -150,36 +165,84 @@ onMounted(loadProjects)
 
 <template>
   <div class="shell">
-    <HeaderBar />
+    <HeaderBar
+      :sidebar-collapsed="sidebarCollapsed"
+      @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed"
+    >
+      <template #title>
+        <span class="brand-mark">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--color-black)"
+            stroke-width="2.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.2c1.7 6.6.2 13.1-5 17.7" />
+            <path d="M2 21c0-3 1.85-5.36 5.08-6" />
+          </svg>
+        </span>
+        <span class="wordmark">lemongrass</span>
+      </template>
+      <template v-if="hasBiblio" #actions>
+        <div class="view-toggle">
+          <button
+            class="view-toggle-option"
+            :class="{ active: mainView === 'workspace' }"
+            @click="mainView = 'workspace'"
+          >
+            Workspace
+          </button>
+          <button
+            class="view-toggle-option"
+            :class="{ active: mainView === 'biblio' }"
+            @click="mainView = 'biblio'"
+          >
+            Biblio
+          </button>
+        </div>
+      </template>
+    </HeaderBar>
 
     <div class="body-row">
       <ProjectSidebar
         :projects="projects"
         :active-project-id="activeProjectId"
+        :collapsed="sidebarCollapsed"
         @select="selectProject"
         @add="addProject"
       />
 
       <div v-if="activeProject" class="main">
         <div class="terminal-area">
-          <PaneLayout
-            v-if="currentLayout"
-            :node="currentLayout"
-            :focused-pane-id="focusedPaneId"
-            :titles="titleByTab"
-            @focus="onFocus"
-            @select-tab="onSelectTab"
-            @close-tab="onCloseTab"
-            @add-tab="addTab"
-            @split="onSplit"
-            @exit="onExit"
-            @resize="onResize"
-            @title-change="onTitleChange"
+          <template v-if="mainView === 'workspace'">
+            <PaneLayout
+              v-if="currentLayout"
+              :node="currentLayout"
+              :focused-pane-id="focusedPaneId"
+              :titles="titleByTab"
+              @focus="onFocus"
+              @select-tab="onSelectTab"
+              @close-tab="onCloseTab"
+              @add-tab="addTab"
+              @split="onSplit"
+              @exit="onExit"
+              @resize="onResize"
+              @title-change="onTitleChange"
+            />
+            <div v-else class="empty-pane">
+              <p class="empty">No shells open.</p>
+              <button class="pill-button" @click="addTab()">+ New shell</button>
+            </div>
+          </template>
+          <BiblioManager
+            v-else-if="activeProject"
+            :tree="biblioTree"
+            :project-path="activeProject.path"
           />
-          <div v-else class="empty-pane">
-            <p class="empty">No shells open.</p>
-            <button class="pill-button" @click="addTab()">+ New shell</button>
-          </div>
         </div>
       </div>
 
@@ -196,6 +259,57 @@ onMounted(loadProjects)
   display: flex;
   flex-direction: column;
   background: var(--color-surface-0);
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--color-amber);
+  flex-shrink: 0;
+  margin-right: var(--space-2);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--color-fg-accent);
+  letter-spacing: var(--tracking-snug);
+}
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius-pill);
+}
+
+.view-toggle-option {
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.view-toggle-option:hover {
+  color: var(--color-fg-primary);
+}
+
+.view-toggle-option.active {
+  background: var(--color-surface-0);
+  color: var(--color-fg-primary);
 }
 
 .pill-button {
