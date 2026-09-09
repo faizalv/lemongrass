@@ -21,7 +21,6 @@ const emit = defineEmits<{
   'close-tab': [tabId: string]
   'add-tab': []
   split: [direction: 'row' | 'column']
-  'close-pane': []
   exit: [tabId: string]
   'title-change': [tabId: string, title: string]
 }>()
@@ -52,12 +51,6 @@ const emit = defineEmits<{
           <svg width="12" height="12" viewBox="0 0 12 12">
             <rect x="0.5" y="0.5" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1" />
             <line x1="0.5" y1="6" x2="11.5" y2="6" stroke="currentColor" stroke-width="1" />
-          </svg>
-        </button>
-        <button class="group-action" title="Close pane" @click="emit('close-pane')">
-          <svg width="12" height="12" viewBox="0 0 12 12">
-            <line x1="1.5" y1="1.5" x2="10.5" y2="10.5" stroke="currentColor" stroke-width="1" />
-            <line x1="10.5" y1="1.5" x2="1.5" y2="10.5" stroke="currentColor" stroke-width="1" />
           </svg>
         </button>
       </div>
@@ -139,9 +132,9 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  font-size: var(--text-md);
+  width: 22px;
+  height: 22px;
+  font-size: var(--text-lg);
   line-height: 1;
   color: var(--color-fg-muted);
   border-radius: var(--radius-pill);

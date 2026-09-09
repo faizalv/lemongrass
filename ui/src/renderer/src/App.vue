@@ -12,7 +12,6 @@ import {
   addTabToPane,
   setActiveTab,
   closeTab as closeTabInLayout,
-  closePane as closePaneInLayout,
   splitPane,
   setSplitSizes
 } from './paneLayout'
@@ -125,13 +124,6 @@ function onCloseTab(paneId: string, tabId: string): void {
   withLayout((layout) => closeTabInLayout(layout, paneId, tabId))
 }
 
-function onClosePane(paneId: string): void {
-  const id = activeProjectId.value
-  const layout = id ? (layoutByProject[id] ?? null) : null
-  for (const tab of findLeaf(layout, paneId)?.tabs ?? []) delete titleByTab[tab.id]
-  withLayout((layout) => closePaneInLayout(layout, paneId))
-}
-
 function onTitleChange(_paneId: string, tabId: string, title: string): void {
   titleByTab[tabId] = title
 }
@@ -158,11 +150,7 @@ onMounted(loadProjects)
 
 <template>
   <div class="shell">
-    <HeaderBar>
-      <template #title>
-        <span class="app-title">{{ activeProject?.name ?? 'lemongrass' }}</span>
-      </template>
-    </HeaderBar>
+    <HeaderBar />
 
     <div class="body-row">
       <ProjectSidebar
@@ -184,7 +172,6 @@ onMounted(loadProjects)
             @close-tab="onCloseTab"
             @add-tab="addTab"
             @split="onSplit"
-            @close-pane="onClosePane"
             @exit="onExit"
             @resize="onResize"
             @title-change="onTitleChange"
@@ -209,13 +196,6 @@ onMounted(loadProjects)
   display: flex;
   flex-direction: column;
   background: var(--color-surface-0);
-}
-
-.app-title {
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  color: var(--color-fg-primary);
 }
 
 .pill-button {

@@ -14,7 +14,15 @@ const emit = defineEmits<{
 
 <template>
   <div class="sidebar">
-    <div class="sidebar-header">lemongrass</div>
+    <div class="sidebar-header">
+      <span class="brand-mark">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-black)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19.2 2.2c1.7 6.6.2 13.1-5 17.7" />
+          <path d="M2 21c0-3 1.85-5.36 5.08-6" />
+        </svg>
+      </span>
+      <span class="wordmark">lemongrass</span>
+    </div>
     <div class="project-list">
       <button
         v-for="project in projects"
@@ -45,7 +53,24 @@ const emit = defineEmits<{
 }
 
 .sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-5) var(--space-4) var(--space-3);
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--color-amber);
+  flex-shrink: 0;
+}
+
+.wordmark {
   font-family: var(--font-display);
   font-size: var(--text-md);
   font-weight: var(--weight-bold);

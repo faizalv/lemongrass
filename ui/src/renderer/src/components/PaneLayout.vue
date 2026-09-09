@@ -19,7 +19,6 @@ const emit = defineEmits<{
   'close-tab': [paneId: string, tabId: string]
   'add-tab': [paneId: string]
   split: [paneId: string, direction: 'row' | 'column']
-  'close-pane': [paneId: string]
   exit: [paneId: string, tabId: string]
   resize: [splitId: string, sizes: number[]]
   'title-change': [paneId: string, tabId: string, title: string]
@@ -78,7 +77,6 @@ function onGutterUp(): void {
     @close-tab="(tabId) => emit('close-tab', node.id, tabId)"
     @add-tab="emit('add-tab', node.id)"
     @split="(direction) => emit('split', node.id, direction)"
-    @close-pane="emit('close-pane', node.id)"
     @exit="(tabId) => emit('exit', node.id, tabId)"
     @title-change="(tabId, title) => emit('title-change', node.id, tabId, title)"
   />
@@ -95,7 +93,6 @@ function onGutterUp(): void {
           @close-tab="(id, tabId) => emit('close-tab', id, tabId)"
           @add-tab="(id) => emit('add-tab', id)"
           @split="(id, direction) => emit('split', id, direction)"
-          @close-pane="(id) => emit('close-pane', id)"
           @exit="(id, tabId) => emit('exit', id, tabId)"
           @resize="(splitId, sizes) => emit('resize', splitId, sizes)"
           @title-change="(id, tabId, title) => emit('title-change', id, tabId, title)"

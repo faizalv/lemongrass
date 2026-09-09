@@ -75,10 +75,6 @@ export function splitPane(
   )
 }
 
-export function closePane(root: PaneLayoutNode, paneId: string): PaneLayoutNode | null {
-  return replaceNode(root, paneId, () => null)
-}
-
 export function closeTab(root: PaneLayoutNode, paneId: string, tabId: string): PaneLayoutNode | null {
   return replaceNode(root, paneId, (leaf) => {
     if (leaf.type !== 'leaf') return leaf
