@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -76,7 +77,7 @@ func cmdHook(args []string) {
 	case "PreToolUse":
 		hookPreToolUse(store, payload)
 	case "PostToolUse":
-		hookPostToolUse(store, payload)
+		hookPostToolUse(store, payload, proj.Path)
 	}
 }
 
@@ -97,7 +98,7 @@ func hookPreToolUse(store *session.Store, payload hookPayload) {
 	emitHookContext("PreToolUse", "allow", parts)
 }
 
-func hookPostToolUse(store *session.Store, payload hookPayload) {
+func hookPostToolUse(store *session.Store, payload hookPayload, projectPath string) {
 	store.Touch(payload.SessionID)
 
 	if payload.ToolName == "Write" || payload.ToolName == "Edit" {
@@ -113,9 +114,17 @@ func hookPostToolUse(store *session.Store, payload hookPayload) {
 		if liveness, err := store.Liveness(payload.SessionID, idleThreshold); err == nil {
 			parts = append(parts, session.FormatNudge(liveness))
 		}
+		if hasBiblio(projectPath) {
+			parts = append(parts, session.RandomTip())
+		}
 	}
 
 	emitHookContext("PostToolUse", "", parts)
+}
+
+func hasBiblio(projectPath string) bool {
+	info, err := os.Stat(filepath.Join(projectPath, "biblio"))
+	return err == nil && info.IsDir()
 }
 
 // Unthrottled unlike the nudge, so a mention surfaces at the next tool call regardless of whether the live socket push reached this session.
