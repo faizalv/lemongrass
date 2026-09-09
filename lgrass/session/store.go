@@ -10,9 +10,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Store tracks one project's sessions and recent file activity, both fed
-// by Claude Code's own hook events (SessionStart/SessionEnd/PreToolUse/
-// PostToolUse) rather than any live process state.
+// Store tracks one project's sessions and file activity, fed by Claude Code's hook events, not any live process state.
 type Store struct {
 	db        *sql.DB
 	projectID string
@@ -63,11 +61,7 @@ CREATE TABLE IF NOT EXISTS thread_participants (
 CREATE INDEX IF NOT EXISTS idx_thread_participants_open ON thread_participants(project_id, ended_at);
 `
 
-// Open opens (creating and migrating if needed) the shared session
-// database at dbPath, scoped to one project. This is very often the
-// first lgrass call in a project at all, since a hook fires before any
-// knowledge command ever runs, so it can't assume config.Dir() exists
-// yet.
+// Open may run before config.Dir() exists, since a hook can fire before any other lgrass call in a project.
 func Open(dbPath, projectID string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("creating %s: %w", filepath.Dir(dbPath), err)
@@ -75,6 +69,11 @@ func Open(dbPath, projectID string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
+	}
+	// Every hook in every live session opens this file concurrently; busy_timeout retries instead of erroring, WAL keeps readers from blocking on a writer.
+	if _, err := db.Exec(`PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("configuring %s: %w", dbPath, err)
 	}
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
@@ -87,23 +86,12 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// RFC3339Nano, not RFC3339: thread_read_at and thread_messages.created_at
-// get compared with a strict ">" (see UnreadMentions), and second-only
-// precision let a Start and an immediately-following PostThreadMessage
-// land on the same string, silently hiding the message from the > check.
+// RFC3339Nano, not RFC3339: second-only precision let a Start and an immediately-following PostThreadMessage land on the same string, defeating UnreadMentions' strict ">" check.
 func now() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
-// Start records a session beginning, or restarting under a reused id
-// (ended_at and nudge_counter reset either way). messagingSocket/
-// messagingToken are this session's own Claude Code inbox socket
-// (CLAUDE_CODE_MESSAGING_SOCKET/_TOKEN from its own environment, empty
-// when messaging isn't available); other sessions read these back to
-// push thread messages directly into it. thread_read_at resets to now,
-// so a fresh or restarted session doesn't get flooded with mentions
-// posted before it existed; `thread list` is there to catch up on
-// history deliberately.
+// thread_read_at resets to now so a fresh or restarted session isn't flooded with mentions posted before it existed.
 func (s *Store) Start(sessionID, messagingSocket, messagingToken string) error {
 	ts := now()
 	_, err := s.db.Exec(`
@@ -121,9 +109,7 @@ func (s *Store) Start(sessionID, messagingSocket, messagingToken string) error {
 	return err
 }
 
-// Touch bumps a session's last-activity timestamp. It upserts the row if
-// no SessionStart was ever recorded for it, so a missed or misconfigured
-// SessionStart hook doesn't leave liveness permanently blind to it.
+// Upserts so a missed or misconfigured SessionStart hook doesn't leave liveness permanently blind to this session.
 func (s *Store) Touch(sessionID string) error {
 	ts := now()
 	_, err := s.db.Exec(`
@@ -135,15 +121,11 @@ func (s *Store) Touch(sessionID string) error {
 	return err
 }
 
-// End marks a session as no longer live. It no longer counts toward
-// population, liveness, or collision checks.
 func (s *Store) End(sessionID string) error {
 	_, err := s.db.Exec(`UPDATE sessions SET ended_at = ? WHERE project_id = ? AND session_id = ?`, now(), s.projectID, sessionID)
 	return err
 }
 
-// LogFileActivity records that a session just wrote or edited filePath,
-// for other sessions' collision checks to query against.
 func (s *Store) LogFileActivity(sessionID, filePath string) error {
 	_, err := s.db.Exec(`
 		INSERT INTO file_activity (project_id, session_id, file_path, dir, touched_at)
@@ -152,18 +134,14 @@ func (s *Store) LogFileActivity(sessionID, filePath string) error {
 	return err
 }
 
-// ActivityHit is one other live session's recent touch on a file or its
-// parent directory.
 type ActivityHit struct {
 	SessionID string
 	FilePath  string
 	TouchedAt string
-	SameFile  bool // false means it was a sibling file in the same directory
+	SameFile  bool // false means a sibling file in the same directory, not the same file
 }
 
-// RecentActivity returns, most recent first and deduplicated to one hit
-// per session, every other currently-live session that touched filePath
-// or a sibling file in its immediate parent directory within window.
+// Deduplicated to one hit per session, most recent first.
 func (s *Store) RecentActivity(excludeSessionID, filePath string, window time.Duration) ([]ActivityHit, error) {
 	cutoff := time.Now().Add(-window).UTC().Format(time.RFC3339)
 	dir := filepath.Dir(filePath)
@@ -201,16 +179,12 @@ func (s *Store) RecentActivity(excludeSessionID, filePath string, window time.Du
 	return hits, rows.Err()
 }
 
-// SessionStatus is one other live session's liveness for reporting.
 type SessionStatus struct {
 	SessionID string
 	Active    bool // false means idling: no tool activity within the threshold
 }
 
-// Liveness returns every other currently-live session in the project,
-// most recently active first, with Active derived from last_activity_at
-// against idleThreshold. Its length is also the population count (how
-// many other sessions are open right now).
+// len(result) is also the population count: how many other sessions are open right now.
 func (s *Store) Liveness(excludeSessionID string, idleThreshold time.Duration) ([]SessionStatus, error) {
 	cutoff := time.Now().Add(-idleThreshold).UTC().Format(time.RFC3339)
 
@@ -235,9 +209,7 @@ func (s *Store) Liveness(excludeSessionID string, idleThreshold time.Duration) (
 	return out, rows.Err()
 }
 
-// IncrementNudgeCounter bumps a session's tool-call counter and reports
-// whether it just crossed threshold, resetting it to 0 when it does. It
-// upserts the session row if missing, for the same reason Touch does.
+// Upserts for the same reason Touch does.
 func (s *Store) IncrementNudgeCounter(sessionID string, threshold int) (fire bool, err error) {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -269,7 +241,6 @@ func (s *Store) IncrementNudgeCounter(sessionID string, threshold int) (fire boo
 	return fire, tx.Commit()
 }
 
-// ThreadMessage is one project-wide thread post.
 type ThreadMessage struct {
 	ID        int64
 	SessionID string // author
@@ -278,10 +249,7 @@ type ThreadMessage struct {
 	CreatedAt string
 }
 
-// PostThreadMessage appends a message to the project's shared thread log
-// and returns its id. There is no separate thread/topic object to create
-// first: the project itself is the channel, per the project-wide (not
-// point-to-point) thread model.
+// No separate thread/topic object exists: the project itself is the channel.
 func (s *Store) PostThreadMessage(sessionID, body, mention string) (int64, error) {
 	res, err := s.db.Exec(`
 		INSERT INTO thread_messages (project_id, session_id, body, mention, created_at)
@@ -293,8 +261,6 @@ func (s *Store) PostThreadMessage(sessionID, body, mention string) (int64, error
 	return res.LastInsertId()
 }
 
-// RecentThreadMessages returns the project's most recent thread messages,
-// newest first, for a pane catching up cold via `thread list`.
 func (s *Store) RecentThreadMessages(limit int) ([]ThreadMessage, error) {
 	rows, err := s.db.Query(`
 		SELECT id, session_id, body, mention, created_at FROM thread_messages
@@ -309,11 +275,7 @@ func (s *Store) RecentThreadMessages(limit int) ([]ThreadMessage, error) {
 	return scanThreadMessages(rows)
 }
 
-// UnreadMentions returns messages that mention sessionID and arrived
-// since it last checked (its thread_read_at), oldest first. This is the
-// pull-based fallback surfaced via hook additionalContext, guaranteeing
-// delivery even when the live socket push in deliver.go fails or the
-// target session has no messaging socket at all.
+// The pull-based fallback for delivery, surfaced via hook additionalContext, when the live socket push in deliver.go fails or the target has no socket at all.
 func (s *Store) UnreadMentions(sessionID string) ([]ThreadMessage, error) {
 	var readAt string
 	if err := s.db.QueryRow(`SELECT thread_read_at FROM sessions WHERE project_id = ? AND session_id = ?`, s.projectID, sessionID).Scan(&readAt); err != nil {
@@ -335,8 +297,6 @@ func (s *Store) UnreadMentions(sessionID string) ([]ThreadMessage, error) {
 	return scanThreadMessages(rows)
 }
 
-// MarkThreadRead advances sessionID's thread_read_at to now, so the same
-// mention isn't surfaced again on the next hook firing.
 func (s *Store) MarkThreadRead(sessionID string) error {
 	_, err := s.db.Exec(`UPDATE sessions SET thread_read_at = ? WHERE project_id = ? AND session_id = ?`, now(), s.projectID, sessionID)
 	return err
@@ -354,11 +314,7 @@ func scanThreadMessages(rows *sql.Rows) ([]ThreadMessage, error) {
 	return out, rows.Err()
 }
 
-// LatestThreadMessageID returns the highest thread_messages id in the
-// project so far, 0 when there are none yet. `lgrass thread listen`
-// calls this once at startup as its polling cursor, so it only ever
-// surfaces messages posted after it started listening, never replays
-// history. `thread list` is there for that.
+// `thread listen` uses this as its polling cursor, so it only ever surfaces messages posted after it started, never replays history (`thread list` covers that).
 func (s *Store) LatestThreadMessageID() (int64, error) {
 	var id sql.NullInt64
 	if err := s.db.QueryRow(`SELECT MAX(id) FROM thread_messages WHERE project_id = ?`, s.projectID).Scan(&id); err != nil {
@@ -367,11 +323,7 @@ func (s *Store) LatestThreadMessageID() (int64, error) {
 	return id.Int64, nil
 }
 
-// NewThreadMessagesAfter returns every project message with an id
-// greater than afterID, oldest first. A message-id cursor, not a
-// timestamp one, so listen's poll loop can't hit the same
-// same-timestamp-collision class of bug UnreadMentions needed
-// RFC3339Nano to avoid.
+// A message-id cursor, not a timestamp one, so listen's poll loop can't hit the same collision class RFC3339Nano exists to avoid.
 func (s *Store) NewThreadMessagesAfter(afterID int64) ([]ThreadMessage, error) {
 	rows, err := s.db.Query(`
 		SELECT id, session_id, body, mention, created_at FROM thread_messages
@@ -385,16 +337,12 @@ func (s *Store) NewThreadMessagesAfter(afterID int64) ([]ThreadMessage, error) {
 	return scanThreadMessages(rows)
 }
 
-// MessagingTarget is another live session's own Claude Code inbox
-// socket, for pushing a thread message directly into it.
 type MessagingTarget struct {
 	SessionID string
 	Socket    string
 	Token     string
 }
 
-// LiveMessagingTargets returns every other currently-live session in the
-// project that captured a messaging socket at SessionStart.
 func (s *Store) LiveMessagingTargets(excludeSessionID string) ([]MessagingTarget, error) {
 	rows, err := s.db.Query(`
 		SELECT session_id, messaging_socket, messaging_token FROM sessions
@@ -417,14 +365,12 @@ func (s *Store) LiveMessagingTargets(excludeSessionID string) ([]MessagingTarget
 	return out, rows.Err()
 }
 
-// Participant is one thread_participants row, the addressable identity for thread commands.
+// Participant is the lgrass-owned addressable identity for thread commands, independent of the hook-driven sessions table.
 type Participant struct {
 	Name            string
 	ClaudeSessionID string
 }
 
-// HasOpenSession reports whether sessionID has a live (not yet ended)
-// row in the hook-driven sessions table.
 func (s *Store) HasOpenSession(sessionID string) (bool, error) {
 	var exists int
 	err := s.db.QueryRow(`
@@ -436,7 +382,7 @@ func (s *Store) HasOpenSession(sessionID string) (bool, error) {
 	return exists == 1, err
 }
 
-// BeginParticipant registers name as a live participant, appending -2, -3, ... on collision, and returns the name actually assigned.
+// Appends -2, -3, ... on collision with another currently-live participant.
 func (s *Store) BeginParticipant(name, claudeSessionID string) (string, error) {
 	assigned := name
 	for suffix := 2; ; suffix++ {
@@ -469,13 +415,12 @@ func (s *Store) BeginParticipant(name, claudeSessionID string) (string, error) {
 	return assigned, nil
 }
 
-// EndParticipant marks name as no longer live.
 func (s *Store) EndParticipant(name string) error {
 	_, err := s.db.Exec(`UPDATE thread_participants SET ended_at = ? WHERE project_id = ? AND name = ?`, now(), s.projectID, name)
 	return err
 }
 
-// ParticipantByName looks up name's live thread_participants row, zero-value if not found.
+// Zero-value ClaudeSessionID, no error, when name isn't a currently-live participant.
 func (s *Store) ParticipantByName(name string) (Participant, error) {
 	p := Participant{Name: name}
 	var claudeID sql.NullString

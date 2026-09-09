@@ -5,11 +5,7 @@ import (
 	"strings"
 )
 
-// FormatTOC renders search results as a pointers-only table of contents,
-// meant for system-prompt injection rather than terminal display: titles,
-// tags, and (for a book) its description and chapter count. It never
-// includes a full body. Returns "" for no results, so a caller can skip
-// injecting nothing.
+// Meant for system-prompt injection, so this never includes a full body, only pointers.
 func FormatTOC(results []SearchResult) string {
 	if len(results) == 0 {
 		return ""

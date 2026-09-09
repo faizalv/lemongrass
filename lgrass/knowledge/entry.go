@@ -1,7 +1,4 @@
-// Package knowledge stores and indexes knowledge entries under
-// ~/.lemongrass/. Entries are plain markdown files with YAML frontmatter;
-// the SQLite index in store.go is a derived, regenerable layer for tags
-// and full-text search.
+// Package knowledge stores entries as plain markdown files with YAML frontmatter; the SQLite index is a derived, regenerable layer.
 package knowledge
 
 import (
@@ -13,7 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Entry is one knowledge entry: frontmatter metadata plus a markdown body.
 type Entry struct {
 	ID        string   `yaml:"id"`
 	Title     string   `yaml:"title"`
@@ -27,8 +23,6 @@ type Entry struct {
 
 const frontmatterDelim = "---"
 
-// Marshal renders an entry in its on-disk file format: YAML frontmatter
-// between --- delimiters, then the markdown body.
 func (e Entry) Marshal() ([]byte, error) {
 	meta, err := yaml.Marshal(e)
 	if err != nil {
@@ -43,7 +37,6 @@ func (e Entry) Marshal() ([]byte, error) {
 	return []byte(b.String()), nil
 }
 
-// ParseEntry reads an entry back from its on-disk format.
 func ParseEntry(data []byte) (Entry, error) {
 	text := string(data)
 	if !strings.HasPrefix(text, frontmatterDelim) {
@@ -69,15 +62,13 @@ func ParseEntry(data []byte) (Entry, error) {
 
 var slugInvalid = regexp.MustCompile(`[^a-z0-9]+`)
 
-// Slugify turns a title into a kebab-case id. Writing to an existing slug
-// overwrites that entry.
+// Writing to an existing slug overwrites that entry.
 func Slugify(title string) string {
 	s := strings.ToLower(strings.TrimSpace(title))
 	s = slugInvalid.ReplaceAllString(s, "-")
 	return strings.Trim(s, "-")
 }
 
-// Now returns the current time formatted for frontmatter timestamps.
 func Now() string {
 	return time.Now().UTC().Format(time.RFC3339)
 }

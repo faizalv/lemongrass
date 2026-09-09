@@ -55,14 +55,14 @@ func Register(dir string) (Project, error) {
 	if err != nil {
 		return Project{}, err
 	}
-	abs = filepath.Clean(abs)
+	abs = resolvePath(abs)
 
 	projects, err := loadAll()
 	if err != nil {
 		return Project{}, err
 	}
 	for _, p := range projects {
-		if filepath.Clean(p.Path) == abs {
+		if resolvePath(p.Path) == abs {
 			return p, nil
 		}
 	}

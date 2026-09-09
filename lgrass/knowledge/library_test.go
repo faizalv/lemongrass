@@ -259,11 +259,7 @@ func TestEditRejectsEmptyResult(t *testing.T) {
 	}
 }
 
-// TestOpenOnFreshHomeWithNoPriorWrites guards against a real bug: Open
-// used to assume config.Dir() already existed, which held only because
-// some prior Write/CreateBook call had run MkdirAll first. A project
-// whose very first lgrass call is search/toc/reindex (nothing written
-// yet) hit "unable to open database file".
+// Guards Open against assuming config.Dir() already exists, when a project's very first lgrass call is search/toc/reindex.
 func TestOpenOnFreshHomeWithNoPriorWrites(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 

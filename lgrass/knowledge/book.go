@@ -7,8 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Book groups a set of entries (its chapters) under one title. A book is
-// its own file on disk, frontmatter only, with no body of its own.
+// A book is its own file on disk, frontmatter only, with no body of its own.
 type Book struct {
 	ID          string   `yaml:"id"`
 	Title       string   `yaml:"title"`
@@ -18,8 +17,6 @@ type Book struct {
 	UpdatedAt   string   `yaml:"updated_at"`
 }
 
-// Marshal renders a book in its on-disk file format: YAML frontmatter
-// between --- delimiters, no body.
 func (b Book) Marshal() ([]byte, error) {
 	meta, err := yaml.Marshal(b)
 	if err != nil {
@@ -32,7 +29,6 @@ func (b Book) Marshal() ([]byte, error) {
 	return []byte(out.String()), nil
 }
 
-// ParseBook reads a book back from its on-disk format.
 func ParseBook(data []byte) (Book, error) {
 	text := string(data)
 	if !strings.HasPrefix(text, frontmatterDelim) {

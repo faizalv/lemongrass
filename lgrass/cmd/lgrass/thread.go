@@ -68,11 +68,7 @@ func cmdThreadPost(args []string) {
 		os.Exit(1)
 	}
 
-	// Best effort: push straight into every other live session's inbox
-	// socket for immediate delivery. Never fatal. A session with no
-	// captured socket, or a socket that's gone stale, still gets the
-	// message via the hook-surfaced pull fallback (UnreadMentions) on
-	// its next tool call, for a mention specifically.
+	// Best effort: UnreadMentions is the guaranteed fallback if this fails or reaches no one.
 	exclude := currentClaudeSessionExclusion(store)
 	targets, err := store.LiveMessagingTargets(exclude)
 	if err == nil && len(targets) > 0 {
@@ -113,13 +109,7 @@ func cmdThreadList(args []string) {
 	fmt.Println(session.FormatThreadList(msgs))
 }
 
-// cmdThreadListen blocks, polling for any new thread message in this
-// project until one arrives or timeout elapses, then exits. Meant to
-// be run as a background shell call so a session gets a live channel
-// instead of waiting on its next tool-call hook to check in. Vendor
-// neutral by construction: it only touches lgrass's own sqlite, so it
-// works the same from any agent CLI that can background a shell command
-// and learn when it produces output, not just Claude Code.
+// Only touches lgrass's own sqlite, so this works the same from any agent CLI, not just Claude Code.
 func cmdThreadListen(args []string) {
 	timeout := defaultListenTimeout
 	for i := 0; i < len(args); i++ {

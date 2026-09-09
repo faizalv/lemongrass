@@ -7,7 +7,7 @@ import (
 	"github.com/faizalv/lemongrass/session"
 )
 
-// currentParticipantName returns LGRASS_SESSION if set, else CLAUDE_CODE_SESSION_ID, erroring if neither is.
+// Falls back to CLAUDE_CODE_SESSION_ID so a session that hasn't called `session begin` yet still works.
 func currentParticipantName() string {
 	if name := os.Getenv("LGRASS_SESSION"); name != "" {
 		return name
@@ -20,7 +20,6 @@ func currentParticipantName() string {
 	return id
 }
 
-// currentClaudeSessionExclusion resolves this invocation's own Claude session_id, via LGRASS_SESSION's linked participant when set.
 func currentClaudeSessionExclusion(store *session.Store) string {
 	name := os.Getenv("LGRASS_SESSION")
 	if name == "" {

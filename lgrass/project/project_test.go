@@ -97,3 +97,37 @@ func TestResolveFollowsSymlinkToRegisteredPath(t *testing.T) {
 		t.Errorf("Resolve(nested under symlink) = %+v, want project %+v", resolved, p)
 	}
 }
+
+func TestRegisterViaSymlinkReturnsExistingEntry(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	real := t.TempDir()
+	first, err := Register(real)
+	if err != nil {
+		t.Fatalf("Register(real): %v", err)
+	}
+
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	second, err := Register(link)
+	if err != nil {
+		t.Fatalf("Register(symlink): %v", err)
+	}
+	if second.ID != first.ID {
+		t.Errorf("Register(symlink) created a new entry %+v instead of returning the existing one %+v", second, first)
+	}
+
+	data, err := os.ReadFile(registryPath())
+	if err != nil {
+		t.Fatalf("reading registry: %v", err)
+	}
+	var projects []Project
+	if err := json.Unmarshal(data, &projects); err != nil {
+		t.Fatalf("parsing registry: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("registry has %d entries after registering the real path then its symlink, want 1", len(projects))
+	}
+}

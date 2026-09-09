@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { basename, join } from 'path'
 import { randomUUID } from 'crypto'
@@ -10,10 +10,7 @@ export interface Project {
   path: string
 }
 
-// Lemongrass's own runtime state -- which projects it knows about --
-// lives centrally under ~/.lemongrass/, not inside any project's own
-// repo and not Electron's generic userData folder. Deliberate departure
-// from the kencana context/ convention.
+// Centralized under ~/.lemongrass/, not Electron's userData folder, so the CLI and UI share one registry.
 const STORE_DIR = join(homedir(), '.lemongrass')
 const STORE_FILE = join(STORE_DIR, 'projects.json')
 
@@ -31,6 +28,15 @@ function saveProjects(projects: Project[]): void {
   writeFileSync(STORE_FILE, JSON.stringify(projects, null, 2))
 }
 
+// Mirrors project.resolvePath on the lgrass CLI side, so a symlinked path registered from either converges on the same entry.
+function resolvePath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    return path
+  }
+}
+
 export function registerProjectHandlers(getWindow: () => BrowserWindow | undefined): void {
   ipcMain.handle('projects:list', () => loadProjects())
 
@@ -41,9 +47,9 @@ export function registerProjectHandlers(getWindow: () => BrowserWindow | undefin
       : await dialog.showOpenDialog({ properties: ['openDirectory'] })
     if (result.canceled || result.filePaths.length === 0) return null
 
-    const dirPath = result.filePaths[0]
+    const dirPath = resolvePath(result.filePaths[0])
     const projects = loadProjects()
-    const existing = projects.find((p) => p.path === dirPath)
+    const existing = projects.find((p) => resolvePath(p.path) === dirPath)
     if (existing) return existing
 
     const project: Project = { id: randomUUID(), name: basename(dirPath), path: dirPath }

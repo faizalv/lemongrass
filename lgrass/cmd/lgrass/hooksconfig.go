@@ -23,7 +23,6 @@ type hookSpec struct {
 	matcher string
 }
 
-// lgrassHookSpecs is every Claude Code hook lgrass registers for itself.
 var lgrassHookSpecs = []hookSpec{
 	{event: "SessionStart"},
 	{event: "SessionEnd"},
@@ -32,7 +31,7 @@ var lgrassHookSpecs = []hookSpec{
 	{event: "Stop"},
 }
 
-// ensureClaudeHooks idempotently registers lgrassHookSpecs in ~/.claude/settings.json, preserving everything else in the file.
+// Idempotent, and preserves every other key and hook group already in the file.
 func ensureClaudeHooks() error {
 	lgrassPath, err := os.Executable()
 	if err != nil {
@@ -95,7 +94,7 @@ func ensureClaudeHooks() error {
 	return os.WriteFile(settingsPath, out, 0o644)
 }
 
-// hasLgrassHook reports whether groups already has a command ending in "hook <event>".
+// Matches by suffix, not the full command, since the installed binary's path isn't fixed.
 func hasLgrassHook(groups []hookGroup, event string) bool {
 	want := " hook " + event
 	for _, g := range groups {

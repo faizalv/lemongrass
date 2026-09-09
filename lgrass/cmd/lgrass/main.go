@@ -38,9 +38,7 @@ func main() {
 	}
 }
 
-// cmdInit registers the current directory as a lemongrass project,
-// identically to the Electron UI's own "add project" flow, so a bare
-// terminal session never opened through the UI can still become one.
+// Identical to the Electron UI's own "add project" flow, so a bare terminal session can register without it.
 func cmdInit() {
 	cwd, err := os.Getwd()
 	if err != nil {

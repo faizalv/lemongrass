@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 )
 
-// Dir returns ~/.lemongrass.
 func Dir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {

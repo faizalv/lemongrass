@@ -37,8 +37,6 @@ func cmdKnowledge(args []string) {
 	}
 }
 
-// currentProject resolves the current working directory to its registered
-// project.
 func currentProject() project.Project {
 	p, err := project.ResolveCwd()
 	if err != nil {
@@ -140,8 +138,7 @@ func cmdKnowledgeEdit(args []string) {
 	fmt.Printf("edited %s (%s), lines %d-%d\n", entry.ID, entry.Title, start, end)
 }
 
-// parseLineRange parses "A-B" (or a bare "A" as shorthand for "A-A") into
-// its inclusive, 1-indexed bounds.
+// A bare "A" is shorthand for "A-A"; bounds are inclusive and 1-indexed.
 func parseLineRange(s string) (start, end int, err error) {
 	parts := strings.SplitN(s, "-", 2)
 	start, err = strconv.Atoi(strings.TrimSpace(parts[0]))

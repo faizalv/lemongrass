@@ -13,16 +13,13 @@ import (
 	"github.com/faizalv/lemongrass/session"
 )
 
-// Tunable defaults, adjustable independently of everything else here.
 const (
 	collisionWindow = 15 * time.Minute
 	idleThreshold   = 5 * time.Minute
 	nudgeThreshold  = 8 // tool calls between periodic nudges
 )
 
-// hookPayload is the subset of Claude Code's hook JSON (on stdin) that
-// lgrass cares about. The full payload carries more fields depending on
-// hook_event_name, all ignored here.
+// The full hook JSON carries more fields depending on hook_event_name; this is only the subset lgrass reads.
 type hookPayload struct {
 	SessionID      string          `json:"session_id"`
 	Cwd            string          `json:"cwd"`
@@ -45,11 +42,7 @@ type hookSpecificOutput struct {
 	AdditionalContext  string `json:"additionalContext,omitempty"`
 }
 
-// cmdHook implements `lgrass hook <event>`, invoked by Claude Code's own
-// hook system with the event JSON on stdin. Every failure mode here
-// (unparseable JSON, an unregistered project, a db error) fails soft:
-// exit 0 with no output, never breaking the hook chain over an
-// lgrass-side issue.
+// Every failure here fails soft (exit 0, no output) so an lgrass-side problem never breaks Claude Code's own hook chain.
 func cmdHook(args []string) {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|Stop>")
@@ -129,7 +122,7 @@ func hookPostToolUse(store *session.Store, payload hookPayload) {
 	emitHookContext("PostToolUse", "", parts)
 }
 
-// hookStop blocks the stop (exit 2, reason on stderr) when another session is live and no thread listener is running.
+// Gated on population so a solo session isn't forced to babysit a listener nobody else needs.
 func hookStop(store *session.Store, payload hookPayload) {
 	if payload.StopHookActive {
 		return
@@ -145,8 +138,8 @@ func hookStop(store *session.Store, payload hookPayload) {
 	os.Exit(2)
 }
 
-// listenerRunning reports whether any `lgrass thread listen` process is alive on this machine.
 func listenerRunning() bool {
+	// "[l]grass" keeps pgrep's own pattern argument from matching its own invocation.
 	err := exec.Command("pgrep", "-f", "[l]grass thread listen").Run()
 	if err == nil {
 		return true
@@ -157,11 +150,7 @@ func listenerRunning() bool {
 	return true
 }
 
-// mentionContext is the pull-based fallback for thread @mentions,
-// checked on every hook firing (not throttled like the nudge) so a
-// mention surfaces at the next tool-call boundary regardless of whether
-// deliver.go's live socket push reached this session. Marks them read
-// once surfaced, so the same mention doesn't repeat on the next hook.
+// Unthrottled unlike the nudge, so a mention surfaces at the next tool call regardless of whether the live socket push reached this session.
 func mentionContext(store *session.Store, sessionID string) []string {
 	msgs, err := store.UnreadMentions(sessionID)
 	if err != nil || len(msgs) == 0 {
@@ -183,10 +172,7 @@ func toolFilePath(payload hookPayload) string {
 	return input.FilePath
 }
 
-// emitHookContext joins non-empty parts (collision warning, mentions,
-// nudge, whichever fired this call) into one additionalContext string,
-// since a hook response carries only one, and emits nothing at all when
-// none fired.
+// A hook response carries only one additionalContext string, so this joins whatever parts fired into one.
 func emitHookContext(eventName, permissionDecision string, parts []string) {
 	var nonEmpty []string
 	for _, p := range parts {

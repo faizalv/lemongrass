@@ -10,10 +10,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Store is the derived, regenerable index over one project's knowledge
-// entries and books. Tags and full-text search live here; the entries
-// and books themselves stay plain markdown files on disk. Deleting this
-// database and running Reindex rebuilds it from scratch.
+// Store is a derived, regenerable index: entries and books are the source of truth as plain markdown files on disk.
 type Store struct {
 	db        *sql.DB
 	projectID string
@@ -70,10 +67,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS books_fts USING fts5(
 );
 `
 
-// Open opens (creating and migrating if needed) the shared index database
-// at dbPath, scoped to one project's entries and books. Callers like
-// `search`/`toc`/`reindex` can reach this before any Write has ever run
-// MkdirAll on config.Dir(), so this can't assume the directory exists.
+// `search`/`toc`/`reindex` can reach this before any Write has ever run MkdirAll on config.Dir().
 func Open(dbPath, projectID string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("creating %s: %w", filepath.Dir(dbPath), err)
@@ -93,7 +87,6 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// Index upserts one entry's metadata, tags, and searchable text.
 func (s *Store) Index(e Entry) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -135,7 +128,6 @@ func (s *Store) Index(e Entry) error {
 	return tx.Commit()
 }
 
-// IndexBook upserts one book's metadata, tags, and searchable text.
 func (s *Store) IndexBook(b Book) error {
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -176,9 +168,7 @@ func (s *Store) IndexBook(b Book) error {
 	return tx.Commit()
 }
 
-// SearchResult holds a search hit's metadata: either a standalone entry,
-// an entry belonging to a book, or (when IsBook is true) a book collapsed
-// to a single line representing all of its chapters.
+// A hit is a standalone entry, an entry belonging to a book, or (IsBook true) a book collapsed to one line for all its chapters.
 type SearchResult struct {
 	ID           string
 	Title        string
@@ -251,8 +241,6 @@ func (s *Store) bookTagsFor(bookID string) ([]string, error) {
 	return tags, rows.Err()
 }
 
-// bookSummary builds the collapsed one-line SearchResult for a book: its
-// own title/tags plus how many chapters it has.
 func (s *Store) bookSummary(bookID string) (SearchResult, error) {
 	var title string
 	var description sql.NullString
@@ -348,12 +336,7 @@ func (s *Store) searchBooks(query string) ([]SearchResult, error) {
 	return results, nil
 }
 
-// Search returns entries and books matching a full-text query, or
-// everything ordered by most recently updated when query is empty. Any
-// entry belonging to a book collapses into a single line for that book
-// (title, tags, chapter count) rather than one line per chapter; a book
-// whose own title/description matches but whose chapters didn't is
-// included the same way.
+// Any entry belonging to a book collapses into that book's single summary line rather than one line per chapter.
 func (s *Store) Search(query string) ([]SearchResult, error) {
 	entryResults, err := s.searchEntries(query)
 	if err != nil {
@@ -393,7 +376,6 @@ func (s *Store) Search(query string) ([]SearchResult, error) {
 	return out, nil
 }
 
-// Chapters returns every entry in a book, in chapter order.
 func (s *Store) Chapters(bookID string) ([]SearchResult, error) {
 	rows, err := s.db.Query(`
 		SELECT id, title, book_id, chapter FROM entries

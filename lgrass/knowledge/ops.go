@@ -7,7 +7,6 @@ import (
 	"strings"
 )
 
-// WriteOptions are the caller-supplied fields for a new or updated entry.
 type WriteOptions struct {
 	Title   string
 	Tags    []string
@@ -16,8 +15,7 @@ type WriteOptions struct {
 	Body    string
 }
 
-// Write creates a new entry, or overwrites an existing one addressed by
-// the same slug, on disk, then re-indexes it.
+// Addressed by slug, so a second Write under the same title overwrites rather than duplicates.
 func Write(projectID string, opts WriteOptions) (Entry, error) {
 	if strings.TrimSpace(opts.Body) == "" {
 		return Entry{}, fmt.Errorf("empty body")
@@ -81,8 +79,7 @@ func Write(projectID string, opts WriteOptions) (Entry, error) {
 	return entry, nil
 }
 
-// Read loads one entry's full body from disk. The index is not consulted
-// for content.
+// The index is never consulted for content, only disk.
 func Read(projectID, id string) (Entry, error) {
 	data, err := os.ReadFile(EntryPath(projectID, id))
 	if err != nil {
@@ -91,10 +88,7 @@ func Read(projectID, id string) (Entry, error) {
 	return ParseEntry(data)
 }
 
-// Edit replaces an inclusive, 1-indexed line range in an existing entry's
-// body with replacement, then re-saves and re-indexes it. Unlike Write,
-// this only ever touches Body. ID, Title, Tags, BookID, Chapter, and
-// CreatedAt are left as they were.
+// Unlike Write, this only ever touches Body; every other field is left as it was.
 func Edit(projectID, id string, startLine, endLine int, replacement string) (Entry, error) {
 	entry, err := Read(projectID, id)
 	if err != nil {
@@ -142,15 +136,13 @@ func Edit(projectID, id string, startLine, endLine int, replacement string) (Ent
 	return entry, nil
 }
 
-// BookOptions are the caller-supplied fields for a new or updated book.
 type BookOptions struct {
 	Title       string
 	Tags        []string
 	Description string
 }
 
-// CreateBook creates a new book, or overwrites an existing one addressed
-// by the same slug, on disk, then re-indexes it.
+// Addressed by slug, so a second CreateBook under the same title overwrites rather than duplicates.
 func CreateBook(projectID string, opts BookOptions) (Book, error) {
 	title := strings.TrimSpace(opts.Title)
 	if title == "" {
@@ -200,7 +192,6 @@ func CreateBook(projectID string, opts BookOptions) (Book, error) {
 	return book, nil
 }
 
-// ReadBook loads one book's metadata from disk.
 func ReadBook(projectID, id string) (Book, error) {
 	data, err := os.ReadFile(BookPath(projectID, id))
 	if err != nil {
@@ -214,8 +205,6 @@ func firstLine(body string) string {
 	return strings.TrimSpace(strings.TrimPrefix(line, "#"))
 }
 
-// Reindex rebuilds the index for one project from its book and entry
-// files on disk. Returns the number of entries and books indexed.
 func Reindex(projectID string) (entries int, books int, err error) {
 	store, err := Open(DBPath(), projectID)
 	if err != nil {

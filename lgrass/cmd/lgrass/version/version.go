@@ -1,4 +1,4 @@
 package version
 
-// Version is set at build time via -ldflags, same convention legacy used.
+// Set at build time via -ldflags.
 var Version = "dev"
