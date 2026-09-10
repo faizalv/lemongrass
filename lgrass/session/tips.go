@@ -16,6 +16,8 @@ var bibliothekTips = []string{
 	"bibliothek tip: a handover's Status section is the truth, its Log is history only -- don't read the Log for current state.",
 	"bibliothek tip: once a handover's work is done, archive it -- biblio/handover/ should only ever hold what's still in flight.",
 	"bibliothek tip: tags are one word each -- a compound idea is multiple tags, not one hyphenated tag.",
+	"bibliothek tip: a plan for work that hasn't started lives in scratchpad -- a handover's Status section tracks an already-open task, not a future one.",
+	"bibliothek tip: scratchpad is editable by the model too, not just the user -- it's a working space for planning and debugging, not only somewhere the user drops notes.",
 }
 
 func RandomTip() string {
