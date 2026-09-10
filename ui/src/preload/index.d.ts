@@ -5,7 +5,10 @@ import type {
   PtyExitPayload,
   Project,
   PaneLayoutNode,
-  BiblioTree
+  BiblioTree,
+  VaultScope,
+  VaultChannel,
+  VaultChannelWithShortId
 } from './index'
 
 interface Api {
@@ -34,6 +37,23 @@ interface Api {
       title: string,
       content: string
     ) => Promise<string | null>
+  }
+  vault: {
+    list: () => Promise<VaultChannel[]>
+    create: (
+      passphrase: string,
+      dbName: string,
+      scope: VaultScope,
+      ttlSeconds: number
+    ) => Promise<VaultChannelWithShortId>
+    activate: (
+      passphrase: string,
+      id: string,
+      ttlSeconds: number
+    ) => Promise<VaultChannelWithShortId>
+    revoke: (id: string) => Promise<void>
+    listConnections: () => Promise<string[]>
+    putCredential: (passphrase: string, name: string, connectionString: string) => Promise<void>
   }
   windowControls: {
     minimize: () => void

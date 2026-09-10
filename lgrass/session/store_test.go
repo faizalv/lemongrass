@@ -475,3 +475,104 @@ func TestHasOpenSession(t *testing.T) {
 		t.Fatalf("HasOpenSession after End = %v, %v, want false, nil", has, err)
 	}
 }
+
+func TestTipsAddListRemove(t *testing.T) {
+	store := openTestStore(t)
+
+	id, err := store.AddTip("test tip one")
+	if err != nil {
+		t.Fatalf("AddTip: %v", err)
+	}
+	if _, err := store.AddTip("test tip two"); err != nil {
+		t.Fatalf("AddTip: %v", err)
+	}
+
+	tips, err := store.ListTips()
+	if err != nil {
+		t.Fatalf("ListTips: %v", err)
+	}
+	if len(tips) != 2 {
+		t.Fatalf("len(tips) = %d, want 2", len(tips))
+	}
+	if tips[0].ID != id || tips[0].Message != "test tip one" {
+		t.Errorf("tips[0] = %+v, want {%d test tip one}", tips[0], id)
+	}
+
+	if err := store.DeleteTip(id); err != nil {
+		t.Fatalf("DeleteTip: %v", err)
+	}
+	tips, err = store.ListTips()
+	if err != nil {
+		t.Fatalf("ListTips after delete: %v", err)
+	}
+	if len(tips) != 1 || tips[0].Message != "test tip two" {
+		t.Fatalf("tips after delete = %+v, want only 'test tip two'", tips)
+	}
+}
+
+func TestSignedAtZeroBeforeSigning(t *testing.T) {
+	store := openTestStore(t)
+
+	signedAt, err := store.SignedAt("session-a", "checklist-1")
+	if err != nil {
+		t.Fatalf("SignedAt: %v", err)
+	}
+	if !signedAt.IsZero() {
+		t.Errorf("SignedAt before Sign = %v, want zero time", signedAt)
+	}
+
+	if err := store.Sign("session-a", "checklist-1"); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	signedAt, err = store.SignedAt("session-a", "checklist-1")
+	if err != nil {
+		t.Fatalf("SignedAt after Sign: %v", err)
+	}
+	if signedAt.IsZero() {
+		t.Error("SignedAt after Sign is still zero")
+	}
+	if time.Since(signedAt) > time.Minute {
+		t.Errorf("SignedAt = %v, expected close to now", signedAt)
+	}
+}
+
+func TestSignIsPerSessionAndPerChecklist(t *testing.T) {
+	store := openTestStore(t)
+
+	if err := store.Sign("session-a", "checklist-1"); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	if signedAt, err := store.SignedAt("session-b", "checklist-1"); err != nil || !signedAt.IsZero() {
+		t.Errorf("session-b SignedAt = %v, %v, want zero time, nil (signing doesn't cross sessions)", signedAt, err)
+	}
+	if signedAt, err := store.SignedAt("session-a", "checklist-2"); err != nil || !signedAt.IsZero() {
+		t.Errorf("checklist-2 SignedAt = %v, %v, want zero time, nil (signing doesn't cross checklists)", signedAt, err)
+	}
+}
+
+func TestReSignResetsTheClock(t *testing.T) {
+	store := openTestStore(t)
+
+	if err := store.Sign("session-a", "checklist-1"); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+	old := time.Now().Add(-1 * time.Hour).UTC().Format(time.RFC3339Nano)
+	if _, err := store.db.Exec(
+		`UPDATE lg_signatures SET signed_at = ? WHERE project_id = ? AND session_id = ? AND checklist_id = ?`,
+		old, testProjectID, "session-a", "checklist-1",
+	); err != nil {
+		t.Fatalf("backdating signature: %v", err)
+	}
+
+	if err := store.Sign("session-a", "checklist-1"); err != nil {
+		t.Fatalf("re-Sign: %v", err)
+	}
+	signedAt, err := store.SignedAt("session-a", "checklist-1")
+	if err != nil {
+		t.Fatalf("SignedAt: %v", err)
+	}
+	if time.Since(signedAt) > time.Minute {
+		t.Errorf("SignedAt after re-sign = %v, expected close to now, not the backdated value", signedAt)
+	}
+}

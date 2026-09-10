@@ -60,6 +60,10 @@ func FormatMentions(msgs []ThreadMessage) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+func FormatChecklistDeny(c Checklist) string {
+	return fmt.Sprintf("lgrass: %q requires signing before this call proceeds -- run `lgrass sign %s`, then retry:\n\n%s", c.ID, c.ID, c.Content)
+}
+
 func FormatThreadList(msgs []ThreadMessage) string {
 	if len(msgs) == 0 {
 		return "lgrass: no thread messages yet in this project."

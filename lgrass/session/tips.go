@@ -21,5 +21,11 @@ var bibliothekTips = []string{
 }
 
 func RandomTip() string {
-	return bibliothekTips[rand.Intn(len(bibliothekTips))]
+	return RandomTipFrom(nil)
+}
+
+// RandomTipFrom picks from the built-in tips plus whatever user-authored ones this project has configured.
+func RandomTipFrom(extra []string) string {
+	all := append(append([]string{}, bibliothekTips...), extra...)
+	return all[rand.Intn(len(all))]
 }

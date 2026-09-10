@@ -59,6 +59,20 @@ CREATE TABLE IF NOT EXISTS thread_participants (
 	PRIMARY KEY (project_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_thread_participants_open ON thread_participants(project_id, ended_at);
+CREATE TABLE IF NOT EXISTS lg_tips (
+	project_id TEXT NOT NULL,
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	message TEXT NOT NULL,
+	created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lg_tips_project ON lg_tips(project_id);
+CREATE TABLE IF NOT EXISTS lg_signatures (
+	project_id TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	checklist_id TEXT NOT NULL,
+	signed_at TEXT NOT NULL,
+	PRIMARY KEY (project_id, session_id, checklist_id)
+);
 `
 
 // Open may run before config.Dir() exists, since a hook can fire before any other lgrass call in a project.
@@ -444,4 +458,65 @@ func nullableString(v string) interface{} {
 		return nil
 	}
 	return v
+}
+
+type Tip struct {
+	ID      int64
+	Message string
+}
+
+func (s *Store) AddTip(message string) (int64, error) {
+	res, err := s.db.Exec(`INSERT INTO lg_tips (project_id, message, created_at) VALUES (?, ?, ?)`, s.projectID, message, now())
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (s *Store) ListTips() ([]Tip, error) {
+	rows, err := s.db.Query(`SELECT id, message FROM lg_tips WHERE project_id = ? ORDER BY id`, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Tip
+	for rows.Next() {
+		var t Tip
+		if err := rows.Scan(&t.ID, &t.Message); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) DeleteTip(id int64) error {
+	_, err := s.db.Exec(`DELETE FROM lg_tips WHERE project_id = ? AND id = ?`, s.projectID, id)
+	return err
+}
+
+// Sign upserts, so re-signing before the previous TTL expires just resets the clock.
+func (s *Store) Sign(sessionID, checklistID string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO lg_signatures (project_id, session_id, checklist_id, signed_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (project_id, session_id, checklist_id) DO UPDATE SET signed_at = excluded.signed_at
+	`, s.projectID, sessionID, checklistID, now())
+	return err
+}
+
+// SignedAt returns the zero time, no error, when this session has never signed this checklist.
+func (s *Store) SignedAt(sessionID, checklistID string) (time.Time, error) {
+	var ts string
+	err := s.db.QueryRow(`
+		SELECT signed_at FROM lg_signatures WHERE project_id = ? AND session_id = ? AND checklist_id = ?
+	`, s.projectID, sessionID, checklistID).Scan(&ts)
+	if err == sql.ErrNoRows {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Parse(time.RFC3339Nano, ts)
 }

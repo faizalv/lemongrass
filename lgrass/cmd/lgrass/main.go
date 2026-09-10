@@ -27,6 +27,14 @@ func main() {
 		cmdThread(os.Args[2:])
 	case "session":
 		cmdSession(os.Args[2:])
+	case "vault":
+		cmdVault(os.Args[2:])
+	case "agent":
+		cmdAgent(os.Args[2:])
+	case "tips":
+		cmdTips(os.Args[2:])
+	case "sign":
+		cmdSign(os.Args[2:])
 	case "mention", "rules":
 		notBuiltYet(os.Args[1])
 	default:
@@ -79,10 +87,26 @@ COMMANDS
 
   mention <id> "comment"             Human-facing, opens a thread against the right session
 
+  tips add "<message>"              Add a project-local custom tip, surfaced alongside the
+                                     built-in ones on the periodic PostToolUse nudge
+  tips list                         List this project's custom tips, with their ids
+  tips remove <id>                  Remove a custom tip by id
+
+  sign <checklist-id>                Satisfies a .lgrass/checklists.json prerequisite gate for the
+                                     current session, until that checklist's TTL expires
+
   rules list
   rules add ...                     Human/UI-driven, not a model-facing write path
 
   session list                      Other live sessions in this project, with active/idling state
+
+  vault run                         Starts the credential-vault daemon, listening on a unix socket
+                                     under ~/.lemongrass; not model-facing, has no admin CLI yet
+
+  agent run                         Starts the gatekeeper agent daemon, listening on a unix socket
+                                     under ~/.lemongrass; maps short channel ids to real vault
+                                     channels and forwards queries to a running vault daemon; not
+                                     model-facing yet, has no admin CLI yet
 
   version                           Print version
 

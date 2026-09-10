@@ -71,21 +71,47 @@ func cmdHook(args []string) {
 
 	switch event {
 	case "SessionStart":
-		store.Start(payload.SessionID, os.Getenv("CLAUDE_CODE_MESSAGING_SOCKET"), os.Getenv("CLAUDE_CODE_MESSAGING_TOKEN"))
+		hookSessionStart(store, payload, proj.Path)
 	case "SessionEnd":
 		store.End(payload.SessionID)
 	case "PreToolUse":
-		hookPreToolUse(store, payload)
+		hookPreToolUse(store, payload, proj.Path)
 	case "PostToolUse":
 		hookPostToolUse(store, payload, proj.Path)
 	}
 }
 
-func hookPreToolUse(store *session.Store, payload hookPayload) {
+func hookSessionStart(store *session.Store, payload hookPayload, projectPath string) {
+	store.Start(payload.SessionID, os.Getenv("CLAUDE_CODE_MESSAGING_SOCKET"), os.Getenv("CLAUDE_CODE_MESSAGING_TOKEN"))
+
+	var parts []string
+	if summary := lawsSummary(projectPath); summary != "" {
+		parts = append(parts, summary)
+	}
+	emitHookContext("SessionStart", "", parts)
+}
+
+// Missing biblio/laws/summary.md is not an error -- most projects have no laws to deliver.
+func lawsSummary(projectPath string) string {
+	data, err := os.ReadFile(filepath.Join(projectPath, "biblio", "laws", "summary.md"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func hookPreToolUse(store *session.Store, payload hookPayload, projectPath string) {
+	filePath := toolFilePath(payload)
+
+	if deny := checklistDeny(store, payload, filePath, projectPath); deny != "" {
+		emitHookContext("PreToolUse", "deny", []string{deny})
+		return
+	}
+
 	var parts []string
 
 	if payload.ToolName == "Write" || payload.ToolName == "Edit" {
-		if filePath := toolFilePath(payload); filePath != "" {
+		if filePath != "" {
 			if hits, err := store.RecentActivity(payload.SessionID, filePath, collisionWindow); err == nil && len(hits) > 0 {
 				if w := session.FormatCollisionWarning(hits); w != "" {
 					parts = append(parts, w)
@@ -96,6 +122,27 @@ func hookPreToolUse(store *session.Store, payload hookPayload) {
 	parts = append(parts, mentionContext(store, payload.SessionID)...)
 
 	emitHookContext("PreToolUse", "allow", parts)
+}
+
+// Returns the deny message for the first unsigned or TTL-expired checklist matching this call, "" if none match or all are signed.
+func checklistDeny(store *session.Store, payload hookPayload, filePath, projectPath string) string {
+	checklists, err := session.LoadChecklists(projectPath)
+	if err != nil || len(checklists) == 0 {
+		return ""
+	}
+	for _, c := range checklists {
+		if !c.Matches(payload.ToolName, filePath) {
+			continue
+		}
+		signedAt, err := store.SignedAt(payload.SessionID, c.ID)
+		if err != nil {
+			continue
+		}
+		if signedAt.IsZero() || time.Since(signedAt) > c.TTL() {
+			return session.FormatChecklistDeny(c)
+		}
+	}
+	return ""
 }
 
 func hookPostToolUse(store *session.Store, payload hookPayload, projectPath string) {
@@ -115,7 +162,13 @@ func hookPostToolUse(store *session.Store, payload hookPayload, projectPath stri
 			parts = append(parts, session.FormatNudge(liveness))
 		}
 		if hasBiblio(projectPath) {
-			parts = append(parts, session.RandomTip())
+			var userTips []string
+			if tips, err := store.ListTips(); err == nil {
+				for _, t := range tips {
+					userTips = append(userTips, t.Message)
+				}
+			}
+			parts = append(parts, session.RandomTipFrom(userTips))
 		}
 	}
 

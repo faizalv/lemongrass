@@ -10,6 +10,7 @@ defineProps<{
 const emit = defineEmits<{
   select: [id: string]
   add: []
+  openDbChannels: []
 }>()
 </script>
 
@@ -29,8 +30,12 @@ const emit = defineEmits<{
       <p v-if="projects.length === 0" class="empty">No projects yet.</p>
     </div>
     <button class="add-project" @click="emit('add')">
-      <span class="plus">+</span>
+      <span class="icon">+</span>
       Add project
+    </button>
+    <button class="add-project" @click="emit('openDbChannels')">
+      <span class="icon">⛁</span>
+      Database access
     </button>
   </div>
 </template>
@@ -96,32 +101,32 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin: var(--space-3);
+  width: 100%;
+  box-sizing: border-box;
   padding: var(--space-2) var(--space-3);
   background: transparent;
   border: none;
-  border-radius: var(--radius-pill);
+  border-radius: 0;
   color: var(--color-fg-secondary);
   font-family: var(--font-body);
   font-size: var(--text-sm);
+  text-align: left;
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .add-project:hover {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
+  background: var(--color-amber);
+  color: var(--color-black);
 }
 
-.plus {
+.icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-3);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   line-height: 1;
 }
 </style>

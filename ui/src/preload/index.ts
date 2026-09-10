@@ -38,6 +38,24 @@ export interface BiblioTree {
   children: BiblioNode[]
 }
 
+export interface VaultScope {
+  Tables: string[]
+  Operations: string[]
+}
+
+export interface VaultChannel {
+  ID: string
+  DBName: string
+  Scope: VaultScope
+  CreatedAt: string
+  ExpiresAt: string
+}
+
+export interface VaultChannelWithShortId {
+  channel: VaultChannel
+  shortId: string
+}
+
 export interface PaneTab {
   id: string
   label: string
@@ -100,6 +118,27 @@ const biblio = {
     ipcRenderer.invoke('biblio:createScratchpad', projectPath, title, content)
 }
 
+const vault = {
+  list: (): Promise<VaultChannel[]> => ipcRenderer.invoke('vault:list'),
+  create: (
+    passphrase: string,
+    dbName: string,
+    scope: VaultScope,
+    ttlSeconds: number
+  ): Promise<VaultChannelWithShortId> =>
+    ipcRenderer.invoke('vault:create', passphrase, dbName, scope, ttlSeconds),
+  activate: (
+    passphrase: string,
+    id: string,
+    ttlSeconds: number
+  ): Promise<VaultChannelWithShortId> =>
+    ipcRenderer.invoke('vault:activate', passphrase, id, ttlSeconds),
+  revoke: (id: string): Promise<void> => ipcRenderer.invoke('vault:revoke', id),
+  listConnections: (): Promise<string[]> => ipcRenderer.invoke('vault:listConnections'),
+  putCredential: (passphrase: string, name: string, connectionString: string): Promise<void> =>
+    ipcRenderer.invoke('vault:putCredential', passphrase, name, connectionString)
+}
+
 const windowControls = {
   minimize: (): void => ipcRenderer.send('window:minimize'),
   toggleMaximize: (): void => ipcRenderer.send('window:toggle-maximize'),
@@ -113,7 +152,7 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, layouts, biblio, windowControls }
+const api = { pty, projects, layouts, biblio, vault, windowControls }
 
 if (process.contextIsolated) {
   try {

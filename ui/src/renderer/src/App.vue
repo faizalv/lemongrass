@@ -4,6 +4,7 @@ import ProjectSidebar from './components/ProjectSidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import PaneLayout from './components/PaneLayout.vue'
 import BiblioManager from './components/BiblioManager.vue'
+import DbChannelsPanel from './components/DbChannelsPanel.vue'
 import {
   createTab,
   createLeaf,
@@ -41,6 +42,7 @@ const titleByTab = reactive<Record<string, string>>({})
 const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const mainView = ref<'workspace' | 'biblio'>('workspace')
 const sidebarCollapsed = ref(false)
+const showDbChannels = ref(false)
 
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
@@ -254,6 +256,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         :collapsed="sidebarCollapsed"
         @select="selectProject"
         @add="addProject"
+        @open-db-channels="showDbChannels = true"
       />
 
       <div v-if="activeProject" class="main">
@@ -291,6 +294,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         <p class="empty">Add a project to get started.</p>
       </div>
     </div>
+
+    <DbChannelsPanel v-if="showDbChannels" @close="showDbChannels = false" />
   </div>
 </template>
 

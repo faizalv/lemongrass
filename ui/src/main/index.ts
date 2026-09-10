@@ -6,8 +6,10 @@ import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerLayoutHandlers } from './layouts'
 import { registerBiblioHandlers } from './biblio'
+import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
 import { installLgrass, mergeLgrassHooks, installSkill } from './lgrassInstall'
+import { ensureVaultAndAgentRunning, killDaemons } from './daemons'
 
 let mainWindow: BrowserWindow | undefined
 
@@ -59,13 +61,17 @@ app.whenReady().then(() => {
   })
 
   const lgrassPath = installLgrass()
-  if (lgrassPath) mergeLgrassHooks(lgrassPath)
+  if (lgrassPath) {
+    mergeLgrassHooks(lgrassPath)
+    void ensureVaultAndAgentRunning(lgrassPath)
+  }
   installSkill()
 
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerLayoutHandlers()
   registerBiblioHandlers()
+  registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)
 
   createWindow()
@@ -80,6 +86,7 @@ app.whenReady().then(() => {
 // macOS apps conventionally stay alive with no windows open until Cmd+Q.
 app.on('window-all-closed', () => {
   killAllShells()
+  killDaemons()
   if (process.platform !== 'darwin') {
     app.quit()
   }
