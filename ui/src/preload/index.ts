@@ -136,7 +136,19 @@ const vault = {
   revoke: (id: string): Promise<void> => ipcRenderer.invoke('vault:revoke', id),
   listConnections: (): Promise<string[]> => ipcRenderer.invoke('vault:listConnections'),
   putCredential: (passphrase: string, name: string, connectionString: string): Promise<void> =>
-    ipcRenderer.invoke('vault:putCredential', passphrase, name, connectionString)
+    ipcRenderer.invoke('vault:putCredential', passphrase, name, connectionString),
+  deleteConnection: (name: string): Promise<void> =>
+    ipcRenderer.invoke('vault:deleteConnection', name),
+  testConnection: (connectionString: string): Promise<void> =>
+    ipcRenderer.invoke('vault:testConnection', connectionString),
+  testSavedConnection: (passphrase: string, name: string): Promise<void> =>
+    ipcRenderer.invoke('vault:testSavedConnection', passphrase, name),
+  hasPassphrase: (): Promise<boolean> => ipcRenderer.invoke('vault:hasPassphrase'),
+  setPassphrase: (passphrase: string): Promise<void> =>
+    ipcRenderer.invoke('vault:setPassphrase', passphrase),
+  verifyPassphrase: (passphrase: string): Promise<void> =>
+    ipcRenderer.invoke('vault:verifyPassphrase', passphrase),
+  resetVault: (): Promise<void> => ipcRenderer.invoke('vault:resetVault')
 }
 
 const windowControls = {

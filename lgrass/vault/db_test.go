@@ -36,29 +36,29 @@ func TestEngineOfRejectsUnsupportedOrMalformed(t *testing.T) {
 }
 
 func TestMysqlDSN(t *testing.T) {
-	got, err := mysqlDSN("mysql://root:secret@127.0.0.1:3306/kencana")
+	got, err := mysqlDSN("mysql://root:secret@127.0.0.1:3306/appdb")
 	if err != nil {
 		t.Fatalf("mysqlDSN: %v", err)
 	}
-	want := "root:secret@tcp(127.0.0.1:3306)/kencana"
+	want := "root:secret@tcp(127.0.0.1:3306)/appdb"
 	if got != want {
 		t.Errorf("mysqlDSN = %q, want %q", got, want)
 	}
 }
 
 func TestMysqlDSNNoCredentials(t *testing.T) {
-	got, err := mysqlDSN("mysql://127.0.0.1:3306/kencana")
+	got, err := mysqlDSN("mysql://127.0.0.1:3306/appdb")
 	if err != nil {
 		t.Fatalf("mysqlDSN: %v", err)
 	}
-	want := "tcp(127.0.0.1:3306)/kencana"
+	want := "tcp(127.0.0.1:3306)/appdb"
 	if got != want {
 		t.Errorf("mysqlDSN = %q, want %q", got, want)
 	}
 }
 
 func TestMysqlDSNRejectsNoHost(t *testing.T) {
-	if _, err := mysqlDSN("mysql:///kencana"); err == nil {
+	if _, err := mysqlDSN("mysql:///appdb"); err == nil {
 		t.Error("mysqlDSN with no host: expected an error, got nil")
 	}
 }

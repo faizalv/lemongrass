@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
@@ -10,6 +11,22 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// pingTimeout bounds how long a connection test can block the vault's single-request-per-
+// connection IPC handler.
+const pingTimeout = 5 * time.Second
+
+// pingWithTimeout checks db is actually reachable, not just that openDB parsed a well-formed
+// connection string -- database/sql doesn't dial until first use, so this is the first real
+// network round trip.
+func pingWithTimeout(db *sql.DB) error {
+	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("vault: connection test failed: %w", err)
+	}
+	return nil
+}
 
 // Engine identifies which database driver and SQL dialect a connection string names.
 type Engine string

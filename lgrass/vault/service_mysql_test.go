@@ -40,11 +40,11 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 	}
 
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(dsn)); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(dsn)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	scope := Scope{Tables: []string{"lg_test_employees"}, Operations: []string{"select", "show"}}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", scope, 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", scope, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}

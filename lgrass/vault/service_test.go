@@ -12,7 +12,7 @@ const testRootSecret = "correct horse battery staple"
 // unreachableConnString points at a port nothing listens on, on loopback -- connecting to it
 // fails fast with "connection refused" rather than hanging on a timeout, so tests can drive
 // Query all the way to the execution step without a real database or any real network access.
-const unreachableConnString = "mysql://root:secret@127.0.0.1:1/kencana"
+const unreachableConnString = "mysql://root:secret@127.0.0.1:1/appdb"
 
 func openTestService(t *testing.T) *Service {
 	t.Helper()
@@ -42,10 +42,10 @@ func wantsExecution(t *testing.T, err error) {
 
 func TestServiceQueryReachesExecutionAfterScopeChecksPass(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -56,10 +56,10 @@ func TestServiceQueryReachesExecutionAfterScopeChecksPass(t *testing.T) {
 
 func TestServiceQueryDeniesOutOfScopeTable(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -73,10 +73,10 @@ func TestServiceQueryDeniesOutOfScopeTable(t *testing.T) {
 
 func TestServiceQueryDeniesDeclaredTableMismatch(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -91,10 +91,10 @@ func TestServiceQueryDeniesDeclaredTableMismatch(t *testing.T) {
 
 func TestServiceQueryDeniesIntrospectWithoutShowGranted(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -108,10 +108,10 @@ func TestServiceQueryDeniesIntrospectWithoutShowGranted(t *testing.T) {
 
 func TestServiceQueryRejectsWriteStatement(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -123,10 +123,10 @@ func TestServiceQueryRejectsWriteStatement(t *testing.T) {
 
 func TestServiceQueryFailsAfterExpiry(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), -1*time.Second)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), -1*time.Second)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -138,10 +138,10 @@ func TestServiceQueryFailsAfterExpiry(t *testing.T) {
 
 func TestServiceQueryFailsAfterRevoke(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -156,10 +156,10 @@ func TestServiceQueryFailsAfterRevoke(t *testing.T) {
 
 func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), -1*time.Second)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), -1*time.Second)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
 	}
 
 	// Deleting the base credential proves Activate never touches it again -- only the already-wrapped per-channel copy.
-	if err := svc.creds.Delete("kencana-backend"); err != nil {
+	if err := svc.creds.Delete("app-backend"); err != nil {
 		t.Fatalf("deleting base credential: %v", err)
 	}
 
@@ -181,10 +181,10 @@ func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
 
 func TestServiceQueryFailsWhenNeverActivated(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -201,20 +201,20 @@ func TestServiceQueryFailsWhenNeverActivated(t *testing.T) {
 
 func TestServiceCreateChannelWrongRootSecretFails(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	if _, err := svc.CreateChannel("wrong passphrase", "kencana-backend", fullScope(), 5*time.Minute); err == nil {
+	if _, err := svc.CreateChannel("wrong passphrase", "app-backend", fullScope(), 5*time.Minute); err == nil {
 		t.Error("CreateChannel with the wrong root secret returned nil error")
 	}
 }
 
 func TestServiceChannelScopeReadableWithoutActivation(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -227,14 +227,14 @@ func TestServiceChannelScopeReadableWithoutActivation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ChannelScope on an inactive channel: %v", err)
 	}
-	if got.DBName != "kencana-backend" {
-		t.Errorf("ChannelScope.DBName = %q, want kencana-backend", got.DBName)
+	if got.DBName != "app-backend" {
+		t.Errorf("ChannelScope.DBName = %q, want app-backend", got.DBName)
 	}
 }
 
 func TestServiceListChannels(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 
@@ -246,11 +246,11 @@ func TestServiceListChannels(t *testing.T) {
 		t.Fatalf("ListChannels on an empty vault = %v, want none", empty)
 	}
 
-	a, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	a, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel a: %v", err)
 	}
-	b, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	b, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel b: %v", err)
 	}

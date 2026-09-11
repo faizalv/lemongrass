@@ -54,6 +54,13 @@ interface Api {
     revoke: (id: string) => Promise<void>
     listConnections: () => Promise<string[]>
     putCredential: (passphrase: string, name: string, connectionString: string) => Promise<void>
+    deleteConnection: (name: string) => Promise<void>
+    testConnection: (connectionString: string) => Promise<void>
+    testSavedConnection: (passphrase: string, name: string) => Promise<void>
+    hasPassphrase: () => Promise<boolean>
+    setPassphrase: (passphrase: string) => Promise<void>
+    verifyPassphrase: (passphrase: string) => Promise<void>
+    resetVault: () => Promise<void>
   }
   windowControls: {
     minimize: () => void

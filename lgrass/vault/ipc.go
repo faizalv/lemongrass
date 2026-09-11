@@ -9,14 +9,21 @@ import (
 )
 
 const (
-	opPutCredential   = "put_credential"
-	opCreateChannel   = "create_channel"
-	opActivate        = "activate"
-	opQuery           = "query"
-	opRevoke          = "revoke"
-	opChannelScope    = "channel_scope"
-	opListChannels    = "list_channels"
-	opListConnections = "list_connections"
+	opPutCredential       = "put_credential"
+	opCreateChannel       = "create_channel"
+	opActivate            = "activate"
+	opQuery               = "query"
+	opRevoke              = "revoke"
+	opChannelScope        = "channel_scope"
+	opListChannels        = "list_channels"
+	opListConnections     = "list_connections"
+	opDeleteConnection    = "delete_connection"
+	opTestConnection      = "test_connection"
+	opTestConnectionSaved = "test_connection_saved"
+	opHasPassphrase       = "has_passphrase"
+	opSetPassphrase       = "set_passphrase"
+	opVerifyPassphrase    = "verify_passphrase"
+	opResetVault          = "reset_vault"
 )
 
 const connDeadline = 10 * time.Second
@@ -77,6 +84,27 @@ type connectionListPayload struct {
 	Names []string `json:"names"`
 }
 
+type dbNamePayload struct {
+	DBName string `json:"db_name"`
+}
+
+type testConnectionPayload struct {
+	ConnectionString string `json:"connection_string"`
+}
+
+type testConnectionSavedPayload struct {
+	RootSecret string `json:"root_secret"`
+	DBName     string `json:"db_name"`
+}
+
+type rootSecretPayload struct {
+	RootSecret string `json:"root_secret"`
+}
+
+type hasPassphrasePayload struct {
+	HasPassphrase bool `json:"has_passphrase"`
+}
+
 // Serve accepts connections on l and handles one request per connection.
 // adminLimiter gates PutCredential, CreateChannel, and Activate -- the
 // operations a request carries a root secret for.
@@ -97,12 +125,30 @@ func handleConn(svc *Service, adminLimiter *FailureLimiter, conn net.Conn) {
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(connDeadline))
 
+	if err := verifyPeerUID(conn); err != nil {
+		json.NewEncoder(conn).Encode(errResponse(err))
+		return
+	}
+
 	var req request
 	if err := json.NewDecoder(conn).Decode(&req); err != nil {
 		json.NewEncoder(conn).Encode(errResponse(err))
 		return
 	}
+	if requiresPeerBinaryCheck(req.Op) {
+		if err := verifyPeerBinary(conn); err != nil {
+			json.NewEncoder(conn).Encode(errResponse(err))
+			return
+		}
+	}
 	json.NewEncoder(conn).Encode(dispatch(svc, adminLimiter, req))
+}
+
+// requiresPeerBinaryCheck reports whether op is one the agent process (the lgrass binary)
+// issues, as opposed to Electron's admin ops -- Electron's own binary path isn't fixed yet,
+// so those ops stay at UID-only verification.
+func requiresPeerBinaryCheck(op string) bool {
+	return op == opQuery || op == opChannelScope
 }
 
 func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response {
@@ -181,6 +227,66 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 			return errResponse(err)
 		}
 		return payloadResponse(connectionListPayload{Names: names})
+
+	case opDeleteConnection:
+		var p dbNamePayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		if err := svc.DeleteConnection(p.DBName); err != nil {
+			return errResponse(err)
+		}
+		return response{OK: true}
+
+	case opTestConnection:
+		var p testConnectionPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		if err := svc.TestConnection(p.ConnectionString); err != nil {
+			return errResponse(err)
+		}
+		return response{OK: true}
+
+	case opTestConnectionSaved:
+		var p testConnectionSavedPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.TestConnectionSaved(p.RootSecret, p.DBName)
+		})
+
+	case opHasPassphrase:
+		has, err := svc.HasPassphrase()
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(hasPassphrasePayload{HasPassphrase: has})
+
+	case opSetPassphrase:
+		var p rootSecretPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.SetPassphrase(p.RootSecret)
+		})
+
+	case opVerifyPassphrase:
+		var p rootSecretPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.VerifyPassphrase(p.RootSecret)
+		})
+
+	case opResetVault:
+		if err := svc.ResetVault(); err != nil {
+			return errResponse(err)
+		}
+		return response{OK: true}
 
 	default:
 		return errResponse(fmt.Errorf("vault: unknown op %q", req.Op))
@@ -301,4 +407,34 @@ func (c *Client) ListConnections() ([]string, error) {
 	var out connectionListPayload
 	err := c.call(opListConnections, nil, &out)
 	return out.Names, err
+}
+
+func (c *Client) DeleteConnection(dbName string) error {
+	return c.call(opDeleteConnection, dbNamePayload{DBName: dbName}, nil)
+}
+
+func (c *Client) TestConnection(connectionString string) error {
+	return c.call(opTestConnection, testConnectionPayload{ConnectionString: connectionString}, nil)
+}
+
+func (c *Client) TestConnectionSaved(rootSecret, dbName string) error {
+	return c.call(opTestConnectionSaved, testConnectionSavedPayload{RootSecret: rootSecret, DBName: dbName}, nil)
+}
+
+func (c *Client) HasPassphrase() (bool, error) {
+	var out hasPassphrasePayload
+	err := c.call(opHasPassphrase, nil, &out)
+	return out.HasPassphrase, err
+}
+
+func (c *Client) SetPassphrase(rootSecret string) error {
+	return c.call(opSetPassphrase, rootSecretPayload{RootSecret: rootSecret}, nil)
+}
+
+func (c *Client) VerifyPassphrase(rootSecret string) error {
+	return c.call(opVerifyPassphrase, rootSecretPayload{RootSecret: rootSecret}, nil)
+}
+
+func (c *Client) ResetVault() error {
+	return c.call(opResetVault, nil, nil)
 }

@@ -16,7 +16,7 @@ const testRootSecret = "correct horse battery staple"
 // unreachableConnString points at a port nothing listens on, on loopback -- connecting to it
 // fails fast with "connection refused" rather than hanging, so tests can drive a query all the
 // way to the vault's execution step without a real database or any real network access.
-const unreachableConnString = "mysql://root:secret@127.0.0.1:1/kencana"
+const unreachableConnString = "mysql://root:secret@127.0.0.1:1/appdb"
 
 func fullScope() vault.Scope {
 	return vault.Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
@@ -55,10 +55,10 @@ func wantsExecution(t *testing.T, err error) {
 
 func TestServiceRegisterThenQuery(t *testing.T) {
 	vaultClient := startTestVault(t)
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -93,10 +93,10 @@ func TestServiceQueryUnknownShortIDReturnsErrNoSuchChannel(t *testing.T) {
 
 func TestServiceForgetThenQueryReturnsErrNoSuchChannel(t *testing.T) {
 	vaultClient := startTestVault(t)
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -120,10 +120,10 @@ func TestServiceForgetUnknownShortIDIsNoop(t *testing.T) {
 
 func TestServiceQueryOnOutOfScopeTableFails(t *testing.T) {
 	vaultClient := startTestVault(t)
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}

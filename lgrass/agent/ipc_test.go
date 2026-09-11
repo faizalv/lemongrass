@@ -25,10 +25,10 @@ func startTestAgent(t *testing.T, vaultClient *vault.Client) *Client {
 
 func TestIPCFullLifecycle(t *testing.T) {
 	vaultClient := startTestVault(t)
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -72,10 +72,10 @@ func TestIPCQueryLocksOutAfterRepeatedWrongShortID(t *testing.T) {
 		}
 	}
 
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -92,10 +92,10 @@ func TestIPCQueryLocksOutAfterRepeatedWrongShortID(t *testing.T) {
 
 func TestIPCRegisterChannelIsNotQueryGated(t *testing.T) {
 	vaultClient := startTestVault(t)
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}

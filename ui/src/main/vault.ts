@@ -171,6 +171,46 @@ async function revokeChannel(id: string): Promise<void> {
   await vaultCall<void>('revoke', { id })
 }
 
+async function deleteConnection(name: string): Promise<void> {
+  await vaultCall<void>('delete_connection', { db_name: name })
+}
+
+// Tests a connection string that hasn't been saved yet -- no passphrase involved, since
+// nothing here is encrypted or stored.
+async function testConnection(connectionString: string): Promise<void> {
+  await vaultCall<void>('test_connection', { connection_string: connectionString })
+}
+
+// Tests an already-saved connection, decrypting it under the master passphrase to actually
+// open it.
+async function testSavedConnection(passphrase: string, name: string): Promise<void> {
+  await vaultCall<void>('test_connection_saved', { root_secret: passphrase, db_name: name })
+}
+
+async function hasPassphrase(): Promise<boolean> {
+  const { has_passphrase: has } = await vaultCall<{ has_passphrase: boolean }>('has_passphrase')
+  return has
+}
+
+// Records passphrase as the vault's passphrase for future VerifyPassphrase checks. Only
+// meaningful the first time -- callers must check hasPassphrase first.
+async function setPassphrase(passphrase: string): Promise<void> {
+  await vaultCall<void>('set_passphrase', { root_secret: passphrase })
+}
+
+// Checks passphrase against the vault's own recorded canary, independent of any real
+// connection's reachability -- a failure here can only mean the passphrase is wrong.
+async function verifyPassphrase(passphrase: string): Promise<void> {
+  await vaultCall<void>('verify_passphrase', { root_secret: passphrase })
+}
+
+// Permanently discards every stored credential, channel, and the passphrase canary itself.
+// The only way back from a forgotten passphrase, since nothing encrypted under it is
+// recoverable without it.
+async function resetVault(): Promise<void> {
+  await vaultCall<void>('reset_vault')
+}
+
 export function registerVaultHandlers(): void {
   ipcMain.handle('vault:list', () => listChannels())
   ipcMain.handle(
@@ -188,4 +228,17 @@ export function registerVaultHandlers(): void {
     (_event, passphrase: string, name: string, connectionString: string) =>
       putCredential(passphrase, name, connectionString)
   )
+  ipcMain.handle('vault:deleteConnection', (_event, name: string) => deleteConnection(name))
+  ipcMain.handle('vault:testConnection', (_event, connectionString: string) =>
+    testConnection(connectionString)
+  )
+  ipcMain.handle('vault:testSavedConnection', (_event, passphrase: string, name: string) =>
+    testSavedConnection(passphrase, name)
+  )
+  ipcMain.handle('vault:hasPassphrase', () => hasPassphrase())
+  ipcMain.handle('vault:setPassphrase', (_event, passphrase: string) => setPassphrase(passphrase))
+  ipcMain.handle('vault:verifyPassphrase', (_event, passphrase: string) =>
+    verifyPassphrase(passphrase)
+  )
+  ipcMain.handle('vault:resetVault', () => resetVault())
 }

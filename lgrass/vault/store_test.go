@@ -21,11 +21,11 @@ func openTestStore(t *testing.T) (*Store, []byte) {
 
 func TestStorePutGetRoundTrip(t *testing.T) {
 	store, key := openTestStore(t)
-	want := []byte("postgres://kencana-backend-creds")
-	if err := store.Put("kencana-backend", key, want); err != nil {
+	want := []byte("postgres://app-backend-creds")
+	if err := store.Put("app-backend", key, want); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
-	got, err := store.Get("kencana-backend", key)
+	got, err := store.Get("app-backend", key)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -36,34 +36,34 @@ func TestStorePutGetRoundTrip(t *testing.T) {
 
 func TestStoreGetWrongKeyFails(t *testing.T) {
 	store, key := openTestStore(t)
-	if err := store.Put("kencana-backend", key, []byte("secret")); err != nil {
+	if err := store.Put("app-backend", key, []byte("secret")); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
 	wrongKey, err := DeriveKey("wrong passphrase", []byte("0123456789abcdef"))
 	if err != nil {
 		t.Fatalf("DeriveKey: %v", err)
 	}
-	if _, err := store.Get("kencana-backend", wrongKey); err == nil {
+	if _, err := store.Get("app-backend", wrongKey); err == nil {
 		t.Error("Get with the wrong key returned nil error, want a decryption failure")
 	}
 }
 
 func TestStoreGetMissingReturnsErrNotFound(t *testing.T) {
 	store, key := openTestStore(t)
-	if _, err := store.Get("hr-backend", key); !errors.Is(err, ErrNotFound) {
+	if _, err := store.Get("reports-backend", key); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Get on a missing name: got %v, want ErrNotFound", err)
 	}
 }
 
 func TestStoreDeleteThenGetReturnsErrNotFound(t *testing.T) {
 	store, key := openTestStore(t)
-	if err := store.Put("kencana-backend", key, []byte("secret")); err != nil {
+	if err := store.Put("app-backend", key, []byte("secret")); err != nil {
 		t.Fatalf("Put: %v", err)
 	}
-	if err := store.Delete("kencana-backend"); err != nil {
+	if err := store.Delete("app-backend"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if _, err := store.Get("kencana-backend", key); !errors.Is(err, ErrNotFound) {
+	if _, err := store.Get("app-backend", key); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Get after Delete: got %v, want ErrNotFound", err)
 	}
 }

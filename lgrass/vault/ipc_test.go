@@ -28,11 +28,11 @@ func startTestServer(t *testing.T) *Client {
 func TestIPCFullChannelLifecycle(t *testing.T) {
 	client := startTestServer(t)
 
-	if err := client.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 
-	c, err := client.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := client.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -44,8 +44,8 @@ func TestIPCFullChannelLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ChannelScope: %v", err)
 	}
-	if scope.DBName != "kencana-backend" {
-		t.Errorf("ChannelScope.DBName = %q, want kencana-backend", scope.DBName)
+	if scope.DBName != "app-backend" {
+		t.Errorf("ChannelScope.DBName = %q, want app-backend", scope.DBName)
 	}
 
 	// Reaches execution and fails only because nothing's listening -- proof the query travelled the whole IPC round trip.
@@ -91,7 +91,7 @@ func TestIPCAdminOpsLockOutAfterRepeatedWrongSecret(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	sockPath := filepath.Join(t.TempDir(), "vault.sock")
@@ -105,23 +105,23 @@ func TestIPCAdminOpsLockOutAfterRepeatedWrongSecret(t *testing.T) {
 	client := &Client{SocketPath: sockPath}
 
 	for i := 0; i < 3; i++ {
-		if _, err := client.CreateChannel("wrong passphrase", "kencana-backend", fullScope(), time.Minute); err == nil {
+		if _, err := client.CreateChannel("wrong passphrase", "app-backend", fullScope(), time.Minute); err == nil {
 			t.Fatalf("CreateChannel with a wrong passphrase (attempt %d) returned nil error", i)
 		}
 	}
 
 	// The limiter should now be locked out even for a correct secret.
-	if _, err := client.CreateChannel(testRootSecret, "kencana-backend", fullScope(), time.Minute); err == nil {
+	if _, err := client.CreateChannel(testRootSecret, "app-backend", fullScope(), time.Minute); err == nil {
 		t.Error("CreateChannel with the correct secret after lockout returned nil error")
 	}
 }
 
 func TestIPCQueryIsNotAdminGated(t *testing.T) {
 	client := startTestServer(t)
-	if err := client.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := client.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	c, err := client.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
