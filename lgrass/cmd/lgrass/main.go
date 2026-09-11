@@ -31,6 +31,8 @@ func main() {
 		cmdVault(os.Args[2:])
 	case "agent":
 		cmdAgent(os.Args[2:])
+	case "db":
+		cmdDb(os.Args[2:])
 	case "tips":
 		cmdTips(os.Args[2:])
 	case "sign":
@@ -105,8 +107,12 @@ COMMANDS
 
   agent run                         Starts the gatekeeper agent daemon, listening on a unix socket
                                      under ~/.lemongrass; maps short channel ids to real vault
-                                     channels and forwards queries to a running vault daemon; not
-                                     model-facing yet, has no admin CLI yet
+                                     channels and forwards queries to a running vault daemon
+
+  db <short-id> --tables <t1,t2|*> --sql "<statement>"
+                                     Model-facing: runs a read-only statement (SELECT/SHOW/
+                                     DESCRIBE/EXPLAIN) against the database a channel grants
+                                     access to, through the running agent and vault daemons
 
   version                           Print version
 

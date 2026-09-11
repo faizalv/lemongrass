@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bytes"
 	"net"
 	"path/filepath"
 	"testing"
@@ -26,8 +25,7 @@ func startTestAgent(t *testing.T, vaultClient *vault.Client) *Client {
 
 func TestIPCFullLifecycle(t *testing.T) {
 	vaultClient := startTestVault(t)
-	want := []byte("postgres://kencana-backend-creds")
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", want); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
@@ -44,18 +42,13 @@ func TestIPCFullLifecycle(t *testing.T) {
 		t.Fatal("RegisterChannel returned an empty short id")
 	}
 
-	got, err := agentClient.Query(shortID, "employees", "select")
-	if err != nil {
-		t.Fatalf("Query: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("Query returned %q, want %q", got, want)
-	}
+	_, err = agentClient.Query(shortID, []string{"employees"}, "SELECT id FROM employees")
+	wantsExecution(t, err)
 
 	if err := agentClient.Forget(shortID); err != nil {
 		t.Fatalf("Forget: %v", err)
 	}
-	if _, err := agentClient.Query(shortID, "employees", "select"); err == nil {
+	if _, err := agentClient.Query(shortID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
 		t.Error("Query after Forget returned nil error")
 	}
 }
@@ -74,12 +67,12 @@ func TestIPCQueryLocksOutAfterRepeatedWrongShortID(t *testing.T) {
 	agentClient := &Client{SocketPath: sockPath}
 
 	for i := 0; i < 3; i++ {
-		if _, err := agentClient.Query("BOGUS1", "employees", "select"); err == nil {
+		if _, err := agentClient.Query("BOGUS1", []string{"employees"}, "SELECT id FROM employees"); err == nil {
 			t.Fatalf("Query with a bogus short id (attempt %d) returned nil error", i)
 		}
 	}
 
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
@@ -92,7 +85,7 @@ func TestIPCQueryLocksOutAfterRepeatedWrongShortID(t *testing.T) {
 	}
 
 	// The limiter should now be locked out even for a real, correctly-registered short id.
-	if _, err := agentClient.Query(shortID, "employees", "select"); err == nil {
+	if _, err := agentClient.Query(shortID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
 		t.Error("Query with a valid id after lockout returned nil error")
 	}
 }

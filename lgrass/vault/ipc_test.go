@@ -1,9 +1,9 @@
 package vault
 
 import (
-	"bytes"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -27,9 +27,8 @@ func startTestServer(t *testing.T) *Client {
 
 func TestIPCFullChannelLifecycle(t *testing.T) {
 	client := startTestServer(t)
-	want := []byte("postgres://kencana-backend-creds")
 
-	if err := client.PutCredential(testRootSecret, "kencana-backend", want); err != nil {
+	if err := client.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 
@@ -49,15 +48,13 @@ func TestIPCFullChannelLifecycle(t *testing.T) {
 		t.Errorf("ChannelScope.DBName = %q, want kencana-backend", scope.DBName)
 	}
 
-	got, err := client.Query(c.ID, "employees", "select")
-	if err != nil {
-		t.Fatalf("Query: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("Query returned %q, want %q", got, want)
+	// Reaches execution and fails only because nothing's listening -- proof the query travelled the whole IPC round trip.
+	_, err = client.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+	if err == nil || !strings.Contains(err.Error(), "executing query") {
+		t.Errorf("Query = %v, want it to fail at execution", err)
 	}
 
-	if _, err := client.Query(c.ID, "salaries", "select"); err == nil {
+	if _, err := client.Query(c.ID, []string{"salaries"}, "SELECT id FROM salaries"); err == nil {
 		t.Error("Query on an out-of-scope table returned nil error")
 	}
 
@@ -76,7 +73,7 @@ func TestIPCFullChannelLifecycle(t *testing.T) {
 	if err := client.Revoke(c.ID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
-	if _, err := client.Query(c.ID, "employees", "select"); err == nil {
+	if _, err := client.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
 		t.Error("Query after Revoke returned nil error")
 	}
 
@@ -121,7 +118,7 @@ func TestIPCAdminOpsLockOutAfterRepeatedWrongSecret(t *testing.T) {
 
 func TestIPCQueryIsNotAdminGated(t *testing.T) {
 	client := startTestServer(t)
-	if err := client.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := client.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := client.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
@@ -131,8 +128,9 @@ func TestIPCQueryIsNotAdminGated(t *testing.T) {
 
 	// Many Query calls in a row should never trip the admin limiter -- it only gates root-secret-bearing ops.
 	for i := 0; i < 20; i++ {
-		if _, err := client.Query(c.ID, "employees", "select"); err != nil {
-			t.Fatalf("Query attempt %d: %v", i, err)
+		_, err := client.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+		if err == nil || !strings.Contains(err.Error(), "executing query") {
+			t.Fatalf("Query attempt %d = %v, want it to fail at execution, not be admin-gated", i, err)
 		}
 	}
 }

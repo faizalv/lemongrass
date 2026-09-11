@@ -38,13 +38,13 @@ type shortIDPayload struct {
 }
 
 type queryPayload struct {
-	ShortID   string `json:"short_id"`
-	Table     string `json:"table"`
-	Operation string `json:"operation"`
+	ShortID        string   `json:"short_id"`
+	DeclaredTables []string `json:"declared_tables"`
+	SQL            string   `json:"sql"`
 }
 
 type queryResultPayload struct {
-	Value []byte `json:"value"`
+	Result vault.QueryResult `json:"result"`
 }
 
 // Serve accepts connections on l and handles one request per connection, with queryLimiter gating repeated wrong short-id guesses at Query.
@@ -92,8 +92,8 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return queryOp(queryLimiter, func() (response, error) {
-			value, err := svc.Query(p.ShortID, p.Table, p.Operation)
-			return payloadResponse(queryResultPayload{Value: value}), err
+			result, err := svc.Query(p.ShortID, p.DeclaredTables, p.SQL)
+			return payloadResponse(queryResultPayload{Result: result}), err
 		})
 
 	case opForget:
@@ -188,10 +188,10 @@ func (c *Client) RegisterChannel(realID vault.ChannelID) (string, error) {
 	return out.ShortID, err
 }
 
-func (c *Client) Query(shortID, table, operation string) ([]byte, error) {
+func (c *Client) Query(shortID string, declaredTables []string, sqlText string) (vault.QueryResult, error) {
 	var out queryResultPayload
-	err := c.call(opQuery, queryPayload{ShortID: shortID, Table: table, Operation: operation}, &out)
-	return out.Value, err
+	err := c.call(opQuery, queryPayload{ShortID: shortID, DeclaredTables: declaredTables, SQL: sqlText}, &out)
+	return out.Result, err
 }
 
 func (c *Client) Forget(shortID string) error {

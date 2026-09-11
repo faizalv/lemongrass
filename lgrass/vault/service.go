@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ type Service struct {
 
 	mu         sync.Mutex
 	activeKeys map[ChannelID][]byte
+	dbConns    map[ChannelID]*sql.DB
 }
 
 func NewService(dir string) (*Service, error) {
@@ -49,6 +51,7 @@ func NewService(dir string) (*Service, error) {
 		metaDir:    metaDir,
 		rootSalt:   rootSalt,
 		activeKeys: make(map[ChannelID][]byte),
+		dbConns:    make(map[ChannelID]*sql.DB),
 	}, nil
 }
 
@@ -164,35 +167,91 @@ func (s *Service) Activate(rootSecret string, id ChannelID, ttl time.Duration) (
 	return c, nil
 }
 
-// Query decrypts a channel's wrapped credential using its cached key and checks q against the channel's scope. It fails if the channel is expired, revoked, or was never activated.
-func (s *Service) Query(id ChannelID, q Query) ([]byte, error) {
+// Query classifies sqlText for real, checks it against declaredTables and the channel's scope,
+// and -- only once both pass -- runs it against the channel's own database. The credential
+// itself never leaves this method: it's decrypted only to pick a driver and open/reuse a
+// connection, then zeroed. It fails if the channel is expired, revoked, or was never activated.
+func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (QueryResult, error) {
 	c, err := s.loadMeta(id)
 	if err != nil {
-		return nil, err
+		return QueryResult{}, err
 	}
 	if c.Expired(time.Now()) {
-		return nil, fmt.Errorf("vault: channel %s has expired", id)
-	}
-	if err := c.Scope.Allow(q); err != nil {
-		return nil, err
+		s.closeDB(id)
+		return QueryResult{}, fmt.Errorf("vault: channel %s has expired", id)
 	}
 
 	s.mu.Lock()
 	channelKey, ok := s.activeKeys[id]
 	s.mu.Unlock()
 	if !ok {
-		return nil, fmt.Errorf("vault: channel %s is not active", id)
+		return QueryResult{}, fmt.Errorf("vault: channel %s is not active", id)
 	}
 
-	return s.channels.Get(string(id), channelKey)
+	connString, err := s.channels.Get(string(id), channelKey)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	defer zero(connString)
+
+	engine, err := engineOf(string(connString))
+	if err != nil {
+		return QueryResult{}, err
+	}
+	stmt, err := ClassifyQuery(engine, sqlText)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	if err := checkDeclaredTables(stmt, declaredTables); err != nil {
+		return QueryResult{}, err
+	}
+	if err := c.Scope.AllowStatement(stmt); err != nil {
+		return QueryResult{}, err
+	}
+
+	db, err := s.getDB(id, string(connString))
+	if err != nil {
+		return QueryResult{}, err
+	}
+	return runQuery(db, sqlText)
 }
 
-// Revoke removes a channel's metadata, wrapped credential, and cached key. It succeeds even if the channel was never active.
+// getDB returns id's cached *sql.DB, opening and caching one on first use.
+func (s *Service) getDB(id ChannelID, connString string) (*sql.DB, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if db, ok := s.dbConns[id]; ok {
+		return db, nil
+	}
+	db, err := openDB(connString)
+	if err != nil {
+		return nil, err
+	}
+	s.dbConns[id] = db
+	return db, nil
+}
+
+// closeDB closes and evicts id's cached *sql.DB, if any. Best-effort: a close error here
+// doesn't change the caller's own outcome, which already has its own error to report.
+func (s *Service) closeDB(id ChannelID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if db, ok := s.dbConns[id]; ok {
+		db.Close()
+		delete(s.dbConns, id)
+	}
+}
+
+// Revoke removes a channel's metadata, wrapped credential, cached key, and cached db connection. It succeeds even if the channel was never active.
 func (s *Service) Revoke(id ChannelID) error {
 	s.mu.Lock()
 	if key, ok := s.activeKeys[id]; ok {
 		zero(key)
 		delete(s.activeKeys, id)
+	}
+	if db, ok := s.dbConns[id]; ok {
+		db.Close()
+		delete(s.dbConns, id)
 	}
 	s.mu.Unlock()
 

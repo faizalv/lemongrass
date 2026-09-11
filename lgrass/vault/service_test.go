@@ -1,13 +1,18 @@
 package vault
 
 import (
-	"bytes"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
 
 const testRootSecret = "correct horse battery staple"
+
+// unreachableConnString points at a port nothing listens on, on loopback -- connecting to it
+// fails fast with "connection refused" rather than hanging on a timeout, so tests can drive
+// Query all the way to the execution step without a real database or any real network access.
+const unreachableConnString = "mysql://root:secret@127.0.0.1:1/kencana"
 
 func openTestService(t *testing.T) *Service {
 	t.Helper()
@@ -22,30 +27,22 @@ func fullScope() Scope {
 	return Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
 }
 
-func TestServiceCreateChannelThenQuery(t *testing.T) {
-	svc := openTestService(t)
-	want := []byte("postgres://kencana-backend-creds")
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", want); err != nil {
-		t.Fatalf("PutCredential: %v", err)
+// wantsExecution asserts err is the "reached the database" failure runQuery reports for an
+// unreachable connection -- proof Query got all the way through decrypt/classify/scope before
+// failing, as opposed to failing at one of those earlier steps.
+func wantsExecution(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("Query against an unreachable database returned nil error")
 	}
-
-	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
-
-	got, err := svc.Query(c.ID, Query{Table: "employees", Operation: "select"})
-	if err != nil {
-		t.Fatalf("Query: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("Query returned %q, want %q", got, want)
+	if !strings.Contains(err.Error(), "vault: executing query") {
+		t.Errorf("Query error = %q, want it to fail at execution, not earlier", err.Error())
 	}
 }
 
-func TestServiceQueryDeniesOutOfScope(t *testing.T) {
+func TestServiceQueryReachesExecutionAfterScopeChecksPass(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
@@ -53,8 +50,74 @@ func TestServiceQueryDeniesOutOfScope(t *testing.T) {
 		t.Fatalf("CreateChannel: %v", err)
 	}
 
-	if _, err := svc.Query(c.ID, Query{Table: "salaries", Operation: "select"}); err == nil {
-		t.Error("Query on an out-of-scope table returned nil error")
+	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+	wantsExecution(t, err)
+}
+
+func TestServiceQueryDeniesOutOfScopeTable(t *testing.T) {
+	svc := openTestService(t)
+	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	_, err = svc.Query(c.ID, []string{"salaries"}, "SELECT id FROM salaries")
+	var violation *ErrScopeViolation
+	if !errors.As(err, &violation) {
+		t.Errorf("Query on an out-of-scope table: got %v, want ErrScopeViolation", err)
+	}
+}
+
+func TestServiceQueryDeniesDeclaredTableMismatch(t *testing.T) {
+	svc := openTestService(t)
+	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	// Declares "employees" but the statement actually joins in "salaries" too.
+	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT e.id FROM employees e JOIN salaries s ON s.employee_id = e.id")
+	var mismatch *ErrTableMismatch
+	if !errors.As(err, &mismatch) {
+		t.Errorf("Query with a mismatched declared table list: got %v, want ErrTableMismatch", err)
+	}
+}
+
+func TestServiceQueryDeniesIntrospectWithoutShowGranted(t *testing.T) {
+	svc := openTestService(t)
+	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	_, err = svc.Query(c.ID, []string{"*"}, "SHOW TABLES")
+	var violation *ErrScopeViolation
+	if !errors.As(err, &violation) {
+		t.Errorf("Query for SHOW without show granted: got %v, want ErrScopeViolation", err)
+	}
+}
+
+func TestServiceQueryRejectsWriteStatement(t *testing.T) {
+	svc := openTestService(t)
+	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	if _, err := svc.Query(c.ID, []string{"employees"}, "DELETE FROM employees"); err == nil {
+		t.Error("Query with a write statement returned nil error")
 	}
 }
 
@@ -68,7 +131,7 @@ func TestServiceQueryFailsAfterExpiry(t *testing.T) {
 		t.Fatalf("CreateChannel: %v", err)
 	}
 
-	if _, err := svc.Query(c.ID, Query{Table: "employees", Operation: "select"}); err == nil {
+	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
 		t.Error("Query on an already-expired channel returned nil error")
 	}
 }
@@ -86,22 +149,21 @@ func TestServiceQueryFailsAfterRevoke(t *testing.T) {
 		t.Fatalf("Revoke: %v", err)
 	}
 
-	if _, err := svc.Query(c.ID, Query{Table: "employees", Operation: "select"}); !errors.Is(err, ErrNotFound) {
+	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("Query after Revoke: got %v, want ErrNotFound", err)
 	}
 }
 
 func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
 	svc := openTestService(t)
-	want := []byte("postgres://kencana-backend-creds")
-	if err := svc.PutCredential(testRootSecret, "kencana-backend", want); err != nil {
+	if err := svc.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := svc.CreateChannel(testRootSecret, "kencana-backend", fullScope(), -1*time.Second)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
-	if _, err := svc.Query(c.ID, Query{Table: "employees", Operation: "select"}); err == nil {
+	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
 		t.Fatal("expected the freshly-created channel to already be expired")
 	}
 
@@ -113,13 +175,8 @@ func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
 	if _, err := svc.Activate(testRootSecret, c.ID, 5*time.Minute); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
-	got, err := svc.Query(c.ID, Query{Table: "employees", Operation: "select"})
-	if err != nil {
-		t.Fatalf("Query after Activate: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("Query after Activate returned %q, want %q", got, want)
-	}
+	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+	wantsExecution(t, err)
 }
 
 func TestServiceQueryFailsWhenNeverActivated(t *testing.T) {
@@ -137,7 +194,7 @@ func TestServiceQueryFailsWhenNeverActivated(t *testing.T) {
 	delete(svc.activeKeys, c.ID)
 	svc.mu.Unlock()
 
-	if _, err := svc.Query(c.ID, Query{Table: "employees", Operation: "select"}); err == nil {
+	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
 		t.Error("Query on a channel with no cached key returned nil error")
 	}
 }

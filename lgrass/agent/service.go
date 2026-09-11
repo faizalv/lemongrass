@@ -48,12 +48,12 @@ func (s *Service) RegisterChannel(realID vault.ChannelID) (string, error) {
 }
 
 // Query resolves shortID to its real vault channel and forwards the query, returning the same error for an unregistered, forgotten, or mistyped id.
-func (s *Service) Query(shortID, table, operation string) ([]byte, error) {
+func (s *Service) Query(shortID string, declaredTables []string, sqlText string) (vault.QueryResult, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
-		return nil, ErrNoSuchChannel
+		return vault.QueryResult{}, ErrNoSuchChannel
 	}
-	return s.vaultClient.Query(realID, table, operation)
+	return s.vaultClient.Query(realID, declaredTables, sqlText)
 }
 
 func (s *Service) lookup(shortID string) (vault.ChannelID, bool) {

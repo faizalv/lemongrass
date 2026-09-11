@@ -1,0 +1,142 @@
+package vault
+
+import (
+	"database/sql"
+	"fmt"
+	"net/url"
+	"strings"
+	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/jackc/pgx/v5/stdlib"
+)
+
+// Engine identifies which database driver and SQL dialect a connection string names.
+type Engine string
+
+const (
+	EngineMySQL    Engine = "mysql"
+	EnginePostgres Engine = "postgres"
+)
+
+// engineOf reads the engine off a connection string's own scheme, per the book chapter's
+// "engine folded into the connection string" decision -- mysql:// and mariadb:// both mean
+// EngineMySQL, since MariaDB is wire-compatible and go-sql-driver/mysql serves both.
+func engineOf(connString string) (Engine, error) {
+	scheme, _, ok := strings.Cut(connString, "://")
+	if !ok {
+		return "", fmt.Errorf("vault: connection string has no scheme: %q", connString)
+	}
+	switch strings.ToLower(scheme) {
+	case "mysql", "mariadb":
+		return EngineMySQL, nil
+	case "postgres", "postgresql":
+		return EnginePostgres, nil
+	default:
+		return "", fmt.Errorf("vault: unsupported engine %q", scheme)
+	}
+}
+
+// openDB opens a real database/sql connection for connString, picking the driver by scheme.
+// The connection itself is lazy (database/sql doesn't dial until first use), so this only
+// fails on a malformed connection string, not on the db actually being reachable.
+func openDB(connString string) (*sql.DB, error) {
+	engine, err := engineOf(connString)
+	if err != nil {
+		return nil, err
+	}
+	switch engine {
+	case EngineMySQL:
+		dsn, err := mysqlDSN(connString)
+		if err != nil {
+			return nil, err
+		}
+		return sql.Open("mysql", dsn)
+	case EnginePostgres:
+		return sql.Open("pgx", connString)
+	default:
+		return nil, fmt.Errorf("vault: unsupported engine %q", engine)
+	}
+}
+
+// mysqlDSN translates a mysql://user:pass@host:port/db URL into go-sql-driver/mysql's own
+// DSN shape (user:pass@tcp(host:port)/db), since that driver doesn't accept a URL directly.
+func mysqlDSN(connString string) (string, error) {
+	u, err := url.Parse(connString)
+	if err != nil {
+		return "", fmt.Errorf("vault: parsing connection string: %w", err)
+	}
+	var userinfo string
+	if u.User != nil {
+		userinfo = u.User.String() + "@"
+	}
+	host := u.Host
+	if host == "" {
+		return "", fmt.Errorf("vault: connection string has no host: %q", connString)
+	}
+	db := strings.TrimPrefix(u.Path, "/")
+	dsn := fmt.Sprintf("%stcp(%s)/%s", userinfo, host, db)
+	if u.RawQuery != "" {
+		dsn += "?" + u.RawQuery
+	}
+	return dsn, nil
+}
+
+// QueryResult is a read-only statement's shaped output -- the only thing that ever leaves the
+// vault for a query, never the credential that produced it.
+type QueryResult struct {
+	Columns []string        `json:"columns"`
+	Rows    [][]interface{} `json:"rows"`
+}
+
+// runQuery executes sqlText against db and shapes the result. sqlText has already been
+// classified as a single read-only statement by ClassifyQuery before this is ever called.
+func runQuery(db *sql.DB, sqlText string) (QueryResult, error) {
+	rows, err := db.Query(sqlText)
+	if err != nil {
+		return QueryResult{}, fmt.Errorf("vault: executing query: %w", err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return QueryResult{}, fmt.Errorf("vault: reading columns: %w", err)
+	}
+
+	result := QueryResult{Columns: columns, Rows: [][]interface{}{}}
+	for rows.Next() {
+		raw := make([]interface{}, len(columns))
+		ptrs := make([]interface{}, len(columns))
+		for i := range raw {
+			ptrs[i] = &raw[i]
+		}
+		if err := rows.Scan(ptrs...); err != nil {
+			return QueryResult{}, fmt.Errorf("vault: scanning row: %w", err)
+		}
+		row := make([]interface{}, len(raw))
+		for i, v := range raw {
+			row[i] = normalizeValue(v)
+		}
+		result.Rows = append(result.Rows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return QueryResult{}, fmt.Errorf("vault: reading rows: %w", err)
+	}
+	return result, nil
+}
+
+// normalizeValue converts a driver-returned column value into something JSON-safe: nil,
+// numbers, strings, and booleans pass through as-is; time.Time becomes RFC3339; anything
+// else -- binary columns included -- becomes a string.
+func normalizeValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case nil, bool, int64, float64, string:
+		return val
+	case time.Time:
+		return val.Format(time.RFC3339)
+	case []byte:
+		return string(val)
+	default:
+		return fmt.Sprintf("%v", val)
+	}
+}

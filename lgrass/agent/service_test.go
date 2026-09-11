@@ -1,10 +1,10 @@
 package agent
 
 import (
-	"bytes"
 	"errors"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +12,11 @@ import (
 )
 
 const testRootSecret = "correct horse battery staple"
+
+// unreachableConnString points at a port nothing listens on, on loopback -- connecting to it
+// fails fast with "connection refused" rather than hanging, so tests can drive a query all the
+// way to the vault's execution step without a real database or any real network access.
+const unreachableConnString = "mysql://root:secret@127.0.0.1:1/kencana"
 
 func fullScope() vault.Scope {
 	return vault.Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
@@ -35,10 +40,22 @@ func startTestVault(t *testing.T) *vault.Client {
 	return &vault.Client{SocketPath: sockPath}
 }
 
+// wantsExecution asserts err is the "reached the database" failure the vault reports for an
+// unreachable connection -- proof the query got all the way through the agent and vault's
+// decrypt/classify/scope checks before failing, as opposed to failing at one of those earlier.
+func wantsExecution(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("Query against an unreachable database returned nil error")
+	}
+	if !strings.Contains(err.Error(), "vault: executing query") {
+		t.Errorf("Query error = %q, want it to fail at execution, not earlier", err.Error())
+	}
+}
+
 func TestServiceRegisterThenQuery(t *testing.T) {
 	vaultClient := startTestVault(t)
-	want := []byte("postgres://kencana-backend-creds")
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", want); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
@@ -55,13 +72,8 @@ func TestServiceRegisterThenQuery(t *testing.T) {
 		t.Errorf("RegisterChannel returned id of length %d, want %d", len(shortID), shortIDLength)
 	}
 
-	got, err := svc.Query(shortID, "employees", "select")
-	if err != nil {
-		t.Fatalf("Query: %v", err)
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("Query returned %q, want %q", got, want)
-	}
+	_, err = svc.Query(shortID, []string{"employees"}, "SELECT id FROM employees")
+	wantsExecution(t, err)
 }
 
 func TestServiceRegisterChannelRejectsUnknownRealID(t *testing.T) {
@@ -74,14 +86,14 @@ func TestServiceRegisterChannelRejectsUnknownRealID(t *testing.T) {
 
 func TestServiceQueryUnknownShortIDReturnsErrNoSuchChannel(t *testing.T) {
 	svc := NewService(startTestVault(t))
-	if _, err := svc.Query("BOGUS1", "employees", "select"); !errors.Is(err, ErrNoSuchChannel) {
+	if _, err := svc.Query("BOGUS1", []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, ErrNoSuchChannel) {
 		t.Errorf("Query with an unregistered short id: got %v, want ErrNoSuchChannel", err)
 	}
 }
 
 func TestServiceForgetThenQueryReturnsErrNoSuchChannel(t *testing.T) {
 	vaultClient := startTestVault(t)
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
@@ -96,7 +108,7 @@ func TestServiceForgetThenQueryReturnsErrNoSuchChannel(t *testing.T) {
 	}
 
 	svc.Forget(shortID)
-	if _, err := svc.Query(shortID, "employees", "select"); !errors.Is(err, ErrNoSuchChannel) {
+	if _, err := svc.Query(shortID, []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, ErrNoSuchChannel) {
 		t.Errorf("Query after Forget: got %v, want ErrNoSuchChannel", err)
 	}
 }
@@ -108,7 +120,7 @@ func TestServiceForgetUnknownShortIDIsNoop(t *testing.T) {
 
 func TestServiceQueryOnOutOfScopeTableFails(t *testing.T) {
 	vaultClient := startTestVault(t)
-	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte("creds")); err != nil {
+	if err := vaultClient.PutCredential(testRootSecret, "kencana-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	c, err := vaultClient.CreateChannel(testRootSecret, "kencana-backend", fullScope(), 5*time.Minute)
@@ -121,7 +133,7 @@ func TestServiceQueryOnOutOfScopeTableFails(t *testing.T) {
 		t.Fatalf("RegisterChannel: %v", err)
 	}
 
-	if _, err := svc.Query(shortID, "salaries", "select"); err == nil {
+	if _, err := svc.Query(shortID, []string{"salaries"}, "SELECT id FROM salaries"); err == nil {
 		t.Error("Query on an out-of-scope table returned nil error")
 	}
 }

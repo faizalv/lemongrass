@@ -52,13 +52,13 @@ type activatePayload struct {
 }
 
 type queryPayload struct {
-	ID        ChannelID `json:"id"`
-	Table     string    `json:"table"`
-	Operation string    `json:"operation"`
+	ID             ChannelID `json:"id"`
+	DeclaredTables []string  `json:"declared_tables"`
+	SQL            string    `json:"sql"`
 }
 
 type queryResultPayload struct {
-	Value []byte `json:"value"`
+	Result QueryResult `json:"result"`
 }
 
 type channelIDPayload struct {
@@ -141,11 +141,11 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 		if err := json.Unmarshal(req.Payload, &p); err != nil {
 			return errResponse(err)
 		}
-		value, err := svc.Query(p.ID, Query{Table: p.Table, Operation: p.Operation})
+		result, err := svc.Query(p.ID, p.DeclaredTables, p.SQL)
 		if err != nil {
 			return errResponse(err)
 		}
-		return payloadResponse(queryResultPayload{Value: value})
+		return payloadResponse(queryResultPayload{Result: result})
 
 	case opRevoke:
 		var p channelIDPayload
@@ -275,10 +275,10 @@ func (c *Client) Activate(rootSecret string, id ChannelID, ttl time.Duration) (C
 	return out.Channel, err
 }
 
-func (c *Client) Query(id ChannelID, table, operation string) ([]byte, error) {
+func (c *Client) Query(id ChannelID, declaredTables []string, sqlText string) (QueryResult, error) {
 	var out queryResultPayload
-	err := c.call(opQuery, queryPayload{ID: id, Table: table, Operation: operation}, &out)
-	return out.Value, err
+	err := c.call(opQuery, queryPayload{ID: id, DeclaredTables: declaredTables, SQL: sqlText}, &out)
+	return out.Result, err
 }
 
 func (c *Client) Revoke(id ChannelID) error {

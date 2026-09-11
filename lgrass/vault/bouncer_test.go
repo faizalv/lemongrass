@@ -2,30 +2,51 @@ package vault
 
 import "testing"
 
-func TestScopeAllowPermitsGranted(t *testing.T) {
+func TestAllowStatementPermitsGrantedSelect(t *testing.T) {
 	s := Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
-	if err := s.Allow(Query{Table: "employees", Operation: "select"}); err != nil {
-		t.Errorf("Allow on granted table/operation: %v", err)
+	if err := s.AllowStatement(Statement{Kind: KindSelect, Tables: []string{"employees"}}); err != nil {
+		t.Errorf("AllowStatement on a granted select: %v", err)
 	}
 }
 
-func TestScopeAllowDeniesUngrantedTable(t *testing.T) {
+func TestAllowStatementDeniesUngrantedTable(t *testing.T) {
 	s := Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
-	if err := s.Allow(Query{Table: "salaries", Operation: "select"}); err == nil {
-		t.Error("Allow on an ungranted table returned nil, want ErrScopeViolation")
+	if err := s.AllowStatement(Statement{Kind: KindSelect, Tables: []string{"salaries"}}); err == nil {
+		t.Error("AllowStatement on an ungranted table returned nil, want ErrScopeViolation")
 	}
 }
 
-func TestScopeAllowDeniesUngrantedOperation(t *testing.T) {
+func TestAllowStatementDeniesUngrantedKind(t *testing.T) {
 	s := Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
-	if err := s.Allow(Query{Table: "employees", Operation: "delete"}); err == nil {
-		t.Error("Allow on an ungranted operation returned nil, want ErrScopeViolation")
+	if err := s.AllowStatement(Statement{Kind: KindExplain, Tables: []string{"employees"}}); err == nil {
+		t.Error("AllowStatement on an ungranted kind returned nil, want ErrScopeViolation")
 	}
 }
 
-func TestScopeAllowDeniesEverythingWhenEmpty(t *testing.T) {
+func TestAllowStatementDeniesOneUngrantedTableAmongSeveral(t *testing.T) {
+	s := Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
+	if err := s.AllowStatement(Statement{Kind: KindSelect, Tables: []string{"employees", "salaries"}}); err == nil {
+		t.Error("AllowStatement with one ungranted table among several returned nil, want ErrScopeViolation")
+	}
+}
+
+func TestAllowStatementDeniesEverythingWhenEmpty(t *testing.T) {
 	var s Scope
-	if err := s.Allow(Query{Table: "employees", Operation: "select"}); err == nil {
-		t.Error("Allow on a zero-value Scope returned nil, want it to deny by default")
+	if err := s.AllowStatement(Statement{Kind: KindSelect, Tables: []string{"employees"}}); err == nil {
+		t.Error("AllowStatement on a zero-value Scope returned nil, want it to deny by default")
+	}
+}
+
+func TestAllowStatementIntrospectNeedsShowNotTables(t *testing.T) {
+	s := Scope{Tables: nil, Operations: []string{"show"}}
+	if err := s.AllowStatement(Statement{Kind: KindIntrospect}); err != nil {
+		t.Errorf("AllowStatement on introspect with show granted: %v", err)
+	}
+}
+
+func TestAllowStatementIntrospectDeniedWithoutShow(t *testing.T) {
+	s := Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
+	if err := s.AllowStatement(Statement{Kind: KindIntrospect}); err == nil {
+		t.Error("AllowStatement on introspect without show granted returned nil, want ErrScopeViolation")
 	}
 }
