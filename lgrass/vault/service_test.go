@@ -232,6 +232,39 @@ func TestServiceChannelScopeReadableWithoutActivation(t *testing.T) {
 	}
 }
 
+// wantsListingTables asserts err is the "reached the query" failure listTables reports for an
+// unreachable connection -- proof ListTables got past decrypt/open before failing.
+func wantsListingTables(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("ListTables against an unreachable database returned nil error")
+	}
+	if !strings.Contains(err.Error(), "vault: listing tables") {
+		t.Errorf("ListTables error = %q, want it to fail at the listing query, not earlier", err.Error())
+	}
+}
+
+func TestServiceListTablesReachesQueryAfterDecrypt(t *testing.T) {
+	svc := openTestService(t)
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+
+	_, err := svc.ListTables(testRootSecret, "app-backend")
+	wantsListingTables(t, err)
+}
+
+func TestServiceListTablesWrongRootSecretFails(t *testing.T) {
+	svc := openTestService(t)
+	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+
+	if _, err := svc.ListTables("wrong passphrase", "app-backend"); err == nil {
+		t.Error("ListTables with the wrong root secret returned nil error")
+	}
+}
+
 func TestServiceListChannels(t *testing.T) {
 	svc := openTestService(t)
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {

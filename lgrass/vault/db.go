@@ -99,6 +99,48 @@ func mysqlDSN(connString string) (string, error) {
 	return dsn, nil
 }
 
+// listTablesQuery returns the engine-appropriate information_schema query for enumerating the
+// connection's own database/schema, so table names come from what's actually there rather than
+// free-typed guesses.
+func listTablesQuery(engine Engine) (string, error) {
+	switch engine {
+	case EngineMySQL:
+		return "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name", nil
+	case EnginePostgres:
+		return "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name", nil
+	default:
+		return "", fmt.Errorf("vault: unsupported engine %q", engine)
+	}
+}
+
+// listTables runs engine's own listTablesQuery against db and returns the table names found.
+func listTables(db *sql.DB, engine Engine) ([]string, error) {
+	query, err := listTablesQuery(engine)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+	defer cancel()
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("vault: listing tables: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("vault: scanning table name: %w", err)
+		}
+		tables = append(tables, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("vault: reading table names: %w", err)
+	}
+	return tables, nil
+}
+
 // QueryResult is a read-only statement's shaped output -- the only thing that ever leaves the
 // vault for a query, never the credential that produced it.
 type QueryResult struct {

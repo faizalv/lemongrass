@@ -295,7 +295,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
       </div>
     </div>
 
-    <DbChannelsPanel v-if="showDbChannels" @close="showDbChannels = false" />
+    <DbChannelsPanel
+      v-show="showDbChannels"
+      :visible="showDbChannels"
+      @close="showDbChannels = false"
+    />
   </div>
 </template>
 

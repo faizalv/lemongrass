@@ -57,6 +57,7 @@ interface Api {
     deleteConnection: (name: string) => Promise<void>
     testConnection: (connectionString: string) => Promise<void>
     testSavedConnection: (passphrase: string, name: string) => Promise<void>
+    listTables: (passphrase: string, name: string) => Promise<string[]>
     hasPassphrase: () => Promise<boolean>
     setPassphrase: (passphrase: string) => Promise<void>
     verifyPassphrase: (passphrase: string) => Promise<void>

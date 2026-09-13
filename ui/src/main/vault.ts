@@ -187,6 +187,16 @@ async function testSavedConnection(passphrase: string, name: string): Promise<vo
   await vaultCall<void>('test_connection_saved', { root_secret: passphrase, db_name: name })
 }
 
+// Lists the tables in an already-saved connection's database, for the Channels form's table
+// picker -- decrypts under the master passphrase to actually connect, same as testSavedConnection.
+async function listTables(passphrase: string, name: string): Promise<string[]> {
+  const { tables } = await vaultCall<{ tables: string[] }>('list_tables', {
+    root_secret: passphrase,
+    db_name: name
+  })
+  return tables ?? []
+}
+
 async function hasPassphrase(): Promise<boolean> {
   const { has_passphrase: has } = await vaultCall<{ has_passphrase: boolean }>('has_passphrase')
   return has
@@ -234,6 +244,9 @@ export function registerVaultHandlers(): void {
   )
   ipcMain.handle('vault:testSavedConnection', (_event, passphrase: string, name: string) =>
     testSavedConnection(passphrase, name)
+  )
+  ipcMain.handle('vault:listTables', (_event, passphrase: string, name: string) =>
+    listTables(passphrase, name)
   )
   ipcMain.handle('vault:hasPassphrase', () => hasPassphrase())
   ipcMain.handle('vault:setPassphrase', (_event, passphrase: string) => setPassphrase(passphrase))

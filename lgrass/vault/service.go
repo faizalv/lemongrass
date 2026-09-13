@@ -187,13 +187,30 @@ func (s *Service) TestConnection(connString string) error {
 // TestConnectionSaved decrypts dbName's stored credential and pings it, to check an
 // already-saved connection still works without creating a channel against it.
 func (s *Service) TestConnectionSaved(rootSecret, dbName string) error {
-	return s.withDecryptedConnection(rootSecret, dbName, pingWithTimeout)
+	return s.withDecryptedConnection(rootSecret, dbName, func(db *sql.DB, _ Engine) error {
+		return pingWithTimeout(db)
+	})
+}
+
+// ListTables decrypts dbName's stored credential and lists the tables in its database, for
+// the Channels form's table picker.
+func (s *Service) ListTables(rootSecret, dbName string) ([]string, error) {
+	var tables []string
+	err := s.withDecryptedConnection(rootSecret, dbName, func(db *sql.DB, engine Engine) error {
+		found, err := listTables(db, engine)
+		if err != nil {
+			return err
+		}
+		tables = found
+		return nil
+	})
+	return tables, err
 }
 
 // withDecryptedConnection decrypts dbName's stored credential under rootSecret, opens a
-// connection with it, and passes that connection to fn. The connection is always closed and
-// the credential always zeroed before returning, regardless of fn's outcome.
-func (s *Service) withDecryptedConnection(rootSecret, dbName string, fn func(*sql.DB) error) error {
+// connection with it, and passes that connection and its engine to fn. The connection is
+// always closed and the credential always zeroed before returning, regardless of fn's outcome.
+func (s *Service) withDecryptedConnection(rootSecret, dbName string, fn func(*sql.DB, Engine) error) error {
 	rootKey, err := DeriveKey(rootSecret, s.rootSalt)
 	if err != nil {
 		return err
@@ -206,13 +223,18 @@ func (s *Service) withDecryptedConnection(rootSecret, dbName string, fn func(*sq
 	}
 	defer zero(connString)
 
+	engine, err := engineOf(string(connString))
+	if err != nil {
+		return err
+	}
+
 	db, err := openDB(string(connString))
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	return fn(db)
+	return fn(db, engine)
 }
 
 // CreateChannel decrypts dbName's root-encrypted credential once and stores a separately-encrypted copy under a new channel id, wrapped with that channel's own derived key.

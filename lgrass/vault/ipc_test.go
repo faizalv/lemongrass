@@ -116,6 +116,24 @@ func TestIPCAdminOpsLockOutAfterRepeatedWrongSecret(t *testing.T) {
 	}
 }
 
+func TestIPCListTablesRoundTrips(t *testing.T) {
+	client := startTestServer(t)
+	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+
+	// Reaches the listing query and fails only because nothing's listening -- proof it
+	// travelled the whole IPC round trip, not a wrong-passphrase or dispatch failure.
+	_, err := client.ListTables(testRootSecret, "app-backend")
+	if err == nil || !strings.Contains(err.Error(), "listing tables") {
+		t.Errorf("ListTables = %v, want it to fail at the listing query", err)
+	}
+
+	if _, err := client.ListTables("wrong passphrase", "app-backend"); err == nil {
+		t.Error("ListTables with the wrong root secret returned nil error")
+	}
+}
+
 func TestIPCQueryIsNotAdminGated(t *testing.T) {
 	client := startTestServer(t)
 	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {

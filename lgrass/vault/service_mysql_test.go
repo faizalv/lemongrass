@@ -91,6 +91,21 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 		t.Error("SHOW TABLES returned no rows")
 	}
 
+	tables, err := svc.ListTables(testRootSecret, "app-backend")
+	if err != nil {
+		t.Fatalf("ListTables: %v", err)
+	}
+	found := false
+	for _, name := range tables {
+		if name == "lg_test_employees" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("ListTables = %v, want it to include lg_test_employees", tables)
+	}
+
 	if err := svc.Revoke(c.ID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}

@@ -143,6 +143,8 @@ const vault = {
     ipcRenderer.invoke('vault:testConnection', connectionString),
   testSavedConnection: (passphrase: string, name: string): Promise<void> =>
     ipcRenderer.invoke('vault:testSavedConnection', passphrase, name),
+  listTables: (passphrase: string, name: string): Promise<string[]> =>
+    ipcRenderer.invoke('vault:listTables', passphrase, name),
   hasPassphrase: (): Promise<boolean> => ipcRenderer.invoke('vault:hasPassphrase'),
   setPassphrase: (passphrase: string): Promise<void> =>
     ipcRenderer.invoke('vault:setPassphrase', passphrase),

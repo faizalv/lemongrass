@@ -20,6 +20,7 @@ const (
 	opDeleteConnection    = "delete_connection"
 	opTestConnection      = "test_connection"
 	opTestConnectionSaved = "test_connection_saved"
+	opListTables          = "list_tables"
 	opHasPassphrase       = "has_passphrase"
 	opSetPassphrase       = "set_passphrase"
 	opVerifyPassphrase    = "verify_passphrase"
@@ -99,6 +100,10 @@ type testConnectionSavedPayload struct {
 
 type rootSecretPayload struct {
 	RootSecret string `json:"root_secret"`
+}
+
+type tablesPayload struct {
+	Tables []string `json:"tables"`
 }
 
 type hasPassphrasePayload struct {
@@ -255,6 +260,16 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 		}
 		return adminOp(adminLimiter, func() (response, error) {
 			return response{OK: true}, svc.TestConnectionSaved(p.RootSecret, p.DBName)
+		})
+
+	case opListTables:
+		var p testConnectionSavedPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			tables, err := svc.ListTables(p.RootSecret, p.DBName)
+			return payloadResponse(tablesPayload{Tables: tables}), err
 		})
 
 	case opHasPassphrase:
@@ -419,6 +434,12 @@ func (c *Client) TestConnection(connectionString string) error {
 
 func (c *Client) TestConnectionSaved(rootSecret, dbName string) error {
 	return c.call(opTestConnectionSaved, testConnectionSavedPayload{RootSecret: rootSecret, DBName: dbName}, nil)
+}
+
+func (c *Client) ListTables(rootSecret, dbName string) ([]string, error) {
+	var out tablesPayload
+	err := c.call(opListTables, testConnectionSavedPayload{RootSecret: rootSecret, DBName: dbName}, &out)
+	return out.Tables, err
 }
 
 func (c *Client) HasPassphrase() (bool, error) {

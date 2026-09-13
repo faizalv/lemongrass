@@ -2,6 +2,10 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { VaultChannel } from '../../../preload'
 
+const props = defineProps<{
+  visible: boolean
+}>()
+
 const emit = defineEmits<{
   close: []
 }>()
@@ -345,7 +349,7 @@ async function deleteConnection(name: string): Promise<void> {
 const channels = ref<VaultChannel[]>([])
 const loading = ref(false)
 const listError = ref('')
-const lastIssuedShortId = ref('')
+const shortIdByChannel = ref<Record<string, string>>({})
 
 async function refresh(): Promise<void> {
   loading.value = true
@@ -363,10 +367,26 @@ onMounted(() => {
   refreshHasPassphrase()
   refreshConnections()
   refresh()
+  document.addEventListener('click', onDocumentClickOutsideTablesDropdown, true)
 })
+
+// The panel now stays mounted behind v-show (so shortIdByChannel and the vault-unlock
+// session survive closing it) instead of being destroyed on close -- reopening it doesn't
+// remount, so the channel/connection lists need their own refresh to catch anything that
+// changed while it was hidden (expiry, a row acted on elsewhere).
+watch(
+  () => props.visible,
+  (visible) => {
+    if (!visible) return
+    refreshConnections()
+    refresh()
+  }
+)
 
 onUnmounted(() => {
   clearIdleTimer()
+  if (copiedTimer) clearTimeout(copiedTimer)
+  document.removeEventListener('click', onDocumentClickOutsideTablesDropdown, true)
 })
 
 function statusFor(channel: VaultChannel): string {
@@ -377,40 +397,116 @@ function statusFor(channel: VaultChannel): string {
   return `open until ${hh}:${mm}`
 }
 
-function scopeSummary(channel: VaultChannel): string {
-  const tables = channel.Scope.Tables?.join(', ') || '(none)'
-  const ops = channel.Scope.Operations?.join(', ') || '(none)'
-  return `tables: ${tables} · operations: ${ops}`
+const copiedChannelId = ref<string | null>(null)
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+
+async function copyShortId(id: string): Promise<void> {
+  const value = shortIdByChannel.value[id]
+  if (!value) return
+  try {
+    await navigator.clipboard.writeText(value)
+  } catch {
+    return
+  }
+  copiedChannelId.value = id
+  if (copiedTimer) clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => {
+    copiedChannelId.value = null
+  }, 1500)
 }
 
 // -- Create channel --
 
+// Fixed to the only kinds Scope.AllowStatement (vault/bouncer.go) actually recognizes -- write
+// kinds are a separate, later PRD, not offered here.
+const operationOptions = ['select', 'explain', 'show'] as const
+
 const showCreateForm = ref(false)
 const newDbName = ref('')
-const newTables = ref('')
-const newOperations = ref('')
-const newTtlMinutes = ref(60)
+const newTables = ref<string[]>([])
+const newOperations = ref<string[]>([])
+const newTtlMinutes = ref(10)
 const creating = ref(false)
 const createError = ref('')
 
+// -- Tables picker: populated from the chosen connection's own database, instead of free
+// comma-text guessing at what's actually in there.
+
+const availableTables = ref<string[]>([])
+const tablesLoading = ref(false)
+const tablesError = ref('')
+
+async function loadTablesFor(dbName: string): Promise<void> {
+  availableTables.value = []
+  tablesError.value = ''
+  if (!dbName || !vaultUnlocked.value) return
+  tablesLoading.value = true
+  try {
+    availableTables.value = await window.api.vault.listTables(sessionPassphrase.value, dbName)
+  } catch (err) {
+    tablesError.value = describeError(err)
+  } finally {
+    tablesLoading.value = false
+  }
+}
+
+watch(newDbName, (dbName) => {
+  newTables.value = []
+  loadTablesFor(dbName)
+})
+
+// -- Tables combobox: closed by default, showing a summary instead of every checkbox at
+// once -- a flat list stops being usable somewhere past a couple dozen tables. Opens into a
+// filterable list; selections show as removable chips regardless of whether it's open.
+
+const tablesDropdownOpen = ref(false)
+const tableFilter = ref('')
+const tablesDropdownRef = ref<HTMLElement | null>(null)
+
+const filteredTables = computed(() => {
+  const query = tableFilter.value.trim().toLowerCase()
+  if (!query) return availableTables.value
+  return availableTables.value.filter((t) => t.toLowerCase().includes(query))
+})
+
+const tablesSummaryLabel = computed(() => {
+  if (tablesLoading.value) return 'Loading tables...'
+  if (newTables.value.length === 0) return 'Select tables'
+  if (newTables.value.length === 1) return newTables.value[0]
+  return `${newTables.value.length} tables selected`
+})
+
+function toggleTablesDropdown(): void {
+  tablesDropdownOpen.value = !tablesDropdownOpen.value
+  if (tablesDropdownOpen.value) tableFilter.value = ''
+}
+
+function removeSelectedTable(table: string): void {
+  newTables.value = newTables.value.filter((t) => t !== table)
+}
+
+// Closes the dropdown on any click outside it, without disturbing clicks on the trigger
+// itself (that's handled by its own @click toggle) or inside the popover (filtering,
+// checking a table shouldn't close it).
+function onDocumentClickOutsideTablesDropdown(event: MouseEvent): void {
+  if (!tablesDropdownOpen.value) return
+  if (tablesDropdownRef.value && !tablesDropdownRef.value.contains(event.target as Node)) {
+    tablesDropdownOpen.value = false
+  }
+}
+
 function openCreateForm(): void {
   newDbName.value = connections.value[0] ?? ''
-  newTables.value = ''
-  newOperations.value = ''
-  newTtlMinutes.value = 60
+  newTables.value = []
+  newOperations.value = []
+  newTtlMinutes.value = 10
   createError.value = ''
   showCreateForm.value = true
+  loadTablesFor(newDbName.value)
 }
 
 function cancelCreate(): void {
   showCreateForm.value = false
-}
-
-function splitList(value: string): string[] {
-  return value
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
 }
 
 async function submitCreate(): Promise<void> {
@@ -418,13 +514,15 @@ async function submitCreate(): Promise<void> {
   creating.value = true
   createError.value = ''
   try {
-    const { shortId } = await window.api.vault.create(
+    const { channel, shortId } = await window.api.vault.create(
       sessionPassphrase.value,
       newDbName.value.trim(),
-      { Tables: splitList(newTables.value), Operations: splitList(newOperations.value) },
+      // Spread into plain arrays -- Electron's IPC clones arguments via structured clone,
+      // which can't clone the Vue reactive Proxy the checkboxes' v-model leaves in .value.
+      { Tables: [...newTables.value], Operations: [...newOperations.value] },
       Math.round(newTtlMinutes.value * 60)
     )
-    lastIssuedShortId.value = shortId
+    shortIdByChannel.value[channel.ID] = shortId
     showCreateForm.value = false
     await refresh()
   } catch (err) {
@@ -437,13 +535,13 @@ async function submitCreate(): Promise<void> {
 // -- Activate --
 
 const activatingId = ref<string | null>(null)
-const activateTtlMinutes = ref(60)
+const activateTtlMinutes = ref(10)
 const activating = ref(false)
 const activateError = ref('')
 
 function openActivate(id: string): void {
   activatingId.value = id
-  activateTtlMinutes.value = 60
+  activateTtlMinutes.value = 10
   activateError.value = ''
 }
 
@@ -457,12 +555,12 @@ async function submitActivate(): Promise<void> {
   activateError.value = ''
   const id = activatingId.value
   try {
-    const { shortId } = await window.api.vault.activate(
+    const { channel, shortId } = await window.api.vault.activate(
       sessionPassphrase.value,
       id,
       Math.round(activateTtlMinutes.value * 60)
     )
-    lastIssuedShortId.value = shortId
+    shortIdByChannel.value[channel.ID] = shortId
     activatingId.value = null
     await refresh()
   } catch (err) {
@@ -480,6 +578,7 @@ async function revoke(id: string): Promise<void> {
   revokingId.value = id
   try {
     await window.api.vault.revoke(id)
+    delete shortIdByChannel.value[id]
     await refresh()
   } catch (err) {
     listError.value = describeError(err)
@@ -499,7 +598,7 @@ async function revoke(id: string): Promise<void> {
     <div class="channels-card">
       <div class="channels-header">
         <h3 class="channels-title">Database access</h3>
-        <button class="ghost-button" @click="emit('close')">Close</button>
+        <button class="close-button" title="Close" @click="emit('close')">&times;</button>
       </div>
 
       <div v-if="!hasPassphraseLoading" class="unlock-panel">
@@ -579,11 +678,6 @@ async function revoke(id: string): Promise<void> {
             Channels
           </button>
         </div>
-
-        <p v-if="lastIssuedShortId" class="short-id-notice">
-          Short id for the model: <code>{{ lastIssuedShortId }}</code
-          >. Relay this into chat as a reference.
-        </p>
 
         <template v-if="activeTab === 'connections'">
           <p v-if="connectionsError" class="error-text">{{ connectionsError }}</p>
@@ -754,21 +848,72 @@ async function revoke(id: string): Promise<void> {
           <p v-else-if="channels.length === 0" class="empty">No channels yet.</p>
 
           <div v-else class="channel-list">
-            <div v-for="channel in channels" :key="channel.ID" class="channel-row">
-              <div class="channel-info">
-                <span class="channel-db">{{ channel.DBName }}</span>
-                <span class="channel-scope">{{ scopeSummary(channel) }}</span>
-                <span class="channel-status">{{ statusFor(channel) }}</span>
-              </div>
-              <div class="channel-actions">
-                <button class="ghost-button" @click="openActivate(channel.ID)">Activate</button>
-                <button
-                  class="ghost-button danger"
-                  :disabled="revokingId === channel.ID"
-                  @click="revoke(channel.ID)"
+            <div
+              v-for="channel in channels"
+              :key="channel.ID"
+              class="channel-row channel-row--stacked"
+            >
+              <div class="channel-top">
+                <div class="channel-info">
+                  <span class="channel-db">{{ channel.DBName }}</span>
+                  <div class="capsule-group">
+                    <span class="capsule-group-label">Tables</span>
+                    <div class="capsule-row">
+                      <span v-for="t in channel.Scope.Tables || []" :key="t" class="value-capsule">
+                        {{ t }}
+                      </span>
+                      <span v-if="!channel.Scope.Tables?.length" class="value-capsule">none</span>
+                    </div>
+                  </div>
+                  <div class="capsule-group">
+                    <span class="capsule-group-label">Operations</span>
+                    <div class="capsule-row">
+                      <span
+                        v-for="op in channel.Scope.Operations || []"
+                        :key="op"
+                        class="value-capsule"
+                      >
+                        {{ op }}
+                      </span>
+                      <span v-if="!channel.Scope.Operations?.length" class="value-capsule"
+                        >none</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <span
+                  v-if="shortIdByChannel[channel.ID]"
+                  class="channel-code"
+                  :title="
+                    copiedChannelId === channel.ID
+                      ? 'Copied.'
+                      : 'Click to copy. Paste it into the agent to use this channel.'
+                  "
+                  @click="copyShortId(channel.ID)"
+                  >{{ shortIdByChannel[channel.ID] }}</span
                 >
-                  {{ revokingId === channel.ID ? 'Revoking...' : 'Revoke' }}
-                </button>
+              </div>
+
+              <div class="channel-bottom">
+                <span
+                  class="status-capsule"
+                  :class="statusFor(channel) === 'expired' ? 'status-expired' : 'status-open'"
+                >
+                  {{ statusFor(channel) }}
+                </span>
+                <div v-if="activatingId !== channel.ID" class="channel-actions">
+                  <button class="ghost-button" @click="openActivate(channel.ID)">
+                    {{ statusFor(channel) === 'expired' ? 'Activate' : 'Rotate' }}
+                  </button>
+                  <button
+                    class="ghost-button danger"
+                    :disabled="revokingId === channel.ID"
+                    @click="revoke(channel.ID)"
+                  >
+                    {{ revokingId === channel.ID ? 'Removing...' : 'Remove' }}
+                  </button>
+                </div>
               </div>
 
               <div v-if="activatingId === channel.ID" class="inline-form">
@@ -782,9 +927,21 @@ async function revoke(id: string): Promise<void> {
                 />
                 <button class="ghost-button" @click="cancelActivate">Cancel</button>
                 <button class="primary-button" :disabled="activating" @click="submitActivate">
-                  {{ activating ? 'Activating...' : 'Activate' }}
+                  {{
+                    statusFor(channel) === 'expired'
+                      ? activating
+                        ? 'Activating...'
+                        : 'Activate'
+                      : activating
+                        ? 'Rotating...'
+                        : 'Rotate'
+                  }}
                 </button>
               </div>
+              <p v-if="activatingId === channel.ID" class="hint">
+                Channel stays open for {{ activateTtlMinutes }} minutes before it needs
+                reactivating.
+              </p>
               <p v-if="activatingId === channel.ID && activateError" class="error-text">
                 {{ activateError }}
               </p>
@@ -803,18 +960,88 @@ async function revoke(id: string): Promise<void> {
 
           <div v-else class="inline-section">
             <h4 class="inline-section-title">New channel</h4>
-            <select v-model="newDbName">
-              <option v-for="name in connections" :key="name" :value="name">{{ name }}</option>
-            </select>
-            <input v-model="newTables" type="text" placeholder="Tables (comma-separated)" />
-            <input v-model="newOperations" type="text" placeholder="Operations (comma-separated)" />
-            <input
-              v-model.number="newTtlMinutes"
-              type="number"
-              min="1"
-              title="TTL, minutes"
-              @keydown.enter="submitCreate"
-            />
+
+            <div class="field-block">
+              <label class="field-label" for="new-channel-db">Connection</label>
+              <select id="new-channel-db" v-model="newDbName">
+                <option v-for="name in connections" :key="name" :value="name">{{ name }}</option>
+              </select>
+            </div>
+
+            <div class="field-block">
+              <label class="field-label">Tables</label>
+              <p v-if="!newDbName" class="hint">Choose a connection above first.</p>
+              <p v-else-if="tablesError" class="error-text">{{ tablesError }}</p>
+              <p v-else-if="!tablesLoading && availableTables.length === 0" class="hint">
+                No tables found in this database.
+              </p>
+              <div v-else ref="tablesDropdownRef" class="combobox">
+                <button
+                  type="button"
+                  class="combobox-trigger"
+                  :disabled="tablesLoading"
+                  @click="toggleTablesDropdown"
+                >
+                  {{ tablesSummaryLabel }}
+                </button>
+
+                <div v-if="newTables.length > 0" class="chip-row">
+                  <span v-for="table in newTables" :key="table" class="chip">
+                    {{ table }}
+                    <button
+                      type="button"
+                      class="chip-remove"
+                      title="Remove"
+                      @click="removeSelectedTable(table)"
+                    >
+                      ×
+                    </button>
+                  </span>
+                </div>
+
+                <div v-if="tablesDropdownOpen" class="combobox-popover">
+                  <input
+                    v-model="tableFilter"
+                    type="text"
+                    class="combobox-filter"
+                    placeholder="Filter tables..."
+                    autofocus
+                  />
+                  <div class="checkbox-grid combobox-list">
+                    <label v-for="table in filteredTables" :key="table" class="checkbox-option">
+                      <input v-model="newTables" type="checkbox" :value="table" />
+                      {{ table }}
+                    </label>
+                    <p v-if="filteredTables.length === 0" class="hint">No tables match.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label class="field-label">Operations</label>
+              <div class="checkbox-grid">
+                <label v-for="op in operationOptions" :key="op" class="checkbox-option">
+                  <input v-model="newOperations" type="checkbox" :value="op" />
+                  {{ op }}
+                </label>
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label class="field-label" for="new-channel-ttl">TTL</label>
+              <input
+                id="new-channel-ttl"
+                v-model.number="newTtlMinutes"
+                type="number"
+                min="1"
+                @keydown.enter="submitCreate"
+              />
+              <p class="hint">
+                Channel stays open for {{ newTtlMinutes }} minutes before it needs reactivating.
+              </p>
+            </div>
+
             <p v-if="createError" class="error-text">{{ createError }}</p>
             <div class="create-actions">
               <button class="ghost-button" @click="cancelCreate">Cancel</button>
@@ -872,6 +1099,30 @@ async function revoke(id: string): Promise<void> {
   color: var(--color-fg-primary);
 }
 
+.close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.close-button:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg-primary);
+}
+
 .tab-row {
   display: flex;
   gap: var(--space-1);
@@ -901,16 +1152,17 @@ async function revoke(id: string): Promise<void> {
   border-bottom-color: var(--color-amber);
 }
 
-.short-id-notice {
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-amber-muted);
-  border-radius: var(--radius-md);
-  color: var(--color-fg-accent);
-  font-size: var(--text-xs);
-}
-
-.short-id-notice code {
+.channel-code {
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 1px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-amber);
+  color: var(--color-black);
   font-family: var(--font-mono);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  letter-spacing: 0.05em;
 }
 
 .channel-list {
@@ -930,10 +1182,23 @@ async function revoke(id: string): Promise<void> {
   border-radius: var(--radius-md);
 }
 
+/* Channels tab only -- actions on their own line, right-justified, below the info panel. */
+.channel-row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.channel-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .channel-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   font-family: var(--font-body);
   font-size: var(--text-sm);
 }
@@ -941,16 +1206,37 @@ async function revoke(id: string): Promise<void> {
 .channel-db {
   color: var(--color-fg-primary);
   font-weight: var(--weight-medium);
+  font-size: var(--text-base);
 }
 
-.channel-scope,
-.channel-status {
+.capsule-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.capsule-group-label {
+  min-width: 64px;
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
 }
 
+.capsule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.value-capsule {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 .status-capsule {
-  align-self: flex-start;
   padding: 1px var(--space-2);
   border-radius: var(--radius-pill);
   font-size: var(--text-xs);
@@ -958,7 +1244,8 @@ async function revoke(id: string): Promise<void> {
   color: var(--color-fg-muted);
 }
 
-.status-ok {
+.status-ok,
+.status-open {
   background: color-mix(in srgb, var(--color-success) 18%, transparent);
   color: var(--color-success);
 }
@@ -968,12 +1255,27 @@ async function revoke(id: string): Promise<void> {
   color: var(--color-danger, #e5484d);
 }
 
-.status-verifying {
+.status-verifying,
+.status-expired {
   color: var(--color-fg-muted);
+}
+
+/* Connections tab: the capsule sits in a column flex, so it needs its own shrink-to-content
+   alignment instead of stretching full width. */
+.channel-info > .status-capsule {
+  align-self: flex-start;
+}
+
+.channel-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .channel-actions {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
 }
 
@@ -1029,6 +1331,112 @@ async function revoke(id: string): Promise<void> {
 .field-grid input,
 .field-grid select {
   width: 100%;
+}
+
+.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field-block select {
+  width: 100%;
+}
+
+.checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.combobox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.combobox-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.combobox-trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.combobox-popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.combobox-filter {
+  width: 100%;
+}
+
+.combobox-list {
+  flex-wrap: nowrap;
+  flex-direction: column;
+  max-height: 200px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--space-2);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-pill);
+  color: var(--color-fg-primary);
+  font-size: var(--text-xs);
+}
+
+.chip-remove {
+  background: transparent;
+  border: none;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1;
+  padding: 0;
+}
+
+.chip-remove:hover {
+  color: var(--color-fg-primary);
 }
 
 .test-row {
