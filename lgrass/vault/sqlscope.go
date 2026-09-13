@@ -3,12 +3,12 @@ package vault
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
 
-	// pgquery does the actual parsing (WASM-backed, no cgo); pganalyze supplies the parse
-	// tree's own Go types, which pgquery.Parse returns values of.
+	// pgquery parses via WASM (no cgo) into pganalyze's own parse-tree types.
 	pganalyze "github.com/pganalyze/pg_query_go/v6"
 	pgquery "github.com/wasilibs/go-pgquery"
 	"github.com/xwb1989/sqlparser"
@@ -19,26 +19,21 @@ type Kind string
 
 const (
 	KindSelect Kind = "select"
-	// KindExplain wraps a query it doesn't itself execute; table-scope checked the same as
-	// the wrapped statement's own tables, not a separate grant.
+	// KindExplain is scope-checked against the tables of the query it wraps, not granted separately.
 	KindExplain Kind = "explain"
-	// KindIntrospect is SHOW/DESCRIBE-shaped: schema or server metadata, never row data.
-	// Never table-scope checked -- gated purely by the channel's Operations.
+	// KindIntrospect is SHOW/DESCRIBE-shaped schema or server metadata, table-scope checked only when a specific table is recoverable.
 	KindIntrospect Kind = "introspect"
 )
 
-// Statement is what the vault knows about a piece of SQL after classification: what kind
-// of thing it does, and which real tables it references. Tables is the ground truth the
-// vault checks scope against -- never the caller's own declared intent, which can be wrong
-// or dishonest without this ever seeing it.
+// Statement holds what a piece of SQL actually does and which real tables it references, the ground truth scope is checked against rather than the caller's declared intent.
 type Statement struct {
 	Kind   Kind
 	Tables []string
+	// ListsTables marks a SHOW TABLES-shaped statement, whose result rows name every table in the database rather than one this Statement itself references.
+	ListsTables bool
 }
 
-// ClassifyQuery rejects anything but a single statement of a supported read-only kind, and
-// reports what it actually does. sqlText must be exactly one statement -- stacked
-// statements are rejected outright, not silently truncated to the first.
+// ClassifyQuery accepts exactly one statement of a supported read-only kind, rejecting stacked statements outright rather than truncating to the first.
 func ClassifyQuery(engine Engine, sqlText string) (Statement, error) {
 	switch engine {
 	case EngineMySQL:
@@ -70,26 +65,36 @@ func classifyMySQL(sqlText string) (Statement, error) {
 		return Statement{}, fmt.Errorf("vault: parsing SQL: %w", err)
 	}
 
-	switch stmt.(type) {
+	switch st := stmt.(type) {
 	case *sqlparser.Select, *sqlparser.Union, *sqlparser.ParenSelect:
 		return Statement{Kind: KindSelect, Tables: mysqlTables(stmt)}, nil
 	case *sqlparser.Show:
-		return Statement{Kind: KindIntrospect}, nil
+		if st.HasOnTable() {
+			return Statement{Kind: KindIntrospect, Tables: []string{st.OnTable.Name.String()}}, nil
+		}
+		if st.Type == "tables" {
+			return Statement{Kind: KindIntrospect, ListsTables: true}, nil
+		}
+		return Statement{Kind: KindIntrospect, Tables: introspectTableFromText(stmts[0])}, nil
 	case *sqlparser.OtherRead:
-		// This parser's grammar routes exactly DESC/DESCRIBE/EXPLAIN here (see its sql.y),
-		// swallowing the rest of the statement (force_eof) -- no table is ever recoverable
-		// from this node, so these are always table-less introspection, same as SHOW.
-		return Statement{Kind: KindIntrospect}, nil
+		return Statement{Kind: KindIntrospect, Tables: introspectTableFromText(stmts[0])}, nil
 	default:
 		return Statement{}, fmt.Errorf("vault: %T is not a supported read-only statement", stmt)
 	}
 }
 
-// mysqlTables walks stmt for AliasedTableExpr nodes whose Expr is a real TableName (not a
-// subquery, which Walk recurses into separately). TableName is also reused elsewhere in
-// this AST for a column reference's qualifier (e.g. the "e" in "e.id") -- collecting every
-// TableName node in the tree, rather than only ones reached through a table position, would
-// wrongly count aliases as tables.
+// introspectTableRegex recovers the table this parser force_eofs out of DESCRIBE/DESC and SHOW CREATE TABLE/COLUMNS/FIELDS/INDEX/INDEXES/KEYS.
+var introspectTableRegex = regexp.MustCompile(`(?is)^\s*(?:DESCRIBE|DESC|SHOW\s+CREATE\s+TABLE|SHOW\s+(?:COLUMNS|FIELDS|INDEX|INDEXES|KEYS)\s+(?:FROM|IN))\s+` + "`?([a-zA-Z0-9_$]+(?:\\.[a-zA-Z0-9_$]+)?)`?")
+
+func introspectTableFromText(sqlText string) []string {
+	m := introspectTableRegex.FindStringSubmatch(sqlText)
+	if m == nil {
+		return nil
+	}
+	return []string{m[1]}
+}
+
+// mysqlTables collects TableName nodes only via AliasedTableExpr, since TableName is reused for column qualifiers and walking it directly would count aliases as tables.
 func mysqlTables(stmt sqlparser.SQLNode) []string {
 	seen := make(map[string]bool)
 	sqlparser.Walk(func(node sqlparser.SQLNode) (bool, error) {
@@ -131,12 +136,7 @@ func classifyPostgres(sqlText string) (Statement, error) {
 	return Statement{Kind: kind, Tables: tables}, nil
 }
 
-// postgresTables re-parses sqlText to its JSON tree and walks it for every RangeVar's
-// relname -- Postgres's grammar uses RangeVar exclusively for real relation references
-// (FROM/JOIN sources), never for a column's alias qualifier, so no AliasedTableExpr-style
-// disambiguation is needed here the way it is for the MySQL dialect. Names defined by the
-// statement's own CTEs are excluded -- a WITH-clause alias isn't a real table, and requiring
-// scope for a query's own invented name would be meaningless.
+// postgresTables collects every RangeVar's relname except the statement's own CTE names, since Postgres uses RangeVar only for real relations, unlike MySQL's reused TableName.
 func postgresTables(sqlText string) ([]string, error) {
 	js, err := pgquery.ParseToJSON(sqlText)
 	if err != nil {
@@ -198,12 +198,9 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-// checkDeclaredTables compares the caller's declared table list, an audit-visible statement of
-// intent, against what stmt actually references -- the ground truth. It is not a security
-// boundary itself (AllowStatement is), just a clearer error than a bare scope denial when the
-// two disagree. A table-less statement's only valid declaration is the literal "*".
+// checkDeclaredTables compares the caller's declared tables against what the statement actually references, a clarity check only since AllowStatement is the real security boundary.
 func checkDeclaredTables(stmt Statement, declared []string) error {
-	if stmt.Kind == KindIntrospect {
+	if len(stmt.Tables) == 0 && stmt.Kind == KindIntrospect {
 		if len(declared) == 1 && declared[0] == "*" {
 			return nil
 		}

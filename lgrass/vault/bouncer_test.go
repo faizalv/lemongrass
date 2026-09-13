@@ -1,6 +1,9 @@
 package vault
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestAllowStatementPermitsGrantedSelect(t *testing.T) {
 	s := Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
@@ -48,5 +51,29 @@ func TestAllowStatementIntrospectDeniedWithoutShow(t *testing.T) {
 	s := Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
 	if err := s.AllowStatement(Statement{Kind: KindIntrospect}); err == nil {
 		t.Error("AllowStatement on introspect without show granted returned nil, want ErrScopeViolation")
+	}
+}
+
+func TestFilterTableListDropsUngrantedTables(t *testing.T) {
+	s := Scope{Tables: []string{"menu", "sub_menu"}}
+	result := QueryResult{
+		Columns: []string{"Tables_in_db"},
+		Rows: [][]interface{}{
+			{"menu"}, {"sub_menu"}, {"users"}, {"mst_pemanen"},
+		},
+	}
+	got := s.FilterTableList(result)
+	want := [][]interface{}{{"menu"}, {"sub_menu"}}
+	if !reflect.DeepEqual(got.Rows, want) {
+		t.Errorf("FilterTableList rows = %v, want %v", got.Rows, want)
+	}
+}
+
+func TestFilterTableListEmptyScopeDropsEverything(t *testing.T) {
+	var s Scope
+	result := QueryResult{Columns: []string{"Tables_in_db"}, Rows: [][]interface{}{{"menu"}}}
+	got := s.FilterTableList(result)
+	if len(got.Rows) != 0 {
+		t.Errorf("FilterTableList with empty scope returned %v, want no rows", got.Rows)
 	}
 }

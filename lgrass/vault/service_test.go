@@ -76,12 +76,13 @@ func TestServiceQueryDeniesDeclaredTableMismatch(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	scope := Scope{Tables: []string{"employees", "salaries"}, Operations: []string{"select"}}
+	c, err := svc.CreateChannel(testRootSecret, "app-backend", scope, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
 
-	// Declares "employees" but the statement actually joins in "salaries" too.
+	// Scope grants both tables, so a declared list missing "salaries" exercises the declared-tables check alone, not a scope denial.
 	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT e.id FROM employees e JOIN salaries s ON s.employee_id = e.id")
 	var mismatch *ErrTableMismatch
 	if !errors.As(err, &mismatch) {

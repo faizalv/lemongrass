@@ -35,24 +35,28 @@ func TestClassifyQueryMySQLSelect(t *testing.T) {
 }
 
 func TestClassifyQueryMySQLIntrospect(t *testing.T) {
-	for _, sql := range []string{
-		"SHOW TABLES",
-		"SHOW COLUMNS FROM employees",
-		"SHOW CREATE TABLE employees",
-		"DESCRIBE employees",
-		"DESC employees",
-		"EXPLAIN SELECT * FROM employees",
-	} {
-		got, err := ClassifyQuery(EngineMySQL, sql)
+	tests := []struct {
+		sql        string
+		wantTables []string
+	}{
+		{"SHOW TABLES", nil},
+		{"SHOW COLUMNS FROM employees", []string{"employees"}},
+		{"SHOW CREATE TABLE employees", []string{"employees"}},
+		{"DESCRIBE employees", []string{"employees"}},
+		{"DESC employees", []string{"employees"}},
+		{"EXPLAIN SELECT * FROM employees", nil},
+	}
+	for _, tt := range tests {
+		got, err := ClassifyQuery(EngineMySQL, tt.sql)
 		if err != nil {
-			t.Errorf("ClassifyQuery(%q): %v", sql, err)
+			t.Errorf("ClassifyQuery(%q): %v", tt.sql, err)
 			continue
 		}
 		if got.Kind != KindIntrospect {
-			t.Errorf("ClassifyQuery(%q).Kind = %q, want %q", sql, got.Kind, KindIntrospect)
+			t.Errorf("ClassifyQuery(%q).Kind = %q, want %q", tt.sql, got.Kind, KindIntrospect)
 		}
-		if len(got.Tables) != 0 {
-			t.Errorf("ClassifyQuery(%q).Tables = %v, want none", sql, got.Tables)
+		if !reflect.DeepEqual(got.Tables, tt.wantTables) {
+			t.Errorf("ClassifyQuery(%q).Tables = %v, want %v", tt.sql, got.Tables, tt.wantTables)
 		}
 	}
 }

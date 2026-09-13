@@ -87,8 +87,8 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SHOW TABLES: %v", err)
 	}
-	if len(showResult.Rows) == 0 {
-		t.Error("SHOW TABLES returned no rows")
+	if len(showResult.Rows) != 1 || showResult.Rows[0][0] != "lg_test_employees" {
+		t.Errorf("SHOW TABLES rows = %v, want just [[lg_test_employees]] since the channel's scope grants only that table", showResult.Rows)
 	}
 
 	tables, err := svc.ListTables(testRootSecret, "app-backend")

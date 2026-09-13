@@ -11,12 +11,7 @@ import (
 	"time"
 )
 
-// Service composes the vault primitives into the envelope-encryption channel lifecycle.
-// A channel's own derived key wraps its own copy of a credential, separate from the
-// root-encrypted base copy in creds. Service never holds a root secret as a field --
-// every method that needs one takes it as a parameter and zeroes the derived root key
-// before returning. Only a channel's own derived key, never the root key, is cached in
-// memory between calls, and only for as long as that channel is active.
+// Service never holds a root secret as a field, only a channel's own derived key cached in memory while that channel is active.
 type Service struct {
 	creds    *Store
 	channels *Store
@@ -89,7 +84,7 @@ func (s *Service) PutCredential(rootSecret, dbName string, value []byte) error {
 	return s.creds.Put(dbName, rootKey, value)
 }
 
-// ListConnections returns every stored credential's name, no root secret needed -- like ListChannels, this reads names only, never a decrypted value.
+// ListConnections lists stored credential names only, never a decrypted value, without needing a root secret.
 func (s *Service) ListConnections() ([]string, error) {
 	return s.creds.List()
 }
@@ -101,8 +96,7 @@ const (
 
 var ErrWrongPassphrase = errors.New("vault: wrong passphrase")
 
-// HasPassphrase reports whether a vault passphrase has ever been set. Independent of whether
-// any connection currently exists, so an emptied-out vault still reads as already set up.
+// HasPassphrase reports whether a vault passphrase has ever been set, independent of whether any connection currently exists.
 func (s *Service) HasPassphrase() (bool, error) {
 	names, err := s.canary.List()
 	if err != nil {
@@ -111,8 +105,7 @@ func (s *Service) HasPassphrase() (bool, error) {
 	return len(names) > 0, nil
 }
 
-// SetPassphrase records rootSecret as the vault's passphrase, for VerifyPassphrase to check
-// against later. Only meaningful the first time -- callers must check HasPassphrase first.
+// SetPassphrase records rootSecret as the vault's passphrase, meaningful only the first time, so callers must check HasPassphrase first.
 func (s *Service) SetPassphrase(rootSecret string) error {
 	rootKey, err := DeriveKey(rootSecret, s.rootSalt)
 	if err != nil {
@@ -122,9 +115,7 @@ func (s *Service) SetPassphrase(rootSecret string) error {
 	return s.canary.Put(canaryEntryName, rootKey, []byte(canaryPlaintext))
 }
 
-// VerifyPassphrase checks rootSecret against the recorded canary. Decrypting the canary
-// never touches a real connection, so a failure here can only mean the passphrase is wrong,
-// not that some database happens to be unreachable.
+// VerifyPassphrase checks rootSecret against the recorded canary, never touching a real connection, so a failure here always means the passphrase is wrong.
 func (s *Service) VerifyPassphrase(rootSecret string) error {
 	rootKey, err := DeriveKey(rootSecret, s.rootSalt)
 	if err != nil {
@@ -172,9 +163,7 @@ func (s *Service) DeleteConnection(dbName string) error {
 	return s.creds.Delete(dbName)
 }
 
-// TestConnection opens connString directly and pings it. No root secret involved -- the string
-// is fresh out of a form and never touches the credential store, so nothing here needs
-// decrypting.
+// TestConnection opens connString directly and pings it, with no root secret involved since the string never touches the credential store.
 func (s *Service) TestConnection(connString string) error {
 	db, err := openDB(connString)
 	if err != nil {
@@ -207,9 +196,7 @@ func (s *Service) ListTables(rootSecret, dbName string) ([]string, error) {
 	return tables, err
 }
 
-// withDecryptedConnection decrypts dbName's stored credential under rootSecret, opens a
-// connection with it, and passes that connection and its engine to fn. The connection is
-// always closed and the credential always zeroed before returning, regardless of fn's outcome.
+// withDecryptedConnection decrypts dbName's credential, opens a connection with it, passes both to fn, and always closes the connection and zeroes the credential before returning.
 func (s *Service) withDecryptedConnection(rootSecret, dbName string, fn func(*sql.DB, Engine) error) error {
 	rootKey, err := DeriveKey(rootSecret, s.rootSalt)
 	if err != nil {
@@ -326,10 +313,7 @@ func (s *Service) Activate(rootSecret string, id ChannelID, ttl time.Duration) (
 	return c, nil
 }
 
-// Query classifies sqlText for real, checks it against declaredTables and the channel's scope,
-// and -- only once both pass -- runs it against the channel's own database. The credential
-// itself never leaves this method: it's decrypted only to pick a driver and open/reuse a
-// connection, then zeroed. It fails if the channel is expired, revoked, or was never activated.
+// Query classifies sqlText and checks it against the channel's scope before the caller's declared tables, since scope is the real security boundary.
 func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (QueryResult, error) {
 	c, err := s.loadMeta(id)
 	if err != nil {
@@ -338,7 +322,7 @@ func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (
 	if c.Expired(time.Now()) {
 		s.closeDB(id)
 		s.forgetKey(id)
-		return QueryResult{}, fmt.Errorf("vault: channel %s has expired", id)
+		return QueryResult{}, fmt.Errorf("vault: channel %s has expired. Ask the channel owner to reactivate it or share a fresh channel id.", id)
 	}
 
 	s.mu.Lock()
@@ -362,10 +346,10 @@ func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (
 	if err != nil {
 		return QueryResult{}, err
 	}
-	if err := checkDeclaredTables(stmt, declaredTables); err != nil {
+	if err := c.Scope.AllowStatement(stmt); err != nil {
 		return QueryResult{}, err
 	}
-	if err := c.Scope.AllowStatement(stmt); err != nil {
+	if err := checkDeclaredTables(stmt, declaredTables); err != nil {
 		return QueryResult{}, err
 	}
 
@@ -373,7 +357,14 @@ func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (
 	if err != nil {
 		return QueryResult{}, err
 	}
-	return runQuery(db, sqlText)
+	result, err := runQuery(db, sqlText)
+	if err != nil {
+		return QueryResult{}, err
+	}
+	if stmt.ListsTables {
+		result = c.Scope.FilterTableList(result)
+	}
+	return result, nil
 }
 
 // getDB returns id's cached *sql.DB, opening and caching one on first use.
@@ -391,8 +382,7 @@ func (s *Service) getDB(id ChannelID, connString string) (*sql.DB, error) {
 	return db, nil
 }
 
-// closeDB closes and evicts id's cached *sql.DB, if any. Best-effort: a close error here
-// doesn't change the caller's own outcome, which already has its own error to report.
+// closeDB closes and evicts id's cached *sql.DB if any, best-effort since a close error here doesn't change the caller's own outcome.
 func (s *Service) closeDB(id ChannelID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -402,7 +392,7 @@ func (s *Service) closeDB(id ChannelID) {
 	}
 }
 
-// Revoke removes a channel's metadata, wrapped credential, cached key, and cached db connection. It succeeds even if the channel was never active.
+// Revoke removes a channel's metadata, wrapped credential, cached key, and cached db connection, succeeding even if the channel was never active.
 func (s *Service) Revoke(id ChannelID) error {
 	s.forgetKey(id)
 	s.closeDB(id)
@@ -413,8 +403,7 @@ func (s *Service) Revoke(id ChannelID) error {
 	return s.deleteMeta(id)
 }
 
-// forgetKey releases and forgets id's cached channel key, if any -- used on revocation and on
-// TTL expiry, so a locked key's memory doesn't stay resident past the point it's usable.
+// forgetKey releases id's cached channel key on revocation or TTL expiry, so a locked key's memory doesn't stay resident past the point it's usable.
 func (s *Service) forgetKey(id ChannelID) {
 	s.mu.Lock()
 	if key, ok := s.activeKeys[id]; ok {
@@ -424,12 +413,12 @@ func (s *Service) forgetKey(id ChannelID) {
 	s.mu.Unlock()
 }
 
-// ChannelScope returns a channel's metadata -- scope, TTL, db name -- without needing the channel to be active.
+// ChannelScope returns a channel's metadata without needing the channel to be active.
 func (s *Service) ChannelScope(id ChannelID) (Channel, error) {
 	return s.loadMeta(id)
 }
 
-// ListChannels reads every channel's metadata off disk -- there's no in-memory index, metaDir is the source of truth.
+// ListChannels reads every channel's metadata off disk, since metaDir is the source of truth rather than an in-memory index.
 func (s *Service) ListChannels() ([]Channel, error) {
 	entries, err := os.ReadDir(s.metaDir)
 	if err != nil {
