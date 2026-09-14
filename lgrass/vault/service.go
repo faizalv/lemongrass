@@ -260,6 +260,12 @@ func (s *Service) CreateChannel(rootSecret, name, dbName string, scope Scope, tt
 		return Channel{}, err
 	}
 
+	port, err := s.allocatePort()
+	if err != nil {
+		lockedFree(locked)
+		return Channel{}, err
+	}
+
 	if err := s.channels.Put(string(id), locked, plain); err != nil {
 		lockedFree(locked)
 		return Channel{}, fmt.Errorf("vault: wrapping credential for channel %s: %w", id, err)
@@ -272,6 +278,7 @@ func (s *Service) CreateChannel(rootSecret, name, dbName string, scope Scope, tt
 		DBName:    dbName,
 		Scope:     scope,
 		Salt:      salt,
+		Port:      port,
 		CreatedAt: now,
 		ExpiresAt: now.Add(ttl),
 	}

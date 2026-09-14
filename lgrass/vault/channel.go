@@ -32,6 +32,7 @@ type Channel struct {
 	DBName    string
 	Scope     Scope
 	Salt      []byte
+	Port      int
 	CreatedAt time.Time
 	ExpiresAt time.Time
 }
