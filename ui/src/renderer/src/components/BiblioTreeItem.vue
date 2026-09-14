@@ -11,6 +11,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [path: string]
   'add-scratchpad': []
+  'add-scratchpad-file': [folderPath: string]
 }>()
 
 const expanded = ref(false)
@@ -25,11 +26,26 @@ const iconName = computed((): string => {
   return 'folder'
 })
 
-const showAddButton = computed((): boolean => props.depth === 0 && props.node.name === 'scratchpad')
+const isTopLevelScratchpad = computed(
+  (): boolean => props.depth === 0 && props.node.name === 'scratchpad'
+)
+
+// Covers the top-level scratchpad row and every folder nested under scratchpad/.
+const showAddButton = computed(
+  (): boolean =>
+    props.node.type === 'dir' &&
+    (isTopLevelScratchpad.value ||
+      props.node.path === 'scratchpad' ||
+      props.node.path.startsWith('scratchpad/'))
+)
 
 function onAddClick(): void {
   expanded.value = true
-  emit('add-scratchpad')
+  if (isTopLevelScratchpad.value) {
+    emit('add-scratchpad')
+  } else {
+    emit('add-scratchpad-file', props.node.path)
+  }
 }
 </script>
 
@@ -158,7 +174,7 @@ function onAddClick(): void {
     <button
       v-if="showAddButton"
       class="tree-item-add"
-      title="Add scratchpad"
+      :title="isTopLevelScratchpad ? 'Add scratchpad' : 'Add file'"
       @click.stop="onAddClick"
     >
       <svg
@@ -184,6 +200,8 @@ function onAddClick(): void {
       :selected-path="selectedPath"
       :depth="depth + 1"
       @select="(path) => emit('select', path)"
+      @add-scratchpad="emit('add-scratchpad')"
+      @add-scratchpad-file="(folderPath) => emit('add-scratchpad-file', folderPath)"
     />
   </template>
 </template>

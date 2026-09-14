@@ -37,6 +37,12 @@ interface Api {
       title: string,
       content: string
     ) => Promise<string | null>
+    createScratchpadFile: (
+      projectPath: string,
+      folderPath: string,
+      title: string,
+      content: string
+    ) => Promise<string | null>
     onChanged: (callback: (projectPath: string) => void) => () => void
   }
   vault: {

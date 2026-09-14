@@ -117,6 +117,13 @@ const biblio = {
     ipcRenderer.invoke('biblio:write', projectPath, relativePath, content),
   createScratchpad: (projectPath: string, title: string, content: string): Promise<string | null> =>
     ipcRenderer.invoke('biblio:createScratchpad', projectPath, title, content),
+  createScratchpadFile: (
+    projectPath: string,
+    folderPath: string,
+    title: string,
+    content: string
+  ): Promise<string | null> =>
+    ipcRenderer.invoke('biblio:createScratchpadFile', projectPath, folderPath, title, content),
   onChanged: (callback: (projectPath: string) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, projectPath: string): void =>
       callback(projectPath)

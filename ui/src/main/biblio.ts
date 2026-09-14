@@ -207,4 +207,38 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
       }
     }
   )
+
+  // Writes a single file into an existing folder under scratchpad/.
+  ipcMain.handle(
+    'biblio:createScratchpadFile',
+    (
+      _event,
+      projectPath: string,
+      folderRelativePath: string,
+      title: string,
+      content: string
+    ): string | null => {
+      if (folderRelativePath !== 'scratchpad' && !folderRelativePath.startsWith(`scratchpad${sep}`))
+        return null
+      const biblioRoot = join(projectPath, 'biblio')
+      try {
+        const root = realpathSync(biblioRoot)
+        const targetDir = resolveInBiblio(root, folderRelativePath)
+        if (!targetDir || !statSync(targetDir).isDirectory()) return null
+
+        const base = slugify(title)
+        let filename = `${base}.md`
+        let attempt = 2
+        while (existsSync(join(targetDir, filename))) {
+          filename = `${base}-${attempt}.md`
+          attempt += 1
+        }
+
+        writeFileSync(join(targetDir, filename), content, 'utf-8')
+        return `${folderRelativePath}${sep}${filename}`
+      } catch {
+        return null
+      }
+    }
+  )
 }

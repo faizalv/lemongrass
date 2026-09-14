@@ -58,10 +58,20 @@ const showCreateForm = ref(false)
 const newTitle = ref('')
 const newContent = ref('')
 const creating = ref(false)
+// Non-null when the create form targets an existing folder instead of a new task directory.
+const createTargetFolder = ref<string | null>(null)
 
 function openCreateForm(): void {
   newTitle.value = ''
   newContent.value = ''
+  createTargetFolder.value = null
+  showCreateForm.value = true
+}
+
+function openCreateFileForm(folderPath: string): void {
+  newTitle.value = ''
+  newContent.value = ''
+  createTargetFolder.value = folderPath
   showCreateForm.value = true
 }
 
@@ -72,11 +82,14 @@ function cancelCreate(): void {
 async function submitCreate(): Promise<void> {
   if (!newTitle.value.trim() || creating.value) return
   creating.value = true
-  const path = await window.api.biblio.createScratchpad(
-    props.projectPath,
-    newTitle.value,
-    newContent.value
-  )
+  const path = createTargetFolder.value
+    ? await window.api.biblio.createScratchpadFile(
+        props.projectPath,
+        createTargetFolder.value,
+        newTitle.value,
+        newContent.value
+      )
+    : await window.api.biblio.createScratchpad(props.projectPath, newTitle.value, newContent.value)
   creating.value = false
   if (!path) return
   showCreateForm.value = false
@@ -142,6 +155,7 @@ function onGutterUp(): void {
             :depth="0"
             @select="selectFile"
             @add-scratchpad="openCreateForm"
+            @add-scratchpad-file="openCreateFileForm"
           />
         </template>
         <p v-else class="empty">Nothing in biblio/ yet.</p>
@@ -159,7 +173,7 @@ function onGutterUp(): void {
 
     <div v-if="showCreateForm" class="create-overlay">
       <div class="create-card">
-        <h3 class="create-title">New scratchpad</h3>
+        <h3 class="create-title">{{ createTargetFolder ? 'New file' : 'New scratchpad' }}</h3>
         <input
           v-model="newTitle"
           class="title-input"
