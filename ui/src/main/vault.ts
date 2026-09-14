@@ -90,6 +90,7 @@ export interface Scope {
 
 export interface Channel {
   ID: string
+  Name: string
   DBName: string
   Scope: Scope
   CreatedAt: string
@@ -131,12 +132,14 @@ async function putCredential(
 // the vault, not the agent").
 async function createChannel(
   passphrase: string,
+  name: string,
   dbName: string,
   scope: Scope,
   ttlSeconds: number
 ): Promise<ChannelWithShortId> {
   const { channel } = await vaultCall<{ channel: Channel }>('create_channel', {
     root_secret: passphrase,
+    name,
     db_name: dbName,
     scope,
     ttl_seconds: ttlSeconds
@@ -225,8 +228,8 @@ export function registerVaultHandlers(): void {
   ipcMain.handle('vault:list', () => listChannels())
   ipcMain.handle(
     'vault:create',
-    (_event, passphrase: string, dbName: string, scope: Scope, ttlSeconds: number) =>
-      createChannel(passphrase, dbName, scope, ttlSeconds)
+    (_event, passphrase: string, name: string, dbName: string, scope: Scope, ttlSeconds: number) =>
+      createChannel(passphrase, name, dbName, scope, ttlSeconds)
   )
   ipcMain.handle('vault:activate', (_event, passphrase: string, id: string, ttlSeconds: number) =>
     activateChannel(passphrase, id, ttlSeconds)

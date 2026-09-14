@@ -45,7 +45,7 @@ func TestServiceQueryReachesExecutionAfterScopeChecksPass(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestServiceQueryDeniesOutOfScopeTable(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestServiceQueryDeniesDeclaredTableMismatch(t *testing.T) {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	scope := Scope{Tables: []string{"employees", "salaries"}, Operations: []string{"select"}}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", scope, 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", scope, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestServiceQueryDeniesIntrospectWithoutShowGranted(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestServiceQueryRejectsWriteStatement(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestServiceQueryFailsAfterExpiry(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), -1*time.Second)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), -1*time.Second)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestServiceQueryFailsAfterRevoke(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), -1*time.Second)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), -1*time.Second)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestServiceQueryFailsWhenNeverActivated(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestServiceCreateChannelWrongRootSecretFails(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	if _, err := svc.CreateChannel("wrong passphrase", "app-backend", fullScope(), 5*time.Minute); err == nil {
+	if _, err := svc.CreateChannel("wrong passphrase", "test-channel", "app-backend", fullScope(), 5*time.Minute); err == nil {
 		t.Error("CreateChannel with the wrong root secret returned nil error")
 	}
 }
@@ -215,7 +215,7 @@ func TestServiceChannelScopeReadableWithoutActivation(t *testing.T) {
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -280,11 +280,11 @@ func TestServiceListChannels(t *testing.T) {
 		t.Fatalf("ListChannels on an empty vault = %v, want none", empty)
 	}
 
-	a, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	a, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel a: %v", err)
 	}
-	b, err := svc.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	b, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel b: %v", err)
 	}

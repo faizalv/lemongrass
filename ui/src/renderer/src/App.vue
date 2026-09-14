@@ -56,7 +56,6 @@ const focusedPaneId = computed((): string | null =>
 const biblioTree = computed((): BiblioTree | null =>
   activeProjectId.value ? (biblioByProject[activeProjectId.value] ?? null) : null
 )
-const hasBiblio = computed((): boolean => biblioTree.value !== null)
 
 async function loadProjects(): Promise<void> {
   projects.value = await window.api.projects.list()
@@ -229,24 +228,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         </span>
         <span class="wordmark">lemongrass</span>
       </template>
-      <template v-if="hasBiblio" #actions>
-        <div class="view-toggle">
-          <button
-            class="view-toggle-option"
-            :class="{ active: mainView === 'workspace' }"
-            @click="mainView = 'workspace'"
-          >
-            Workspace
-          </button>
-          <button
-            class="view-toggle-option"
-            :class="{ active: mainView === 'biblio' }"
-            @click="mainView = 'biblio'"
-          >
-            Biblio
-          </button>
-        </div>
-      </template>
     </HeaderBar>
 
     <div class="body-row">
@@ -254,9 +235,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         :projects="projects"
         :active-project-id="activeProjectId"
         :collapsed="sidebarCollapsed"
+        :biblio-active="mainView === 'biblio'"
         @select="selectProject"
         @add="addProject"
         @open-db-channels="showDbChannels = true"
+        @toggle-biblio="mainView = mainView === 'biblio' ? 'workspace' : 'biblio'"
       />
 
       <div v-if="activeProject" class="main">
@@ -329,37 +312,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
   font-weight: var(--weight-bold);
   color: var(--color-fg-accent);
   letter-spacing: var(--tracking-snug);
-}
-
-.view-toggle {
-  display: flex;
-  align-items: center;
-  padding: 2px;
-  background: var(--color-surface-2);
-  border-radius: var(--radius-pill);
-}
-
-.view-toggle-option {
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.view-toggle-option:hover {
-  color: var(--color-fg-primary);
-}
-
-.view-toggle-option.active {
-  background: var(--color-surface-0);
-  color: var(--color-fg-primary);
 }
 
 .pill-button {

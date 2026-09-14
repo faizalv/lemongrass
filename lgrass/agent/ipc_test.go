@@ -28,7 +28,7 @@ func TestIPCFullLifecycle(t *testing.T) {
 	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestIPCQueryLocksOutAfterRepeatedWrongShortID(t *testing.T) {
 	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestIPCRegisterChannelIsNotQueryGated(t *testing.T) {
 	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := vaultClient.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := vaultClient.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}

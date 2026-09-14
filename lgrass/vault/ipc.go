@@ -48,6 +48,7 @@ type putCredentialPayload struct {
 
 type createChannelPayload struct {
 	RootSecret string `json:"root_secret"`
+	Name       string `json:"name"`
 	DBName     string `json:"db_name"`
 	Scope      Scope  `json:"scope"`
 	TTLSeconds int    `json:"ttl_seconds"`
@@ -173,7 +174,7 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 			return errResponse(err)
 		}
 		return adminOp(adminLimiter, func() (response, error) {
-			c, err := svc.CreateChannel(p.RootSecret, p.DBName, p.Scope, time.Duration(p.TTLSeconds)*time.Second)
+			c, err := svc.CreateChannel(p.RootSecret, p.Name, p.DBName, p.Scope, time.Duration(p.TTLSeconds)*time.Second)
 			return payloadResponse(channelPayload{Channel: c}), err
 		})
 
@@ -384,9 +385,9 @@ func (c *Client) PutCredential(rootSecret, dbName string, value []byte) error {
 	return c.call(opPutCredential, putCredentialPayload{RootSecret: rootSecret, DBName: dbName, Value: value}, nil)
 }
 
-func (c *Client) CreateChannel(rootSecret, dbName string, scope Scope, ttl time.Duration) (Channel, error) {
+func (c *Client) CreateChannel(rootSecret, name, dbName string, scope Scope, ttl time.Duration) (Channel, error) {
 	var out channelPayload
-	err := c.call(opCreateChannel, createChannelPayload{RootSecret: rootSecret, DBName: dbName, Scope: scope, TTLSeconds: int(ttl.Seconds())}, &out)
+	err := c.call(opCreateChannel, createChannelPayload{RootSecret: rootSecret, Name: name, DBName: dbName, Scope: scope, TTLSeconds: int(ttl.Seconds())}, &out)
 	return out.Channel, err
 }
 

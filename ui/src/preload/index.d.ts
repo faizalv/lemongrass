@@ -42,6 +42,7 @@ interface Api {
     list: () => Promise<VaultChannel[]>
     create: (
       passphrase: string,
+      name: string,
       dbName: string,
       scope: VaultScope,
       ttlSeconds: number

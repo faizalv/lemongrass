@@ -422,6 +422,7 @@ async function copyShortId(id: string): Promise<void> {
 const operationOptions = ['select', 'explain', 'show'] as const
 
 const showCreateForm = ref(false)
+const newChannelName = ref('')
 const newDbName = ref('')
 const newTables = ref<string[]>([])
 const newOperations = ref<string[]>([])
@@ -496,6 +497,7 @@ function onDocumentClickOutsideTablesDropdown(event: MouseEvent): void {
 }
 
 function openCreateForm(): void {
+  newChannelName.value = ''
   newDbName.value = connections.value[0] ?? ''
   newTables.value = []
   newOperations.value = []
@@ -510,12 +512,19 @@ function cancelCreate(): void {
 }
 
 async function submitCreate(): Promise<void> {
-  if (!newDbName.value.trim() || !vaultUnlocked.value || creating.value) return
+  if (
+    !newChannelName.value.trim() ||
+    !newDbName.value.trim() ||
+    !vaultUnlocked.value ||
+    creating.value
+  )
+    return
   creating.value = true
   createError.value = ''
   try {
     const { channel, shortId } = await window.api.vault.create(
       sessionPassphrase.value,
+      newChannelName.value.trim(),
       newDbName.value.trim(),
       // Spread into plain arrays -- Electron's IPC clones arguments via structured clone,
       // which can't clone the Vue reactive Proxy the checkboxes' v-model leaves in .value.
@@ -855,6 +864,9 @@ async function revoke(id: string): Promise<void> {
             >
               <div class="channel-top">
                 <div class="channel-info">
+                  <span class="channel-name">{{
+                    channel.Name || shortIdByChannel[channel.ID] || channel.ID
+                  }}</span>
                   <span class="channel-db">{{ channel.DBName }}</span>
                   <div class="capsule-group">
                     <span class="capsule-group-label">Tables</span>
@@ -962,6 +974,16 @@ async function revoke(id: string): Promise<void> {
             <h4 class="inline-section-title">New channel</h4>
 
             <div class="field-block">
+              <label class="field-label" for="new-channel-name">Name</label>
+              <input
+                id="new-channel-name"
+                v-model="newChannelName"
+                type="text"
+                placeholder="e.g. debug X"
+              />
+            </div>
+
+            <div class="field-block">
               <label class="field-label" for="new-channel-db">Connection</label>
               <select id="new-channel-db" v-model="newDbName">
                 <option v-for="name in connections" :key="name" :value="name">{{ name }}</option>
@@ -1047,7 +1069,7 @@ async function revoke(id: string): Promise<void> {
               <button class="ghost-button" @click="cancelCreate">Cancel</button>
               <button
                 class="primary-button"
-                :disabled="!newDbName.trim() || creating"
+                :disabled="!newChannelName.trim() || !newDbName.trim() || creating"
                 @click="submitCreate"
               >
                 {{ creating ? 'Creating...' : 'Create' }}
@@ -1203,10 +1225,15 @@ async function revoke(id: string): Promise<void> {
   font-size: var(--text-sm);
 }
 
-.channel-db {
+.channel-name {
   color: var(--color-fg-primary);
   font-weight: var(--weight-medium);
   font-size: var(--text-base);
+}
+
+.channel-db {
+  color: var(--color-fg-secondary);
+  font-size: var(--text-sm);
 }
 
 .capsule-group {

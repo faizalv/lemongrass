@@ -225,7 +225,11 @@ func (s *Service) withDecryptedConnection(rootSecret, dbName string, fn func(*sq
 }
 
 // CreateChannel decrypts dbName's root-encrypted credential once and stores a separately-encrypted copy under a new channel id, wrapped with that channel's own derived key.
-func (s *Service) CreateChannel(rootSecret, dbName string, scope Scope, ttl time.Duration) (Channel, error) {
+func (s *Service) CreateChannel(rootSecret, name, dbName string, scope Scope, ttl time.Duration) (Channel, error) {
+	if name == "" {
+		return Channel{}, ErrEmptyChannelName
+	}
+
 	rootKey, err := DeriveKey(rootSecret, s.rootSalt)
 	if err != nil {
 		return Channel{}, err
@@ -264,6 +268,7 @@ func (s *Service) CreateChannel(rootSecret, dbName string, scope Scope, ttl time
 	now := time.Now()
 	c := Channel{
 		ID:        id,
+		Name:      name,
 		DBName:    dbName,
 		Scope:     scope,
 		Salt:      salt,

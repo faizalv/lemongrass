@@ -45,6 +45,7 @@ export interface VaultScope {
 
 export interface VaultChannel {
   ID: string
+  Name: string
   DBName: string
   Scope: VaultScope
   CreatedAt: string
@@ -122,11 +123,12 @@ const vault = {
   list: (): Promise<VaultChannel[]> => ipcRenderer.invoke('vault:list'),
   create: (
     passphrase: string,
+    name: string,
     dbName: string,
     scope: VaultScope,
     ttlSeconds: number
   ): Promise<VaultChannelWithShortId> =>
-    ipcRenderer.invoke('vault:create', passphrase, dbName, scope, ttlSeconds),
+    ipcRenderer.invoke('vault:create', passphrase, name, dbName, scope, ttlSeconds),
   activate: (
     passphrase: string,
     id: string,

@@ -28,6 +28,7 @@ type Scope struct {
 
 type Channel struct {
 	ID        ChannelID
+	Name      string
 	DBName    string
 	Scope     Scope
 	Salt      []byte
@@ -56,8 +57,9 @@ func NewSalt() ([]byte, error) {
 }
 
 var (
-	ErrEmptyPassphrase = errors.New("vault: master passphrase is empty")
-	ErrEmptySalt       = errors.New("vault: salt is empty")
+	ErrEmptyPassphrase  = errors.New("vault: master passphrase is empty")
+	ErrEmptySalt        = errors.New("vault: salt is empty")
+	ErrEmptyChannelName = errors.New("vault: channel name is empty")
 )
 
 func DeriveKey(masterPassphrase string, salt []byte) ([]byte, error) {

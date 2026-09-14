@@ -32,7 +32,7 @@ func TestIPCFullChannelLifecycle(t *testing.T) {
 		t.Fatalf("PutCredential: %v", err)
 	}
 
-	c, err := client.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := client.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
@@ -105,13 +105,13 @@ func TestIPCAdminOpsLockOutAfterRepeatedWrongSecret(t *testing.T) {
 	client := &Client{SocketPath: sockPath}
 
 	for i := 0; i < 3; i++ {
-		if _, err := client.CreateChannel("wrong passphrase", "app-backend", fullScope(), time.Minute); err == nil {
+		if _, err := client.CreateChannel("wrong passphrase", "test-channel", "app-backend", fullScope(), time.Minute); err == nil {
 			t.Fatalf("CreateChannel with a wrong passphrase (attempt %d) returned nil error", i)
 		}
 	}
 
 	// The limiter should now be locked out even for a correct secret.
-	if _, err := client.CreateChannel(testRootSecret, "app-backend", fullScope(), time.Minute); err == nil {
+	if _, err := client.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), time.Minute); err == nil {
 		t.Error("CreateChannel with the correct secret after lockout returned nil error")
 	}
 }
@@ -139,7 +139,7 @@ func TestIPCQueryIsNotAdminGated(t *testing.T) {
 	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := client.CreateChannel(testRootSecret, "app-backend", fullScope(), 5*time.Minute)
+	c, err := client.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}

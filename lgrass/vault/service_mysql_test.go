@@ -44,7 +44,7 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 		t.Fatalf("PutCredential: %v", err)
 	}
 	scope := Scope{Tables: []string{"lg_test_employees"}, Operations: []string{"select", "show"}}
-	c, err := svc.CreateChannel(testRootSecret, "app-backend", scope, 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", scope, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
