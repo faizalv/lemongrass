@@ -116,7 +116,13 @@ const biblio = {
   write: (projectPath: string, relativePath: string, content: string): Promise<boolean> =>
     ipcRenderer.invoke('biblio:write', projectPath, relativePath, content),
   createScratchpad: (projectPath: string, title: string, content: string): Promise<string | null> =>
-    ipcRenderer.invoke('biblio:createScratchpad', projectPath, title, content)
+    ipcRenderer.invoke('biblio:createScratchpad', projectPath, title, content),
+  onChanged: (callback: (projectPath: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, projectPath: string): void =>
+      callback(projectPath)
+    ipcRenderer.on('biblio:changed', listener)
+    return () => ipcRenderer.removeListener('biblio:changed', listener)
+  }
 }
 
 const vault = {

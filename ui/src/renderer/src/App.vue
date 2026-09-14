@@ -37,8 +37,10 @@ const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 // fresh shell sets a new one.
 const titleByTab = reactive<Record<string, string>>({})
 
-// Detected once per project, on first visit -- a biblio/ dir created while
-// the app is already running needs that project re-selected to be picked up.
+// Fetched on first visit and kept live afterward by onBiblioChanged, via the
+// main-process watcher started on that first fetch. A biblio/ dir that
+// doesn't exist yet on first visit still needs that project re-selected once
+// it's been created, since nothing is watching the project root for it.
 const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const mainView = ref<'workspace' | 'biblio'>('workspace')
 const sidebarCollapsed = ref(false)
@@ -80,6 +82,14 @@ async function refreshBiblio(): Promise<void> {
   const id = activeProjectId.value
   if (!id || !activeProject.value) return
   biblioByProject[id] = await window.api.biblio.tree(activeProject.value.path)
+}
+
+// Fires whenever anything adds/removes a file under a project's biblio/ --
+// not only the app's own createScratchpad IPC call.
+async function onBiblioChanged(projectPath: string): Promise<void> {
+  const project = projects.value.find((p) => p.path === projectPath)
+  if (!project) return
+  biblioByProject[project.id] = await window.api.biblio.tree(projectPath)
 }
 
 async function addProject(): Promise<void> {
@@ -197,11 +207,17 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+let unsubscribeBiblio: (() => void) | undefined
+
 onMounted(() => {
   loadProjects()
   window.addEventListener('keydown', onKeydown, { capture: true })
+  unsubscribeBiblio = window.api.biblio.onChanged(onBiblioChanged)
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture: true }))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown, { capture: true })
+  unsubscribeBiblio?.()
+})
 </script>
 
 <template>

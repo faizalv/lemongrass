@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, WebContents } from 'electron'
 import {
   existsSync,
   mkdirSync,
@@ -6,7 +6,9 @@ import {
   readFileSync,
   realpathSync,
   statSync,
-  writeFileSync
+  watch,
+  writeFileSync,
+  type FSWatcher
 } from 'fs'
 import { dirname, join, relative, resolve, sep } from 'path'
 
@@ -83,12 +85,58 @@ function slugify(title: string): string {
   return slug || 'untitled'
 }
 
-export function registerBiblioHandlers(): void {
+// A tool call on the destroyed sender's WebContents (window closed mid-debounce) throws.
+function send(sender: WebContents | undefined, channel: string, payload: unknown): void {
+  if (sender && !sender.isDestroyed()) sender.send(channel, payload)
+}
+
+const watchDebounce = 400
+const watchers = new Map<string, FSWatcher>()
+const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+// Starts a recursive watch on a project's biblio/ root the first time its
+// tree is fetched, so a file added by anything other than this app's own
+// IPC handlers (another lgrass pane, a direct filesystem write) still
+// reaches the renderer instead of waiting for the next project switch.
+function watchBiblio(
+  biblioRoot: string,
+  projectPath: string,
+  getSender: () => WebContents | undefined
+): void {
+  if (watchers.has(projectPath)) return
+  try {
+    const watcher = watch(biblioRoot, { recursive: true }, () => {
+      clearTimeout(debounceTimers.get(projectPath))
+      debounceTimers.set(
+        projectPath,
+        setTimeout(() => send(getSender(), 'biblio:changed', projectPath), watchDebounce)
+      )
+    })
+    watcher.on('error', () => {
+      watcher.close()
+      watchers.delete(projectPath)
+    })
+    watchers.set(projectPath, watcher)
+  } catch {
+    // Recursive fs.watch isn't available on every platform; the tree stays
+    // on-demand-only for this project instead of failing the app.
+  }
+}
+
+export function closeBiblioWatchers(): void {
+  for (const watcher of watchers.values()) watcher.close()
+  watchers.clear()
+  for (const timer of debounceTimers.values()) clearTimeout(timer)
+  debounceTimers.clear()
+}
+
+export function registerBiblioHandlers(getSender: () => WebContents | undefined): void {
   ipcMain.handle('biblio:tree', (_event, projectPath: string): BiblioTree | null => {
     const biblioRoot = join(projectPath, 'biblio')
     try {
       if (!statSync(biblioRoot).isDirectory()) return null
       const root = realpathSync(biblioRoot)
+      watchBiblio(root, projectPath, getSender)
       const children = ensureScratchpad(walk(root, root))
       return { toc: extractToc(children), children }
     } catch {

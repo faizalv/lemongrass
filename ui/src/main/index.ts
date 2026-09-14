@@ -5,7 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerLayoutHandlers } from './layouts'
-import { registerBiblioHandlers } from './biblio'
+import { registerBiblioHandlers, closeBiblioWatchers } from './biblio'
 import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
 import { installLgrass, mergeLgrassHooks, installSkill } from './lgrassInstall'
@@ -70,7 +70,7 @@ app.whenReady().then(() => {
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerLayoutHandlers()
-  registerBiblioHandlers()
+  registerBiblioHandlers(() => mainWindow?.webContents)
   registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)
 
@@ -87,6 +87,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   killAllShells()
   killDaemons()
+  closeBiblioWatchers()
   if (process.platform !== 'darwin') {
     app.quit()
   }

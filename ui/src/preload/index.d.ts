@@ -37,6 +37,7 @@ interface Api {
       title: string,
       content: string
     ) => Promise<string | null>
+    onChanged: (callback: (projectPath: string) => void) => () => void
   }
   vault: {
     list: () => Promise<VaultChannel[]>
