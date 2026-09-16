@@ -65,7 +65,7 @@ func FormatChecklistDeny(c Checklist) string {
 }
 
 func FormatBibliothekDeny() string {
-	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry. That call clears this gate automatically; no `lgrass sign` needed."
+	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry."
 }
 
 func FormatThreadList(msgs []ThreadMessage) string {

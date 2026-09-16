@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,10 +22,11 @@ const (
 
 // The full hook JSON carries more fields depending on hook_event_name; this is only the subset lgrass reads.
 type hookPayload struct {
-	SessionID string          `json:"session_id"`
-	Cwd       string          `json:"cwd"`
-	ToolName  string          `json:"tool_name"`
-	ToolInput json.RawMessage `json:"tool_input"`
+	SessionID      string          `json:"session_id"`
+	TranscriptPath string          `json:"transcript_path"`
+	Cwd            string          `json:"cwd"`
+	ToolName       string          `json:"tool_name"`
+	ToolInput      json.RawMessage `json:"tool_input"`
 }
 
 type fileToolInput struct {
@@ -116,7 +118,7 @@ func hookPreToolUse(store *session.Store, payload hookPayload, projectPath strin
 	if hasBiblio(projectPath) {
 		if isBibliothekSkillCall(payload) {
 			store.Sign(payload.SessionID, bibliothekChecklistID)
-		} else if deny := bibliothekDeny(store, payload.SessionID); deny != "" {
+		} else if deny := bibliothekDeny(store, payload.SessionID, payload.TranscriptPath); deny != "" {
 			emitHookContext("PreToolUse", "deny", []string{deny})
 			return
 		}
@@ -155,15 +157,67 @@ func isBibliothekSkillCall(payload hookPayload) bool {
 }
 
 // Returns the deny message when this session hasn't signed the bibliothek gate yet (or its signature expired), "" once signed.
-func bibliothekDeny(store *session.Store, sessionID string) string {
+func bibliothekDeny(store *session.Store, sessionID, transcriptPath string) string {
 	signedAt, err := store.SignedAt(sessionID, bibliothekChecklistID)
-	if err != nil {
+	if err == nil && !signedAt.IsZero() && time.Since(signedAt) <= bibliothekSignatureTTL {
 		return ""
 	}
-	if signedAt.IsZero() || time.Since(signedAt) > bibliothekSignatureTTL {
-		return session.FormatBibliothekDeny()
+
+	// Not signed for this session yet -- but the harness can dedup a repeat
+	// Skill(bibliothek) call into no fresh tool-call cycle (already loaded,
+	// instructions unchanged), so the auto-sign in hookPreToolUse never runs.
+	// The transcript itself still carries the original call regardless, so
+	// check it directly before denying.
+	if transcriptHasBibliothekInvocation(transcriptPath) {
+		store.Sign(sessionID, bibliothekChecklistID)
+		return ""
 	}
-	return ""
+
+	return session.FormatBibliothekDeny()
+}
+
+type transcriptToolUse struct {
+	Type  string `json:"type"`
+	Name  string `json:"name"`
+	Input struct {
+		Skill string `json:"skill"`
+	} `json:"input"`
+}
+
+type transcriptEntry struct {
+	Message struct {
+		Content json.RawMessage `json:"content"`
+	} `json:"message"`
+}
+
+func transcriptHasBibliothekInvocation(transcriptPath string) bool {
+	if transcriptPath == "" {
+		return false
+	}
+	f, err := os.Open(transcriptPath)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+	for scanner.Scan() {
+		var entry transcriptEntry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+		var blocks []transcriptToolUse
+		if err := json.Unmarshal(entry.Message.Content, &blocks); err != nil {
+			continue
+		}
+		for _, b := range blocks {
+			if b.Type == "tool_use" && b.Name == "Skill" && b.Input.Skill == "bibliothek" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Returns the deny message for the first unsigned or TTL-expired checklist matching this call, "" if none match or all are signed.
