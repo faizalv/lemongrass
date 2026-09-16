@@ -75,6 +75,15 @@ function openCreateFileForm(folderPath: string): void {
   showCreateForm.value = true
 }
 
+async function archiveScratchpad(taskPath: string): Promise<void> {
+  const ok = await window.api.biblio.archiveScratchpad(props.projectPath, taskPath)
+  if (!ok) return
+  if (selectedPath.value === taskPath || selectedPath.value?.startsWith(`${taskPath}/`)) {
+    selectedPath.value = null
+  }
+  emit('refresh')
+}
+
 function cancelCreate(): void {
   showCreateForm.value = false
 }
@@ -156,6 +165,7 @@ function onGutterUp(): void {
             @select="selectFile"
             @add-scratchpad="openCreateForm"
             @add-scratchpad-file="openCreateFileForm"
+            @archive-scratchpad="archiveScratchpad"
           />
         </template>
         <p v-else class="empty">Nothing in biblio/ yet.</p>

@@ -43,6 +43,7 @@ interface Api {
       title: string,
       content: string
     ) => Promise<string | null>
+    archiveScratchpad: (projectPath: string, relativePath: string) => Promise<boolean>
     onChanged: (callback: (projectPath: string) => void) => () => void
   }
   vault: {

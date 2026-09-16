@@ -12,6 +12,7 @@ const emit = defineEmits<{
   select: [path: string]
   'add-scratchpad': []
   'add-scratchpad-file': [folderPath: string]
+  'archive-scratchpad': [taskPath: string]
 }>()
 
 const expanded = ref(false)
@@ -47,6 +48,14 @@ function onAddClick(): void {
     emit('add-scratchpad-file', props.node.path)
   }
 }
+
+// A task folder directly under scratchpad/ (e.g. "scratchpad/some-task"), excluding
+// the archive folder itself -- that's the one row this button is offered on.
+const isArchivableScratchpadTask = computed((): boolean => {
+  if (props.node.type !== 'dir') return false
+  const segments = props.node.path.split('/')
+  return segments.length === 2 && segments[0] === 'scratchpad' && segments[1] !== 'archive'
+})
 </script>
 
 <template>
@@ -172,6 +181,27 @@ function onAddClick(): void {
       <span class="label">{{ node.name }}</span>
     </button>
     <button
+      v-if="isArchivableScratchpadTask"
+      class="tree-item-add"
+      title="Archive"
+      @click.stop="emit('archive-scratchpad', node.path)"
+    >
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="1.5" y="2" width="11" height="3" rx="0.5" />
+        <path d="M2.5 5v6a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V5" />
+        <line x1="5.5" y1="7.5" x2="8.5" y2="7.5" />
+      </svg>
+    </button>
+    <button
       v-if="showAddButton"
       class="tree-item-add"
       :title="isTopLevelScratchpad ? 'Add scratchpad' : 'Add file'"
@@ -202,6 +232,7 @@ function onAddClick(): void {
       @select="(path) => emit('select', path)"
       @add-scratchpad="emit('add-scratchpad')"
       @add-scratchpad-file="(folderPath) => emit('add-scratchpad-file', folderPath)"
+      @archive-scratchpad="(taskPath) => emit('archive-scratchpad', taskPath)"
     />
   </template>
 </template>

@@ -5,6 +5,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   statSync,
   watch,
   writeFileSync,
@@ -204,6 +205,52 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
         return `scratchpad${sep}${slug}${sep}notes.md`
       } catch {
         return null
+      }
+    }
+  )
+
+  // Moves a top-level scratchpad task folder into scratchpad/archive/, and
+  // its matching handover file (if one was ever written for this task) into
+  // handover/archive/ alongside it. A task with no handover just moves alone.
+  ipcMain.handle(
+    'biblio:archiveScratchpad',
+    (_event, projectPath: string, relativePath: string): boolean => {
+      const parts = relativePath.split(sep)
+      if (parts.length !== 2 || parts[0] !== 'scratchpad' || parts[1] === 'archive') return false
+      const slug = parts[1]
+
+      const biblioRoot = join(projectPath, 'biblio')
+      try {
+        const root = realpathSync(biblioRoot)
+        const source = resolveInBiblio(root, relativePath)
+        if (!source || !statSync(source).isDirectory()) return false
+
+        const scratchpadArchiveRoot = join(root, 'scratchpad', 'archive')
+        mkdirSync(scratchpadArchiveRoot, { recursive: true })
+        let destSlug = slug
+        let attempt = 2
+        while (existsSync(join(scratchpadArchiveRoot, destSlug))) {
+          destSlug = `${slug}-${attempt}`
+          attempt += 1
+        }
+        renameSync(source, join(scratchpadArchiveRoot, destSlug))
+
+        const handoverFile = join(root, 'handover', `${slug}.md`)
+        if (existsSync(handoverFile)) {
+          const handoverArchiveRoot = join(root, 'handover', 'archive')
+          mkdirSync(handoverArchiveRoot, { recursive: true })
+          let handoverDestName = `${slug}.md`
+          let handoverAttempt = 2
+          while (existsSync(join(handoverArchiveRoot, handoverDestName))) {
+            handoverDestName = `${slug}-${handoverAttempt}.md`
+            handoverAttempt += 1
+          }
+          renameSync(handoverFile, join(handoverArchiveRoot, handoverDestName))
+        }
+
+        return true
+      } catch {
+        return false
       }
     }
   )
