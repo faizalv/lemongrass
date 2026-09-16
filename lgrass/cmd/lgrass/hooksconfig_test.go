@@ -43,8 +43,40 @@ func TestEnsureClaudeHooksCreatesAllFiveOnAFreshHome(t *testing.T) {
 			t.Errorf("no lgrass hook registered for %s", spec.event)
 		}
 	}
-	if got := hooks["PreToolUse"][0].Matcher; got != "Write|Edit" {
-		t.Errorf("PreToolUse matcher = %q, want %q", got, "Write|Edit")
+	if got := hooks["PreToolUse"][0].Matcher; got != "" {
+		t.Errorf("PreToolUse matcher = %q, want empty (matches every tool)", got)
+	}
+}
+
+func TestEnsureClaudeHooksSelfHealsDriftedMatcher(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	settingsPath := settingsPathForTest(t)
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	existing := `{
+		"hooks": {
+			"PreToolUse": [
+				{"matcher": "Write|Edit", "hooks": [{"type": "command", "command": "/opt/lgrass/lgrass hook PreToolUse"}]}
+			]
+		}
+	}`
+	if err := os.WriteFile(settingsPath, []byte(existing), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	if err := ensureClaudeHooks(); err != nil {
+		t.Fatalf("ensureClaudeHooks: %v", err)
+	}
+
+	hooks := readHooks(t, settingsPath)
+	if len(hooks["PreToolUse"]) != 1 {
+		t.Fatalf("PreToolUse has %d groups, want 1 (matcher updated in place, not duplicated)", len(hooks["PreToolUse"]))
+	}
+	if got := hooks["PreToolUse"][0].Matcher; got != "" {
+		t.Errorf("PreToolUse matcher = %q, want empty after self-heal", got)
 	}
 }
 

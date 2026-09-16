@@ -64,6 +64,10 @@ func FormatChecklistDeny(c Checklist) string {
 	return fmt.Sprintf("lgrass: %q requires signing before this call proceeds -- run `lgrass sign %s`, then retry:\n\n%s", c.ID, c.ID, c.Content)
 }
 
+func FormatBibliothekDeny() string {
+	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry. That call clears this gate automatically; no `lgrass sign` needed."
+}
+
 func FormatThreadList(msgs []ThreadMessage) string {
 	if len(msgs) == 0 {
 		return "lgrass: no thread messages yet in this project."

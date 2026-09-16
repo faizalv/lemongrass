@@ -26,7 +26,7 @@ type hookSpec struct {
 var lgrassHookSpecs = []hookSpec{
 	{event: "SessionStart"},
 	{event: "SessionEnd"},
-	{event: "PreToolUse", matcher: "Write|Edit"},
+	{event: "PreToolUse"}, // matches every tool
 	{event: "PostToolUse"},
 }
 
@@ -64,7 +64,11 @@ func ensureClaudeHooks() error {
 
 	changed := false
 	for _, spec := range lgrassHookSpecs {
-		if hasLgrassHook(hooks[spec.event], spec.event) {
+		if idx, ok := findLgrassHook(hooks[spec.event], spec.event); ok {
+			if hooks[spec.event][idx].Matcher != spec.matcher {
+				hooks[spec.event][idx].Matcher = spec.matcher
+				changed = true
+			}
 			continue
 		}
 		hooks[spec.event] = append(hooks[spec.event], hookGroup{
@@ -95,13 +99,19 @@ func ensureClaudeHooks() error {
 
 // Matches by suffix, not the full command, since the installed binary's path isn't fixed.
 func hasLgrassHook(groups []hookGroup, event string) bool {
+	_, ok := findLgrassHook(groups, event)
+	return ok
+}
+
+// findLgrassHook returns the index of this event's own lgrass-owned hook group.
+func findLgrassHook(groups []hookGroup, event string) (int, bool) {
 	want := " hook " + event
-	for _, g := range groups {
+	for i, g := range groups {
 		for _, h := range g.Hooks {
 			if strings.HasSuffix(h.Command, want) {
-				return true
+				return i, true
 			}
 		}
 	}
-	return false
+	return -1, false
 }

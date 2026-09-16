@@ -31,6 +31,15 @@ type fileToolInput struct {
 	FilePath string `json:"file_path"`
 }
 
+type skillToolInput struct {
+	Skill string `json:"skill"`
+}
+
+const bibliothekChecklistID = "bibliothek"
+
+// Long enough to outlast any real session.
+const bibliothekSignatureTTL = 7 * 24 * time.Hour
+
 type hookOutput struct {
 	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
 }
@@ -82,6 +91,7 @@ func cmdHook(args []string) {
 }
 
 func hookSessionStart(store *session.Store, payload hookPayload, projectPath string) {
+	ensureClaudeHooks()
 	store.Start(payload.SessionID, os.Getenv("CLAUDE_CODE_MESSAGING_SOCKET"), os.Getenv("CLAUDE_CODE_MESSAGING_TOKEN"))
 
 	var parts []string
@@ -103,6 +113,15 @@ func lawsSummary(projectPath string) string {
 func hookPreToolUse(store *session.Store, payload hookPayload, projectPath string) {
 	filePath := toolFilePath(payload)
 
+	if hasBiblio(projectPath) {
+		if isBibliothekSkillCall(payload) {
+			store.Sign(payload.SessionID, bibliothekChecklistID)
+		} else if deny := bibliothekDeny(store, payload.SessionID); deny != "" {
+			emitHookContext("PreToolUse", "deny", []string{deny})
+			return
+		}
+	}
+
 	if deny := checklistDeny(store, payload, filePath, projectPath); deny != "" {
 		emitHookContext("PreToolUse", "deny", []string{deny})
 		return
@@ -122,6 +141,29 @@ func hookPreToolUse(store *session.Store, payload hookPayload, projectPath strin
 	parts = append(parts, mentionContext(store, payload.SessionID)...)
 
 	emitHookContext("PreToolUse", "allow", parts)
+}
+
+func isBibliothekSkillCall(payload hookPayload) bool {
+	if payload.ToolName != "Skill" {
+		return false
+	}
+	var input skillToolInput
+	if err := json.Unmarshal(payload.ToolInput, &input); err != nil {
+		return false
+	}
+	return input.Skill == "bibliothek"
+}
+
+// Returns the deny message when this session hasn't signed the bibliothek gate yet (or its signature expired), "" once signed.
+func bibliothekDeny(store *session.Store, sessionID string) string {
+	signedAt, err := store.SignedAt(sessionID, bibliothekChecklistID)
+	if err != nil {
+		return ""
+	}
+	if signedAt.IsZero() || time.Since(signedAt) > bibliothekSignatureTTL {
+		return session.FormatBibliothekDeny()
+	}
+	return ""
 }
 
 // Returns the deny message for the first unsigned or TTL-expired checklist matching this call, "" if none match or all are signed.
