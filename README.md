@@ -4,10 +4,31 @@ An agent orchestrator: an Electron shell for running coding-agent CLIs (Claude C
 
 ## Layout
 
-- `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome.
-- `lgrass/` -- the Go CLI. Knowledge (write/search/read, grouped into books with chapters), and hooks that give an agent session awareness of other sessions in the same project.
+- `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome, a `biblio/` browser/editor, and the db vault's Connections/Channels panel.
+- `lgrass/` -- the Go CLI:
+  - Session/thread coordination between panes.
+  - A `SessionStart` hook that delivers `biblio/laws/summary.md` and gates tool calls behind required skills.
+  - Identity/signing for inter-session messages.
+  - `lgrass db` -- a local credential vault scoping agent access to a project's databases.
 
 The two are deliberately siblings, not nested inside each other -- neither toolchain's file tree (`node_modules`/`tsconfig*` vs. `go.mod`/`go.sum`) sits inside the other's, and neither side's own scripts reach across that boundary. `lgrass` is bundled inside the Electron app at build time and self-installs onto `PATH` when the app launches, so the two stay in permanent version lockstep without a separate release pipeline.
+
+## Bibliothek integration
+
+The Electron shell surfaces bibliothek's `biblio/` convention as a UI, not just files an agent reads on disk.
+
+- A workspace/biblio toggle in the header switches the main view between terminal panes and a tree-and-reader split -- shown only when the project has a `biblio/` directory.
+- The tree lists `books/`, `handover/`, `laws/`, `scratchpad/`, each with its own icon; `books/toc.md` gets a pinned "Table of Content" button.
+- Only `scratchpad/` is editable, enforced server-side, through a Tiptap-based WYSIWYG editor that autosaves.
+
+## lgrass db
+
+A local credential vault for a project's databases.
+
+- Passphrase-derived root key, envelope-encrypted per-connection credentials, short-lived "channels" scoping an agent to specific tables/operations -- the agent never sees a real connection string.
+- Two processes: a vault that's the only thing that ever decrypts, and an agent holding only opaque channel keys.
+- A Connections/Channels panel in the UI: create/test/delete connections, create/activate/rotate/revoke channels, behind a vault-wide passphrase unlock with auto-lock.
+- In progress: a wire-protocol proxy so a whole app can point its own db driver at a local port instead of going through the CLI. Port allocation and the MySQL handshake listener are done; query execution and the Postgres listener aren't yet.
 
 ## Build
 
