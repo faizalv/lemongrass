@@ -105,9 +105,12 @@ func now() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
-// thread_read_at resets to now so a fresh or restarted session isn't flooded with mentions posted before it existed.
+// Resets thread_read_at and clears this session_id's checklist signatures, so a fresh or reused session starts ungated and unflooded by past mentions.
 func (s *Store) Start(sessionID, messagingSocket, messagingToken string) error {
 	ts := now()
+	if _, err := s.db.Exec(`DELETE FROM lg_signatures WHERE project_id = ? AND session_id = ?`, s.projectID, sessionID); err != nil {
+		return err
+	}
 	_, err := s.db.Exec(`
 		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter, messaging_socket, messaging_token, thread_read_at)
 		VALUES (?, ?, ?, NULL, ?, 0, ?, ?, ?)

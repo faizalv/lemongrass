@@ -576,3 +576,23 @@ func TestReSignResetsTheClock(t *testing.T) {
 		t.Errorf("SignedAt after re-sign = %v, expected close to now, not the backdated value", signedAt)
 	}
 }
+
+func TestStartClearsSignaturesForReusedSessionID(t *testing.T) {
+	store := openTestStore(t)
+
+	if err := store.Sign("session-a", "checklist-1"); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	if err := store.Start("session-a", "", ""); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	signedAt, err := store.SignedAt("session-a", "checklist-1")
+	if err != nil {
+		t.Fatalf("SignedAt: %v", err)
+	}
+	if !signedAt.IsZero() {
+		t.Errorf("SignedAt after Start = %v, want zero time (a reused session_id must not inherit a stale sign)", signedAt)
+	}
+}
