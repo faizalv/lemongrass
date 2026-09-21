@@ -374,8 +374,12 @@ onBeforeUnmount(() => {
 }
 
 .tab.active {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
+  background: var(--color-amber-muted);
+  color: var(--color-fg-accent);
+}
+
+.tab.active .tab-parent {
+  color: var(--color-amber-dim);
 }
 
 .tab-label {
