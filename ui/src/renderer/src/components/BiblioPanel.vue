@@ -1,76 +1,29 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import BiblioTreeItem from './BiblioTreeItem.vue'
-import DocLayout from './DocLayout.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
-import {
-  activePath,
-  closeAll,
-  closeUnder,
-  ensureLoaded,
-  openFile,
-  refreshReadOnlyDocs,
-  workspaceOf
-} from '../docWorkspace'
+import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
 import type { BiblioTree } from '../../../preload'
 
 const props = defineProps<{
   tree: BiblioTree | null
-  projectId: string
-  projectPath: string
+  project: ProjectRef
 }>()
 
 const emit = defineEmits<{
   refresh: []
 }>()
 
-const project = computed(() => ({ id: props.projectId, path: props.projectPath }))
-const ready = ref(false)
-
-watch(
-  () => props.projectId,
-  async (projectId) => {
-    ready.value = false
-    await ensureLoaded(project.value)
-    if (projectId === props.projectId) ready.value = true
-  },
-  { immediate: true }
-)
-
-watch(
-  () => props.tree,
-  () => {
-    if (ready.value) void refreshReadOnlyDocs(project.value)
-  }
-)
-
-const workspace = computed(() => (ready.value ? workspaceOf(props.projectId) : undefined))
-const selectedPath = computed((): string | null =>
-  ready.value ? activePath(props.projectId) : null
-)
+const selectedPath = computed((): string | null => activePath(props.project.id))
 
 function selectFile(path: string): void {
-  openFile(project.value, path)
-}
-
-const confirmingCloseAll = ref(false)
-let confirmTimer: ReturnType<typeof setTimeout> | undefined
-
-function onCloseAll(): void {
-  if (!confirmingCloseAll.value) {
-    confirmingCloseAll.value = true
-    confirmTimer = setTimeout(() => (confirmingCloseAll.value = false), 3000)
-    return
-  }
-  clearTimeout(confirmTimer)
-  confirmingCloseAll.value = false
-  closeAll(project.value)
+  openFile(props.project, path)
 }
 
 async function archiveScratchpad(taskPath: string): Promise<void> {
-  const ok = await window.api.biblio.archiveScratchpad(props.projectPath, taskPath)
+  const ok = await window.api.biblio.archiveScratchpad(props.project.path, taskPath)
   if (!ok) return
-  closeUnder(project.value, taskPath)
+  closeUnder(props.project, taskPath)
   emit('refresh')
 }
 
@@ -91,15 +44,16 @@ async function storePendingImages(notePath: string, content: string): Promise<vo
     if (!resolved.includes(url)) continue
     const bytes = new Uint8Array(await file.arrayBuffer())
     const result = await window.api.biblio.saveScratchpadImage(
-      props.projectPath,
+      props.project.path,
       notePath,
       bytes,
       file.type
     )
     if ('path' in result) resolved = resolved.replaceAll(url, result.path)
   }
-  if (resolved !== content) await window.api.biblio.write(props.projectPath, notePath, resolved)
+  if (resolved !== content) await window.api.biblio.write(props.project.path, notePath, resolved)
 }
+
 // Non-null when the create form targets an existing folder instead of a new task directory.
 const createTargetFolder = ref<string | null>(null)
 
@@ -129,12 +83,12 @@ async function submitCreate(): Promise<void> {
   creating.value = true
   const path = createTargetFolder.value
     ? await window.api.biblio.createScratchpadFile(
-        props.projectPath,
+        props.project.path,
         createTargetFolder.value,
         newTitle.value,
         newContent.value
       )
-    : await window.api.biblio.createScratchpad(props.projectPath, newTitle.value, newContent.value)
+    : await window.api.biblio.createScratchpad(props.project.path, newTitle.value, newContent.value)
   if (path) await storePendingImages(path, newContent.value)
   creating.value = false
   if (!path) return
@@ -212,24 +166,6 @@ function onGutterUp(): void {
 
     <div class="biblio-gutter" @pointerdown="onGutterDown" />
 
-    <div class="biblio-reader">
-      <template v-if="workspace?.layout.root">
-        <div class="reader-toolbar">
-          <button class="close-all" @click="onCloseAll">
-            {{ confirmingCloseAll ? 'Click again to close all documents' : 'Close all documents' }}
-          </button>
-        </div>
-        <div class="reader-layout">
-          <DocLayout
-            :node="workspace.layout.root"
-            :project="project"
-            :focused-pane-id="workspace.layout.focusedPaneId"
-          />
-        </div>
-      </template>
-      <p v-else-if="ready" class="empty">Select a file to read it.</p>
-    </div>
-
     <div v-if="showCreateForm" class="create-overlay">
       <div class="create-card">
         <h3 class="create-title">{{ createTargetFolder ? 'New file' : 'New scratchpad' }}</h3>
@@ -262,16 +198,15 @@ function onGutterUp(): void {
 
 <style scoped>
 .biblio-pane {
-  position: relative;
-  flex: 1;
+  flex-shrink: 0;
   min-height: 0;
   display: flex;
 }
 
 .create-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 70;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -365,7 +300,7 @@ function onGutterUp(): void {
   overflow-y: auto;
   padding: var(--space-3) var(--space-2) var(--space-4);
   background: var(--color-surface-1);
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border-radius: var(--radius-lg);
 }
 
 .toc-item {
@@ -414,46 +349,6 @@ function onGutterUp(): void {
 .biblio-gutter:hover,
 .biblio-gutter:active {
   background: var(--color-amber);
-}
-
-.biblio-reader {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.reader-toolbar {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-2) var(--space-4) 0;
-}
-
-.close-all {
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-muted);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.close-all:hover {
-  background: var(--color-surface-1);
-  color: var(--color-fg-primary);
-}
-
-.reader-layout {
-  flex: 1;
-  min-height: 0;
-  display: flex;
 }
 
 .empty {

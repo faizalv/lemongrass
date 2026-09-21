@@ -1,19 +1,26 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import MarkdownEditor from './MarkdownEditor.vue'
+import ShellView from './ShellView.vue'
 import {
   activateTab,
+  addShell,
+  addShellInNewPane,
   closeTab,
   editDoc,
   focusPane,
+  openInNewShell,
   placeTab,
+  projectRelativePath,
   workspaceOf,
   type ProjectRef
-} from '../docWorkspace'
+} from '../workspace'
+import { shellTitles } from '../shellRegistry'
 import type { DropZone, EdgeZone } from '../layoutTree'
-import type { DocLayoutNode } from '../../../preload'
+import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload'
 
-type Leaf = Extract<DocLayoutNode, { type: 'leaf' }>
+type Leaf = Extract<WorkspaceLayoutNode, { type: 'leaf' }>
+type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
 
 const props = defineProps<{
   leaf: Leaf
@@ -26,7 +33,17 @@ const EDGE_RATIO = 0.25
 
 const docs = computed(() => workspaceOf(props.project.id)?.docs ?? {})
 const activeTab = computed(() => props.leaf.tabs.find((t) => t.id === props.leaf.activeTabId))
-const activeDoc = computed(() => (activeTab.value ? docs.value[activeTab.value.path] : undefined))
+const activeDoc = computed(() =>
+  activeTab.value?.kind === 'doc' ? docs.value[activeTab.value.path] : undefined
+)
+const shellTabs = computed(() =>
+  props.leaf.tabs.filter((tab): tab is ShellTab => tab.kind === 'shell')
+)
+
+function editActive(value: string): void {
+  const tab = activeTab.value
+  if (tab?.kind === 'doc') editDoc(props.project, tab.path, value)
+}
 
 function labelParts(path: string): { name: string; parent: string } {
   const segments = path.replace(/\.md$/, '').split('/')
@@ -120,6 +137,7 @@ function onTabBarDrop(event: DragEvent): void {
 }
 
 const menu = ref<{ tabId: string; x: number; y: number } | null>(null)
+const menuTab = computed(() => props.leaf.tabs.find((t) => t.id === menu.value?.tabId))
 
 const MENU_DIRECTIONS: { zone: EdgeZone; label: string }[] = [
   { zone: 'right', label: 'Right' },
@@ -156,9 +174,9 @@ let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
 async function copyPath(tabId: string): Promise<void> {
   const tab = props.leaf.tabs.find((t) => t.id === tabId)
-  if (!tab) return
+  if (tab?.kind !== 'doc') return
   try {
-    await navigator.clipboard.writeText(`biblio/${tab.path}`)
+    await navigator.clipboard.writeText(projectRelativePath(tab.path))
   } catch {
     return
   }
@@ -170,6 +188,12 @@ async function copyPath(tabId: string): Promise<void> {
 function menuCopyPath(): void {
   if (!menu.value) return
   void copyPath(menu.value.tabId)
+  menu.value = null
+}
+
+function menuOpenInShell(): void {
+  if (!menu.value) return
+  openInNewShell(props.project, props.leaf.id, menu.value.tabId)
   menu.value = null
 }
 
@@ -196,7 +220,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="doc-pane" :class="{ focused }" @pointerdown.capture="focusPane(project, leaf.id)">
+  <div
+    class="workspace-pane"
+    :class="{ focused }"
+    @pointerdown.capture="focusPane(project, leaf.id)"
+  >
     <div class="tab-header">
       <div
         ref="tabBar"
@@ -211,30 +239,40 @@ onBeforeUnmount(() => {
           class="tab"
           :class="{ active: tab.id === leaf.activeTabId }"
           :data-tab-id="tab.id"
-          :title="tab.path"
+          :title="tab.kind === 'doc' ? tab.path : (shellTitles[tab.id] ?? tab.label)"
           draggable="true"
           @click="activateTab(project, leaf.id, tab.id)"
           @contextmenu.prevent="openMenu($event, tab.id)"
           @dragstart="onTabDragStart($event, tab.id)"
         >
-          <span class="tab-label">
+          <svg
+            v-if="tab.kind === 'shell'"
+            class="tab-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M2.5 4.5l3 2.5-3 2.5M7 10h4.5" />
+          </svg>
+          <span v-if="tab.kind === 'doc'" class="tab-label">
             <span v-if="labelParts(tab.path).parent" class="tab-parent">
               {{ labelParts(tab.path).parent }} /
             </span>
             {{ labelParts(tab.path).name }}
           </span>
+          <span v-else class="tab-label">{{ shellTitles[tab.id] ?? tab.label }}</span>
           <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
         </div>
       </div>
 
-      <div v-if="activeTab" class="pane-actions">
-        <button
-          class="pane-action"
-          :title="copiedTabId === activeTab.id ? 'Copied' : 'Copy path'"
-          @click="copyPath(activeTab.id)"
-        >
+      <div class="pane-actions">
+        <button class="pane-action" title="New shell" @click="addShell(project, leaf.id)">
           <svg
-            v-if="copiedTabId === activeTab.id"
             width="14"
             height="14"
             viewBox="0 0 14 14"
@@ -242,27 +280,104 @@ onBeforeUnmount(() => {
             stroke="currentColor"
             stroke-width="1.2"
             stroke-linecap="round"
-            stroke-linejoin="round"
           >
-            <path d="M3 7.5l2.5 2.5L11 4.5" />
-          </svg>
-          <svg
-            v-else
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="4.5" y="4.5" width="7" height="8" rx="1.2" />
-            <path
-              d="M9.5 4.5V3.2A1.2 1.2 0 0 0 8.3 2H3.2A1.2 1.2 0 0 0 2 3.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3"
-            />
+            <path d="M7 2.5v9M2.5 7h9" />
           </svg>
         </button>
+        <button
+          class="pane-action"
+          title="New shell in a pane to the right"
+          @click="addShellInNewPane(project, leaf.id, 'right')"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+            <path d="M7 2v10" />
+          </svg>
+        </button>
+        <button
+          class="pane-action"
+          title="New shell in a pane below"
+          @click="addShellInNewPane(project, leaf.id, 'down')"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+            <path d="M1.5 7h11" />
+          </svg>
+        </button>
+        <template v-if="activeTab?.kind === 'doc'">
+          <span class="action-divider" />
+          <button
+            class="pane-action"
+            title="Read in a new shell"
+            @click="openInNewShell(project, leaf.id, activeTab.id)"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M2.5 4.5l3 2.5-3 2.5M7 10h4.5" />
+            </svg>
+          </button>
+          <button
+            class="pane-action"
+            :title="copiedTabId === activeTab.id ? 'Copied' : 'Copy path'"
+            @click="copyPath(activeTab.id)"
+          >
+            <svg
+              v-if="copiedTabId === activeTab.id"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 7.5l2.5 2.5L11 4.5" />
+            </svg>
+            <svg
+              v-else
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="4.5" y="4.5" width="7" height="8" rx="1.2" />
+              <path
+                d="M9.5 4.5V3.2A1.2 1.2 0 0 0 8.3 2H3.2A1.2 1.2 0 0 0 2 3.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3"
+              />
+            </svg>
+          </button>
+        </template>
       </div>
     </div>
 
@@ -273,7 +388,14 @@ onBeforeUnmount(() => {
       @dragleave="onBodyDragLeave"
       @drop.capture="onBodyDrop"
     >
-      <template v-if="activeTab">
+      <ShellView
+        v-for="tab in shellTabs"
+        v-show="tab.id === leaf.activeTabId"
+        :key="tab.id"
+        :spec="{ id: tab.id, command: tab.command, cwd: tab.cwd }"
+      />
+
+      <template v-if="activeTab?.kind === 'doc'">
         <p v-if="!activeDoc || activeDoc.status === 'loading'" class="empty">Loading...</p>
         <p v-else-if="activeDoc.status === 'missing'" class="empty">
           This file no longer exists. Close the tab to remove it.
@@ -284,7 +406,7 @@ onBeforeUnmount(() => {
             :model-value="activeDoc.content"
             :project-path="project.path"
             :note-path="activeTab.path"
-            @update:model-value="(value) => editDoc(project, activeTab!.path, value)"
+            @update:model-value="editActive"
           />
         </div>
         <div v-else class="reader lg-scroll">
@@ -299,7 +421,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      v-if="menu"
+      v-if="menu && menuTab"
       class="tab-menu"
       :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
       @pointerdown.stop
@@ -337,49 +459,68 @@ onBeforeUnmount(() => {
         </svg>
         {{ direction.label }}
       </button>
-      <p class="menu-heading">Split into new pane</p>
-      <button
-        v-for="direction in MENU_DIRECTIONS"
-        :key="`split-${direction.zone}`"
-        class="menu-item"
-        @click="menuPlace(direction.zone, true)"
-      >
-        <svg
-          class="menu-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+      <template v-if="menuTab.kind === 'doc'">
+        <p class="menu-heading">Split into new pane</p>
+        <button
+          v-for="direction in MENU_DIRECTIONS"
+          :key="`split-${direction.zone}`"
+          class="menu-item"
+          @click="menuPlace(direction.zone, true)"
         >
-          <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
-          <path :d="PANE_ICONS[direction.zone].divider" />
-        </svg>
-        {{ direction.label }}
-      </button>
-      <div class="menu-divider" />
-      <button class="menu-item" @click="menuCopyPath">
-        <svg
-          class="menu-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="4.5" y="4.5" width="7" height="8" rx="1.2" />
-          <path
-            d="M9.5 4.5V3.2A1.2 1.2 0 0 0 8.3 2H3.2A1.2 1.2 0 0 0 2 3.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3"
-          />
-        </svg>
-        Copy path
-      </button>
+          <svg
+            class="menu-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+            <path :d="PANE_ICONS[direction.zone].divider" />
+          </svg>
+          {{ direction.label }}
+        </button>
+        <div class="menu-divider" />
+        <button class="menu-item" @click="menuOpenInShell">
+          <svg
+            class="menu-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M2.5 4.5l3 2.5-3 2.5M7 10h4.5" />
+          </svg>
+          Read in a new shell
+        </button>
+        <button class="menu-item" @click="menuCopyPath">
+          <svg
+            class="menu-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="4.5" y="4.5" width="7" height="8" rx="1.2" />
+            <path
+              d="M9.5 4.5V3.2A1.2 1.2 0 0 0 8.3 2H3.2A1.2 1.2 0 0 0 2 3.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3"
+            />
+          </svg>
+          Copy path
+        </button>
+      </template>
+      <div v-else class="menu-divider" />
       <button class="menu-item" @click="menuClose">
         <svg
           class="menu-icon"
@@ -401,7 +542,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.doc-pane {
+.workspace-pane {
   height: 100%;
   width: 100%;
   min-height: 0;
@@ -417,7 +558,7 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-.doc-pane.focused .tab-header {
+.workspace-pane.focused .tab-header {
   box-shadow: inset 0 -1px 0 var(--color-amber);
 }
 
@@ -425,6 +566,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  gap: var(--space-1);
   padding: var(--space-3) var(--space-4) var(--space-2) 0;
 }
 
@@ -447,6 +589,13 @@ onBeforeUnmount(() => {
 .pane-action:hover {
   background: var(--color-surface-1);
   color: var(--color-fg-primary);
+}
+
+.action-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--space-1);
+  background: var(--color-border-default);
 }
 
 .tab-bar {
@@ -498,6 +647,10 @@ onBeforeUnmount(() => {
 
 .tab.active .tab-parent {
   color: var(--color-amber-dim);
+}
+
+.tab-icon {
+  flex-shrink: 0;
 }
 
 .tab-label {

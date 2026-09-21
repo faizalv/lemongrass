@@ -4,11 +4,10 @@ import type {
   PtyDataPayload,
   PtyExitPayload,
   Project,
-  PaneLayoutNode,
   BiblioTree,
   ScratchpadImageResult,
   ImageFileResult,
-  DocLayoutState,
+  WorkspaceLayoutState,
   VaultScope,
   VaultChannel,
   VaultChannelWithShortId
@@ -27,13 +26,9 @@ interface Api {
     list: () => Promise<Project[]>
     add: () => Promise<Project | null>
   }
-  layouts: {
-    load: (projectId: string) => Promise<PaneLayoutNode | null>
-    save: (projectId: string, layout: PaneLayoutNode | null) => void
-  }
-  docLayouts: {
-    load: (projectId: string) => Promise<DocLayoutState | null>
-    save: (projectId: string, layout: DocLayoutState | null) => void
+  workspaceLayouts: {
+    load: (projectId: string) => Promise<WorkspaceLayoutState | null>
+    save: (projectId: string, layout: WorkspaceLayoutState | null) => void
   }
   biblio: {
     tree: (projectPath: string) => Promise<BiblioTree | null>

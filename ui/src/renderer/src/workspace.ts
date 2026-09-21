@@ -1,8 +1,9 @@
 import { reactive, watch } from 'vue'
 import { marked } from 'marked'
 import * as tree from './layoutTree'
-import type { DropZone } from './layoutTree'
-import type { DocLayoutState, DocTab } from '../../preload'
+import type { DropZone, EdgeZone } from './layoutTree'
+import { disposeShell, onShellExit, setShellArgs } from './shellRegistry'
+import type { WorkspaceLayoutState, WorkspaceTab } from '../../preload'
 
 export interface ProjectRef {
   id: string
@@ -17,14 +18,19 @@ export interface DocEntry {
 }
 
 interface Workspace {
-  layout: DocLayoutState
+  layout: WorkspaceLayoutState
   docs: Record<string, DocEntry>
 }
 
+type DocTab = Extract<WorkspaceTab, { kind: 'doc' }>
+type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
+
 const AUTOSAVE_MS = 600
 const LAYOUT_SAVE_MS = 400
+const SHELL_COMMAND = 'claude'
 
 const workspaces = reactive<Record<string, Workspace>>({})
+const projectRefs = new Map<string, ProjectRef>()
 const initPromises = new Map<string, Promise<void>>()
 const docSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const layoutSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -37,13 +43,40 @@ export function isEditablePath(path: string): boolean {
   return path.startsWith('scratchpad/')
 }
 
-function newTab(path: string): DocTab {
-  return { id: crypto.randomUUID(), path }
+export function projectRelativePath(path: string): string {
+  return `biblio/${path}`
+}
+
+function newDocTab(path: string): DocTab {
+  return { id: crypto.randomUUID(), kind: 'doc', path }
+}
+
+function tabsOf(projectId: string): WorkspaceTab[] {
+  return tree.allLeaves(workspaces[projectId].layout.root).flatMap((leaf) => leaf.tabs)
+}
+
+function newShellTab(project: ProjectRef): ShellTab {
+  const count = tabsOf(project.id).filter((tab) => tab.kind === 'shell').length
+  return {
+    id: crypto.randomUUID(),
+    kind: 'shell',
+    label: `${SHELL_COMMAND} ${count + 1}`,
+    command: SHELL_COMMAND,
+    cwd: project.path
+  }
 }
 
 function openPaths(projectId: string): string[] {
-  const leaves = tree.allLeaves(workspaces[projectId].layout.root)
-  return [...new Set(leaves.flatMap((leaf) => leaf.tabs.map((tab) => tab.path)))]
+  const paths = tabsOf(projectId).flatMap((tab) => (tab.kind === 'doc' ? [tab.path] : []))
+  return [...new Set(paths)]
+}
+
+export function liveShellCount(projectId: string): number {
+  return workspaces[projectId] ? tabsOf(projectId).filter((t) => t.kind === 'shell').length : 0
+}
+
+export function docTabCount(projectId: string): number {
+  return workspaces[projectId] ? tabsOf(projectId).filter((t) => t.kind === 'doc').length : 0
 }
 
 async function loadDoc(project: ProjectRef, path: string, force = false): Promise<void> {
@@ -95,7 +128,10 @@ function scheduleLayoutSave(projectId: string): void {
     projectId,
     setTimeout(() => {
       const layout = workspaces[projectId].layout
-      window.api.docLayouts.save(projectId, layout.root ? JSON.parse(JSON.stringify(layout)) : null)
+      window.api.workspaceLayouts.save(
+        projectId,
+        layout.root ? JSON.parse(JSON.stringify(layout)) : null
+      )
     }, LAYOUT_SAVE_MS)
   )
 }
@@ -112,7 +148,7 @@ function pruneDocs(project: ProjectRef): void {
 
 function commit(
   project: ProjectRef,
-  root: tree.LayoutNode<DocTab> | null,
+  root: tree.LayoutNode<WorkspaceTab> | null,
   focusPaneId?: string | null
 ): void {
   const layout = workspaces[project.id].layout
@@ -132,7 +168,7 @@ async function refreshDocs(project: ProjectRef): Promise<void> {
 }
 
 async function init(project: ProjectRef): Promise<void> {
-  const saved = await window.api.docLayouts.load(project.id)
+  const saved = await window.api.workspaceLayouts.load(project.id)
   workspaces[project.id] = {
     layout: { root: saved?.root ?? null, focusedPaneId: saved?.focusedPaneId ?? null },
     docs: {}
@@ -152,6 +188,7 @@ async function init(project: ProjectRef): Promise<void> {
 
 // First call loads the saved layout; later calls only refresh documents.
 export function ensureLoaded(project: ProjectRef): Promise<void> {
+  projectRefs.set(project.id, project)
   const existing = initPromises.get(project.id)
   if (existing) return existing.then(() => refreshDocs(project))
   const loading = init(project)
@@ -168,30 +205,68 @@ export function activePath(projectId: string): string | null {
   const layout = workspaces[projectId]?.layout
   if (!layout) return null
   const leaf = tree.findLeaf(layout.root, layout.focusedPaneId)
-  return leaf?.tabs.find((tab) => tab.id === leaf.activeTabId)?.path ?? null
+  const tab = leaf?.tabs.find((t) => t.id === leaf.activeTabId)
+  return tab?.kind === 'doc' ? tab.path : null
 }
 
 export function openFile(project: ProjectRef, path: string): void {
   const layout = workspaces[project.id].layout
   const root = layout.root
   if (!root) {
-    const leaf = tree.createLeaf([newTab(path)])
+    const leaf = tree.createLeaf<WorkspaceTab>([newDocTab(path)])
     commit(project, leaf, leaf.id)
     void loadDoc(project, path)
     return
   }
   const leaves = tree.allLeaves(root)
   const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
-  const holder = focused.tabs.some((tab) => tab.path === path)
-    ? focused
-    : leaves.find((leaf) => leaf.tabs.some((tab) => tab.path === path))
+  const hasPath = (leaf: (typeof leaves)[number]): boolean =>
+    leaf.tabs.some((tab) => tab.kind === 'doc' && tab.path === path)
+  const holder = hasPath(focused) ? focused : leaves.find(hasPath)
   if (holder) {
-    const tab = holder.tabs.find((t) => t.path === path)!
+    const tab = holder.tabs.find((t) => t.kind === 'doc' && t.path === path)!
     commit(project, tree.setActiveTab(root, holder.id, tab.id), holder.id)
     return
   }
-  commit(project, tree.addTab(root, focused.id, newTab(path)), focused.id)
+  commit(project, tree.addTab(root, focused.id, newDocTab(path)), focused.id)
   void loadDoc(project, path)
+}
+
+export function addShell(project: ProjectRef, paneId?: string): void {
+  const layout = workspaces[project.id].layout
+  const tab = newShellTab(project)
+  const root = layout.root
+  if (!root) {
+    const leaf = tree.createLeaf<WorkspaceTab>([tab])
+    commit(project, leaf, leaf.id)
+    return
+  }
+  const leaves = tree.allLeaves(root)
+  const target =
+    leaves.find((leaf) => leaf.id === paneId) ??
+    leaves.find((leaf) => leaf.id === layout.focusedPaneId) ??
+    leaves[0]
+  commit(project, tree.addTab(root, target.id, tab), target.id)
+}
+
+export function addShellInNewPane(project: ProjectRef, paneId: string, zone: EdgeZone): void {
+  const root = workspaces[project.id].layout.root
+  if (!root) return
+  const tab = newShellTab(project)
+  const next = tree.splitWithTab(root, paneId, zone, tab)
+  commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
+}
+
+export function openInNewShell(project: ProjectRef, paneId: string, tabId: string): void {
+  const root = workspaces[project.id].layout.root
+  const source = tree.findLeaf(root, paneId)?.tabs.find((tab) => tab.id === tabId)
+  if (!root || source?.kind !== 'doc') return
+  const tab = newShellTab(project)
+  setShellArgs(tab.id, [
+    `Read ${projectRelativePath(source.path)} and follow the instructions in it.`
+  ])
+  const next = tree.splitWithTab(root, paneId, 'right', tab)
+  commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
 }
 
 export function focusPane(project: ProjectRef, paneId: string): void {
@@ -205,7 +280,10 @@ export function activateTab(project: ProjectRef, paneId: string, tabId: string):
 
 export function closeTab(project: ProjectRef, paneId: string, tabId: string): void {
   const root = workspaces[project.id].layout.root
-  if (root) commit(project, tree.closeTab(root, paneId, tabId))
+  if (!root) return
+  const tab = tree.findLeaf(root, paneId)?.tabs.find((t) => t.id === tabId)
+  if (tab?.kind === 'shell') disposeShell(tab.id)
+  commit(project, tree.closeTab(root, paneId, tabId))
 }
 
 export function resizeSplit(project: ProjectRef, splitId: string, sizes: number[]): void {
@@ -223,23 +301,48 @@ export function placeTab(
 ): void {
   const root = workspaces[project.id].layout.root
   if (!root) return
+  const source = tree.findLeaf(root, fromPaneId)?.tabs.find((tab) => tab.id === tabId)
+  if (!source || (duplicate && source.kind === 'shell')) return
   const result = tree.placeTab(root, fromPaneId, tabId, toPaneId, zone, duplicate)
   if (!result) return
   commit(project, result.root, tree.findLeafByTab(result.root, result.placed.id)?.id)
 }
 
-export function closeUnder(project: ProjectRef, prefix: string): void {
+function closeMatching(project: ProjectRef, matches: (tab: WorkspaceTab) => boolean): void {
   let root = workspaces[project.id].layout.root
   if (!root) return
-  const matches = (path: string): boolean => path === prefix || path.startsWith(`${prefix}/`)
   for (const leaf of tree.allLeaves(root)) {
     for (const tab of leaf.tabs) {
-      if (root && matches(tab.path)) root = tree.closeTab(root, leaf.id, tab.id)
+      if (!root || !matches(tab)) continue
+      if (tab.kind === 'shell') disposeShell(tab.id)
+      root = tree.closeTab(root, leaf.id, tab.id)
     }
   }
   commit(project, root)
 }
 
-export function closeAll(project: ProjectRef): void {
-  commit(project, null, null)
+export function closeUnder(project: ProjectRef, prefix: string): void {
+  closeMatching(
+    project,
+    (tab) => tab.kind === 'doc' && (tab.path === prefix || tab.path.startsWith(`${prefix}/`))
+  )
 }
+
+export function closeAllDocuments(project: ProjectRef): void {
+  closeMatching(project, (tab) => tab.kind === 'doc')
+}
+
+export function closeAllTabs(project: ProjectRef): void {
+  closeMatching(project, () => true)
+}
+
+onShellExit((tabId) => {
+  for (const [projectId, project] of projectRefs) {
+    const root = workspaces[projectId]?.layout.root
+    const leaf = tree.findLeafByTab(root ?? null, tabId)
+    if (root && leaf) {
+      closeTab(project, leaf.id, tabId)
+      return
+    }
+  }
+})

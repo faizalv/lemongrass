@@ -4,8 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
-import { registerLayoutHandlers } from './layouts'
-import { registerDocLayoutHandlers } from './docLayouts'
+import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
 import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
@@ -70,8 +69,7 @@ app.whenReady().then(() => {
 
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
-  registerLayoutHandlers()
-  registerDocLayoutHandlers()
+  registerWorkspaceLayoutHandlers()
   registerBiblioHandlers(() => mainWindow?.webContents)
   registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)

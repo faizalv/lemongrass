@@ -63,40 +63,22 @@ export interface VaultChannelWithShortId {
   shortId: string
 }
 
-export interface PaneTab {
-  id: string
-  label: string
-  command: string
-  cwd?: string
-}
+export type WorkspaceTab =
+  | { id: string; kind: 'doc'; path: string }
+  | { id: string; kind: 'shell'; label: string; command: string; cwd?: string }
 
-export type PaneLayoutNode =
-  | { type: 'leaf'; id: string; tabs: PaneTab[]; activeTabId: string | null }
+export type WorkspaceLayoutNode =
+  | { type: 'leaf'; id: string; tabs: WorkspaceTab[]; activeTabId: string | null }
   | {
       type: 'split'
       id: string
       direction: 'row' | 'column'
-      children: PaneLayoutNode[]
+      children: WorkspaceLayoutNode[]
       sizes: number[]
     }
 
-export interface DocTab {
-  id: string
-  path: string
-}
-
-export type DocLayoutNode =
-  | { type: 'leaf'; id: string; tabs: DocTab[]; activeTabId: string | null }
-  | {
-      type: 'split'
-      id: string
-      direction: 'row' | 'column'
-      children: DocLayoutNode[]
-      sizes: number[]
-    }
-
-export interface DocLayoutState {
-  root: DocLayoutNode | null
+export interface WorkspaceLayoutState {
+  root: WorkspaceLayoutNode | null
   focusedPaneId: string | null
 }
 
@@ -127,18 +109,11 @@ const projects = {
   add: (): Promise<Project | null> => ipcRenderer.invoke('projects:add')
 }
 
-const layouts = {
-  load: (projectId: string): Promise<PaneLayoutNode | null> =>
-    ipcRenderer.invoke('layouts:load', projectId),
-  save: (projectId: string, layout: PaneLayoutNode | null): void =>
-    ipcRenderer.send('layouts:save', { projectId, layout })
-}
-
-const docLayouts = {
-  load: (projectId: string): Promise<DocLayoutState | null> =>
-    ipcRenderer.invoke('docLayouts:load', projectId),
-  save: (projectId: string, layout: DocLayoutState | null): void =>
-    ipcRenderer.send('docLayouts:save', { projectId, layout })
+const workspaceLayouts = {
+  load: (projectId: string): Promise<WorkspaceLayoutState | null> =>
+    ipcRenderer.invoke('workspaceLayouts:load', projectId),
+  save: (projectId: string, layout: WorkspaceLayoutState | null): void =>
+    ipcRenderer.send('workspaceLayouts:save', { projectId, layout })
 }
 
 const biblio = {
@@ -225,7 +200,7 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, layouts, docLayouts, biblio, vault, windowControls }
+const api = { pty, projects, workspaceLayouts, biblio, vault, windowControls }
 
 if (process.contextIsolated) {
   try {

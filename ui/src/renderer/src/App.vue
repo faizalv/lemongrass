@@ -2,58 +2,31 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import ProjectSidebar from './components/ProjectSidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
-import PaneLayout from './components/PaneLayout.vue'
-import BiblioManager from './components/BiblioManager.vue'
+import WorkspaceView from './components/WorkspaceView.vue'
+import BiblioPanel from './components/BiblioPanel.vue'
 import DbChannelsPanel from './components/DbChannelsPanel.vue'
-import {
-  createTab,
-  createLeaf,
-  countTabs,
-  firstLeafId,
-  findLeaf,
-  addTabToPane,
-  setActiveTab,
-  closeTab as closeTabInLayout,
-  splitPane,
-  setSplitSizes
-} from './paneLayout'
-import type { Project, PaneLayoutNode, BiblioTree } from '../../preload'
+import { ensureLoaded, refreshReadOnlyDocs, type ProjectRef } from './workspace'
+import type { Project, BiblioTree } from '../../preload'
 
 const projects = ref<Project[]>([])
 const activeProjectId = ref<string | null>(null)
-
-// Layout is scoped per project -- each project keeps its own split-pane
-// tree, and switching projects switches which one shows. Persisted to
-// ~/.lemongrass/layouts.json (see main/layouts.ts) so the arrangement
-// survives a restart; each restored leaf spawns a fresh shell in place.
-const layoutByProject = reactive<Record<string, PaneLayoutNode | null>>({})
-const focusedPaneByProject = reactive<Record<string, string | null>>({})
-const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {}
-
-// Live titles the agent CLI itself has set, keyed by tab id -- kept out of
-// layoutByProject on purpose, same as the live PTY process and its
-// scrollback: it's process state, not shape, so it never reaches
-// layouts.json. A restored tab shows its static label again until its
-// fresh shell sets a new one.
-const titleByTab = reactive<Record<string, string>>({})
 
 // Fetched on first visit and kept live afterward by onBiblioChanged, via the
 // main-process watcher started on that first fetch. A biblio/ dir that
 // doesn't exist yet on first visit still needs that project re-selected once
 // it's been created, since nothing is watching the project root for it.
 const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
-const mainView = ref<'workspace' | 'biblio'>('workspace')
+const loadedProjects = reactive<Record<string, boolean>>({})
 const sidebarCollapsed = ref(false)
+const showBiblioPanel = ref(true)
 const showDbChannels = ref(false)
 
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
 )
-const currentLayout = computed((): PaneLayoutNode | null =>
-  activeProjectId.value ? (layoutByProject[activeProjectId.value] ?? null) : null
-)
-const focusedPaneId = computed((): string | null =>
-  activeProjectId.value ? (focusedPaneByProject[activeProjectId.value] ?? null) : null
+const activeRef = computed(
+  (): ProjectRef | undefined =>
+    activeProject.value && { id: activeProject.value.id, path: activeProject.value.path }
 )
 const biblioTree = computed((): BiblioTree | null =>
   activeProjectId.value ? (biblioByProject[activeProjectId.value] ?? null) : null
@@ -68,14 +41,11 @@ async function loadProjects(): Promise<void> {
 
 async function selectProject(id: string): Promise<void> {
   activeProjectId.value = id
-  mainView.value = 'workspace'
-  if (id in layoutByProject) return
-  const loaded = await window.api.layouts.load(id)
-  layoutByProject[id] = loaded
-  focusedPaneByProject[id] = firstLeafId(loaded)
-
   const project = projects.value.find((p) => p.id === id)
-  if (project) biblioByProject[id] = await window.api.biblio.tree(project.path)
+  if (!project || loadedProjects[id]) return
+  await ensureLoaded({ id, path: project.path })
+  biblioByProject[id] = await window.api.biblio.tree(project.path)
+  loadedProjects[id] = true
 }
 
 async function refreshBiblio(): Promise<void> {
@@ -90,6 +60,7 @@ async function onBiblioChanged(projectPath: string): Promise<void> {
   const project = projects.value.find((p) => p.path === projectPath)
   if (!project) return
   biblioByProject[project.id] = await window.api.biblio.tree(projectPath)
+  void refreshReadOnlyDocs({ id: project.id, path: project.path })
 }
 
 async function addProject(): Promise<void> {
@@ -97,84 +68,6 @@ async function addProject(): Promise<void> {
   if (!project) return
   if (!projects.value.find((p) => p.id === project.id)) projects.value.push(project)
   await selectProject(project.id)
-}
-
-function saveLayout(projectId: string): void {
-  clearTimeout(saveTimers[projectId])
-  saveTimers[projectId] = setTimeout(() => {
-    const layout = layoutByProject[projectId] ?? null
-    // layoutByProject is reactive -- IPC's structured clone can't carry a
-    // Vue proxy across the boundary, so this needs to cross as plain data.
-    window.api.layouts.save(projectId, layout && JSON.parse(JSON.stringify(layout)))
-  }, 400)
-}
-
-function withLayout(mutate: (layout: PaneLayoutNode) => PaneLayoutNode | null): void {
-  const id = activeProjectId.value
-  const layout = id ? layoutByProject[id] : undefined
-  if (!id || !layout) return
-  layoutByProject[id] = mutate(layout)
-  saveLayout(id)
-}
-
-function newTab(): ReturnType<typeof createTab> | undefined {
-  if (!activeProjectId.value || !activeProject.value) return undefined
-  const count = countTabs(layoutByProject[activeProjectId.value] ?? null)
-  return createTab('claude', activeProject.value.path, `claude ${count + 1}`)
-}
-
-function addTab(paneId?: string): void {
-  const id = activeProjectId.value
-  const tab = newTab()
-  if (!id || !tab) return
-
-  const layout = layoutByProject[id]
-  const targetPane = paneId ?? focusedPaneByProject[id] ?? firstLeafId(layout) ?? undefined
-
-  if (!layout) {
-    const leaf = createLeaf([tab])
-    layoutByProject[id] = leaf
-    focusedPaneByProject[id] = leaf.id
-  } else if (targetPane && findLeaf(layout, targetPane)) {
-    layoutByProject[id] = addTabToPane(layout, targetPane, tab)
-  } else {
-    return
-  }
-  saveLayout(id)
-}
-
-function onFocus(paneId: string): void {
-  if (activeProjectId.value) focusedPaneByProject[activeProjectId.value] = paneId
-}
-
-function onSelectTab(paneId: string, tabId: string): void {
-  withLayout((layout) => setActiveTab(layout, paneId, tabId))
-}
-
-function onCloseTab(paneId: string, tabId: string): void {
-  delete titleByTab[tabId]
-  withLayout((layout) => closeTabInLayout(layout, paneId, tabId))
-}
-
-function onTitleChange(_paneId: string, tabId: string, title: string): void {
-  titleByTab[tabId] = title
-}
-
-function onSplit(paneId: string, direction: 'row' | 'column'): void {
-  const id = activeProjectId.value
-  const tab = newTab()
-  if (!id || !tab) return
-  const newLeaf = createLeaf([tab])
-  withLayout((layout) => splitPane(layout, paneId, direction, newLeaf))
-  focusedPaneByProject[id] = newLeaf.id
-}
-
-function onResize(splitId: string, sizes: number[]): void {
-  withLayout((layout) => setSplitSizes(layout, splitId, sizes))
-}
-
-function onExit(paneId: string, tabId: string): void {
-  onCloseTab(paneId, tabId)
 }
 
 const ZOOM_STEP = 0.5
@@ -251,46 +144,24 @@ onBeforeUnmount(() => {
         :projects="projects"
         :active-project-id="activeProjectId"
         :collapsed="sidebarCollapsed"
-        :biblio-active="mainView === 'biblio'"
+        :biblio-active="showBiblioPanel"
         @select="selectProject"
         @add="addProject"
         @open-db-channels="showDbChannels = true"
-        @toggle-biblio="mainView = mainView === 'biblio' ? 'workspace' : 'biblio'"
+        @toggle-biblio="showBiblioPanel = !showBiblioPanel"
       />
 
-      <div v-if="activeProject" class="main">
-        <div class="terminal-area">
-          <template v-if="mainView === 'workspace'">
-            <PaneLayout
-              v-if="currentLayout"
-              :node="currentLayout"
-              :focused-pane-id="focusedPaneId"
-              :titles="titleByTab"
-              @focus="onFocus"
-              @select-tab="onSelectTab"
-              @close-tab="onCloseTab"
-              @add-tab="addTab"
-              @split="onSplit"
-              @exit="onExit"
-              @resize="onResize"
-              @title-change="onTitleChange"
-            />
-            <div v-else class="empty-pane">
-              <p class="empty">No shells open.</p>
-              <button class="pill-button" @click="addTab()">+ New shell</button>
-            </div>
-          </template>
-          <BiblioManager
-            v-else-if="activeProject"
-            :tree="biblioTree"
-            :project-id="activeProject.id"
-            :project-path="activeProject.path"
-            @refresh="refreshBiblio"
-          />
-        </div>
+      <div v-if="activeRef && loadedProjects[activeRef.id]" class="main">
+        <BiblioPanel
+          v-if="showBiblioPanel && biblioTree"
+          :tree="biblioTree"
+          :project="activeRef"
+          @refresh="refreshBiblio"
+        />
+        <WorkspaceView :project="activeRef" />
       </div>
 
-      <div v-else class="main empty-state">
+      <div v-else-if="!activeProject" class="main empty-state">
         <p class="empty">Add a project to get started.</p>
       </div>
     </div>
@@ -331,24 +202,6 @@ onBeforeUnmount(() => {
   letter-spacing: var(--tracking-snug);
 }
 
-.pill-button {
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.pill-button:hover {
-  color: var(--color-fg-primary);
-}
-
 .body-row {
   flex: 1;
   min-height: 0;
@@ -360,30 +213,12 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 0;
   display: flex;
-  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .main.empty-state {
   align-items: center;
   justify-content: center;
-}
-
-.terminal-area {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.empty-pane {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
 }
 
 .empty {

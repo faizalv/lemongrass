@@ -1,28 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import TerminalGroup from './TerminalGroup.vue'
-import type { PaneLayoutNode } from '../../../preload'
-
-// Recursive renderer for the split-pane tree: a leaf becomes a
-// TerminalGroup, a split becomes its children laid out side by side
-// with a hand-dragged gutter between each pair.
+import WorkspacePane from './WorkspacePane.vue'
+import { resizeSplit, type ProjectRef } from '../workspace'
+import type { WorkspaceLayoutNode } from '../../../preload'
 
 const props = defineProps<{
-  node: PaneLayoutNode
+  node: WorkspaceLayoutNode
+  project: ProjectRef
   focusedPaneId: string | null
-  titles: Record<string, string>
 }>()
 
-const emit = defineEmits<{
-  focus: [paneId: string]
-  'select-tab': [paneId: string, tabId: string]
-  'close-tab': [paneId: string, tabId: string]
-  'add-tab': [paneId: string]
-  split: [paneId: string, direction: 'row' | 'column']
-  exit: [paneId: string, tabId: string]
-  resize: [splitId: string, sizes: number[]]
-  'title-change': [paneId: string, tabId: string, title: string]
-}>()
+const MIN_FRACTION = 0.1
 
 const containerEl = ref<HTMLDivElement>()
 let dragIndex = -1
@@ -49,13 +37,13 @@ function onGutterMove(event: PointerEvent): void {
   const a = dragIndex
   const b = dragIndex + 1
   const pairTotal = dragStartSizes[a] + dragStartSizes[b]
-  const min = Math.min(0.1, pairTotal / 2)
+  const min = Math.min(MIN_FRACTION, pairTotal / 2)
   const nextA = Math.max(min, Math.min(pairTotal - min, dragStartSizes[a] + delta))
 
   const sizes = [...dragStartSizes]
   sizes[a] = nextA
   sizes[b] = pairTotal - nextA
-  emit('resize', node.id, sizes)
+  resizeSplit(props.project, node.id, sizes)
 }
 
 function onGutterUp(): void {
@@ -66,37 +54,17 @@ function onGutterUp(): void {
 </script>
 
 <template>
-  <TerminalGroup
+  <WorkspacePane
     v-if="node.type === 'leaf'"
-    :tabs="node.tabs"
-    :active-tab-id="node.activeTabId"
+    :leaf="node"
+    :project="project"
     :focused="node.id === focusedPaneId"
-    :titles="titles"
-    @focus="emit('focus', node.id)"
-    @select-tab="(tabId) => emit('select-tab', node.id, tabId)"
-    @close-tab="(tabId) => emit('close-tab', node.id, tabId)"
-    @add-tab="emit('add-tab', node.id)"
-    @split="(direction) => emit('split', node.id, direction)"
-    @exit="(tabId) => emit('exit', node.id, tabId)"
-    @title-change="(tabId, title) => emit('title-change', node.id, tabId, title)"
   />
 
   <div v-else ref="containerEl" class="split" :class="node.direction">
     <template v-for="(child, index) in node.children" :key="child.id">
       <div class="split-child" :style="{ flex: `0 1 ${node.sizes[index] * 100}%` }">
-        <PaneLayout
-          :node="child"
-          :focused-pane-id="focusedPaneId"
-          :titles="titles"
-          @focus="(id) => emit('focus', id)"
-          @select-tab="(id, tabId) => emit('select-tab', id, tabId)"
-          @close-tab="(id, tabId) => emit('close-tab', id, tabId)"
-          @add-tab="(id) => emit('add-tab', id)"
-          @split="(id, direction) => emit('split', id, direction)"
-          @exit="(id, tabId) => emit('exit', id, tabId)"
-          @resize="(splitId, sizes) => emit('resize', splitId, sizes)"
-          @title-change="(id, tabId, title) => emit('title-change', id, tabId, title)"
-        />
+        <WorkspaceLayout :node="child" :project="project" :focused-pane-id="focusedPaneId" />
       </div>
       <div
         v-if="index < node.children.length - 1"
@@ -138,11 +106,6 @@ function onGutterUp(): void {
   transition: background var(--duration-fast) var(--ease-out);
 }
 
-.gutter:hover,
-.gutter:active {
-  background: var(--color-amber);
-}
-
 .gutter.row {
   width: 4px;
   cursor: col-resize;
@@ -151,5 +114,10 @@ function onGutterUp(): void {
 .gutter.column {
   height: 4px;
   cursor: row-resize;
+}
+
+.gutter:hover,
+.gutter:active {
+  background: var(--color-amber);
 }
 </style>
