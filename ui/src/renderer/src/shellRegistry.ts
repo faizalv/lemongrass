@@ -28,6 +28,8 @@ const byShellId = new Map<string, ShellSession>()
 const bufferedData = new Map<string, string[]>()
 const earlyExits = new Set<string>()
 const initialArgs = new Map<string, string[]>()
+// Escape followed by carriage return, which the agent CLI reads as a newline in its input.
+const NEWLINE_SEQUENCE = '\x1b\r'
 let exitHandler: ((tabId: string) => void) | undefined
 let listening = false
 
@@ -112,6 +114,13 @@ function createSession(spec: ShellSpec): ShellSession {
   })
   term.onData((data) => {
     if (session.shellId) window.api.pty.write(session.shellId, data)
+  })
+  term.attachCustomKeyEventHandler((event) => {
+    if (event.key !== 'Enter' || !event.shiftKey) return true
+    if (event.type === 'keydown' && session.shellId) {
+      window.api.pty.write(session.shellId, NEWLINE_SEQUENCE)
+    }
+    return false
   })
   return session
 }
