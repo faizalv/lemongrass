@@ -33,6 +33,12 @@ export interface BiblioNode {
   children?: BiblioNode[]
 }
 
+export type ScratchpadImageResult =
+  { path: string } | { error: 'too-large' | 'unsupported' | 'failed' }
+
+export type ImageFileResult =
+  { bytes: Uint8Array; mime: string } | { error: 'too-large' | 'unsupported' | 'failed' }
+
 export interface BiblioTree {
   toc: BiblioNode | null
   children: BiblioNode[]
@@ -124,6 +130,15 @@ const biblio = {
     content: string
   ): Promise<string | null> =>
     ipcRenderer.invoke('biblio:createScratchpadFile', projectPath, folderPath, title, content),
+  saveScratchpadImage: (
+    projectPath: string,
+    notePath: string,
+    bytes: Uint8Array,
+    mime: string
+  ): Promise<ScratchpadImageResult> =>
+    ipcRenderer.invoke('biblio:saveScratchpadImage', projectPath, notePath, bytes, mime),
+  readImageFile: (filePath: string): Promise<ImageFileResult> =>
+    ipcRenderer.invoke('biblio:readImageFile', filePath),
   archiveScratchpad: (projectPath: string, relativePath: string): Promise<boolean> =>
     ipcRenderer.invoke('biblio:archiveScratchpad', projectPath, relativePath),
   onChanged: (callback: (projectPath: string) => void): (() => void) => {

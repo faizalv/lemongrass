@@ -1,4 +1,5 @@
-import { ipcMain, WebContents } from 'electron'
+import { ipcMain, net, protocol, WebContents } from 'electron'
+import { pathToFileURL } from 'url'
 import {
   existsSync,
   mkdirSync,
@@ -11,7 +12,17 @@ import {
   writeFileSync,
   type FSWatcher
 } from 'fs'
-import { dirname, join, relative, resolve, sep } from 'path'
+import { dirname, extname, join, posix, relative, resolve, sep } from 'path'
+
+const IMAGES_DIR = 'images'
+const IMAGE_SCHEME = 'biblio-image'
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp'
+}
 
 export interface BiblioNode {
   name: string
@@ -53,7 +64,7 @@ function extractToc(children: BiblioNode[]): BiblioNode | null {
 
 function walk(dir: string, relativeTo: string): BiblioNode[] {
   const entries = readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() || e.name.endsWith('.md'))
+    .filter((e) => (e.isDirectory() && e.name !== IMAGES_DIR) || e.name.endsWith('.md'))
     .sort((a, b) => {
       if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
       return a.name.localeCompare(b.name)
@@ -75,6 +86,38 @@ function resolveInBiblio(biblioRoot: string, relativePath: string): string | nul
   const resolved = resolve(biblioRoot, relativePath)
   if (resolved !== biblioRoot && !resolved.startsWith(biblioRoot + sep)) return null
   return resolved
+}
+
+// Must run before the app is ready.
+export function registerBiblioImageScheme(): void {
+  protocol.registerSchemesAsPrivileged([
+    { scheme: IMAGE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true } }
+  ])
+}
+
+function isScratchpadImage(root: string, target: string): boolean {
+  const relativeParts = relative(root, target).split(sep)
+  return (
+    relativeParts[0] === 'scratchpad' &&
+    relativeParts.length >= 4 &&
+    relativeParts[2] === IMAGES_DIR &&
+    Object.values(IMAGE_EXTENSIONS).includes(extname(target).toLowerCase())
+  )
+}
+
+function handleImageRequest(request: Request): Response | Promise<Response> {
+  try {
+    const params = new URL(request.url).searchParams
+    const projectPath = params.get('p')
+    const relativePath = params.get('f')
+    if (!projectPath || !relativePath) return new Response(null, { status: 400 })
+    const root = realpathSync(join(projectPath, 'biblio'))
+    const target = resolveInBiblio(root, relativePath)
+    if (!target || !isScratchpadImage(root, target)) return new Response(null, { status: 403 })
+    return net.fetch(pathToFileURL(realpathSync(target)).toString())
+  } catch {
+    return new Response(null, { status: 404 })
+  }
 }
 
 function slugify(title: string): string {
@@ -132,6 +175,8 @@ export function closeBiblioWatchers(): void {
 }
 
 export function registerBiblioHandlers(getSender: () => WebContents | undefined): void {
+  protocol.handle(IMAGE_SCHEME, handleImageRequest)
+
   ipcMain.handle('biblio:tree', (_event, projectPath: string): BiblioTree | null => {
     const biblioRoot = join(projectPath, 'biblio')
     try {
@@ -285,6 +330,63 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
         return `${folderRelativePath}${sep}${filename}`
       } catch {
         return null
+      }
+    }
+  )
+
+  // Stores a pasted or dropped image under the note's task folder and returns
+  // its path relative to the note.
+  ipcMain.handle(
+    'biblio:saveScratchpadImage',
+    (
+      _event,
+      projectPath: string,
+      notePath: string,
+      bytes: Uint8Array,
+      mime: string
+    ): { path: string } | { error: 'too-large' | 'unsupported' | 'failed' } => {
+      const extension = IMAGE_EXTENSIONS[mime]
+      if (!extension) return { error: 'unsupported' }
+      if (bytes.byteLength > MAX_IMAGE_BYTES) return { error: 'too-large' }
+      const noteParts = notePath.split(sep)
+      if (noteParts[0] !== 'scratchpad' || noteParts.length < 3 || noteParts[1] === 'archive')
+        return { error: 'failed' }
+      try {
+        const root = realpathSync(join(projectPath, 'biblio'))
+        const note = resolveInBiblio(root, notePath)
+        const imagesDir = resolveInBiblio(root, join('scratchpad', noteParts[1], IMAGES_DIR))
+        if (!note || !imagesDir || !statSync(dirname(note)).isDirectory())
+          return { error: 'failed' }
+        mkdirSync(imagesDir, { recursive: true })
+        const name = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}${extension}`
+        writeFileSync(join(imagesDir, name), Buffer.from(bytes))
+        return { path: relative(dirname(note), join(imagesDir, name)).split(sep).join(posix.sep) }
+      } catch {
+        return { error: 'failed' }
+      }
+    }
+  )
+
+  // Reads an image file the user pasted as a path.
+  ipcMain.handle(
+    'biblio:readImageFile',
+    (
+      _event,
+      filePath: string
+    ): { bytes: Uint8Array; mime: string } | { error: 'too-large' | 'unsupported' | 'failed' } => {
+      const mime = Object.keys(IMAGE_EXTENSIONS).find(
+        (m) =>
+          IMAGE_EXTENSIONS[m] === extname(filePath).toLowerCase() ||
+          (m === 'image/jpeg' && extname(filePath).toLowerCase() === '.jpeg')
+      )
+      if (!mime) return { error: 'unsupported' }
+      try {
+        const stats = statSync(filePath)
+        if (!stats.isFile()) return { error: 'failed' }
+        if (stats.size > MAX_IMAGE_BYTES) return { error: 'too-large' }
+        return { bytes: readFileSync(filePath), mime }
+      } catch {
+        return { error: 'failed' }
       }
     }
   )

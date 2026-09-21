@@ -58,10 +58,33 @@ const showCreateForm = ref(false)
 const newTitle = ref('')
 const newContent = ref('')
 const creating = ref(false)
+const pendingImages = new Map<string, File>()
+
+function clearPendingImages(): void {
+  for (const url of pendingImages.keys()) URL.revokeObjectURL(url)
+  pendingImages.clear()
+}
+
+async function storePendingImages(notePath: string, content: string): Promise<void> {
+  let resolved = content
+  for (const [url, file] of pendingImages) {
+    if (!resolved.includes(url)) continue
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const result = await window.api.biblio.saveScratchpadImage(
+      props.projectPath,
+      notePath,
+      bytes,
+      file.type
+    )
+    if ('path' in result) resolved = resolved.replaceAll(url, result.path)
+  }
+  if (resolved !== content) await window.api.biblio.write(props.projectPath, notePath, resolved)
+}
 // Non-null when the create form targets an existing folder instead of a new task directory.
 const createTargetFolder = ref<string | null>(null)
 
 function openCreateForm(): void {
+  clearPendingImages()
   newTitle.value = ''
   newContent.value = ''
   createTargetFolder.value = null
@@ -69,6 +92,7 @@ function openCreateForm(): void {
 }
 
 function openCreateFileForm(folderPath: string): void {
+  clearPendingImages()
   newTitle.value = ''
   newContent.value = ''
   createTargetFolder.value = folderPath
@@ -85,6 +109,7 @@ async function archiveScratchpad(taskPath: string): Promise<void> {
 }
 
 function cancelCreate(): void {
+  clearPendingImages()
   showCreateForm.value = false
 }
 
@@ -99,8 +124,10 @@ async function submitCreate(): Promise<void> {
         newContent.value
       )
     : await window.api.biblio.createScratchpad(props.projectPath, newTitle.value, newContent.value)
+  if (path) await storePendingImages(path, newContent.value)
   creating.value = false
   if (!path) return
+  clearPendingImages()
   showCreateForm.value = false
   emit('refresh')
   await selectFile(path)
@@ -177,7 +204,12 @@ function onGutterUp(): void {
     <div class="biblio-reader">
       <p v-if="!selectedPath" class="empty">Select a file to read it.</p>
       <p v-else-if="loading" class="empty">Loading...</p>
-      <MarkdownEditor v-else-if="isEditable" v-model="editableContent" />
+      <MarkdownEditor
+        v-else-if="isEditable"
+        v-model="editableContent"
+        :project-path="projectPath"
+        :note-path="selectedPath ?? undefined"
+      />
       <div v-else class="markdown-body" v-html="html" />
     </div>
 
@@ -192,7 +224,10 @@ function onGutterUp(): void {
           autofocus
           @keydown.enter="submitCreate"
         />
-        <MarkdownEditor v-model="newContent" />
+        <MarkdownEditor
+          v-model="newContent"
+          @image-pending="(url, file) => pendingImages.set(url, file)"
+        />
         <div class="create-actions">
           <button class="ghost-button" @click="cancelCreate">Cancel</button>
           <button

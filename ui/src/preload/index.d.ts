@@ -6,6 +6,8 @@ import type {
   Project,
   PaneLayoutNode,
   BiblioTree,
+  ScratchpadImageResult,
+  ImageFileResult,
   VaultScope,
   VaultChannel,
   VaultChannelWithShortId
@@ -43,6 +45,13 @@ interface Api {
       title: string,
       content: string
     ) => Promise<string | null>
+    saveScratchpadImage: (
+      projectPath: string,
+      notePath: string,
+      bytes: Uint8Array,
+      mime: string
+    ) => Promise<ScratchpadImageResult>
+    readImageFile: (filePath: string) => Promise<ImageFileResult>
     archiveScratchpad: (projectPath: string, relativePath: string) => Promise<boolean>
     onChanged: (callback: (projectPath: string) => void) => () => void
   }

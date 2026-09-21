@@ -1,18 +1,129 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
-import { Editor, EditorContent } from '@tiptap/vue-3'
+import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { Editor, EditorContent, mergeAttributes } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
+import Image from '@tiptap/extension-image'
 import { Markdown } from 'tiptap-markdown'
 
 const props = defineProps<{
   modelValue: string
+  projectPath?: string
+  notePath?: string
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'image-pending': [url: string, file: File]
 }>()
 
 const editor = shallowRef<Editor>()
+const imageNotice = ref('')
+let noticeTimer: ReturnType<typeof setTimeout> | undefined
+
+function showImageNotice(message: string): void {
+  imageNotice.value = message
+  clearTimeout(noticeTimer)
+  noticeTimer = setTimeout(() => (imageNotice.value = ''), 4000)
+}
+
+function resolveImageSrc(src: string): string {
+  if (!props.projectPath || !props.notePath || /^[a-z][a-z0-9+.-]*:/i.test(src)) return src
+  const parts = props.notePath.split('/').slice(0, -1)
+  for (const segment of src.split('/')) {
+    if (segment === '..') parts.pop()
+    else if (segment !== '.') parts.push(segment)
+  }
+  const query = `p=${encodeURIComponent(props.projectPath)}&f=${encodeURIComponent(parts.join('/'))}`
+  return `biblio-image://project/?${query}`
+}
+
+const ScratchpadImage = Image.extend({
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'img',
+      mergeAttributes(this.options.HTMLAttributes, {
+        ...HTMLAttributes,
+        src: resolveImageSrc(String(HTMLAttributes.src ?? ''))
+      })
+    ]
+  }
+})
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+const IMAGE_PATH = /\.(png|jpe?g|gif|webp)$/i
+
+const errorMessages = {
+  'too-large': 'Image is larger than 10 MB.',
+  unsupported: 'Only PNG, JPEG, GIF and WebP images are supported.',
+  failed: 'Could not save the image.'
+}
+
+async function pathToFile(path: string): Promise<File | null> {
+  const result = await window.api.biblio.readImageFile(path)
+  if ('error' in result) {
+    showImageNotice(errorMessages[result.error])
+    return null
+  }
+  const name = path.split('/').pop() ?? 'image'
+  return new File([new Uint8Array(result.bytes)], name, { type: result.mime })
+}
+
+async function insertImages(sources: (File | string)[], position: number | null): Promise<void> {
+  const { projectPath, notePath } = props
+  for (const source of sources) {
+    if (!editor.value) return
+    const file = typeof source === 'string' ? await pathToFile(source) : source
+    if (!file) continue
+    if (!IMAGE_MIMES.includes(file.type)) {
+      showImageNotice(errorMessages.unsupported)
+      continue
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      showImageNotice(errorMessages['too-large'])
+      continue
+    }
+    let src: string
+    if (projectPath && notePath) {
+      const bytes = new Uint8Array(await file.arrayBuffer())
+      const result = await window.api.biblio.saveScratchpadImage(
+        projectPath,
+        notePath,
+        bytes,
+        file.type
+      )
+      if ('error' in result) {
+        showImageNotice(errorMessages[result.error])
+        continue
+      }
+      src = result.path
+    } else {
+      src = URL.createObjectURL(file)
+      emit('image-pending', src, file)
+    }
+    const image = { type: 'image', attrs: { src } }
+    const chain = editor.value.chain().focus()
+    if (position === null) chain.insertContent(image).run()
+    else chain.insertContentAt(position, image).run()
+  }
+}
+
+function imageFiles(list: FileList | null | undefined): File[] {
+  return Array.from(list ?? []).filter((file) => file.type.startsWith('image/'))
+}
+
+function pastedImagePaths(data: DataTransfer | null): string[] {
+  const text = data?.getData('text/uri-list') || data?.getData('text/plain') || ''
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+  const paths = lines.map((line) => {
+    if (line.startsWith('file://')) return decodeURIComponent(new URL(line).pathname)
+    return line.startsWith('/') ? line : ''
+  })
+  return paths.length && paths.every((path) => IMAGE_PATH.test(path)) ? paths : []
+}
 
 // tiptap-markdown's storage isn't declared on Tiptap's own Storage type;
 // typed loosely on purpose so it accepts both @tiptap/core's and
@@ -24,14 +135,35 @@ function getMarkdown(e: { storage: unknown }): string {
 onMounted(() => {
   editor.value = new Editor({
     content: props.modelValue,
-    extensions: [StarterKit, Markdown],
+    extensions: [StarterKit, ScratchpadImage, Markdown],
+    editorProps: {
+      handlePaste: (_view, event) => {
+        const files = imageFiles(event.clipboardData?.files)
+        const sources = files.length ? files : pastedImagePaths(event.clipboardData ?? null)
+        if (!sources.length) return false
+        event.preventDefault()
+        void insertImages(sources, null)
+        return true
+      },
+      handleDrop: (view, event) => {
+        const files = imageFiles(event.dataTransfer?.files)
+        if (!files.length) return false
+        event.preventDefault()
+        const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null
+        void insertImages(files, position)
+        return true
+      }
+    },
     onUpdate: ({ editor }) => {
       emit('update:modelValue', getMarkdown(editor))
     }
   })
 })
 
-onBeforeUnmount(() => editor.value?.destroy())
+onBeforeUnmount(() => {
+  clearTimeout(noticeTimer)
+  editor.value?.destroy()
+})
 
 // Only fires on a real external change (switching files) -- not on every
 // keystroke, since onUpdate above already reflects those back out.
@@ -116,6 +248,7 @@ watch(
         &ldquo;
       </button>
     </div>
+    <p v-if="imageNotice" class="notice">{{ imageNotice }}</p>
     <EditorContent v-if="editor" class="content" :editor="editor" />
   </div>
 </template>
@@ -189,6 +322,15 @@ watch(
   margin: 0 var(--space-1);
 }
 
+.notice {
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface-1);
+  border-bottom: 1px solid var(--color-border-default);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+}
+
 .content {
   flex: 1;
   min-height: 0;
@@ -247,6 +389,14 @@ watch(
   background: var(--color-surface-2);
   padding: 0.15em 0.4em;
   border-radius: var(--radius-sm);
+}
+
+.content :deep(img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
 }
 
 .content :deep(pre) {
