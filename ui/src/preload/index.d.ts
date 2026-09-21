@@ -8,6 +8,7 @@ import type {
   BiblioTree,
   ScratchpadImageResult,
   ImageFileResult,
+  DocLayoutState,
   VaultScope,
   VaultChannel,
   VaultChannelWithShortId
@@ -29,6 +30,10 @@ interface Api {
   layouts: {
     load: (projectId: string) => Promise<PaneLayoutNode | null>
     save: (projectId: string, layout: PaneLayoutNode | null) => void
+  }
+  docLayouts: {
+    load: (projectId: string) => Promise<DocLayoutState | null>
+    save: (projectId: string, layout: DocLayoutState | null) => void
   }
   biblio: {
     tree: (projectPath: string) => Promise<BiblioTree | null>

@@ -283,6 +283,7 @@ onBeforeUnmount(() => {
           <BiblioManager
             v-else-if="activeProject"
             :tree="biblioTree"
+            :project-id="activeProject.id"
             :project-path="activeProject.path"
             @refresh="refreshBiblio"
           />

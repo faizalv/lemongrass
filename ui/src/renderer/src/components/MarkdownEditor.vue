@@ -249,7 +249,7 @@ watch(
       </button>
     </div>
     <p v-if="imageNotice" class="notice">{{ imageNotice }}</p>
-    <EditorContent v-if="editor" class="content" :editor="editor" />
+    <EditorContent v-if="editor" class="content lg-scroll" :editor="editor" />
   </div>
 </template>
 

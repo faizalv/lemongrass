@@ -5,6 +5,7 @@ import icon from '../../resources/icon.png?asset'
 import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerLayoutHandlers } from './layouts'
+import { registerDocLayoutHandlers } from './docLayouts'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
 import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
@@ -70,6 +71,7 @@ app.whenReady().then(() => {
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerLayoutHandlers()
+  registerDocLayoutHandlers()
   registerBiblioHandlers(() => mainWindow?.webContents)
   registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)

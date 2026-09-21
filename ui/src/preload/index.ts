@@ -80,6 +80,26 @@ export type PaneLayoutNode =
       sizes: number[]
     }
 
+export interface DocTab {
+  id: string
+  path: string
+}
+
+export type DocLayoutNode =
+  | { type: 'leaf'; id: string; tabs: DocTab[]; activeTabId: string | null }
+  | {
+      type: 'split'
+      id: string
+      direction: 'row' | 'column'
+      children: DocLayoutNode[]
+      sizes: number[]
+    }
+
+export interface DocLayoutState {
+  root: DocLayoutNode | null
+  focusedPaneId: string | null
+}
+
 // Custom APIs for renderer -- raw PTY bytes only, never a control-signal
 // channel. PTY is display-only.
 const pty = {
@@ -112,6 +132,13 @@ const layouts = {
     ipcRenderer.invoke('layouts:load', projectId),
   save: (projectId: string, layout: PaneLayoutNode | null): void =>
     ipcRenderer.send('layouts:save', { projectId, layout })
+}
+
+const docLayouts = {
+  load: (projectId: string): Promise<DocLayoutState | null> =>
+    ipcRenderer.invoke('docLayouts:load', projectId),
+  save: (projectId: string, layout: DocLayoutState | null): void =>
+    ipcRenderer.send('docLayouts:save', { projectId, layout })
 }
 
 const biblio = {
@@ -198,7 +225,7 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, layouts, biblio, vault, windowControls }
+const api = { pty, projects, layouts, docLayouts, biblio, vault, windowControls }
 
 if (process.contextIsolated) {
   try {

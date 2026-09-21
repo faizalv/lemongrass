@@ -1,0 +1,627 @@
+<script setup lang="ts">
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import MarkdownEditor from './MarkdownEditor.vue'
+import {
+  activateTab,
+  closeTab,
+  editDoc,
+  focusPane,
+  placeTab,
+  workspaceOf,
+  type ProjectRef
+} from '../docWorkspace'
+import type { DropZone, EdgeZone } from '../layoutTree'
+import type { DocLayoutNode } from '../../../preload'
+
+type Leaf = Extract<DocLayoutNode, { type: 'leaf' }>
+
+const props = defineProps<{
+  leaf: Leaf
+  project: ProjectRef
+  focused: boolean
+}>()
+
+const TAB_MIME = 'application/x-lemongrass-doc-tab'
+const EDGE_RATIO = 0.25
+
+const docs = computed(() => workspaceOf(props.project.id)?.docs ?? {})
+const activeTab = computed(() => props.leaf.tabs.find((t) => t.id === props.leaf.activeTabId))
+const activeDoc = computed(() => (activeTab.value ? docs.value[activeTab.value.path] : undefined))
+
+function labelParts(path: string): { name: string; parent: string } {
+  const segments = path.replace(/\.md$/, '').split('/')
+  return { name: segments[segments.length - 1], parent: segments[segments.length - 2] ?? '' }
+}
+
+const tabBar = ref<HTMLDivElement>()
+
+function onTabBarWheel(event: WheelEvent): void {
+  if (!tabBar.value || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+  event.preventDefault()
+  tabBar.value.scrollLeft += event.deltaY
+}
+
+watch(
+  () => props.leaf.activeTabId,
+  async (tabId) => {
+    await nextTick()
+    tabBar.value?.querySelector(`[data-tab-id="${tabId}"]`)?.scrollIntoView({
+      inline: 'nearest',
+      block: 'nearest'
+    })
+  },
+  { immediate: true }
+)
+
+function onTabDragStart(event: DragEvent, tabId: string): void {
+  if (!event.dataTransfer) return
+  event.dataTransfer.effectAllowed = 'copyMove'
+  event.dataTransfer.setData(TAB_MIME, JSON.stringify({ paneId: props.leaf.id, tabId }))
+}
+
+const bodyEl = ref<HTMLDivElement>()
+const dropZone = ref<DropZone | null>(null)
+const dropDuplicate = ref(false)
+
+function isTabDrag(event: DragEvent): boolean {
+  return event.dataTransfer?.types.includes(TAB_MIME) ?? false
+}
+
+function zoneAt(event: MouseEvent): DropZone {
+  const rect = bodyEl.value!.getBoundingClientRect()
+  const x = (event.clientX - rect.left) / rect.width
+  const y = (event.clientY - rect.top) / rect.height
+  const nearest = Math.min(x, 1 - x, y, 1 - y)
+  if (nearest > EDGE_RATIO) return 'center'
+  if (nearest === x) return 'left'
+  if (nearest === 1 - x) return 'right'
+  return nearest === y ? 'up' : 'down'
+}
+
+function onBodyDragOver(event: DragEvent): void {
+  if (!isTabDrag(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  dropZone.value = zoneAt(event)
+  dropDuplicate.value = event.altKey
+  if (event.dataTransfer) event.dataTransfer.dropEffect = event.altKey ? 'copy' : 'move'
+}
+
+function onBodyDragLeave(event: DragEvent): void {
+  if (!bodyEl.value?.contains(event.relatedTarget as Node | null)) dropZone.value = null
+}
+
+function receiveDrop(event: DragEvent, zone: DropZone): void {
+  const raw = event.dataTransfer?.getData(TAB_MIME)
+  if (!raw) return
+  const { paneId, tabId } = JSON.parse(raw) as { paneId: string; tabId: string }
+  placeTab(props.project, paneId, tabId, props.leaf.id, zone, event.altKey)
+}
+
+function onBodyDrop(event: DragEvent): void {
+  if (!isTabDrag(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  const zone = dropZone.value ?? 'center'
+  dropZone.value = null
+  receiveDrop(event, zone)
+}
+
+function onTabBarDragOver(event: DragEvent): void {
+  if (!isTabDrag(event)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = event.altKey ? 'copy' : 'move'
+}
+
+function onTabBarDrop(event: DragEvent): void {
+  if (!isTabDrag(event)) return
+  event.preventDefault()
+  receiveDrop(event, 'center')
+}
+
+const menu = ref<{ tabId: string; x: number; y: number } | null>(null)
+
+const MENU_DIRECTIONS: { zone: EdgeZone; label: string }[] = [
+  { zone: 'right', label: 'Right' },
+  { zone: 'down', label: 'Below' },
+  { zone: 'left', label: 'Left' },
+  { zone: 'up', label: 'Above' }
+]
+
+const PANE_ICONS: Record<EdgeZone, { divider: string; fill: [number, number, number, number] }> = {
+  right: { divider: 'M7 2v10', fill: [7, 2, 5.5, 10] },
+  left: { divider: 'M7 2v10', fill: [1.5, 2, 5.5, 10] },
+  up: { divider: 'M1.5 7h11', fill: [1.5, 2, 11, 5] },
+  down: { divider: 'M1.5 7h11', fill: [1.5, 7, 11, 5] }
+}
+
+function openMenu(event: MouseEvent, tabId: string): void {
+  menu.value = { tabId, x: event.clientX, y: event.clientY }
+}
+
+function menuPlace(zone: EdgeZone, duplicate: boolean): void {
+  if (!menu.value) return
+  placeTab(props.project, props.leaf.id, menu.value.tabId, props.leaf.id, zone, duplicate)
+  menu.value = null
+}
+
+function menuClose(): void {
+  if (!menu.value) return
+  closeTab(props.project, props.leaf.id, menu.value.tabId)
+  menu.value = null
+}
+
+function dismissMenu(): void {
+  menu.value = null
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') dismissMenu()
+}
+
+onMounted(() => {
+  window.addEventListener('pointerdown', dismissMenu)
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('blur', dismissMenu)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointerdown', dismissMenu)
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('blur', dismissMenu)
+})
+</script>
+
+<template>
+  <div class="doc-pane" :class="{ focused }" @pointerdown.capture="focusPane(project, leaf.id)">
+    <div
+      ref="tabBar"
+      class="tab-bar lg-scroll"
+      @wheel="onTabBarWheel"
+      @dragover="onTabBarDragOver"
+      @drop="onTabBarDrop"
+    >
+      <div
+        v-for="tab in leaf.tabs"
+        :key="tab.id"
+        class="tab"
+        :class="{ active: tab.id === leaf.activeTabId }"
+        :data-tab-id="tab.id"
+        :title="tab.path"
+        draggable="true"
+        @click="activateTab(project, leaf.id, tab.id)"
+        @contextmenu.prevent="openMenu($event, tab.id)"
+        @dragstart="onTabDragStart($event, tab.id)"
+      >
+        <span class="tab-label">
+          <span v-if="labelParts(tab.path).parent" class="tab-parent">
+            {{ labelParts(tab.path).parent }} /
+          </span>
+          {{ labelParts(tab.path).name }}
+        </span>
+        <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
+      </div>
+    </div>
+
+    <div
+      ref="bodyEl"
+      class="pane-body"
+      @dragover.capture="onBodyDragOver"
+      @dragleave="onBodyDragLeave"
+      @drop.capture="onBodyDrop"
+    >
+      <template v-if="activeTab">
+        <p v-if="!activeDoc || activeDoc.status === 'loading'" class="empty">Loading...</p>
+        <p v-else-if="activeDoc.status === 'missing'" class="empty">
+          This file no longer exists. Close the tab to remove it.
+        </p>
+        <div v-else-if="activeDoc.editable" class="editor-wrap">
+          <MarkdownEditor
+            :key="activeTab.id"
+            :model-value="activeDoc.content"
+            :project-path="project.path"
+            :note-path="activeTab.path"
+            @update:model-value="(value) => editDoc(project, activeTab!.path, value)"
+          />
+        </div>
+        <div v-else class="reader lg-scroll">
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div class="markdown-body" v-html="activeDoc.html" />
+        </div>
+      </template>
+
+      <div v-if="dropZone" class="drop-overlay" :class="dropZone">
+        <span v-if="dropDuplicate" class="drop-copy">Copy</span>
+      </div>
+    </div>
+
+    <div
+      v-if="menu"
+      class="tab-menu"
+      :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
+      @pointerdown.stop
+    >
+      <p class="menu-heading">Move to new pane</p>
+      <button
+        v-for="direction in MENU_DIRECTIONS"
+        :key="`move-${direction.zone}`"
+        class="menu-item"
+        :disabled="leaf.tabs.length === 1"
+        @click="menuPlace(direction.zone, false)"
+      >
+        <svg
+          class="menu-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+          <path :d="PANE_ICONS[direction.zone].divider" />
+          <rect
+            :x="PANE_ICONS[direction.zone].fill[0]"
+            :y="PANE_ICONS[direction.zone].fill[1]"
+            :width="PANE_ICONS[direction.zone].fill[2]"
+            :height="PANE_ICONS[direction.zone].fill[3]"
+            fill="currentColor"
+            fill-opacity="0.35"
+            stroke="none"
+          />
+        </svg>
+        {{ direction.label }}
+      </button>
+      <p class="menu-heading">Split into new pane</p>
+      <button
+        v-for="direction in MENU_DIRECTIONS"
+        :key="`split-${direction.zone}`"
+        class="menu-item"
+        @click="menuPlace(direction.zone, true)"
+      >
+        <svg
+          class="menu-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+          <path :d="PANE_ICONS[direction.zone].divider" />
+        </svg>
+        {{ direction.label }}
+      </button>
+      <div class="menu-divider" />
+      <button class="menu-item" @click="menuClose">
+        <svg
+          class="menu-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" />
+        </svg>
+        Close tab
+      </button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.doc-pane {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tab-bar::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tab-bar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tab-bar::-webkit-scrollbar-thumb {
+  border-width: 1px;
+}
+
+.doc-pane.focused .tab-bar {
+  box-shadow: inset 0 -1px 0 var(--color-amber);
+}
+
+.tab {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 260px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.tab:hover {
+  background: var(--color-surface-1);
+}
+
+.tab.active {
+  background: var(--color-surface-2);
+  color: var(--color-fg-primary);
+}
+
+.tab-label {
+  min-width: 3ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tab-parent {
+  color: var(--color-fg-muted);
+}
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--color-fg-muted);
+  border-radius: var(--radius-pill);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tab-close:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg-primary);
+}
+
+.pane-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.empty {
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  padding: var(--space-4) var(--space-6);
+}
+
+.editor-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.editor-wrap :deep(.markdown-editor) {
+  flex: 1;
+  max-width: none;
+}
+
+.reader {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-6);
+}
+
+.drop-overlay {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--color-amber-muted);
+  border: 2px solid var(--color-amber);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.drop-overlay.center {
+  inset: 0;
+}
+.drop-overlay.left {
+  inset: 0 50% 0 0;
+}
+.drop-overlay.right {
+  inset: 0 0 0 50%;
+}
+.drop-overlay.up {
+  inset: 0 0 50% 0;
+}
+.drop-overlay.down {
+  inset: 50% 0 0 0;
+}
+
+.drop-copy {
+  margin: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-amber);
+  color: var(--color-bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.tab-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 160px;
+  padding: var(--space-2);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.4));
+}
+
+.menu-heading {
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-icon {
+  flex-shrink: 0;
+  color: var(--color-fg-secondary);
+}
+
+.menu-item:hover:not(:disabled) {
+  background: var(--color-surface-2);
+}
+
+.menu-item:disabled {
+  color: var(--color-fg-muted);
+  cursor: default;
+}
+
+.menu-divider {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--color-border-subtle);
+}
+
+.markdown-body {
+  width: 100%;
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3) {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-3);
+}
+
+.markdown-body :deep(h1:first-child),
+.markdown-body :deep(h2:first-child),
+.markdown-body :deep(h3:first-child) {
+  margin-top: 0;
+}
+
+.markdown-body :deep(h1) {
+  font-size: var(--text-xl);
+}
+.markdown-body :deep(h2) {
+  font-size: var(--text-lg);
+}
+.markdown-body :deep(h3) {
+  font-size: var(--text-md);
+}
+
+.markdown-body :deep(p) {
+  margin-bottom: var(--space-4);
+}
+
+.markdown-body :deep(ul),
+.markdown-body :deep(ol) {
+  margin-bottom: var(--space-4);
+  padding-left: var(--space-6);
+}
+
+.markdown-body :deep(li) {
+  margin-bottom: var(--space-1);
+}
+
+.markdown-body :deep(a) {
+  color: var(--color-fg-accent);
+}
+
+.markdown-body :deep(strong) {
+  font-weight: var(--weight-semibold);
+}
+
+.markdown-body :deep(code) {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--color-surface-2);
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+}
+
+.markdown-body :deep(pre) {
+  background: var(--color-surface-2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  overflow-x: auto;
+  margin-bottom: var(--space-4);
+}
+
+.markdown-body :deep(pre code) {
+  background: none;
+  padding: 0;
+}
+
+.markdown-body :deep(blockquote) {
+  border-left: 2px solid var(--color-border-default);
+  padding-left: var(--space-4);
+  color: var(--color-fg-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.markdown-body :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--color-border-subtle);
+  margin: var(--space-6) 0;
+}
+</style>

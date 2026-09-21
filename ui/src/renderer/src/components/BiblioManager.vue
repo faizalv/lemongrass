@@ -1,12 +1,22 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { marked } from 'marked'
 import BiblioTreeItem from './BiblioTreeItem.vue'
+import DocLayout from './DocLayout.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
+import {
+  activePath,
+  closeAll,
+  closeUnder,
+  ensureLoaded,
+  openFile,
+  refreshReadOnlyDocs,
+  workspaceOf
+} from '../docWorkspace'
 import type { BiblioTree } from '../../../preload'
 
 const props = defineProps<{
   tree: BiblioTree | null
+  projectId: string
   projectPath: string
 }>()
 
@@ -14,45 +24,55 @@ const emit = defineEmits<{
   refresh: []
 }>()
 
-const selectedPath = ref<string | null>(null)
-const html = ref('')
-const editableContent = ref('')
-const loading = ref(false)
+const project = computed(() => ({ id: props.projectId, path: props.projectPath }))
+const ready = ref(false)
 
-// Scratchpad is the one tier bibliothek calls user-editable -- every other
-// category stays read-only rendered markdown.
-const isEditable = computed((): boolean => selectedPath.value?.startsWith('scratchpad/') ?? false)
+watch(
+  () => props.projectId,
+  async (projectId) => {
+    ready.value = false
+    await ensureLoaded(project.value)
+    if (projectId === props.projectId) ready.value = true
+  },
+  { immediate: true }
+)
 
-let suppressAutosave = false
-
-async function selectFile(path: string): Promise<void> {
-  selectedPath.value = path
-  loading.value = true
-  const raw = await window.api.biblio.read(props.projectPath, path)
-  if (path.startsWith('scratchpad/')) {
-    suppressAutosave = true
-    editableContent.value = raw ?? ''
-  } else {
-    html.value =
-      raw !== null ? await marked.parse(raw) : '<p class="error">Could not read this file.</p>'
+watch(
+  () => props.tree,
+  () => {
+    if (ready.value) void refreshReadOnlyDocs(project.value)
   }
-  loading.value = false
+)
+
+const workspace = computed(() => (ready.value ? workspaceOf(props.projectId) : undefined))
+const selectedPath = computed((): string | null =>
+  ready.value ? activePath(props.projectId) : null
+)
+
+function selectFile(path: string): void {
+  openFile(project.value, path)
 }
 
-let saveTimer: ReturnType<typeof setTimeout> | undefined
+const confirmingCloseAll = ref(false)
+let confirmTimer: ReturnType<typeof setTimeout> | undefined
 
-watch(editableContent, (value) => {
-  if (suppressAutosave) {
-    suppressAutosave = false
+function onCloseAll(): void {
+  if (!confirmingCloseAll.value) {
+    confirmingCloseAll.value = true
+    confirmTimer = setTimeout(() => (confirmingCloseAll.value = false), 3000)
     return
   }
-  if (!selectedPath.value) return
-  const path = selectedPath.value
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    window.api.biblio.write(props.projectPath, path, value)
-  }, 600)
-})
+  clearTimeout(confirmTimer)
+  confirmingCloseAll.value = false
+  closeAll(project.value)
+}
+
+async function archiveScratchpad(taskPath: string): Promise<void> {
+  const ok = await window.api.biblio.archiveScratchpad(props.projectPath, taskPath)
+  if (!ok) return
+  closeUnder(project.value, taskPath)
+  emit('refresh')
+}
 
 const showCreateForm = ref(false)
 const newTitle = ref('')
@@ -99,15 +119,6 @@ function openCreateFileForm(folderPath: string): void {
   showCreateForm.value = true
 }
 
-async function archiveScratchpad(taskPath: string): Promise<void> {
-  const ok = await window.api.biblio.archiveScratchpad(props.projectPath, taskPath)
-  if (!ok) return
-  if (selectedPath.value === taskPath || selectedPath.value?.startsWith(`${taskPath}/`)) {
-    selectedPath.value = null
-  }
-  emit('refresh')
-}
-
 function cancelCreate(): void {
   clearPendingImages()
   showCreateForm.value = false
@@ -130,7 +141,7 @@ async function submitCreate(): Promise<void> {
   clearPendingImages()
   showCreateForm.value = false
   emit('refresh')
-  await selectFile(path)
+  selectFile(path)
 }
 
 const treeWidth = ref(240)
@@ -202,15 +213,21 @@ function onGutterUp(): void {
     <div class="biblio-gutter" @pointerdown="onGutterDown" />
 
     <div class="biblio-reader">
-      <p v-if="!selectedPath" class="empty">Select a file to read it.</p>
-      <p v-else-if="loading" class="empty">Loading...</p>
-      <MarkdownEditor
-        v-else-if="isEditable"
-        v-model="editableContent"
-        :project-path="projectPath"
-        :note-path="selectedPath ?? undefined"
-      />
-      <div v-else class="markdown-body" v-html="html" />
+      <template v-if="workspace?.layout.root">
+        <div class="reader-toolbar">
+          <button class="close-all" @click="onCloseAll">
+            {{ confirmingCloseAll ? 'Click again to close all tabs' : 'Close all tabs' }}
+          </button>
+        </div>
+        <div class="reader-layout">
+          <DocLayout
+            :node="workspace.layout.root"
+            :project="project"
+            :focused-pane-id="workspace.layout.focusedPaneId"
+          />
+        </div>
+      </template>
+      <p v-else-if="ready" class="empty">Select a file to read it.</p>
     </div>
 
     <div v-if="showCreateForm" class="create-overlay">
@@ -402,106 +419,46 @@ function onGutterUp(): void {
 .biblio-reader {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
-  padding: var(--space-8);
+  min-height: 0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+}
+
+.reader-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.close-all {
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--color-fg-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.close-all:hover {
+  background: var(--color-surface-1);
+  color: var(--color-fg-primary);
+}
+
+.reader-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .empty {
   color: var(--color-fg-muted);
   font-size: var(--text-sm);
   padding: var(--space-4);
-}
-
-.markdown-body {
-  width: 100%;
-  max-width: 720px;
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-}
-
-.markdown-body :deep(h1),
-.markdown-body :deep(h2),
-.markdown-body :deep(h3) {
-  font-family: var(--font-display);
-  font-weight: var(--weight-bold);
-  line-height: var(--leading-tight);
-  margin-top: var(--space-8);
-  margin-bottom: var(--space-3);
-}
-
-.markdown-body :deep(h1:first-child),
-.markdown-body :deep(h2:first-child),
-.markdown-body :deep(h3:first-child) {
-  margin-top: 0;
-}
-
-.markdown-body :deep(h1) {
-  font-size: var(--text-xl);
-}
-.markdown-body :deep(h2) {
-  font-size: var(--text-lg);
-}
-.markdown-body :deep(h3) {
-  font-size: var(--text-md);
-}
-
-.markdown-body :deep(p) {
-  margin-bottom: var(--space-4);
-}
-
-.markdown-body :deep(ul),
-.markdown-body :deep(ol) {
-  margin-bottom: var(--space-4);
-  padding-left: var(--space-6);
-}
-
-.markdown-body :deep(li) {
-  margin-bottom: var(--space-1);
-}
-
-.markdown-body :deep(a) {
-  color: var(--color-fg-accent);
-}
-
-.markdown-body :deep(strong) {
-  font-weight: var(--weight-semibold);
-}
-
-.markdown-body :deep(code) {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  background: var(--color-surface-2);
-  padding: 0.15em 0.4em;
-  border-radius: var(--radius-sm);
-}
-
-.markdown-body :deep(pre) {
-  background: var(--color-surface-2);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  overflow-x: auto;
-  margin-bottom: var(--space-4);
-}
-
-.markdown-body :deep(pre code) {
-  background: none;
-  padding: 0;
-}
-
-.markdown-body :deep(blockquote) {
-  border-left: 2px solid var(--color-border-default);
-  padding-left: var(--space-4);
-  color: var(--color-fg-secondary);
-  margin-bottom: var(--space-4);
-}
-
-.markdown-body :deep(hr) {
-  border: none;
-  border-top: 1px solid var(--color-border-subtle);
-  margin: var(--space-6) 0;
 }
 </style>

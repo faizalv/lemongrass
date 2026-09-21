@@ -191,3 +191,26 @@ body {
   margin-left: 2px;
   animation: blink 1s steps(1) infinite;
 }
+
+.lg-scroll::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.lg-scroll::-webkit-scrollbar-track {
+  background: linear-gradient(var(--color-border-default), var(--color-border-default)) center /
+    1px 100% no-repeat;
+}
+
+.lg-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-amber-dim);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+}
+
+.lg-scroll::-webkit-scrollbar-thumb:hover,
+.lg-scroll::-webkit-scrollbar-thumb:active {
+  background: var(--color-amber);
+  background-clip: padding-box;
+}
