@@ -151,6 +151,28 @@ function menuClose(): void {
   menu.value = null
 }
 
+const copiedTabId = ref<string | null>(null)
+let copiedTimer: ReturnType<typeof setTimeout> | undefined
+
+async function copyPath(tabId: string): Promise<void> {
+  const tab = props.leaf.tabs.find((t) => t.id === tabId)
+  if (!tab) return
+  try {
+    await navigator.clipboard.writeText(`biblio/${tab.path}`)
+  } catch {
+    return
+  }
+  copiedTabId.value = tabId
+  clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => (copiedTabId.value = null), 1500)
+}
+
+function menuCopyPath(): void {
+  if (!menu.value) return
+  void copyPath(menu.value.tabId)
+  menu.value = null
+}
+
 function dismissMenu(): void {
   menu.value = null
 }
@@ -166,6 +188,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearTimeout(copiedTimer)
   window.removeEventListener('pointerdown', dismissMenu)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('blur', dismissMenu)
@@ -174,32 +197,72 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="doc-pane" :class="{ focused }" @pointerdown.capture="focusPane(project, leaf.id)">
-    <div
-      ref="tabBar"
-      class="tab-bar lg-scroll"
-      @wheel="onTabBarWheel"
-      @dragover="onTabBarDragOver"
-      @drop="onTabBarDrop"
-    >
+    <div class="tab-header">
       <div
-        v-for="tab in leaf.tabs"
-        :key="tab.id"
-        class="tab"
-        :class="{ active: tab.id === leaf.activeTabId }"
-        :data-tab-id="tab.id"
-        :title="tab.path"
-        draggable="true"
-        @click="activateTab(project, leaf.id, tab.id)"
-        @contextmenu.prevent="openMenu($event, tab.id)"
-        @dragstart="onTabDragStart($event, tab.id)"
+        ref="tabBar"
+        class="tab-bar lg-scroll"
+        @wheel="onTabBarWheel"
+        @dragover="onTabBarDragOver"
+        @drop="onTabBarDrop"
       >
-        <span class="tab-label">
-          <span v-if="labelParts(tab.path).parent" class="tab-parent">
-            {{ labelParts(tab.path).parent }} /
+        <div
+          v-for="tab in leaf.tabs"
+          :key="tab.id"
+          class="tab"
+          :class="{ active: tab.id === leaf.activeTabId }"
+          :data-tab-id="tab.id"
+          :title="tab.path"
+          draggable="true"
+          @click="activateTab(project, leaf.id, tab.id)"
+          @contextmenu.prevent="openMenu($event, tab.id)"
+          @dragstart="onTabDragStart($event, tab.id)"
+        >
+          <span class="tab-label">
+            <span v-if="labelParts(tab.path).parent" class="tab-parent">
+              {{ labelParts(tab.path).parent }} /
+            </span>
+            {{ labelParts(tab.path).name }}
           </span>
-          {{ labelParts(tab.path).name }}
-        </span>
-        <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
+          <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
+        </div>
+      </div>
+
+      <div v-if="activeTab" class="pane-actions">
+        <button
+          class="pane-action"
+          :title="copiedTabId === activeTab.id ? 'Copied' : 'Copy path'"
+          @click="copyPath(activeTab.id)"
+        >
+          <svg
+            v-if="copiedTabId === activeTab.id"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 7.5l2.5 2.5L11 4.5" />
+          </svg>
+          <svg
+            v-else
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="4.5" y="4.5" width="7" height="8" rx="1.2" />
+            <path
+              d="M9.5 4.5V3.2A1.2 1.2 0 0 0 8.3 2H3.2A1.2 1.2 0 0 0 2 3.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3"
+            />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -298,6 +361,25 @@ onBeforeUnmount(() => {
         {{ direction.label }}
       </button>
       <div class="menu-divider" />
+      <button class="menu-item" @click="menuCopyPath">
+        <svg
+          class="menu-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="4.5" y="4.5" width="7" height="8" rx="1.2" />
+          <path
+            d="M9.5 4.5V3.2A1.2 1.2 0 0 0 8.3 2H3.2A1.2 1.2 0 0 0 2 3.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3"
+          />
+        </svg>
+        Copy path
+      </button>
       <button class="menu-item" @click="menuClose">
         <svg
           class="menu-icon"
@@ -328,8 +410,48 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
-.tab-bar {
+.tab-header {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.doc-pane.focused .tab-header {
+  box-shadow: inset 0 -1px 0 var(--color-amber);
+}
+
+.pane-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-4) var(--space-2) 0;
+}
+
+.pane-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.pane-action:hover {
+  background: var(--color-surface-1);
+  color: var(--color-fg-primary);
+}
+
+.tab-bar {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -348,10 +470,6 @@ onBeforeUnmount(() => {
 
 .tab-bar::-webkit-scrollbar-thumb {
   border-width: 1px;
-}
-
-.doc-pane.focused .tab-bar {
-  box-shadow: inset 0 -1px 0 var(--color-amber);
 }
 
 .tab {

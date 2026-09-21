@@ -216,7 +216,7 @@ function onGutterUp(): void {
       <template v-if="workspace?.layout.root">
         <div class="reader-toolbar">
           <button class="close-all" @click="onCloseAll">
-            {{ confirmingCloseAll ? 'Click again to close all tabs' : 'Close all tabs' }}
+            {{ confirmingCloseAll ? 'Click again to close all documents' : 'Close all documents' }}
           </button>
         </div>
         <div class="reader-layout">
