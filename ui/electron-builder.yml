@@ -42,6 +42,13 @@ linux:
       to: "bin/linux-amd64/lgrass"
     - from: "../lgrass/dist/linux-arm64/lgrass"
       to: "bin/linux-arm64/lgrass"
+    - from: "../lgconf/dist/linux-amd64/lgconf"
+      to: "bin/linux-amd64/lgconf"
+    - from: "../lgconf/dist/linux-arm64/lgconf"
+      to: "bin/linux-arm64/lgconf"
+deb:
+  afterInstall: build/deb-after-install.sh
+  afterRemove: build/deb-after-remove.sh
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

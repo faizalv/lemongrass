@@ -93,7 +93,6 @@ func cmdHook(args []string) {
 }
 
 func hookSessionStart(store *session.Store, payload hookPayload, projectPath string) {
-	ensureClaudeHooks()
 	store.Start(payload.SessionID, os.Getenv("CLAUDE_CODE_MESSAGING_SOCKET"), os.Getenv("CLAUDE_CODE_MESSAGING_TOKEN"))
 
 	var parts []string

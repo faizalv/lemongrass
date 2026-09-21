@@ -8,7 +8,7 @@ import { registerLayoutHandlers } from './layouts'
 import { registerBiblioHandlers, closeBiblioWatchers } from './biblio'
 import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
-import { installLgrass, mergeLgrassHooks, installSkill } from './lgrassInstall'
+import { installLgrass } from './lgrassInstall'
 import { ensureVaultAndAgentRunning, killDaemons } from './daemons'
 
 let mainWindow: BrowserWindow | undefined
@@ -62,10 +62,8 @@ app.whenReady().then(() => {
 
   const lgrassPath = installLgrass()
   if (lgrassPath) {
-    mergeLgrassHooks(lgrassPath)
     void ensureVaultAndAgentRunning(lgrassPath)
   }
-  installSkill()
 
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)

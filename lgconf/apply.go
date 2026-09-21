@@ -1,0 +1,82 @@
+package main
+
+import (
+	"bytes"
+	"errors"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+func writeAtomic(path string, data []byte, mode os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".lgconf-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+func statKey(path string) (time.Time, int64) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}, -1
+	}
+	return info.ModTime(), info.Size()
+}
+
+func syncSettings(path, lgrassPath string) error {
+	for attempt := 0; attempt < 3; attempt++ {
+		data, err := os.ReadFile(path)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		mode := os.FileMode(0o644)
+		if info, err := os.Stat(path); err == nil {
+			mode = info.Mode().Perm()
+		}
+		beforeTime, beforeSize := statKey(path)
+
+		out, changed, err := reconcileSettings(data, lgrassPath)
+		if err != nil {
+			return err
+		}
+		if !changed {
+			return nil
+		}
+
+		afterTime, afterSize := statKey(path)
+		if !afterTime.Equal(beforeTime) || afterSize != beforeSize {
+			continue
+		}
+		return writeAtomic(path, out, mode)
+	}
+	return errors.New("settings changed on every attempt, giving up until the next event")
+}
+
+func syncFile(path string, want []byte) error {
+	have, err := os.ReadFile(path)
+	if err == nil && bytes.Equal(have, want) {
+		return nil
+	}
+	return writeAtomic(path, want, 0o644)
+}

@@ -59,11 +59,6 @@ func cmdInit() {
 		os.Exit(1)
 	}
 	fmt.Printf("lgrass: %s registered as project %q (%s)\n", p.Path, p.Name, p.ID)
-
-	if err := ensureClaudeHooks(); err != nil {
-		fmt.Fprintf(os.Stderr, "lgrass: registered the project, but failed to register Claude Code hooks: %v\n", err)
-		os.Exit(1)
-	}
 }
 
 func notBuiltYet(cmd string) {
@@ -75,9 +70,7 @@ func usage() {
 	fmt.Print(`lgrass -- lemongrass's agent-invoked CLI
 
 COMMANDS
-  init                               Register the current directory as a lemongrass project, and
-                                     register lgrass's Claude Code hooks (SessionStart/SessionEnd/
-                                     PreToolUse/PostToolUse) in ~/.claude/settings.json if missing
+  init                               Register the current directory as a lemongrass project
 
   hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
 
