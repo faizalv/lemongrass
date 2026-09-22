@@ -68,6 +68,10 @@ func FormatBibliothekDeny() string {
 	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry."
 }
 
+func FormatPlanModeDeny() string {
+	return "lgrass: EnterPlanMode is banned in a bibliothek project. Plan the bibliothek way instead: work it out in biblio/scratchpad/<task-slug>/ (prd.md/plan.md), then present the plan directly in this response and wait for explicit confirmation before changing anything."
+}
+
 func FormatThreadList(msgs []ThreadMessage) string {
 	if len(msgs) == 0 {
 		return "lgrass: no thread messages yet in this project."

@@ -120,6 +120,10 @@ func lawsSummary(projectPath string) string {
 func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string) hookResult {
 	filePaths := toolFilePaths(payload)
 
+	if payload.ToolName == "EnterPlanMode" && hasBiblio(projectPath) {
+		return newHookResult("PreToolUse", "deny", []string{session.FormatPlanModeDeny()})
+	}
+
 	if payload.EnforceBibliothek && hasBiblio(projectPath) {
 		if isBibliothekSkillCall(payload) {
 			store.Sign(payload.SessionID, bibliothekChecklistID)

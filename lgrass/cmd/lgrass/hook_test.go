@@ -118,6 +118,34 @@ func TestBibliothekDenyIsPerSession(t *testing.T) {
 	}
 }
 
+func TestEnterPlanModeDeniedInBibliothekProject(t *testing.T) {
+	store := openHookTestStore(t)
+	projectPath := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(projectPath, "biblio"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := hookEvent{SessionID: "session-a", ToolName: "EnterPlanMode"}
+	result := hookPreToolUse(store, payload, projectPath)
+	if result.PermissionDecision != "deny" {
+		t.Errorf("PermissionDecision = %q, want deny", result.PermissionDecision)
+	}
+	if !strings.Contains(result.PermissionDecisionReason, "EnterPlanMode") {
+		t.Errorf("PermissionDecisionReason = %q, want it to mention EnterPlanMode", result.PermissionDecisionReason)
+	}
+}
+
+func TestEnterPlanModeAllowedWithoutBibliothek(t *testing.T) {
+	store := openHookTestStore(t)
+	projectPath := t.TempDir()
+
+	payload := hookEvent{SessionID: "session-a", ToolName: "EnterPlanMode"}
+	result := hookPreToolUse(store, payload, projectPath)
+	if result.PermissionDecision == "deny" {
+		t.Errorf("PermissionDecision = %q, want no deny for a project without biblio/", result.PermissionDecision)
+	}
+}
+
 func writeTranscriptLines(t *testing.T, lines ...string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "transcript.jsonl")
