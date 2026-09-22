@@ -3,7 +3,7 @@ import { marked } from 'marked'
 import * as tree from './layoutTree'
 import type { DropZone, EdgeZone } from './layoutTree'
 import { disposeShell, onShellExit, setShellArgs } from './shellRegistry'
-import type { WorkspaceLayoutState, WorkspaceTab } from '../../preload'
+import type { WorkspaceLayoutState, WorkspaceTab } from '../../preload/types'
 
 export interface ProjectRef {
   id: string
@@ -15,6 +15,9 @@ export interface DocEntry {
   content: string
   html: string
   status: 'loading' | 'ready' | 'missing'
+  // Last content known to match disk, for editable docs -- lets flushDoc
+  // tell an external write (another pane, a model) apart from its own echo.
+  baseline: string
 }
 
 interface Workspace {
@@ -86,7 +89,7 @@ async function loadDoc(project: ProjectRef, path: string, force = false): Promis
 
   const editable = isEditablePath(path)
   if (!existing) {
-    workspace.docs[path] = { editable, content: '', html: '', status: 'loading' }
+    workspace.docs[path] = { editable, content: '', html: '', status: 'loading', baseline: '' }
   }
   const raw = await window.api.biblio.read(project.path, path)
   const entry = workspaces[project.id]?.docs[path]
@@ -95,19 +98,36 @@ async function loadDoc(project: ProjectRef, path: string, force = false): Promis
     entry.status = 'missing'
     return
   }
-  if (editable) entry.content = raw
-  else entry.html = await marked.parse(raw)
+  if (editable) {
+    entry.content = raw
+    entry.baseline = raw
+  } else entry.html = await marked.parse(raw)
   entry.status = 'ready'
 }
 
-function flushDoc(project: ProjectRef, path: string): void {
+async function flushDoc(project: ProjectRef, path: string): Promise<void> {
   const key = `${project.id}:${path}`
   const timer = docSaveTimers.get(key)
   if (!timer) return
   clearTimeout(timer)
   docSaveTimers.delete(key)
   const doc = workspaces[project.id]?.docs[path]
-  if (doc && doc.status === 'ready') void window.api.biblio.write(project.path, path, doc.content)
+  if (!doc || doc.status !== 'ready') return
+
+  // The file may have changed on disk since we last synced it -- another
+  // pane or a model writing to the same scratchpad file. Saving our buffer
+  // in that case would silently discard that write, so disk wins instead.
+  const onDisk = await window.api.biblio.read(project.path, path)
+  const current = workspaces[project.id]?.docs[path]
+  if (!current) return
+  if (onDisk !== null && onDisk !== current.baseline) {
+    current.content = onDisk
+    current.baseline = onDisk
+    return
+  }
+
+  const ok = await window.api.biblio.write(project.path, path, current.content)
+  if (ok) current.baseline = current.content
 }
 
 export function editDoc(project: ProjectRef, path: string, value: string): void {
