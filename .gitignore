@@ -10,3 +10,7 @@ out/
 
 # AI-collaboration workspace, not shipped product
 biblio/
+
+# stray `go build .` output at a module root (named after its own directory)
+/lgrass/lgrass
+/lgrassconf/lgrassconf

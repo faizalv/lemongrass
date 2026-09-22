@@ -387,6 +387,29 @@ func TestIncrementNudgeCounterWithoutPriorStart(t *testing.T) {
 	}
 }
 
+func TestEnsureOpenPreservesExistingSignature(t *testing.T) {
+	store := openTestStore(t)
+	if err := store.Start("session-a", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Sign("session-a", "checklist-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.End("session-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureOpen("session-a"); err != nil {
+		t.Fatal(err)
+	}
+	signedAt, err := store.SignedAt("session-a", "checklist-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if signedAt.IsZero() {
+		t.Error("EnsureOpen cleared the existing signature")
+	}
+}
+
 func TestBeginParticipantAssignsSuffixOnCollision(t *testing.T) {
 	store := openTestStore(t)
 

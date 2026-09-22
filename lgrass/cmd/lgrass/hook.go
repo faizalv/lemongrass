@@ -21,12 +21,17 @@ const (
 )
 
 // The full hook JSON carries more fields depending on hook_event_name; this is only the subset lgrass reads.
-type hookPayload struct {
-	SessionID      string          `json:"session_id"`
-	TranscriptPath string          `json:"transcript_path"`
-	Cwd            string          `json:"cwd"`
-	ToolName       string          `json:"tool_name"`
-	ToolInput      json.RawMessage `json:"tool_input"`
+type hookEvent struct {
+	SessionID            string          `json:"session_id"`
+	TranscriptPath       string          `json:"transcript_path"`
+	Cwd                  string          `json:"cwd"`
+	ToolName             string          `json:"tool_name"`
+	ToolInput            json.RawMessage `json:"tool_input"`
+	SessionSource        string          `json:"source"`
+	MessagingSocket      string
+	MessagingToken       string
+	EnforceBibliothek    bool
+	PreserveSessionState bool
 }
 
 type fileToolInput struct {
@@ -37,22 +42,16 @@ type skillToolInput struct {
 	Skill string `json:"skill"`
 }
 
+type patchToolInput struct {
+	Command string `json:"command"`
+}
+
 const bibliothekChecklistID = "bibliothek"
 
 // Long enough to outlast any real session.
 const bibliothekSignatureTTL = 7 * 24 * time.Hour
 
-type hookOutput struct {
-	HookSpecificOutput hookSpecificOutput `json:"hookSpecificOutput"`
-}
-
-type hookSpecificOutput struct {
-	HookEventName      string `json:"hookEventName"`
-	PermissionDecision string `json:"permissionDecision,omitempty"`
-	AdditionalContext  string `json:"additionalContext,omitempty"`
-}
-
-// Every failure here fails soft (exit 0, no output) so an lgrass-side problem never breaks Claude Code's own hook chain.
+// Every failure here fails soft so a hook-side problem never breaks the agent's own hook chain.
 func cmdHook(args []string) {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse>")
@@ -64,8 +63,9 @@ func cmdHook(args []string) {
 	if err != nil {
 		os.Exit(0)
 	}
-	var payload hookPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	adapter := hookAdapterForEnvironment()
+	payload, err := adapter.decode(raw)
+	if err != nil {
 		os.Exit(0)
 	}
 
@@ -80,26 +80,32 @@ func cmdHook(args []string) {
 	}
 	defer store.Close()
 
+	var result hookResult
 	switch event {
 	case "SessionStart":
-		hookSessionStart(store, payload, proj.Path)
+		result = hookSessionStart(store, payload, proj.Path)
 	case "SessionEnd":
 		store.End(payload.SessionID)
 	case "PreToolUse":
-		hookPreToolUse(store, payload, proj.Path)
+		result = hookPreToolUse(store, payload, proj.Path)
 	case "PostToolUse":
-		hookPostToolUse(store, payload, proj.Path)
+		result = hookPostToolUse(store, payload, proj.Path)
 	}
+	adapter.emit(result)
 }
 
-func hookSessionStart(store *session.Store, payload hookPayload, projectPath string) {
-	store.Start(payload.SessionID, os.Getenv("CLAUDE_CODE_MESSAGING_SOCKET"), os.Getenv("CLAUDE_CODE_MESSAGING_TOKEN"))
+func hookSessionStart(store *session.Store, payload hookEvent, projectPath string) hookResult {
+	if payload.PreserveSessionState {
+		store.EnsureOpen(payload.SessionID)
+	} else {
+		store.Start(payload.SessionID, payload.MessagingSocket, payload.MessagingToken)
+	}
 
 	var parts []string
 	if summary := lawsSummary(projectPath); summary != "" {
 		parts = append(parts, summary)
 	}
-	emitHookContext("SessionStart", "", parts)
+	return newHookResult("SessionStart", "", parts)
 }
 
 // Missing biblio/laws/summary.md is not an error -- most projects have no laws to deliver.
@@ -111,27 +117,25 @@ func lawsSummary(projectPath string) string {
 	return strings.TrimSpace(string(data))
 }
 
-func hookPreToolUse(store *session.Store, payload hookPayload, projectPath string) {
-	filePath := toolFilePath(payload)
+func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string) hookResult {
+	filePaths := toolFilePaths(payload)
 
-	if hasBiblio(projectPath) {
+	if payload.EnforceBibliothek && hasBiblio(projectPath) {
 		if isBibliothekSkillCall(payload) {
 			store.Sign(payload.SessionID, bibliothekChecklistID)
 		} else if deny := bibliothekDeny(store, payload.SessionID, payload.TranscriptPath); deny != "" {
-			emitHookContext("PreToolUse", "deny", []string{deny})
-			return
+			return newHookResult("PreToolUse", "deny", []string{deny})
 		}
 	}
 
-	if deny := checklistDeny(store, payload, filePath, projectPath); deny != "" {
-		emitHookContext("PreToolUse", "deny", []string{deny})
-		return
+	if deny := checklistDeny(store, payload, filePaths, projectPath); deny != "" {
+		return newHookResult("PreToolUse", "deny", []string{deny})
 	}
 
 	var parts []string
 
-	if payload.ToolName == "Write" || payload.ToolName == "Edit" {
-		if filePath != "" {
+	if isFileEdit(payload) {
+		for _, filePath := range filePaths {
 			if hits, err := store.RecentActivity(payload.SessionID, filePath, collisionWindow); err == nil && len(hits) > 0 {
 				if w := session.FormatCollisionWarning(hits); w != "" {
 					parts = append(parts, w)
@@ -141,10 +145,10 @@ func hookPreToolUse(store *session.Store, payload hookPayload, projectPath strin
 	}
 	parts = append(parts, mentionContext(store, payload.SessionID)...)
 
-	emitHookContext("PreToolUse", "allow", parts)
+	return newHookResult("PreToolUse", "allow", parts)
 }
 
-func isBibliothekSkillCall(payload hookPayload) bool {
+func isBibliothekSkillCall(payload hookEvent) bool {
 	if payload.ToolName != "Skill" {
 		return false
 	}
@@ -220,13 +224,16 @@ func transcriptHasBibliothekInvocation(transcriptPath string) bool {
 }
 
 // Returns the deny message for the first unsigned or TTL-expired checklist matching this call, "" if none match or all are signed.
-func checklistDeny(store *session.Store, payload hookPayload, filePath, projectPath string) string {
+func checklistDeny(store *session.Store, payload hookEvent, filePaths []string, projectPath string) string {
 	checklists, err := session.LoadChecklists(projectPath)
 	if err != nil || len(checklists) == 0 {
 		return ""
 	}
+	if len(filePaths) == 0 {
+		filePaths = []string{""}
+	}
 	for _, c := range checklists {
-		if !c.Matches(payload.ToolName, filePath) {
+		if !checklistMatches(c, payload.ToolName, filePaths) {
 			continue
 		}
 		signedAt, err := store.SignedAt(payload.SessionID, c.ID)
@@ -234,17 +241,20 @@ func checklistDeny(store *session.Store, payload hookPayload, filePath, projectP
 			continue
 		}
 		if signedAt.IsZero() || time.Since(signedAt) > c.TTL() {
+			if payload.PreserveSessionState {
+				return fmt.Sprintf("lgrass: %q requires signing before this call proceeds. Run `lgrass sign --session-id %s %s`, then retry:\n\n%s", c.ID, payload.SessionID, c.ID, c.Content)
+			}
 			return session.FormatChecklistDeny(c)
 		}
 	}
 	return ""
 }
 
-func hookPostToolUse(store *session.Store, payload hookPayload, projectPath string) {
+func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string) hookResult {
 	store.Touch(payload.SessionID)
 
-	if payload.ToolName == "Write" || payload.ToolName == "Edit" {
-		if filePath := toolFilePath(payload); filePath != "" {
+	if isFileEdit(payload) {
+		for _, filePath := range toolFilePaths(payload) {
 			store.LogFileActivity(payload.SessionID, filePath)
 		}
 	}
@@ -267,7 +277,7 @@ func hookPostToolUse(store *session.Store, payload hookPayload, projectPath stri
 		}
 	}
 
-	emitHookContext("PostToolUse", "", parts)
+	return newHookResult("PostToolUse", "", parts)
 }
 
 func hasBiblio(projectPath string) bool {
@@ -289,28 +299,65 @@ func mentionContext(store *session.Store, sessionID string) []string {
 	return []string{text}
 }
 
-func toolFilePath(payload hookPayload) string {
-	var input fileToolInput
-	if err := json.Unmarshal(payload.ToolInput, &input); err != nil {
-		return ""
+func hookAdapterForEnvironment() hookAdapter {
+	if os.Getenv("LGRASS_HOOK_VENDOR") == "codex" {
+		return codexHookAdapter{}
 	}
-	return input.FilePath
+	return claudeHookAdapter{}
 }
 
-// A hook response carries only one additionalContext string, so this joins whatever parts fired into one.
-func emitHookContext(eventName, permissionDecision string, parts []string) {
-	var nonEmpty []string
-	for _, p := range parts {
-		if p != "" {
-			nonEmpty = append(nonEmpty, p)
+type hookAdapter interface {
+	decode([]byte) (hookEvent, error)
+	emit(hookResult)
+}
+
+func isFileEdit(payload hookEvent) bool {
+	return payload.ToolName == "Write" || payload.ToolName == "Edit" || payload.ToolName == "apply_patch"
+}
+
+func checklistMatches(checklist session.Checklist, toolName string, filePaths []string) bool {
+	for _, filePath := range filePaths {
+		if checklist.Matches(toolName, filePath) {
+			return true
+		}
+		if toolName == "apply_patch" && (checklist.Matches("Write", filePath) || checklist.Matches("Edit", filePath)) {
+			return true
 		}
 	}
-	if len(nonEmpty) == 0 {
-		return
+	return false
+}
+
+func toolFilePaths(payload hookEvent) []string {
+	var input fileToolInput
+	if err := json.Unmarshal(payload.ToolInput, &input); err == nil && input.FilePath != "" {
+		return []string{input.FilePath}
 	}
-	json.NewEncoder(os.Stdout).Encode(hookOutput{HookSpecificOutput: hookSpecificOutput{
-		HookEventName:      eventName,
-		PermissionDecision: permissionDecision,
-		AdditionalContext:  strings.Join(nonEmpty, "\n\n"),
-	}})
+	if payload.ToolName != "apply_patch" {
+		return nil
+	}
+	var patch patchToolInput
+	if err := json.Unmarshal(payload.ToolInput, &patch); err != nil {
+		return nil
+	}
+	return patchFilePaths(patch.Command)
+}
+
+func patchFilePaths(command string) []string {
+	prefixes := []string{"*** Add File: ", "*** Delete File: ", "*** Update File: "}
+	seen := map[string]bool{}
+	var paths []string
+	for _, line := range strings.Split(command, "\n") {
+		for _, prefix := range prefixes {
+			if !strings.HasPrefix(line, prefix) {
+				continue
+			}
+			path := strings.TrimSpace(strings.TrimPrefix(line, prefix))
+			if path != "" && !seen[path] {
+				seen[path] = true
+				paths = append(paths, path)
+			}
+			break
+		}
+	}
+	return paths
 }

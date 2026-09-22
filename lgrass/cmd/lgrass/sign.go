@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -9,15 +10,13 @@ import (
 
 // The model-facing side of the prerequisite gate: satisfies a checklist's PreToolUse deny for this session, for that checklist's own TTL.
 func cmdSign(args []string) {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass sign <checklist-id>")
+	checklistID, sessionID, err := signRequest(args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "usage: lgrass sign [--session-id <id>] <checklist-id>")
 		os.Exit(1)
 	}
-	checklistID := args[0]
-
-	sessionID := os.Getenv("CLAUDE_CODE_SESSION_ID")
 	if sessionID == "" {
-		fmt.Fprintln(os.Stderr, "error: CLAUDE_CODE_SESSION_ID is not set -- lgrass sign only works invoked from within a session that has one")
+		fmt.Fprintln(os.Stderr, "error: no session id is available. Pass --session-id when the agent does not export CLAUDE_CODE_SESSION_ID")
 		os.Exit(1)
 	}
 
@@ -34,4 +33,29 @@ func cmdSign(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("signed %q.\n", checklistID)
+}
+
+func signRequest(args []string) (checklistID, sessionID string, err error) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--session-id":
+			i++
+			if i >= len(args) || args[i] == "" {
+				return "", "", errors.New("missing session id")
+			}
+			sessionID = args[i]
+		default:
+			if checklistID != "" {
+				return "", "", errors.New("multiple checklist ids")
+			}
+			checklistID = args[i]
+		}
+	}
+	if checklistID == "" {
+		return "", "", errors.New("missing checklist id")
+	}
+	if sessionID == "" {
+		sessionID = os.Getenv("CLAUDE_CODE_SESSION_ID")
+	}
+	return checklistID, sessionID, nil
 }

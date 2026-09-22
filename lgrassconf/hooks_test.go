@@ -21,11 +21,11 @@ func groupsFor(t *testing.T, data []byte, event string) []map[string]any {
 
 func TestReconcileEmptyInputRegistersAllEvents(t *testing.T) {
 	for _, in := range []string{"", "{}", "  \n"} {
-		out, changed, err := reconcileSettings([]byte(in), testLgrass)
+		out, changed, err := reconcileClaudeSettings([]byte(in), testLgrass)
 		if err != nil || !changed {
 			t.Fatalf("input %q: changed=%v err=%v", in, changed, err)
 		}
-		for _, event := range hookEvents {
+		for _, event := range claudeHookEvents {
 			groups := groupsFor(t, out, event)
 			if len(groups) != 1 {
 				t.Fatalf("%s: %d groups, want 1", event, len(groups))
@@ -40,12 +40,51 @@ func TestReconcileEmptyInputRegistersAllEvents(t *testing.T) {
 	}
 }
 
+func TestReconcileCodexHooksRegistersAllEvents(t *testing.T) {
+	out, changed, err := reconcileCodexHooks([]byte(`{"theme":"dark"}`), testLgrass)
+	if err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	if !strings.Contains(string(out), `"theme": "dark"`) {
+		t.Error("unrelated Codex configuration was not preserved")
+	}
+	for _, event := range codexHookEvents {
+		groups := groupsFor(t, out, event)
+		if len(groups) != 1 {
+			t.Fatalf("%s: %d groups, want 1", event, len(groups))
+		}
+		command, _ := groups[0]["hooks"].([]any)
+		if !strings.Contains(string(out), "LGRASS_HOOK_VENDOR=codex "+testLgrass+" hook "+event) {
+			t.Errorf("%s: Codex command missing", event)
+		}
+		if len(command) != 1 {
+			t.Errorf("%s: handler count = %d, want 1", event, len(command))
+		}
+	}
+	start := groupsFor(t, out, "SessionStart")[0]
+	if start["matcher"] != "startup|resume|clear|compact" {
+		t.Errorf("SessionStart matcher = %v", start["matcher"])
+	}
+	if startHooks, _ := start["hooks"].([]any); len(startHooks) != 1 {
+		t.Errorf("SessionStart handlers = %d, want 1", len(startHooks))
+	}
+	end := groupsFor(t, out, "SessionEnd")[0]
+	if endHooks, _ := end["hooks"].([]any); len(endHooks) != 1 {
+		t.Errorf("SessionEnd handlers = %d, want 1", len(endHooks))
+	}
+
+	second, changed, err := reconcileCodexHooks(out, testLgrass)
+	if err != nil || changed || string(second) != string(out) {
+		t.Fatalf("second pass changed=%v err=%v", changed, err)
+	}
+}
+
 func TestReconcileIsIdempotent(t *testing.T) {
-	first, _, err := reconcileSettings(nil, testLgrass)
+	first, _, err := reconcileClaudeSettings(nil, testLgrass)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, changed, err := reconcileSettings(first, testLgrass)
+	second, changed, err := reconcileClaudeSettings(first, testLgrass)
 	if err != nil || changed {
 		t.Fatalf("second pass changed=%v err=%v", changed, err)
 	}
@@ -56,7 +95,7 @@ func TestReconcileIsIdempotent(t *testing.T) {
 
 func TestReconcileHealsNarrowMatcher(t *testing.T) {
 	in := `{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"` + testLgrass + ` hook PreToolUse"}]}]}}`
-	out, changed, err := reconcileSettings([]byte(in), testLgrass)
+	out, changed, err := reconcileClaudeSettings([]byte(in), testLgrass)
 	if err != nil || !changed {
 		t.Fatalf("changed=%v err=%v", changed, err)
 	}
@@ -71,7 +110,7 @@ func TestReconcileHealsNarrowMatcher(t *testing.T) {
 
 func TestReconcileHealsStaleCommandPath(t *testing.T) {
 	in := `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"/usr/local/bin/lgrass hook SessionStart"}]}]}}`
-	out, _, err := reconcileSettings([]byte(in), testLgrass)
+	out, _, err := reconcileClaudeSettings([]byte(in), testLgrass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +130,7 @@ func TestReconcilePreservesUnrelatedConfig(t *testing.T) {
     "Stop": [{"hooks": [{"type": "command", "command": "notify"}]}]
   }
 }`
-	out, _, err := reconcileSettings([]byte(in), testLgrass)
+	out, _, err := reconcileClaudeSettings([]byte(in), testLgrass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +148,7 @@ func TestReconcilePreservesUnrelatedConfig(t *testing.T) {
 func TestReconcileCollapsesDuplicateOwnedGroups(t *testing.T) {
 	dup := `{"hooks":[{"type":"command","command":"` + testLgrass + ` hook SessionEnd"}]}`
 	in := `{"hooks":{"SessionEnd":[` + dup + `,` + dup + `]}}`
-	out, changed, err := reconcileSettings([]byte(in), testLgrass)
+	out, changed, err := reconcileClaudeSettings([]byte(in), testLgrass)
 	if err != nil || !changed {
 		t.Fatalf("changed=%v err=%v", changed, err)
 	}
@@ -120,7 +159,7 @@ func TestReconcileCollapsesDuplicateOwnedGroups(t *testing.T) {
 
 func TestReconcileRejectsInvalidJSON(t *testing.T) {
 	for _, in := range []string{`{"hooks":`, `[1,2]`, `{"hooks":"nope"}`} {
-		if _, _, err := reconcileSettings([]byte(in), testLgrass); err == nil {
+		if _, _, err := reconcileClaudeSettings([]byte(in), testLgrass); err == nil {
 			t.Errorf("input %q: expected an error", in)
 		}
 	}

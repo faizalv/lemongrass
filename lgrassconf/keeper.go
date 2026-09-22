@@ -8,7 +8,10 @@ import (
 )
 
 //go:embed SKILL.md
-var skillContent []byte
+var claudeSkillContent []byte
+
+//go:embed CODEX_SKILL.md
+var codexSkillContent []byte
 
 type keeper struct {
 	home       string
@@ -25,12 +28,20 @@ func newKeeper(home string) *keeper {
 	}
 }
 
-func (k *keeper) settingsPath() string {
+func (k *keeper) claudeSettingsPath() string {
 	return filepath.Join(k.home, ".claude", "settings.json")
 }
 
-func (k *keeper) skillPath() string {
+func (k *keeper) claudeSkillPath() string {
 	return filepath.Join(k.home, ".claude", "skills", "lemongrass", "SKILL.md")
+}
+
+func (k *keeper) codexHooksPath() string {
+	return filepath.Join(k.home, ".codex", "hooks.json")
+}
+
+func (k *keeper) codexSkillPath() string {
+	return filepath.Join(k.home, ".codex", "skills", "lemongrass", "SKILL.md")
 }
 
 func (k *keeper) lgrassPath() string {
@@ -44,11 +55,17 @@ func (k *keeper) lgrassPath() string {
 
 func (k *keeper) reconcile() error {
 	var errs []error
-	if err := syncFile(k.skillPath(), skillContent); err != nil {
+	if err := syncFile(k.claudeSkillPath(), claudeSkillContent); err != nil {
+		errs = append(errs, err)
+	}
+	if err := syncFile(k.codexSkillPath(), codexSkillContent); err != nil {
 		errs = append(errs, err)
 	}
 	if path := k.lgrassPath(); path != "" {
-		if err := syncSettings(k.settingsPath(), path); err != nil {
+		if err := syncHookConfig(k.claudeSettingsPath(), path, reconcileClaudeSettings); err != nil {
+			errs = append(errs, err)
+		}
+		if err := syncHookConfig(k.codexHooksPath(), path, reconcileCodexHooks); err != nil {
 			errs = append(errs, err)
 		}
 	}

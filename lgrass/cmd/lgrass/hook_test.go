@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/faizalv/lemongrass/session"
@@ -36,11 +37,56 @@ func TestIsBibliothekSkillCall(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			payload := hookPayload{ToolName: c.toolName, ToolInput: json.RawMessage(c.input)}
+			payload := hookEvent{ToolName: c.toolName, ToolInput: json.RawMessage(c.input)}
 			if got := isBibliothekSkillCall(payload); got != c.want {
 				t.Errorf("isBibliothekSkillCall(%q, %q) = %v, want %v", c.toolName, c.input, got, c.want)
 			}
 		})
+	}
+}
+
+func TestPatchFilePaths(t *testing.T) {
+	command := "*** Begin Patch\n*** Update File: one.txt\n*** Add File: two.txt\n*** Update File: one.txt\n*** Delete File: three.txt\n*** End Patch"
+	got := patchFilePaths(command)
+	want := []string{"one.txt", "two.txt", "three.txt"}
+	if len(got) != len(want) {
+		t.Fatalf("patchFilePaths() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("patchFilePaths()[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestCodexHookAdapterPreservesSessionState(t *testing.T) {
+	adapter := codexHookAdapter{}
+	event, err := adapter.decode([]byte(`{"session_id":"session-a","cwd":"/workspace","source":"compact"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !event.PreserveSessionState {
+		t.Error("Codex event should preserve existing session state")
+	}
+	if event.SessionSource != "compact" {
+		t.Errorf("SessionSource = %q, want compact", event.SessionSource)
+	}
+}
+
+func TestCodexChecklistDenyUsesExplicitSessionID(t *testing.T) {
+	store := openHookTestStore(t)
+	projectPath := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(projectPath, ".lgrass"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	checklist := `[{"id":"review","tool":"Bash","content":"Review the checklist."}]`
+	if err := os.WriteFile(filepath.Join(projectPath, ".lgrass", "checklists.json"), []byte(checklist), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	payload := hookEvent{SessionID: "codex-session", ToolName: "Bash", PreserveSessionState: true}
+	deny := checklistDeny(store, payload, nil, projectPath)
+	if !strings.Contains(deny, "lgrass sign --session-id codex-session review") {
+		t.Errorf("checklistDeny() = %q, want a Codex session signing command", deny)
 	}
 }
 

@@ -1,4 +1,4 @@
-module github.com/faizalv/lemongrass/lgconf
+module github.com/faizalv/lemongrass/lgrassconf
 
 go 1.26.8
 

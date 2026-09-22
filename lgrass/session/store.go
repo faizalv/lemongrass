@@ -126,6 +126,18 @@ func (s *Store) Start(sessionID, messagingSocket, messagingToken string) error {
 	return err
 }
 
+func (s *Store) EnsureOpen(sessionID string) error {
+	ts := now()
+	_, err := s.db.Exec(`
+		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter, thread_read_at)
+		VALUES (?, ?, ?, NULL, ?, 0, ?)
+		ON CONFLICT (project_id, session_id) DO UPDATE SET
+			ended_at = NULL,
+			last_activity_at = excluded.last_activity_at
+	`, s.projectID, sessionID, ts, ts, ts)
+	return err
+}
+
 // Upserts so a missed or misconfigured SessionStart hook doesn't leave liveness permanently blind to this session.
 func (s *Store) Touch(sessionID string) error {
 	ts := now()

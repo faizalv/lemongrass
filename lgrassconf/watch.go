@@ -19,7 +19,10 @@ func (k *keeper) watchedDirs() []string {
 	dirs := []string{
 		filepath.Join(k.home, ".claude"),
 		filepath.Join(k.home, ".claude", "skills"),
-		filepath.Dir(k.skillPath()),
+		filepath.Dir(k.claudeSkillPath()),
+		filepath.Join(k.home, ".codex"),
+		filepath.Join(k.home, ".codex", "skills"),
+		filepath.Dir(k.codexSkillPath()),
 	}
 	for _, c := range k.candidates {
 		dirs = append(dirs, filepath.Dir(c))
@@ -29,10 +32,14 @@ func (k *keeper) watchedDirs() []string {
 
 func (k *keeper) relevant() map[string]bool {
 	set := map[string]bool{
-		k.settingsPath(): true,
+		k.claudeSettingsPath():                     true,
 		filepath.Join(k.home, ".claude", "skills"): true,
-		filepath.Dir(k.skillPath()):                true,
-		k.skillPath():                              true,
+		filepath.Dir(k.claudeSkillPath()):          true,
+		k.claudeSkillPath():                        true,
+		k.codexHooksPath():                         true,
+		filepath.Join(k.home, ".codex", "skills"):  true,
+		filepath.Dir(k.codexSkillPath()):           true,
+		k.codexSkillPath():                         true,
 	}
 	for _, c := range k.candidates {
 		set[c] = true

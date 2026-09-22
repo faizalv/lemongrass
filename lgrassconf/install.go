@@ -7,11 +7,14 @@ import (
 	"path/filepath"
 )
 
-const unitName = "lgconf.service"
+const (
+	unitName       = "lgrassconf.service"
+	legacyUnitName = "lgconf.service"
+)
 
 func unitText(binary string) string {
 	return fmt.Sprintf(`[Unit]
-Description=lemongrass Claude Code config keeper
+Description=lemongrass agent config keeper
 
 [Service]
 Type=simple
@@ -35,6 +38,17 @@ func installUnit(home string) error {
 
 	unitPath := filepath.Join(home, ".config", "systemd", "user", unitName)
 	if err := writeAtomic(unitPath, []byte(unitText(binary)), 0o644); err != nil {
+		return err
+	}
+	legacy := exec.Command("systemctl", "--user", "disable", "--now", legacyUnitName)
+	legacy.Stdout, legacy.Stderr = os.Stdout, os.Stderr
+	if err := legacy.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			return fmt.Errorf("systemctl --user disable %s: %w", legacyUnitName, err)
+		}
+	}
+	legacyUnitPath := filepath.Join(home, ".config", "systemd", "user", legacyUnitName)
+	if err := os.Remove(legacyUnitPath); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	for _, args := range [][]string{

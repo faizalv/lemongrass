@@ -26,17 +26,17 @@ func fakeHome(t *testing.T) (*keeper, string) {
 
 func TestInvalidSettingsAreNeverOverwritten(t *testing.T) {
 	k, _ := fakeHome(t)
-	if err := os.MkdirAll(filepath.Dir(k.settingsPath()), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(k.claudeSettingsPath()), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	broken := `{"hooks": `
-	if err := os.WriteFile(k.settingsPath(), []byte(broken), 0o600); err != nil {
+	if err := os.WriteFile(k.claudeSettingsPath(), []byte(broken), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := k.reconcile(); err == nil {
 		t.Fatal("expected an error for invalid JSON")
 	}
-	got, _ := os.ReadFile(k.settingsPath())
+	got, _ := os.ReadFile(k.claudeSettingsPath())
 	if string(got) != broken {
 		t.Errorf("file rewritten: %q", got)
 	}
@@ -44,16 +44,16 @@ func TestInvalidSettingsAreNeverOverwritten(t *testing.T) {
 
 func TestWritePreservesFileMode(t *testing.T) {
 	k, _ := fakeHome(t)
-	if err := os.MkdirAll(filepath.Dir(k.settingsPath()), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(k.claudeSettingsPath()), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(k.settingsPath(), []byte(`{"editorMode":"normal"}`), 0o600); err != nil {
+	if err := os.WriteFile(k.claudeSettingsPath(), []byte(`{"editorMode":"normal"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := k.reconcile(); err != nil {
 		t.Fatal(err)
 	}
-	info, err := os.Stat(k.settingsPath())
+	info, err := os.Stat(k.claudeSettingsPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,11 +68,17 @@ func TestNoLgrassBinaryRegistersNoHooks(t *testing.T) {
 	if err := k.reconcile(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(k.settingsPath()); err == nil {
+	if _, err := os.Stat(k.claudeSettingsPath()); err == nil {
 		t.Error("settings written although no lgrass binary exists")
 	}
-	if _, err := os.Stat(k.skillPath()); err != nil {
+	if _, err := os.Stat(k.claudeSkillPath()); err != nil {
 		t.Errorf("skill should still be installed: %v", err)
+	}
+	if _, err := os.Stat(k.codexSkillPath()); err != nil {
+		t.Errorf("Codex skill should still be installed: %v", err)
+	}
+	if _, err := os.Stat(k.codexHooksPath()); err == nil {
+		t.Error("Codex hooks written although no lgrass binary exists")
 	}
 }
 
@@ -96,23 +102,27 @@ func TestWatcherHealsDriftWithoutAnyOtherProcess(t *testing.T) {
 	defer func() { cancel(); <-done }()
 
 	healthy := func() bool {
-		data, err := os.ReadFile(k.settingsPath())
+		data, err := os.ReadFile(k.claudeSettingsPath())
 		return err == nil && strings.Contains(string(data), lgrass+" hook PreToolUse") && !strings.Contains(string(data), "Write|Edit")
 	}
 	waitFor(t, "initial registration", healthy)
 
 	drifted := `{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"` + lgrass + ` hook PreToolUse"}]}]}}`
-	if err := writeAtomic(k.settingsPath(), []byte(drifted), 0o644); err != nil {
+	if err := writeAtomic(k.claudeSettingsPath(), []byte(drifted), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "matcher healed after drift", healthy)
 
-	if err := os.RemoveAll(filepath.Dir(k.skillPath())); err != nil {
+	if err := os.RemoveAll(filepath.Dir(k.claudeSkillPath())); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "skill restored after deletion", func() bool {
-		data, err := os.ReadFile(k.skillPath())
-		return err == nil && string(data) == string(skillContent)
+		data, err := os.ReadFile(k.claudeSkillPath())
+		return err == nil && string(data) == string(claudeSkillContent)
+	})
+	waitFor(t, "Codex hooks registered", func() bool {
+		data, err := os.ReadFile(k.codexHooksPath())
+		return err == nil && strings.Contains(string(data), "LGRASS_HOOK_VENDOR=codex "+lgrass+" hook PreToolUse")
 	})
 }
 
@@ -124,15 +134,19 @@ func TestWatcherRegistersHooksWhenLgrassAppears(t *testing.T) {
 	go func() { k.run(ctx); close(done) }()
 	defer func() { cancel(); <-done }()
 
-	waitFor(t, "skill installed", func() bool { _, err := os.Stat(k.skillPath()); return err == nil })
-	if _, err := os.Stat(k.settingsPath()); err == nil {
+	waitFor(t, "skill installed", func() bool { _, err := os.Stat(k.claudeSkillPath()); return err == nil })
+	if _, err := os.Stat(k.claudeSettingsPath()); err == nil {
 		t.Fatal("settings written before the binary existed")
 	}
 	if err := os.WriteFile(lgrass, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "hooks registered after binary appeared", func() bool {
-		data, err := os.ReadFile(k.settingsPath())
+		data, err := os.ReadFile(k.claudeSettingsPath())
 		return err == nil && strings.Contains(string(data), lgrass+" hook SessionStart")
+	})
+	waitFor(t, "Codex hooks registered after binary appeared", func() bool {
+		data, err := os.ReadFile(k.codexHooksPath())
+		return err == nil && strings.Contains(string(data), "LGRASS_HOOK_VENDOR=codex "+lgrass+" hook SessionStart")
 	})
 }

@@ -87,7 +87,8 @@ COMMANDS
   tips list                         List this project's custom tips, with their ids
   tips remove <id>                  Remove a custom tip by id
 
-  sign <checklist-id>                Satisfies a .lgrass/checklists.json prerequisite gate for the
+  sign [--session-id <id>] <checklist-id>
+                                     Satisfies a .lgrass/checklists.json prerequisite gate for the
                                      current session, until that checklist's TTL expires
 
   rules list

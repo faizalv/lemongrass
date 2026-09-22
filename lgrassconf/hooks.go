@@ -7,15 +7,25 @@ import (
 	"strings"
 )
 
-var hookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse"}
+var claudeHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse"}
 
 type hookHandler struct {
-	Type    string `json:"type"`
-	Command string `json:"command"`
+	Type                   string `json:"type"`
+	Command                string `json:"command"`
+	Timeout                int    `json:"timeout,omitempty"`
+	StatusMessage          string `json:"statusMessage,omitempty"`
+	AdditionalContextLimit int    `json:"additionalContextLimit,omitempty"`
 }
 
 type hookGroup struct {
-	Hooks []hookHandler `json:"hooks"`
+	Matcher string        `json:"matcher,omitempty"`
+	Hooks   []hookHandler `json:"hooks"`
+}
+
+type hookRegistration struct {
+	Event   string
+	Matcher string
+	Handler hookHandler
 }
 
 func ownedByEvent(group json.RawMessage, event string) bool {
@@ -44,8 +54,19 @@ func sameJSON(a, b []byte) bool {
 	return bytes.Equal(ca.Bytes(), cb.Bytes())
 }
 
-// Returns the input untouched and false when every lgrass hook group already matches.
-func reconcileSettings(data []byte, lgrassPath string) ([]byte, bool, error) {
+func reconcileClaudeSettings(data []byte, lgrassPath string) ([]byte, bool, error) {
+	registrations := make([]hookRegistration, 0, len(claudeHookEvents))
+	for _, event := range claudeHookEvents {
+		registrations = append(registrations, hookRegistration{
+			Event:   event,
+			Handler: hookHandler{Type: "command", Command: lgrassPath + " hook " + event},
+		})
+	}
+	return reconcileHookGroups(data, registrations)
+}
+
+// Returns the input untouched and false when every Lemongrass hook group already matches.
+func reconcileHookGroups(data []byte, registrations []hookRegistration) ([]byte, bool, error) {
 	top := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(data)) > 0 {
 		if err := json.Unmarshal(data, &top); err != nil {
@@ -61,8 +82,9 @@ func reconcileSettings(data []byte, lgrassPath string) ([]byte, bool, error) {
 	}
 
 	dirty := false
-	for _, event := range hookEvents {
-		desired, err := json.Marshal(hookGroup{Hooks: []hookHandler{{Type: "command", Command: lgrassPath + " hook " + event}}})
+	for _, registration := range registrations {
+		event := registration.Event
+		desired, err := json.Marshal(hookGroup{Matcher: registration.Matcher, Hooks: []hookHandler{registration.Handler}})
 		if err != nil {
 			return nil, false, err
 		}

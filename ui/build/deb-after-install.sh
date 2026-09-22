@@ -5,18 +5,20 @@ case "$(uname -m)" in
   *) arch=amd64 ;;
 esac
 mkdir -p /usr/lib/systemd/user
-cat > /usr/lib/systemd/user/lgconf.service <<UNIT
+systemctl --global disable --now lgconf.service || true
+rm -f /usr/lib/systemd/user/lgconf.service
+cat > /usr/lib/systemd/user/lgrassconf.service <<UNIT
 [Unit]
-Description=lemongrass Claude Code config keeper
+Description=lemongrass agent config keeper
 
 [Service]
 Type=simple
-ExecStart=/opt/Lemongrass/resources/bin/linux-$arch/lgconf run
+ExecStart=/opt/Lemongrass/resources/bin/linux-$arch/lgrassconf run
 Restart=on-failure
 RestartSec=2
 
 [Install]
 WantedBy=default.target
 UNIT
-chmod 0755 /opt/Lemongrass/resources/bin/linux-$arch/lgconf || true
-systemctl --global enable lgconf.service || true
+chmod 0755 /opt/Lemongrass/resources/bin/linux-$arch/lgrassconf || true
+systemctl --global enable lgrassconf.service || true

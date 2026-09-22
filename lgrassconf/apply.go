@@ -13,7 +13,7 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".lgconf-*")
+	tmp, err := os.CreateTemp(dir, ".lgrassconf-*")
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,9 @@ func statKey(path string) (time.Time, int64) {
 	return info.ModTime(), info.Size()
 }
 
-func syncSettings(path, lgrassPath string) error {
+type hookReconciler func([]byte, string) ([]byte, bool, error)
+
+func syncHookConfig(path, lgrassPath string, reconcile hookReconciler) error {
 	for attempt := 0; attempt < 3; attempt++ {
 		data, err := os.ReadFile(path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -56,7 +58,7 @@ func syncSettings(path, lgrassPath string) error {
 		}
 		beforeTime, beforeSize := statKey(path)
 
-		out, changed, err := reconcileSettings(data, lgrassPath)
+		out, changed, err := reconcile(data, lgrassPath)
 		if err != nil {
 			return err
 		}

@@ -5,7 +5,7 @@ An agent orchestrator: an Electron shell for running coding-agent CLIs (Claude C
 ## Layout
 
 - `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome, a `biblio/` browser/editor, and the db vault's Connections/Channels panel.
-- `lgconf/` -- a tiny Go daemon (systemd user service) that is the only writer of Claude Code's user-level config: hook registration and the lemongrass skill.
+- `lgrassconf/` -- a tiny Go daemon (systemd user service) that owns Lemongrass agent configuration. It registers Claude Code and Codex hooks plus each agent's Lemongrass skill.
 - `lgrass/` -- the Go CLI:
   - Session/thread coordination between panes.
   - A `SessionStart` hook that delivers `biblio/laws/summary.md` and gates tool calls behind required skills. It never writes Claude config itself.
@@ -37,7 +37,7 @@ A local credential vault for a project's databases.
 make build-linux
 ```
 
-Cross-compiles `lgrass` and `lgconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains -- `ui/`'s own `npm run build:linux` only builds the Electron half and expects `lgrass/dist/` to already exist, so use the root `make` target rather than running it directly.
+Cross-compiles `lgrass` and `lgrassconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains -- `ui/`'s own `npm run build:linux` only builds the Electron half and expects `lgrass/dist/` to already exist, so use the root `make` target rather than running it directly.
 
 mac and Windows packaging aren't wired up yet.
 
@@ -47,7 +47,7 @@ mac and Windows packaging aren't wired up yet.
 cd ui && npm run dev
 ```
 
-`make dev` from the repo root installs the `lgconf` daemon and its systemd user unit first, so Claude Code's config is kept correct before the app or any session starts. `lgrass` isn't required for the Electron shell itself to run -- it's invoked by the agent CLI running inside a terminal pane, not by the app directly. For work on `lgrass` alone:
+`make dev` from the repo root installs the `lgrassconf` daemon and its systemd user unit first, so Claude Code and Codex configuration are kept correct before a session starts. Codex hook definitions still require review and trust through `/hooks`. `lgrass` isn't required for the Electron shell itself to run -- it's invoked by the agent CLI running inside a terminal pane, not by the app directly. For work on `lgrass` alone:
 
 ```
 cd lgrass && go build ./... && go test ./...

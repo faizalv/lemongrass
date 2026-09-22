@@ -42,10 +42,10 @@ linux:
       to: "bin/linux-amd64/lgrass"
     - from: "../lgrass/dist/linux-arm64/lgrass"
       to: "bin/linux-arm64/lgrass"
-    - from: "../lgconf/dist/linux-amd64/lgconf"
-      to: "bin/linux-amd64/lgconf"
-    - from: "../lgconf/dist/linux-arm64/lgconf"
-      to: "bin/linux-arm64/lgconf"
+    - from: "../lgrassconf/dist/linux-amd64/lgrassconf"
+      to: "bin/linux-amd64/lgrassconf"
+    - from: "../lgrassconf/dist/linux-arm64/lgrassconf"
+      to: "bin/linux-arm64/lgrassconf"
 deb:
   afterInstall: build/deb-after-install.sh
   afterRemove: build/deb-after-remove.sh
