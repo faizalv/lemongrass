@@ -1,66 +1,28 @@
 package main
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 )
 
 const (
-	unitName       = "lgrassconf.service"
-	legacyUnitName = "lgconf.service"
+	unitName          = "lgrassconf.service"
+	legacyUnitName    = "lgconf.service"
+	launchAgentLabel  = "com.lemongrass.lgrassconf"
+	legacyLaunchLabel = "com.lemongrass.lgconf"
 )
 
-func unitText(binary string) string {
-	return fmt.Sprintf(`[Unit]
-Description=lemongrass agent config keeper
-
-[Service]
-Type=simple
-ExecStart=%s run
-Restart=on-failure
-RestartSec=2
-
-[Install]
-WantedBy=default.target
-`, binary)
+func installUnit(home string) error {
+	return installService(home)
 }
 
-func installUnit(home string) error {
+func resolveBinary() (string, error) {
 	binary, err := os.Executable()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if resolved, err := filepath.EvalSymlinks(binary); err == nil {
 		binary = resolved
 	}
-
-	unitPath := filepath.Join(home, ".config", "systemd", "user", unitName)
-	if err := writeAtomic(unitPath, []byte(unitText(binary)), 0o644); err != nil {
-		return err
-	}
-	legacy := exec.Command("systemctl", "--user", "disable", "--now", legacyUnitName)
-	legacy.Stdout, legacy.Stderr = os.Stdout, os.Stderr
-	if err := legacy.Run(); err != nil {
-		if _, ok := err.(*exec.ExitError); !ok {
-			return fmt.Errorf("systemctl --user disable %s: %w", legacyUnitName, err)
-		}
-	}
-	legacyUnitPath := filepath.Join(home, ".config", "systemd", "user", legacyUnitName)
-	if err := os.Remove(legacyUnitPath); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	for _, args := range [][]string{
-		{"daemon-reload"},
-		{"enable", unitName},
-		{"restart", unitName},
-	} {
-		cmd := exec.Command("systemctl", append([]string{"--user"}, args...)...)
-		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("systemctl --user %s: %w", args[0], err)
-		}
-	}
-	return nil
+	return binary, nil
 }

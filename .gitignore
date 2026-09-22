@@ -14,3 +14,6 @@ biblio/
 # stray `go build .` output at a module root (named after its own directory)
 /lgrass/lgrass
 /lgrassconf/lgrassconf
+
+# local macOS packaging artifacts
+/Lemongrass.app/

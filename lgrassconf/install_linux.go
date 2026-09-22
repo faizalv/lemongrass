@@ -1,0 +1,60 @@
+//go:build linux
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+)
+
+func unitText(binary string) string {
+	return fmt.Sprintf(`[Unit]
+Description=lemongrass agent config keeper
+
+[Service]
+Type=simple
+ExecStart=%s run
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+`, binary)
+}
+
+func installService(home string) error {
+	binary, err := resolveBinary()
+	if err != nil {
+		return err
+	}
+
+	unitPath := filepath.Join(home, ".config", "systemd", "user", unitName)
+	if err := writeAtomic(unitPath, []byte(unitText(binary)), 0o644); err != nil {
+		return err
+	}
+	legacy := exec.Command("systemctl", "--user", "disable", "--now", legacyUnitName)
+	legacy.Stdout, legacy.Stderr = os.Stdout, os.Stderr
+	if err := legacy.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			return fmt.Errorf("systemctl --user disable %s: %w", legacyUnitName, err)
+		}
+	}
+	legacyUnitPath := filepath.Join(home, ".config", "systemd", "user", legacyUnitName)
+	if err := os.Remove(legacyUnitPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, args := range [][]string{
+		{"daemon-reload"},
+		{"enable", unitName},
+		{"restart", unitName},
+	} {
+		cmd := exec.Command("systemctl", append([]string{"--user"}, args...)...)
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("systemctl --user %s: %w", args[0], err)
+		}
+	}
+	return nil
+}

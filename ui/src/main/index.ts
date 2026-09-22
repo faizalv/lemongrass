@@ -8,7 +8,7 @@ import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
 import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
-import { installLgrass } from './lgrassInstall'
+import { installLgrass, installLgrassconf } from './lgrassInstall'
 import { ensureVaultAndAgentRunning, killDaemons } from './daemons'
 
 let mainWindow: BrowserWindow | undefined
@@ -63,6 +63,7 @@ app.whenReady().then(() => {
   })
 
   const lgrassPath = installLgrass()
+  installLgrassconf()
   if (lgrassPath) {
     void ensureVaultAndAgentRunning(lgrassPath)
   }

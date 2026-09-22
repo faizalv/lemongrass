@@ -39,7 +39,13 @@ make build-linux
 
 Cross-compiles `lgrass` and `lgrassconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains -- `ui/`'s own `npm run build:linux` only builds the Electron half and expects `lgrass/dist/` to already exist, so use the root `make` target rather than running it directly.
 
-mac and Windows packaging aren't wired up yet.
+```
+make build-mac
+```
+
+Cross-compiles `lgrass` and `lgrassconf` for `darwin/amd64` and `darwin/arm64`, then packages a macOS `.app` / `.dmg` / `.zip` via electron-builder. On first launch the app copies the matching arch binaries into `~/.local/bin` and runs `lgrassconf install` (LaunchAgent). Notarization is off by default.
+
+Windows packaging isn't wired up yet.
 
 ## Develop
 
@@ -47,7 +53,7 @@ mac and Windows packaging aren't wired up yet.
 cd ui && npm run dev
 ```
 
-`make dev` from the repo root installs the `lgrassconf` daemon and its systemd user unit first, so Claude Code and Codex configuration are kept correct before a session starts. Codex hook definitions still require review and trust through `/hooks`. `lgrass` isn't required for the Electron shell itself to run -- it's invoked by the agent CLI running inside a terminal pane, not by the app directly. For work on `lgrass` alone:
+`make dev` from the repo root installs the `lgrassconf` keeper (systemd user unit on Linux, LaunchAgent on macOS) and builds `lgrass` into `~/.local/bin` first, so Claude Code and Codex configuration are kept correct before a session starts. Codex hook definitions still require review and trust through `/hooks`. `lgrass` isn't required for the Electron shell itself to run -- it's invoked by the agent CLI running inside a terminal pane, not by the app directly. New shell panes prompt for which CLI to spawn (Claude Code, Codex, Cursor Agent, or a plain shell). For work on `lgrass` alone:
 
 ```
 cd lgrass && go build ./... && go test ./...
