@@ -8,6 +8,13 @@ const props = defineProps<{
   node: WorkspaceLayoutNode
   project: ProjectRef
   focusedPaneId: string | null
+  confirmingDocuments: boolean
+  hasDocuments: boolean
+}>()
+
+const emit = defineEmits<{
+  closeAllDocuments: []
+  closeAllTabs: []
 }>()
 
 const MIN_FRACTION = 0.1
@@ -59,12 +66,24 @@ function onGutterUp(): void {
     :leaf="node"
     :project="project"
     :focused="node.id === focusedPaneId"
+    :confirming-documents="confirmingDocuments"
+    :has-documents="hasDocuments"
+    @close-all-documents="emit('closeAllDocuments')"
+    @close-all-tabs="emit('closeAllTabs')"
   />
 
   <div v-else ref="containerEl" class="split" :class="node.direction">
     <template v-for="(child, index) in node.children" :key="child.id">
       <div class="split-child" :style="{ flex: `0 1 ${node.sizes[index] * 100}%` }">
-        <WorkspaceLayout :node="child" :project="project" :focused-pane-id="focusedPaneId" />
+        <WorkspaceLayout
+          :node="child"
+          :project="project"
+          :focused-pane-id="focusedPaneId"
+          :confirming-documents="confirmingDocuments"
+          :has-documents="hasDocuments"
+          @close-all-documents="emit('closeAllDocuments')"
+          @close-all-tabs="emit('closeAllTabs')"
+        />
       </div>
       <div
         v-if="index < node.children.length - 1"

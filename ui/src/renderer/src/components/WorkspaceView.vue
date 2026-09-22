@@ -53,18 +53,15 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
 <template>
   <div class="workspace-view">
     <template v-if="workspace?.layout.root">
-      <div class="toolbar">
-        <button class="toolbar-button" @click="addShell(project)">New shell</button>
-        <button class="toolbar-button" :disabled="!documentCount" @click="onCloseDocuments">
-          {{ confirmingDocuments ? 'Click again to close all documents' : 'Close all documents' }}
-        </button>
-        <button class="toolbar-button" @click="confirmingAll = true">Close all tabs</button>
-      </div>
       <div class="layout-area">
         <WorkspaceLayout
           :node="workspace.layout.root"
           :project="project"
           :focused-pane-id="workspace.layout.focusedPaneId"
+          :confirming-documents="confirmingDocuments"
+          :has-documents="Boolean(documentCount)"
+          @close-all-documents="onCloseDocuments"
+          @close-all-tabs="confirmingAll = true"
         />
       </div>
     </template>
@@ -94,38 +91,6 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.toolbar {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-4) 0;
-}
-
-.toolbar-button {
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-muted);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.toolbar-button:hover:not(:disabled) {
-  background: var(--color-surface-1);
-  color: var(--color-fg-primary);
-}
-
-.toolbar-button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .layout-area {

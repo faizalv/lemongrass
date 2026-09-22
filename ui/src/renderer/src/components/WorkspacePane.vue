@@ -26,6 +26,13 @@ const props = defineProps<{
   leaf: Leaf
   project: ProjectRef
   focused: boolean
+  confirmingDocuments: boolean
+  hasDocuments: boolean
+}>()
+
+const emit = defineEmits<{
+  closeAllDocuments: []
+  closeAllTabs: []
 }>()
 
 const TAB_MIME = 'application/x-lemongrass-doc-tab'
@@ -167,6 +174,15 @@ function menuClose(): void {
   if (!menu.value) return
   closeTab(props.project, props.leaf.id, menu.value.tabId)
   menu.value = null
+}
+
+function menuCloseAllDocuments(): void {
+  emit('closeAllDocuments')
+}
+
+function menuCloseAllTabs(): void {
+  menu.value = null
+  emit('closeAllTabs')
 }
 
 const copiedTabId = ref<string | null>(null)
@@ -520,7 +536,46 @@ onBeforeUnmount(() => {
           Copy path
         </button>
       </template>
-      <div v-else class="menu-divider" />
+      <div class="menu-divider" />
+      <button class="menu-item" :disabled="!hasDocuments" @click="menuCloseAllDocuments">
+        <svg
+          class="menu-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M2.5 4.5v7.3c0 .7.5 1.2 1.2 1.2h5.8" />
+          <rect x="4.5" y="2.2" width="7" height="8.8" rx="1.2" />
+          <path d="M6.7 5.1l2.6 2.6M9.3 5.1L6.7 7.7" />
+        </svg>
+        {{ confirmingDocuments ? 'Click again to close all documents' : 'Close all documents' }}
+      </button>
+      <button class="menu-item" @click="menuCloseAllTabs">
+        <svg
+          class="menu-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M2.2 4.2h9.6c.7 0 1.2.5 1.2 1.2v5.4c0 .7-.5 1.2-1.2 1.2H2.2c-.7 0-1.2-.5-1.2-1.2V5.4c0-.7.5-1.2 1.2-1.2Z"
+          />
+          <path d="M3.5 2h3.2" />
+          <path d="M5.2 6.2l3.6 3.6M8.8 6.2l-3.6 3.6" />
+        </svg>
+        Close all tabs
+      </button>
+      <div class="menu-divider" />
       <button class="menu-item" @click="menuClose">
         <svg
           class="menu-icon"
@@ -788,6 +843,9 @@ onBeforeUnmount(() => {
   font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .menu-icon {
@@ -797,6 +855,10 @@ onBeforeUnmount(() => {
 
 .menu-item:hover:not(:disabled) {
   background: var(--color-surface-2);
+}
+
+.menu-item:hover:not(:disabled) .menu-icon {
+  color: var(--color-fg-primary);
 }
 
 .menu-item:disabled {
