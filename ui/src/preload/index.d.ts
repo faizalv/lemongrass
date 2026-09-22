@@ -11,7 +11,7 @@ import type {
   VaultScope,
   VaultChannel,
   VaultChannelWithShortId
-} from './index'
+} from './types'
 
 interface Api {
   pty: {

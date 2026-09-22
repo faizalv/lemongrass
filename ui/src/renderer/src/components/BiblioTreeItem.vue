@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { BiblioNode } from '../../../preload'
+import type { BiblioNode } from '../../../preload/types'
 
 const props = defineProps<{
   node: BiblioNode

@@ -6,7 +6,7 @@ import WorkspaceView from './components/WorkspaceView.vue'
 import BiblioPanel from './components/BiblioPanel.vue'
 import DbChannelsPanel from './components/DbChannelsPanel.vue'
 import { ensureLoaded, refreshReadOnlyDocs, type ProjectRef } from './workspace'
-import type { Project, BiblioTree } from '../../preload'
+import type { Project, BiblioTree } from '../../preload/types'
 
 const projects = ref<Project[]>([])
 const activeProjectId = ref<string | null>(null)

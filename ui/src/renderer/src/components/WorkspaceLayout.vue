@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import WorkspacePane from './WorkspacePane.vue'
 import { resizeSplit, type ProjectRef } from '../workspace'
-import type { WorkspaceLayoutNode } from '../../../preload'
+import type { WorkspaceLayoutNode } from '../../../preload/types'
 
 const props = defineProps<{
   node: WorkspaceLayoutNode

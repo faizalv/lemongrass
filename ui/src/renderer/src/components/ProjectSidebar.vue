@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Project } from '../../../preload'
+import type { Project } from '../../../preload/types'
 
 defineProps<{
   projects: Project[]

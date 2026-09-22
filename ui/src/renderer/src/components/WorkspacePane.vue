@@ -17,7 +17,7 @@ import {
 } from '../workspace'
 import { shellTitles } from '../shellRegistry'
 import type { DropZone, EdgeZone } from '../layoutTree'
-import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload'
+import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload/types'
 
 type Leaf = Extract<WorkspaceLayoutNode, { type: 'leaf' }>
 type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>

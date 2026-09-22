@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import type { VaultChannel } from '../../../preload'
+import type { VaultChannel } from '../../../preload/types'
 
 const props = defineProps<{
   visible: boolean

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
-import type { BiblioTree } from '../../../preload'
+import type { BiblioTree } from '../../../preload/types'
 
 const props = defineProps<{
   tree: BiblioTree | null
