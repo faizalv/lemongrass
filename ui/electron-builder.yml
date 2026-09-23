@@ -19,11 +19,24 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
+  extraResources:
+    - from: "../lgrass/dist/darwin-amd64/lgrass"
+      to: "bin/darwin-amd64/lgrass"
+    - from: "../lgrass/dist/darwin-arm64/lgrass"
+      to: "bin/darwin-arm64/lgrass"
+    - from: "../lgrassconf/dist/darwin-amd64/lgrassconf"
+      to: "bin/darwin-amd64/lgrassconf"
+    - from: "../lgrassconf/dist/darwin-arm64/lgrassconf"
+      to: "bin/darwin-arm64/lgrassconf"
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
@@ -37,7 +50,7 @@ linux:
     # Both arches bundled unconditionally rather than relying on
     # electron-builder's ${arch} path templating across AppImage/deb/snap
     # -- the main process picks the right one at install time via
-    # process.arch. mac/Windows equivalents are follow-on work.
+    # process.arch.
     - from: "../lgrass/dist/linux-amd64/lgrass"
       to: "bin/linux-amd64/lgrass"
     - from: "../lgrass/dist/linux-arm64/lgrass"

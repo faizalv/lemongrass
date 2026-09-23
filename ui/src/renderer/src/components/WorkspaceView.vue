@@ -3,13 +3,17 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import WorkspaceLayout from './WorkspaceLayout.vue'
 import {
   addShell,
+  cancelShellPicker,
   closeAllDocuments,
   closeAllTabs,
+  confirmShellPicker,
   docTabCount,
   liveShellCount,
+  shellPicker,
   workspaceOf,
   type ProjectRef
 } from '../workspace'
+import { SHELL_AGENTS } from '../shellAgents'
 
 const props = defineProps<{
   project: ProjectRef
@@ -68,6 +72,33 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
     <div v-else class="empty-pane">
       <p class="empty">Nothing open.</p>
       <button class="pill-button" @click="addShell(project)">+ New shell</button>
+    </div>
+
+    <div v-if="shellPicker.open" class="overlay">
+      <div class="card">
+        <h3 class="card-title">New shell</h3>
+        <p class="card-text">Which agent should this pane run?</p>
+        <div class="agent-list" role="listbox" aria-label="Shell agent">
+          <button
+            v-for="agent in SHELL_AGENTS"
+            :key="agent.id"
+            type="button"
+            class="agent-option"
+            :class="{ selected: shellPicker.selectedId === agent.id }"
+            role="option"
+            :aria-selected="shellPicker.selectedId === agent.id"
+            @click="shellPicker.selectedId = agent.id"
+            @dblclick="confirmShellPicker(agent.id)"
+          >
+            <span class="agent-label">{{ agent.label }}</span>
+            <span class="agent-hint">{{ agent.hint }}</span>
+          </button>
+        </div>
+        <div class="card-actions">
+          <button class="ghost-button" @click="cancelShellPicker">Cancel</button>
+          <button class="primary-button" @click="confirmShellPicker()">Open</button>
+        </div>
+      </div>
     </div>
 
     <div v-if="confirmingAll" class="overlay">
@@ -167,6 +198,54 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
   color: var(--color-fg-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
+}
+
+.agent-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.agent-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.agent-option:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg-primary);
+}
+
+.agent-option.selected {
+  border-color: var(--color-amber);
+  background: var(--color-amber-muted, rgba(245, 197, 24, 0.12));
+  color: var(--color-fg-primary);
+}
+
+.agent-label {
+  font-weight: var(--weight-medium);
+}
+
+.agent-hint {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
 }
 
 .card-actions {

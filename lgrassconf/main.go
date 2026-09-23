@@ -13,7 +13,7 @@ func usage() {
 
   run      Watches the config and repairs drift until stopped
   check    Runs one repair pass and exits
-  install  Writes the systemd user unit and enables it
+  install  Installs the background keeper (systemd user unit on Linux, LaunchAgent on macOS)
 `)
 	os.Exit(2)
 }

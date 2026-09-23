@@ -1,0 +1,57 @@
+export interface ShellAgent {
+  id: string
+  command: string
+  label: string
+  hint: string
+}
+
+export const SHELL_AGENTS: readonly ShellAgent[] = [
+  {
+    id: 'claude',
+    command: 'claude',
+    label: 'Claude Code',
+    hint: 'claude'
+  },
+  {
+    id: 'codex',
+    command: 'codex',
+    label: 'Codex',
+    hint: 'codex'
+  },
+  {
+    id: 'cursor',
+    command: 'agent',
+    label: 'Cursor Agent',
+    hint: 'agent'
+  },
+  {
+    id: 'shell',
+    command: 'zsh',
+    label: 'Shell',
+    hint: 'zsh'
+  }
+]
+
+const PREF_KEY = 'lemongrass.shellAgentId'
+
+export function preferredShellAgentId(): string {
+  try {
+    const saved = localStorage.getItem(PREF_KEY)
+    if (saved && SHELL_AGENTS.some((agent) => agent.id === saved)) return saved
+  } catch {
+    // ignore
+  }
+  return 'claude'
+}
+
+export function setPreferredShellAgentId(id: string): void {
+  try {
+    localStorage.setItem(PREF_KEY, id)
+  } catch {
+    // ignore
+  }
+}
+
+export function shellAgentById(id: string): ShellAgent {
+  return SHELL_AGENTS.find((agent) => agent.id === id) ?? SHELL_AGENTS[0]
+}

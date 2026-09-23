@@ -2,12 +2,19 @@ VERSION ?= dev
 DIST := dist
 BIN_DIR := $(HOME)/.local/bin
 
-.PHONY: dist install clean
+.PHONY: dist dist-linux dist-darwin install clean
 
-dist:
+dist: dist-linux dist-darwin
+
+dist-linux:
 	mkdir -p $(DIST)/linux-amd64 $(DIST)/linux-arm64
 	GOOS=linux GOARCH=amd64 go build -o $(DIST)/linux-amd64/lgrassconf .
 	GOOS=linux GOARCH=arm64 go build -o $(DIST)/linux-arm64/lgrassconf .
+
+dist-darwin:
+	mkdir -p $(DIST)/darwin-amd64 $(DIST)/darwin-arm64
+	GOOS=darwin GOARCH=amd64 go build -o $(DIST)/darwin-amd64/lgrassconf .
+	GOOS=darwin GOARCH=arm64 go build -o $(DIST)/darwin-arm64/lgrassconf .
 
 # Builds beside the running binary and renames over it, since a running executable can't be overwritten in place.
 install:

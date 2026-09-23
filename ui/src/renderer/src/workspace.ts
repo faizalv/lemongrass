@@ -3,6 +3,12 @@ import { marked } from 'marked'
 import * as tree from './layoutTree'
 import type { DropZone, EdgeZone } from './layoutTree'
 import { disposeShell, onShellExit, setShellArgs } from './shellRegistry'
+import {
+  preferredShellAgentId,
+  setPreferredShellAgentId,
+  shellAgentById,
+  type ShellAgent
+} from './shellAgents'
 import type { WorkspaceLayoutState, WorkspaceTab } from '../../preload/types'
 
 export interface ProjectRef {
@@ -30,7 +36,21 @@ type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
 
 const AUTOSAVE_MS = 600
 const LAYOUT_SAVE_MS = 400
-const SHELL_COMMAND = 'claude'
+
+export type ShellPlacement =
+  | { kind: 'tab'; project: ProjectRef; paneId?: string }
+  | { kind: 'split'; project: ProjectRef; paneId: string; zone: EdgeZone }
+  | { kind: 'openDoc'; project: ProjectRef; paneId: string; tabId: string }
+
+export const shellPicker = reactive<{
+  open: boolean
+  placement: ShellPlacement | null
+  selectedId: string
+}>({
+  open: false,
+  placement: null,
+  selectedId: preferredShellAgentId()
+})
 
 const workspaces = reactive<Record<string, Workspace>>({})
 const projectRefs = new Map<string, ProjectRef>()
@@ -58,15 +78,48 @@ function tabsOf(projectId: string): WorkspaceTab[] {
   return tree.allLeaves(workspaces[projectId].layout.root).flatMap((leaf) => leaf.tabs)
 }
 
-function newShellTab(project: ProjectRef): ShellTab {
-  const count = tabsOf(project.id).filter((tab) => tab.kind === 'shell').length
+function newShellTab(project: ProjectRef, agent: ShellAgent): ShellTab {
+  const count = tabsOf(project.id).filter(
+    (tab) => tab.kind === 'shell' && tab.command === agent.command
+  ).length
   return {
     id: crypto.randomUUID(),
     kind: 'shell',
-    label: `${SHELL_COMMAND} ${count + 1}`,
-    command: SHELL_COMMAND,
+    label: `${agent.label} ${count + 1}`,
+    command: agent.command,
     cwd: project.path
   }
+}
+
+export function openShellPicker(placement: ShellPlacement): void {
+  shellPicker.placement = placement
+  shellPicker.selectedId = preferredShellAgentId()
+  shellPicker.open = true
+}
+
+export function cancelShellPicker(): void {
+  shellPicker.open = false
+  shellPicker.placement = null
+}
+
+export function confirmShellPicker(agentId?: string): void {
+  const placement = shellPicker.placement
+  if (!placement) return
+  const agent = shellAgentById(agentId ?? shellPicker.selectedId)
+  setPreferredShellAgentId(agent.id)
+  shellPicker.open = false
+  shellPicker.placement = null
+  shellPicker.selectedId = agent.id
+
+  if (placement.kind === 'tab') {
+    addShellWithAgent(placement.project, agent, placement.paneId)
+    return
+  }
+  if (placement.kind === 'split') {
+    addShellInNewPaneWithAgent(placement.project, placement.paneId, placement.zone, agent)
+    return
+  }
+  openInNewShellWithAgent(placement.project, placement.paneId, placement.tabId, agent)
 }
 
 function openPaths(projectId: string): string[] {
@@ -253,8 +306,12 @@ export function openFile(project: ProjectRef, path: string): void {
 }
 
 export function addShell(project: ProjectRef, paneId?: string): void {
+  openShellPicker({ kind: 'tab', project, paneId })
+}
+
+function addShellWithAgent(project: ProjectRef, agent: ShellAgent, paneId?: string): void {
   const layout = workspaces[project.id].layout
-  const tab = newShellTab(project)
+  const tab = newShellTab(project, agent)
   const root = layout.root
   if (!root) {
     const leaf = tree.createLeaf<WorkspaceTab>([tab])
@@ -270,18 +327,36 @@ export function addShell(project: ProjectRef, paneId?: string): void {
 }
 
 export function addShellInNewPane(project: ProjectRef, paneId: string, zone: EdgeZone): void {
+  openShellPicker({ kind: 'split', project, paneId, zone })
+}
+
+function addShellInNewPaneWithAgent(
+  project: ProjectRef,
+  paneId: string,
+  zone: EdgeZone,
+  agent: ShellAgent
+): void {
   const root = workspaces[project.id].layout.root
   if (!root) return
-  const tab = newShellTab(project)
+  const tab = newShellTab(project, agent)
   const next = tree.splitWithTab(root, paneId, zone, tab)
   commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
 }
 
 export function openInNewShell(project: ProjectRef, paneId: string, tabId: string): void {
+  openShellPicker({ kind: 'openDoc', project, paneId, tabId })
+}
+
+function openInNewShellWithAgent(
+  project: ProjectRef,
+  paneId: string,
+  tabId: string,
+  agent: ShellAgent
+): void {
   const root = workspaces[project.id].layout.root
   const source = tree.findLeaf(root, paneId)?.tabs.find((tab) => tab.id === tabId)
   if (!root || source?.kind !== 'doc') return
-  const tab = newShellTab(project)
+  const tab = newShellTab(project, agent)
   setShellArgs(tab.id, [
     `Read ${projectRelativePath(source.path)} and follow the instructions in it.`
   ])

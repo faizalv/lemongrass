@@ -1,11 +1,20 @@
 VERSION := $(shell node -p "require('./ui/package.json').version")
 
-.PHONY: build-linux dev clean
+.PHONY: build-linux build-mac dist-linux dist-darwin dev clean
 
-build-linux:
-	$(MAKE) -C lgrass dist VERSION=$(VERSION)
-	$(MAKE) -C lgrassconf dist
+dist-linux:
+	$(MAKE) -C lgrass dist-linux VERSION=$(VERSION)
+	$(MAKE) -C lgrassconf dist-linux
+
+dist-darwin:
+	$(MAKE) -C lgrass dist-darwin VERSION=$(VERSION)
+	$(MAKE) -C lgrassconf dist-darwin
+
+build-linux: dist-linux
 	npm --prefix ui run build:linux
+
+build-mac: dist-darwin
+	npm --prefix ui run build:mac
 
 dev:
 	$(MAKE) -C lgrassconf install
