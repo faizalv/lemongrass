@@ -4,7 +4,7 @@ import ProjectSidebar from './components/ProjectSidebar.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
 import BiblioPanel from './components/BiblioPanel.vue'
-import DbChannelsPanel from './components/DbChannelsPanel.vue'
+import ConnectorPanel from './components/ConnectorPanel.vue'
 import { ensureLoaded, refreshReadOnlyDocs, type ProjectRef } from './workspace'
 import type { Project, BiblioTree } from '../../preload/types'
 
@@ -19,7 +19,7 @@ const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const loadedProjects = reactive<Record<string, boolean>>({})
 const sidebarCollapsed = ref(false)
 const showBiblioPanel = ref(true)
-const showDbChannels = ref(false)
+const showConnector = ref(false)
 
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
@@ -147,7 +147,7 @@ onBeforeUnmount(() => {
         :biblio-active="showBiblioPanel"
         @select="selectProject"
         @add="addProject"
-        @open-db-channels="showDbChannels = true"
+        @open-connector="showConnector = true"
         @toggle-biblio="showBiblioPanel = !showBiblioPanel"
       />
 
@@ -166,10 +166,10 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <DbChannelsPanel
-      v-show="showDbChannels"
-      :visible="showDbChannels"
-      @close="showDbChannels = false"
+    <ConnectorPanel
+      v-show="showConnector"
+      :visible="showConnector"
+      @close="showConnector = false"
     />
   </div>
 </template>

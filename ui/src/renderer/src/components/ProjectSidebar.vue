@@ -11,7 +11,7 @@ defineProps<{
 const emit = defineEmits<{
   select: [id: string]
   add: []
-  openDbChannels: []
+  openConnector: []
   toggleBiblio: []
 }>()
 </script>
@@ -53,12 +53,29 @@ const emit = defineEmits<{
       <p v-if="projects.length === 0" class="empty">No projects yet.</p>
     </div>
     <button class="add-project" @click="emit('add')">
-      <span class="icon">+</span>
-      Add project
+      <span class="icon-col"><span class="icon">+</span></span>
+      <span class="label">Add project</span>
     </button>
-    <button class="add-project" @click="emit('openDbChannels')">
-      <span class="icon">⛁</span>
-      Database access
+    <button class="add-project" @click="emit('openConnector')">
+      <span class="icon-col">
+        <svg
+          class="connector-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="4.5" y1="3.5" x2="4.5" y2="8.5" />
+          <line x1="7" y1="3.5" x2="7" y2="8.5" />
+          <line x1="9.5" y1="3.5" x2="9.5" y2="8.5" />
+          <rect x="2.5" y="8.5" width="9" height="2.5" rx="0.6" />
+        </svg>
+      </span>
+      <span class="label">Connector</span>
     </button>
   </div>
 </template>
@@ -185,11 +202,28 @@ const emit = defineEmits<{
   color: var(--color-black);
 }
 
+.icon-col {
+  flex-shrink: 0;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: var(--text-sm);
   line-height: 1;
+}
+
+.connector-icon {
+  flex-shrink: 0;
+}
+
+.label {
+  flex: 1;
+  text-align: left;
 }
 </style>

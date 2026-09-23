@@ -33,6 +33,8 @@ func main() {
 		cmdAgent(os.Args[2:])
 	case "db":
 		cmdDb(os.Args[2:])
+	case "rester":
+		cmdRester(os.Args[2:])
 	case "tips":
 		cmdTips(os.Args[2:])
 	case "sign":
@@ -107,6 +109,10 @@ COMMANDS
                                      Model-facing: runs a read-only statement (SELECT/SHOW/
                                      DESCRIBE/EXPLAIN) against the database a channel grants
                                      access to, through the running agent and vault daemons
+
+  rester <short-id> --user <name> --method <METHOD> --path <path> [--body '<json>']
+                                     Model-facing: proxies one HTTP call through the channel's
+                                     domain as user, through the running agent and vault daemons
 
   version                           Print version
 

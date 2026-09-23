@@ -65,6 +65,52 @@ export interface VaultChannelWithShortId {
   shortId: string
 }
 
+export interface VaultTokenPlacement {
+  Kind: 'header' | 'cookie' | 'query'
+  Name: string
+  Prefix: string
+}
+
+export interface VaultDomainUser {
+  Name: string
+  Fields: Record<string, string>
+  Token: string
+}
+
+export interface VaultDomain {
+  BaseURL: string
+  LoginEndpoint: string
+  TokenPath: string
+  TTLOrigin: string
+  FixedTTLSeconds: number
+  TokenPlacement: VaultTokenPlacement
+  Users: VaultDomainUser[]
+}
+
+export interface VaultMethodPath {
+  Method: string
+  PathPattern: string
+}
+
+export interface VaultHTTPScope {
+  Methods: string[]
+  Exclusions: VaultMethodPath[]
+}
+
+export interface VaultHTTPChannel {
+  ID: string
+  Name: string
+  Domain: string
+  Scope: VaultHTTPScope
+  CreatedAt: string
+  ExpiresAt: string
+}
+
+export interface VaultHTTPChannelWithShortId {
+  channel: VaultHTTPChannel
+  shortId: string
+}
+
 export type WorkspaceTab =
   | { id: string; kind: 'doc'; path: string }
   | { id: string; kind: 'shell'; label: string; command: string; cwd?: string }

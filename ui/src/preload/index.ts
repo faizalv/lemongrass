@@ -11,6 +11,11 @@ import type {
   VaultScope,
   VaultChannel,
   VaultChannelWithShortId,
+  VaultDomain,
+  VaultDomainUser,
+  VaultHTTPScope,
+  VaultHTTPChannel,
+  VaultHTTPChannelWithShortId,
   WorkspaceLayoutState
 } from './types'
 
@@ -116,7 +121,30 @@ const vault = {
     ipcRenderer.invoke('vault:setPassphrase', passphrase),
   verifyPassphrase: (passphrase: string): Promise<void> =>
     ipcRenderer.invoke('vault:verifyPassphrase', passphrase),
-  resetVault: (): Promise<void> => ipcRenderer.invoke('vault:resetVault')
+  resetVault: (): Promise<void> => ipcRenderer.invoke('vault:resetVault'),
+  listDomains: (): Promise<string[]> => ipcRenderer.invoke('vault:listDomains'),
+  putDomain: (passphrase: string, name: string, domain: VaultDomain): Promise<void> =>
+    ipcRenderer.invoke('vault:putDomain', passphrase, name, domain),
+  deleteDomain: (name: string): Promise<void> => ipcRenderer.invoke('vault:deleteDomain', name),
+  testDomainLogin: (domain: VaultDomain, user: VaultDomainUser): Promise<void> =>
+    ipcRenderer.invoke('vault:testDomainLogin', domain, user),
+  listHTTPChannels: (): Promise<VaultHTTPChannel[]> => ipcRenderer.invoke('vault:listHTTPChannels'),
+  createHTTPChannel: (
+    passphrase: string,
+    name: string,
+    domainName: string,
+    scope: VaultHTTPScope,
+    ttlSeconds: number
+  ): Promise<VaultHTTPChannelWithShortId> =>
+    ipcRenderer.invoke('vault:createHTTPChannel', passphrase, name, domainName, scope, ttlSeconds),
+  activateHTTPChannel: (
+    passphrase: string,
+    id: string,
+    ttlSeconds: number
+  ): Promise<VaultHTTPChannelWithShortId> =>
+    ipcRenderer.invoke('vault:activateHTTPChannel', passphrase, id, ttlSeconds),
+  revokeHTTPChannel: (id: string): Promise<void> =>
+    ipcRenderer.invoke('vault:revokeHTTPChannel', id)
 }
 
 const windowControls = {

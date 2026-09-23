@@ -7,21 +7,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 // Service never holds a root secret as a field, only a channel's own derived key cached in memory while that channel is active.
 type Service struct {
-	creds    *Store
-	channels *Store
-	canary   *Store
-	metaDir  string
-	rootSalt []byte
+	creds       *Store
+	channels    *Store
+	canary      *Store
+	metaDir     string
+	httpMetaDir string
+	rootSalt    []byte
 
 	mu         sync.Mutex
 	activeKeys map[ChannelID][]byte
 	dbConns    map[ChannelID]*sql.DB
+	tokens     map[tokenCacheKey]cachedToken
 }
 
 func NewService(dir string) (*Service, error) {
@@ -41,18 +44,24 @@ func NewService(dir string) (*Service, error) {
 	if err := os.MkdirAll(metaDir, 0o700); err != nil {
 		return nil, fmt.Errorf("vault: creating %s: %w", metaDir, err)
 	}
+	httpMetaDir := filepath.Join(dir, "meta-http")
+	if err := os.MkdirAll(httpMetaDir, 0o700); err != nil {
+		return nil, fmt.Errorf("vault: creating %s: %w", httpMetaDir, err)
+	}
 	rootSalt, err := loadOrCreateRootSalt(filepath.Join(dir, "root.salt"))
 	if err != nil {
 		return nil, err
 	}
 	return &Service{
-		creds:      creds,
-		channels:   channels,
-		canary:     canary,
-		metaDir:    metaDir,
-		rootSalt:   rootSalt,
-		activeKeys: make(map[ChannelID][]byte),
-		dbConns:    make(map[ChannelID]*sql.DB),
+		creds:       creds,
+		channels:    channels,
+		canary:      canary,
+		metaDir:     metaDir,
+		httpMetaDir: httpMetaDir,
+		rootSalt:    rootSalt,
+		activeKeys:  make(map[ChannelID][]byte),
+		dbConns:     make(map[ChannelID]*sql.DB),
+		tokens:      make(map[tokenCacheKey]cachedToken),
 	}, nil
 }
 
@@ -84,9 +93,21 @@ func (s *Service) PutCredential(rootSecret, dbName string, value []byte) error {
 	return s.creds.Put(dbName, rootKey, value)
 }
 
-// ListConnections lists stored credential names only, never a decrypted value, without needing a root secret.
+// ListConnections lists stored credential names only, never a decrypted value, without needing
+// a root secret. Excludes domain entries, which share this same Store under their own key prefix.
 func (s *Service) ListConnections() ([]string, error) {
-	return s.creds.List()
+	names, err := s.creds.List()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		if strings.HasPrefix(n, domainKeyPrefix) {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }
 
 const (
@@ -133,9 +154,9 @@ func (s *Service) VerifyPassphrase(rootSecret string) error {
 	return nil
 }
 
-// ResetVault permanently discards the canary and every stored credential and channel. The
-// only way back from a forgotten passphrase, since nothing encrypted under it is recoverable
-// without it.
+// ResetVault permanently discards the canary and every stored credential, domain, and channel
+// of both kinds. The only way back from a forgotten passphrase, since nothing encrypted under
+// it is recoverable without it.
 func (s *Service) ResetVault() error {
 	channels, err := s.ListChannels()
 	if err != nil {
@@ -143,6 +164,15 @@ func (s *Service) ResetVault() error {
 	}
 	for _, c := range channels {
 		if err := s.Revoke(c.ID); err != nil {
+			return err
+		}
+	}
+	httpChannels, err := s.ListHTTPChannels()
+	if err != nil {
+		return err
+	}
+	for _, c := range httpChannels {
+		if err := s.RevokeHTTP(c.ID); err != nil {
 			return err
 		}
 	}

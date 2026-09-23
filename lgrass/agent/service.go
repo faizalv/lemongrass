@@ -26,10 +26,13 @@ func NewService(vaultClient *vault.Client) *Service {
 	}
 }
 
-// RegisterChannel confirms realID exists at the vault and mints a short model-facing id mapped to it, taking no root secret of its own.
+// RegisterChannel confirms realID exists at the vault, as either a db or an HTTP channel, and
+// mints a short model-facing id mapped to it, taking no root secret of its own.
 func (s *Service) RegisterChannel(realID vault.ChannelID) (string, error) {
 	if _, err := s.vaultClient.ChannelScope(realID); err != nil {
-		return "", fmt.Errorf("agent: registering channel %s: %w", realID, err)
+		if _, httpErr := s.vaultClient.HTTPChannelScope(realID); httpErr != nil {
+			return "", fmt.Errorf("agent: registering channel %s: %w", realID, err)
+		}
 	}
 
 	s.mu.Lock()
@@ -54,6 +57,16 @@ func (s *Service) Query(shortID string, declaredTables []string, sqlText string)
 		return vault.QueryResult{}, ErrNoSuchChannel
 	}
 	return s.vaultClient.Query(realID, declaredTables, sqlText)
+}
+
+// RequestHTTP resolves shortID to its real vault channel and forwards the HTTP request,
+// returning the same error for an unregistered, forgotten, or mistyped id.
+func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte) (vault.HTTPResult, error) {
+	realID, ok := s.lookup(shortID)
+	if !ok {
+		return vault.HTTPResult{}, ErrNoSuchChannel
+	}
+	return s.vaultClient.RequestHTTP(realID, user, method, path, body)
 }
 
 func (s *Service) lookup(shortID string) (vault.ChannelID, bool) {

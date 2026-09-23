@@ -10,7 +10,12 @@ import type {
   WorkspaceLayoutState,
   VaultScope,
   VaultChannel,
-  VaultChannelWithShortId
+  VaultChannelWithShortId,
+  VaultDomain,
+  VaultDomainUser,
+  VaultHTTPScope,
+  VaultHTTPChannel,
+  VaultHTTPChannelWithShortId
 } from './types'
 
 interface Api {
@@ -80,6 +85,24 @@ interface Api {
     setPassphrase: (passphrase: string) => Promise<void>
     verifyPassphrase: (passphrase: string) => Promise<void>
     resetVault: () => Promise<void>
+    listDomains: () => Promise<string[]>
+    putDomain: (passphrase: string, name: string, domain: VaultDomain) => Promise<void>
+    deleteDomain: (name: string) => Promise<void>
+    testDomainLogin: (domain: VaultDomain, user: VaultDomainUser) => Promise<void>
+    listHTTPChannels: () => Promise<VaultHTTPChannel[]>
+    createHTTPChannel: (
+      passphrase: string,
+      name: string,
+      domainName: string,
+      scope: VaultHTTPScope,
+      ttlSeconds: number
+    ) => Promise<VaultHTTPChannelWithShortId>
+    activateHTTPChannel: (
+      passphrase: string,
+      id: string,
+      ttlSeconds: number
+    ) => Promise<VaultHTTPChannelWithShortId>
+    revokeHTTPChannel: (id: string) => Promise<void>
   }
   windowControls: {
     minimize: () => void

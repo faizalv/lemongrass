@@ -41,6 +41,10 @@ func (c Channel) Expired(now time.Time) bool {
 	return !now.Before(c.ExpiresAt)
 }
 
+func (c Channel) Kind() string {
+	return "db"
+}
+
 func NewChannelID() (ChannelID, error) {
 	b := make([]byte, 20)
 	if _, err := rand.Read(b); err != nil {

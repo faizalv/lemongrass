@@ -300,7 +300,6 @@ function onGutterUp(): void {
   overflow-y: auto;
   padding: var(--space-3) var(--space-2) var(--space-4);
   background: var(--color-surface-1);
-  border-radius: var(--radius-lg);
 }
 
 .toc-item {

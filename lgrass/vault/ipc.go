@@ -25,6 +25,17 @@ const (
 	opSetPassphrase       = "set_passphrase"
 	opVerifyPassphrase    = "verify_passphrase"
 	opResetVault          = "reset_vault"
+
+	opPutDomain         = "put_domain"
+	opListDomains       = "list_domains"
+	opDeleteDomain      = "delete_domain"
+	opTestDomainLogin   = "test_domain_login"
+	opCreateHTTPChannel = "create_http_channel"
+	opActivateHTTP      = "activate_http"
+	opRequestHTTP       = "request_http"
+	opRevokeHTTP        = "revoke_http"
+	opHTTPChannelScope  = "http_channel_scope"
+	opListHTTPChannels  = "list_http_channels"
 )
 
 const connDeadline = 10 * time.Second
@@ -111,6 +122,59 @@ type hasPassphrasePayload struct {
 	HasPassphrase bool `json:"has_passphrase"`
 }
 
+type putDomainPayload struct {
+	RootSecret string `json:"root_secret"`
+	Name       string `json:"name"`
+	Domain     Domain `json:"domain"`
+}
+
+type domainNamePayload struct {
+	Name string `json:"name"`
+}
+
+type domainListPayload struct {
+	Names []string `json:"names"`
+}
+
+type testDomainLoginPayload struct {
+	Domain Domain     `json:"domain"`
+	User   DomainUser `json:"user"`
+}
+
+type createHTTPChannelPayload struct {
+	RootSecret string    `json:"root_secret"`
+	Name       string    `json:"name"`
+	DomainName string    `json:"domain_name"`
+	Scope      HTTPScope `json:"scope"`
+	TTLSeconds int       `json:"ttl_seconds"`
+}
+
+type activateHTTPPayload struct {
+	RootSecret string    `json:"root_secret"`
+	ID         ChannelID `json:"id"`
+	TTLSeconds int       `json:"ttl_seconds"`
+}
+
+type requestHTTPPayload struct {
+	ID     ChannelID `json:"id"`
+	User   string    `json:"user"`
+	Method string    `json:"method"`
+	Path   string    `json:"path"`
+	Body   []byte    `json:"body"`
+}
+
+type httpResultPayload struct {
+	Result HTTPResult `json:"result"`
+}
+
+type httpChannelPayload struct {
+	Channel HTTPChannel `json:"channel"`
+}
+
+type httpChannelListPayload struct {
+	Channels []HTTPChannel `json:"channels"`
+}
+
 // Serve accepts connections on l and handles one request per connection.
 // adminLimiter gates PutCredential, CreateChannel, and Activate -- the
 // operations a request carries a root secret for.
@@ -154,7 +218,7 @@ func handleConn(svc *Service, adminLimiter *FailureLimiter, conn net.Conn) {
 // issues, as opposed to Electron's admin ops -- Electron's own binary path isn't fixed yet,
 // so those ops stay at UID-only verification.
 func requiresPeerBinaryCheck(op string) bool {
-	return op == opQuery || op == opChannelScope
+	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opHTTPChannelScope
 }
 
 func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response {
@@ -303,6 +367,101 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 			return errResponse(err)
 		}
 		return response{OK: true}
+
+	case opPutDomain:
+		var p putDomainPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.PutDomain(p.RootSecret, p.Name, p.Domain)
+		})
+
+	case opListDomains:
+		names, err := svc.ListDomains()
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(domainListPayload{Names: names})
+
+	case opDeleteDomain:
+		var p domainNamePayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		if err := svc.DeleteDomain(p.Name); err != nil {
+			return errResponse(err)
+		}
+		return response{OK: true}
+
+	case opTestDomainLogin:
+		var p testDomainLoginPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		if err := svc.TestDomainLogin(p.Domain, p.User); err != nil {
+			return errResponse(err)
+		}
+		return response{OK: true}
+
+	case opCreateHTTPChannel:
+		var p createHTTPChannelPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			c, err := svc.CreateHTTPChannel(p.RootSecret, p.Name, p.DomainName, p.Scope, time.Duration(p.TTLSeconds)*time.Second)
+			return payloadResponse(httpChannelPayload{Channel: c}), err
+		})
+
+	case opActivateHTTP:
+		var p activateHTTPPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			c, err := svc.ActivateHTTP(p.RootSecret, p.ID, time.Duration(p.TTLSeconds)*time.Second)
+			return payloadResponse(httpChannelPayload{Channel: c}), err
+		})
+
+	case opRequestHTTP:
+		var p requestHTTPPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		result, err := svc.RequestHTTP(p.ID, p.User, p.Method, p.Path, p.Body)
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(httpResultPayload{Result: result})
+
+	case opRevokeHTTP:
+		var p channelIDPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		if err := svc.RevokeHTTP(p.ID); err != nil {
+			return errResponse(err)
+		}
+		return response{OK: true}
+
+	case opHTTPChannelScope:
+		var p channelIDPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		c, err := svc.HTTPChannelScope(p.ID)
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(httpChannelPayload{Channel: c})
+
+	case opListHTTPChannels:
+		channels, err := svc.ListHTTPChannels()
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(httpChannelListPayload{Channels: channels})
 
 	default:
 		return errResponse(fmt.Errorf("vault: unknown op %q", req.Op))
@@ -459,4 +618,56 @@ func (c *Client) VerifyPassphrase(rootSecret string) error {
 
 func (c *Client) ResetVault() error {
 	return c.call(opResetVault, nil, nil)
+}
+
+func (c *Client) PutDomain(rootSecret, name string, d Domain) error {
+	return c.call(opPutDomain, putDomainPayload{RootSecret: rootSecret, Name: name, Domain: d}, nil)
+}
+
+func (c *Client) ListDomains() ([]string, error) {
+	var out domainListPayload
+	err := c.call(opListDomains, nil, &out)
+	return out.Names, err
+}
+
+func (c *Client) DeleteDomain(name string) error {
+	return c.call(opDeleteDomain, domainNamePayload{Name: name}, nil)
+}
+
+func (c *Client) TestDomainLogin(d Domain, u DomainUser) error {
+	return c.call(opTestDomainLogin, testDomainLoginPayload{Domain: d, User: u}, nil)
+}
+
+func (c *Client) CreateHTTPChannel(rootSecret, name, domainName string, scope HTTPScope, ttl time.Duration) (HTTPChannel, error) {
+	var out httpChannelPayload
+	err := c.call(opCreateHTTPChannel, createHTTPChannelPayload{RootSecret: rootSecret, Name: name, DomainName: domainName, Scope: scope, TTLSeconds: int(ttl.Seconds())}, &out)
+	return out.Channel, err
+}
+
+func (c *Client) ActivateHTTP(rootSecret string, id ChannelID, ttl time.Duration) (HTTPChannel, error) {
+	var out httpChannelPayload
+	err := c.call(opActivateHTTP, activateHTTPPayload{RootSecret: rootSecret, ID: id, TTLSeconds: int(ttl.Seconds())}, &out)
+	return out.Channel, err
+}
+
+func (c *Client) RequestHTTP(id ChannelID, user, method, path string, body []byte) (HTTPResult, error) {
+	var out httpResultPayload
+	err := c.call(opRequestHTTP, requestHTTPPayload{ID: id, User: user, Method: method, Path: path, Body: body}, &out)
+	return out.Result, err
+}
+
+func (c *Client) RevokeHTTP(id ChannelID) error {
+	return c.call(opRevokeHTTP, channelIDPayload{ID: id}, nil)
+}
+
+func (c *Client) HTTPChannelScope(id ChannelID) (HTTPChannel, error) {
+	var out httpChannelPayload
+	err := c.call(opHTTPChannelScope, channelIDPayload{ID: id}, &out)
+	return out.Channel, err
+}
+
+func (c *Client) ListHTTPChannels() ([]HTTPChannel, error) {
+	var out httpChannelListPayload
+	err := c.call(opListHTTPChannels, nil, &out)
+	return out.Channels, err
 }

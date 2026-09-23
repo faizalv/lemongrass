@@ -102,6 +102,52 @@ export interface ChannelWithShortId {
   shortId: string
 }
 
+export interface TokenPlacement {
+  Kind: 'header' | 'cookie' | 'query'
+  Name: string
+  Prefix: string
+}
+
+export interface DomainUser {
+  Name: string
+  Fields: Record<string, string>
+  Token: string
+}
+
+export interface Domain {
+  BaseURL: string
+  LoginEndpoint: string
+  TokenPath: string
+  TTLOrigin: string
+  FixedTTLSeconds: number
+  TokenPlacement: TokenPlacement
+  Users: DomainUser[]
+}
+
+export interface MethodPath {
+  Method: string
+  PathPattern: string
+}
+
+export interface HTTPScope {
+  Methods: string[]
+  Exclusions: MethodPath[]
+}
+
+export interface HTTPChannel {
+  ID: string
+  Name: string
+  Domain: string
+  Scope: HTTPScope
+  CreatedAt: string
+  ExpiresAt: string
+}
+
+export interface HTTPChannelWithShortId {
+  channel: HTTPChannel
+  shortId: string
+}
+
 async function listChannels(): Promise<Channel[]> {
   const { channels } = await vaultCall<{ channels: Channel[] }>('list_channels')
   return channels ?? []
@@ -224,6 +270,70 @@ async function resetVault(): Promise<void> {
   await vaultCall<void>('reset_vault')
 }
 
+async function listDomains(): Promise<string[]> {
+  const { names } = await vaultCall<{ names: string[] }>('list_domains')
+  return names ?? []
+}
+
+async function putDomain(passphrase: string, name: string, domain: Domain): Promise<void> {
+  await vaultCall<void>('put_domain', { root_secret: passphrase, name, domain })
+}
+
+async function deleteDomain(name: string): Promise<void> {
+  await vaultCall<void>('delete_domain', { name })
+}
+
+// Tests a domain user's login (or, for a bring-your-own-token user, validates the pasted
+// token) with values straight out of the in-progress form -- no root secret, nothing stored.
+async function testDomainLogin(domain: Domain, user: DomainUser): Promise<void> {
+  await vaultCall<void>('test_domain_login', { domain, user })
+}
+
+async function listHTTPChannels(): Promise<HTTPChannel[]> {
+  const { channels } = await vaultCall<{ channels: HTTPChannel[] }>('list_http_channels')
+  return channels ?? []
+}
+
+async function createHTTPChannel(
+  passphrase: string,
+  name: string,
+  domainName: string,
+  scope: HTTPScope,
+  ttlSeconds: number
+): Promise<HTTPChannelWithShortId> {
+  const { channel } = await vaultCall<{ channel: HTTPChannel }>('create_http_channel', {
+    root_secret: passphrase,
+    name,
+    domain_name: domainName,
+    scope,
+    ttl_seconds: ttlSeconds
+  })
+  const { short_id: shortId } = await agentCall<{ short_id: string }>('register_channel', {
+    real_id: channel.ID
+  })
+  return { channel, shortId }
+}
+
+async function activateHTTPChannel(
+  passphrase: string,
+  id: string,
+  ttlSeconds: number
+): Promise<HTTPChannelWithShortId> {
+  const { channel } = await vaultCall<{ channel: HTTPChannel }>('activate_http', {
+    root_secret: passphrase,
+    id,
+    ttl_seconds: ttlSeconds
+  })
+  const { short_id: shortId } = await agentCall<{ short_id: string }>('register_channel', {
+    real_id: channel.ID
+  })
+  return { channel, shortId }
+}
+
+async function revokeHTTPChannel(id: string): Promise<void> {
+  await vaultCall<void>('revoke_http', { id })
+}
+
 export function registerVaultHandlers(): void {
   ipcMain.handle('vault:list', () => listChannels())
   ipcMain.handle(
@@ -257,4 +367,31 @@ export function registerVaultHandlers(): void {
     verifyPassphrase(passphrase)
   )
   ipcMain.handle('vault:resetVault', () => resetVault())
+
+  ipcMain.handle('vault:listDomains', () => listDomains())
+  ipcMain.handle('vault:putDomain', (_event, passphrase: string, name: string, domain: Domain) =>
+    putDomain(passphrase, name, domain)
+  )
+  ipcMain.handle('vault:deleteDomain', (_event, name: string) => deleteDomain(name))
+  ipcMain.handle('vault:testDomainLogin', (_event, domain: Domain, user: DomainUser) =>
+    testDomainLogin(domain, user)
+  )
+  ipcMain.handle('vault:listHTTPChannels', () => listHTTPChannels())
+  ipcMain.handle(
+    'vault:createHTTPChannel',
+    (
+      _event,
+      passphrase: string,
+      name: string,
+      domainName: string,
+      scope: HTTPScope,
+      ttlSeconds: number
+    ) => createHTTPChannel(passphrase, name, domainName, scope, ttlSeconds)
+  )
+  ipcMain.handle(
+    'vault:activateHTTPChannel',
+    (_event, passphrase: string, id: string, ttlSeconds: number) =>
+      activateHTTPChannel(passphrase, id, ttlSeconds)
+  )
+  ipcMain.handle('vault:revokeHTTPChannel', (_event, id: string) => revokeHTTPChannel(id))
 }

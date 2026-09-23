@@ -13,6 +13,7 @@ import (
 const (
 	opRegisterChannel = "register_channel"
 	opQuery           = "query"
+	opRequestHTTP     = "request_http"
 	opForget          = "forget"
 )
 
@@ -45,6 +46,18 @@ type queryPayload struct {
 
 type queryResultPayload struct {
 	Result vault.QueryResult `json:"result"`
+}
+
+type requestHTTPPayload struct {
+	ShortID string `json:"short_id"`
+	User    string `json:"user"`
+	Method  string `json:"method"`
+	Path    string `json:"path"`
+	Body    []byte `json:"body"`
+}
+
+type httpResultPayload struct {
+	Result vault.HTTPResult `json:"result"`
 }
 
 // Serve accepts connections on l and handles one request per connection, with queryLimiter gating repeated wrong short-id guesses at Query.
@@ -94,6 +107,16 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 		return queryOp(queryLimiter, func() (response, error) {
 			result, err := svc.Query(p.ShortID, p.DeclaredTables, p.SQL)
 			return payloadResponse(queryResultPayload{Result: result}), err
+		})
+
+	case opRequestHTTP:
+		var p requestHTTPPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return queryOp(queryLimiter, func() (response, error) {
+			result, err := svc.RequestHTTP(p.ShortID, p.User, p.Method, p.Path, p.Body)
+			return payloadResponse(httpResultPayload{Result: result}), err
 		})
 
 	case opForget:
@@ -191,6 +214,12 @@ func (c *Client) RegisterChannel(realID vault.ChannelID) (string, error) {
 func (c *Client) Query(shortID string, declaredTables []string, sqlText string) (vault.QueryResult, error) {
 	var out queryResultPayload
 	err := c.call(opQuery, queryPayload{ShortID: shortID, DeclaredTables: declaredTables, SQL: sqlText}, &out)
+	return out.Result, err
+}
+
+func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte) (vault.HTTPResult, error) {
+	var out httpResultPayload
+	err := c.call(opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body}, &out)
 	return out.Result, err
 }
 

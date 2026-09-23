@@ -59,7 +59,7 @@ app.whenReady().then(() => {
 
   // Toggles DevTools with F12 in dev, blocks CommandOrControl+R in prod.
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+    optimizer.watchWindowShortcuts(window, { zoom: true })
   })
 
   const lgrassPath = installLgrass()
