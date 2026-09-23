@@ -7,6 +7,9 @@ import type {
   BiblioTree,
   ScratchpadImageResult,
   ImageFileResult,
+  GitStatus,
+  GitDiff,
+  GitActionResult,
   WorkspaceLayoutState,
   VaultScope,
   VaultChannel,
@@ -59,6 +62,12 @@ interface Api {
     readImageFile: (filePath: string) => Promise<ImageFileResult>
     archiveScratchpad: (projectPath: string, relativePath: string) => Promise<boolean>
     onChanged: (callback: (projectPath: string) => void) => () => void
+  }
+  git: {
+    status: (projectPath: string) => Promise<GitStatus>
+    diff: (projectPath: string, path: string, origPath?: string) => Promise<GitDiff>
+    commit: (projectPath: string, message: string, paths?: string[]) => Promise<GitActionResult>
+    push: (projectPath: string) => Promise<GitActionResult>
   }
   vault: {
     list: () => Promise<VaultChannel[]>

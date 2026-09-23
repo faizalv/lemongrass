@@ -32,6 +32,7 @@ interface Workspace {
 }
 
 type DocTab = Extract<WorkspaceTab, { kind: 'doc' }>
+type DiffTab = Extract<WorkspaceTab, { kind: 'diff' }>
 type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
 
 const AUTOSAVE_MS = 600
@@ -72,6 +73,10 @@ export function projectRelativePath(path: string): string {
 
 function newDocTab(path: string): DocTab {
   return { id: crypto.randomUUID(), kind: 'doc', path }
+}
+
+function newDiffTab(path: string): DiffTab {
+  return { id: crypto.randomUUID(), kind: 'diff', path }
 }
 
 function tabsOf(projectId: string): WorkspaceTab[] {
@@ -305,6 +310,35 @@ export function openFile(project: ProjectRef, path: string): void {
   void loadDoc(project, path)
 }
 
+export function activeDiffPath(projectId: string): string | null {
+  const layout = workspaces[projectId]?.layout
+  if (!layout) return null
+  const leaf = tree.findLeaf(layout.root, layout.focusedPaneId)
+  const tab = leaf?.tabs.find((t) => t.id === leaf.activeTabId)
+  return tab?.kind === 'diff' ? tab.path : null
+}
+
+// One diff tab per project: opening another file retargets the existing tab wherever it lives.
+export function openDiff(project: ProjectRef, path: string): void {
+  const layout = workspaces[project.id].layout
+  const root = layout.root
+  if (!root) {
+    const leaf = tree.createLeaf<WorkspaceTab>([newDiffTab(path)])
+    commit(project, leaf, leaf.id)
+    return
+  }
+  const leaves = tree.allLeaves(root)
+  for (const leaf of leaves) {
+    const existing = leaf.tabs.find((tab): tab is DiffTab => tab.kind === 'diff')
+    if (!existing) continue
+    existing.path = path
+    commit(project, tree.setActiveTab(root, leaf.id, existing.id), leaf.id)
+    return
+  }
+  const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
+  commit(project, tree.addTab(root, focused.id, newDiffTab(path)), focused.id)
+}
+
 export function addShell(project: ProjectRef, paneId?: string): void {
   openShellPicker({ kind: 'tab', project, paneId })
 }
@@ -400,7 +434,7 @@ export function placeTab(
   const root = workspaces[project.id].layout.root
   if (!root) return
   const source = tree.findLeaf(root, fromPaneId)?.tabs.find((tab) => tab.id === tabId)
-  if (!source || (duplicate && source.kind === 'shell')) return
+  if (!source || (duplicate && source.kind !== 'doc')) return
   const result = tree.placeTab(root, fromPaneId, tabId, toPaneId, zone, duplicate)
   if (!result) return
   commit(project, result.root, tree.findLeafByTab(result.root, result.placed.id)?.id)

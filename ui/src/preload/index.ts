@@ -8,6 +8,9 @@ import type {
   BiblioTree,
   ScratchpadImageResult,
   ImageFileResult,
+  GitStatus,
+  GitDiff,
+  GitActionResult,
   VaultScope,
   VaultChannel,
   VaultChannelWithShortId,
@@ -88,6 +91,17 @@ const biblio = {
   }
 }
 
+const git = {
+  status: (projectPath: string): Promise<GitStatus> =>
+    ipcRenderer.invoke('git:status', projectPath),
+  diff: (projectPath: string, path: string, origPath?: string): Promise<GitDiff> =>
+    ipcRenderer.invoke('git:diff', projectPath, path, origPath),
+  commit: (projectPath: string, message: string, paths?: string[]): Promise<GitActionResult> =>
+    ipcRenderer.invoke('git:commit', projectPath, message, paths),
+  push: (projectPath: string): Promise<GitActionResult> =>
+    ipcRenderer.invoke('git:push', projectPath)
+}
+
 const vault = {
   list: (): Promise<VaultChannel[]> => ipcRenderer.invoke('vault:list'),
   create: (
@@ -160,7 +174,7 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, workspaceLayouts, biblio, vault, windowControls }
+const api = { pty, projects, workspaceLayouts, biblio, git, vault, windowControls }
 
 if (process.contextIsolated) {
   try {

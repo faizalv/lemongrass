@@ -111,8 +111,62 @@ export interface VaultHTTPChannelWithShortId {
   shortId: string
 }
 
+export type GitFileKind =
+  | 'modified'
+  | 'added'
+  | 'deleted'
+  | 'renamed'
+  | 'copied'
+  | 'typechange'
+  | 'untracked'
+  | 'conflicted'
+
+export interface GitFile {
+  path: string
+  origPath?: string
+  kind: GitFileKind
+}
+
+export interface GitStatus {
+  isRepo: boolean
+  branch: string | null
+  detached: boolean
+  upstream: string | null
+  ahead: number
+  behind: number
+  hasCommits: boolean
+  pushTarget: string | null
+  files: GitFile[]
+}
+
+export interface GitDiffLine {
+  number: number
+  text: string
+  type: 'context' | 'add' | 'del'
+}
+
+export interface GitDiffRow {
+  left: GitDiffLine | null
+  right: GitDiffLine | null
+}
+
+export interface GitDiffHunk {
+  header: string
+  rows: GitDiffRow[]
+}
+
+export type GitDiff =
+  | { status: 'ok'; hunks: GitDiffHunk[]; added: number; removed: number }
+  | { status: 'empty' }
+  | { status: 'binary' }
+  | { status: 'too-large' }
+  | { status: 'error'; message: string }
+
+export type GitActionResult = { ok: true } | { ok: false; error: string }
+
 export type WorkspaceTab =
   | { id: string; kind: 'doc'; path: string }
+  | { id: string; kind: 'diff'; path: string }
   | { id: string; kind: 'shell'; label: string; command: string; cwd?: string }
 
 export type WorkspaceLayoutNode =

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import DiffViewer from './DiffViewer.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import ShellView from './ShellView.vue'
 import TocViewer from './TocViewer.vue'
@@ -56,6 +57,15 @@ function editActive(value: string): void {
 function labelParts(path: string): { name: string; parent: string } {
   const segments = path.replace(/\.md$/, '').split('/')
   return { name: segments[segments.length - 1], parent: segments[segments.length - 2] ?? '' }
+}
+
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
+}
+
+function tabTitle(tab: WorkspaceTab): string {
+  if (tab.kind === 'shell') return shellTitles[tab.id] ?? tab.label
+  return tab.kind === 'diff' ? `Diff: ${tab.path}` : tab.path
 }
 
 const tabBar = ref<HTMLDivElement>()
@@ -256,7 +266,7 @@ onBeforeUnmount(() => {
           class="tab"
           :class="{ active: tab.id === leaf.activeTabId }"
           :data-tab-id="tab.id"
-          :title="tab.kind === 'doc' ? tab.path : (shellTitles[tab.id] ?? tab.label)"
+          :title="tabTitle(tab)"
           draggable="true"
           @click="activateTab(project, leaf.id, tab.id)"
           @contextmenu.prevent="openMenu($event, tab.id)"
@@ -276,11 +286,30 @@ onBeforeUnmount(() => {
           >
             <path d="M2.5 4.5l3 2.5-3 2.5M7 10h4.5" />
           </svg>
+          <svg
+            v-else-if="tab.kind === 'diff'"
+            class="tab-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
+            <path d="M7 2v10M3.5 5.5h2M9 8.5h2" />
+          </svg>
           <span v-if="tab.kind === 'doc'" class="tab-label">
             <span v-if="labelParts(tab.path).parent" class="tab-parent">
               {{ labelParts(tab.path).parent }} /
             </span>
             {{ labelParts(tab.path).name }}
+          </span>
+          <span v-else-if="tab.kind === 'diff'" class="tab-label">
+            <span class="tab-parent">diff /</span>
+            {{ baseName(tab.path) }}
           </span>
           <span v-else class="tab-label">{{ shellTitles[tab.id] ?? tab.label }}</span>
           <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
@@ -432,6 +461,13 @@ onBeforeUnmount(() => {
           <div class="markdown-body" v-html="activeDoc.html" />
         </div>
       </template>
+
+      <DiffViewer
+        v-else-if="activeTab?.kind === 'diff'"
+        :key="activeTab.id"
+        :project="project"
+        :path="activeTab.path"
+      />
 
       <div v-if="dropZone" class="drop-overlay" :class="dropZone">
         <span v-if="dropDuplicate" class="drop-copy">Copy</span>

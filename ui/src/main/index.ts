@@ -6,6 +6,7 @@ import { registerPtyHandlers, killAllShells } from './pty'
 import { registerProjectHandlers } from './projects'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
+import { registerGitHandlers } from './git'
 import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
 import { installLgrass, installLgrassconf } from './lgrassInstall'
@@ -72,6 +73,7 @@ app.whenReady().then(() => {
   registerProjectHandlers(() => mainWindow)
   registerWorkspaceLayoutHandlers()
   registerBiblioHandlers(() => mainWindow?.webContents)
+  registerGitHandlers()
   registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import BiblioTreeItem from './BiblioTreeItem.vue'
+import GitPanel from './GitPanel.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
 import type { BiblioTree } from '../../../preload/types'
@@ -123,45 +124,49 @@ function onGutterUp(): void {
 <template>
   <div class="biblio-pane">
     <div class="biblio-tree" :style="{ width: `${treeWidth}px` }">
-      <button
-        v-if="tree?.toc"
-        class="toc-item"
-        :class="{ active: tree.toc.path === selectedPath }"
-        @click="selectFile(tree.toc.path)"
-      >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+      <div class="tree-scroll">
+        <button
+          v-if="tree?.toc"
+          class="toc-item"
+          :class="{ active: tree.toc.path === selectedPath }"
+          @click="selectFile(tree.toc.path)"
         >
-          <line x1="2" y1="3" x2="12" y2="3" />
-          <line x1="2" y1="7" x2="12" y2="7" />
-          <line x1="2" y1="11" x2="8" y2="11" />
-        </svg>
-        <span>Table of Content</span>
-      </button>
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="2" y1="3" x2="12" y2="3" />
+            <line x1="2" y1="7" x2="12" y2="7" />
+            <line x1="2" y1="11" x2="8" y2="11" />
+          </svg>
+          <span>Table of Content</span>
+        </button>
 
-      <div class="tree-groups">
-        <template v-if="tree?.children?.length">
-          <BiblioTreeItem
-            v-for="child in tree.children"
-            :key="child.path"
-            :node="child"
-            :selected-path="selectedPath"
-            :depth="0"
-            @select="selectFile"
-            @add-scratchpad="openCreateForm"
-            @add-scratchpad-file="openCreateFileForm"
-            @archive-scratchpad="archiveScratchpad"
-          />
-        </template>
-        <p v-else class="empty">Nothing in biblio/ yet.</p>
+        <div class="tree-groups">
+          <template v-if="tree?.children?.length">
+            <BiblioTreeItem
+              v-for="child in tree.children"
+              :key="child.path"
+              :node="child"
+              :selected-path="selectedPath"
+              :depth="0"
+              @select="selectFile"
+              @add-scratchpad="openCreateForm"
+              @add-scratchpad-file="openCreateFileForm"
+              @archive-scratchpad="archiveScratchpad"
+            />
+          </template>
+          <p v-else class="empty">Nothing in biblio/ yet.</p>
+        </div>
       </div>
+
+      <GitPanel :project="project" />
     </div>
 
     <div class="biblio-gutter" @pointerdown="onGutterDown" />
@@ -297,9 +302,17 @@ function onGutterUp(): void {
 
 .biblio-tree {
   flex-shrink: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-1);
+}
+
+.tree-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--space-3) var(--space-2) var(--space-4);
-  background: var(--color-surface-1);
 }
 
 .toc-item {
