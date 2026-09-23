@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import ShellView from './ShellView.vue'
+import TocViewer from './TocViewer.vue'
 import {
   activateTab,
   addShell,
@@ -425,6 +426,7 @@ onBeforeUnmount(() => {
             @update:model-value="editActive"
           />
         </div>
+        <TocViewer v-else-if="activeTab.path === 'books/toc.md'" :project="project" />
         <div v-else class="reader lg-scroll">
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div class="markdown-body" v-html="activeDoc.html" />
