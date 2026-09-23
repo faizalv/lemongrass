@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { existsSync, copyFileSync, chmodSync } from 'fs'
+import { existsSync, copyFileSync, chmodSync, renameSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import { spawn } from 'child_process'
@@ -52,8 +52,20 @@ function copyBundled(name: 'lgrass' | 'lgrassconf'): string | null {
     }
     const installDir = resolveInstallDir()
     const dest = join(installDir, name)
-    copyFileSync(bundled, dest)
-    chmodSync(dest, 0o755)
+    // dest may be the running lgrassconf service binary, which cannot be overwritten in place while open.
+    const tmp = `${dest}.tmp-${process.pid}`
+    copyFileSync(bundled, tmp)
+    chmodSync(tmp, 0o755)
+    try {
+      renameSync(tmp, dest)
+    } catch (err) {
+      try {
+        unlinkSync(tmp)
+      } catch {
+        // ignore
+      }
+      throw err
+    }
     return dest
   } catch (err) {
     console.error(`${name}: self-install failed, continuing without it:`, err)
@@ -98,6 +110,9 @@ export function installLgrassconf(): string | null {
     const child = spawn(dest, ['install'], {
       detached: true,
       stdio: 'ignore'
+    })
+    child.on('error', (err) => {
+      console.error('lgrassconf: install spawn failed:', err)
     })
     child.unref()
   } catch (err) {

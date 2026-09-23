@@ -5,7 +5,13 @@ import HeaderBar from './components/HeaderBar.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
 import BiblioPanel from './components/BiblioPanel.vue'
 import ConnectorPanel from './components/ConnectorPanel.vue'
-import { ensureLoaded, refreshReadOnlyDocs, type ProjectRef } from './workspace'
+import {
+  cancelShellPicker,
+  ensureLoaded,
+  refreshReadOnlyDocs,
+  shellPicker,
+  type ProjectRef
+} from './workspace'
 import type { Project, BiblioTree } from '../../preload/types'
 
 const projects = ref<Project[]>([])
@@ -40,6 +46,8 @@ async function loadProjects(): Promise<void> {
 }
 
 async function selectProject(id: string): Promise<void> {
+  // shellPicker.placement pins the project it was opened for, so a project switch while it is open must cancel it.
+  if (shellPicker.open) cancelShellPicker()
   activeProjectId.value = id
   const project = projects.value.find((p) => p.id === id)
   if (!project || loadedProjects[id]) return

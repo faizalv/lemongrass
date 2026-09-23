@@ -357,9 +357,12 @@ function openInNewShellWithAgent(
   const source = tree.findLeaf(root, paneId)?.tabs.find((tab) => tab.id === tabId)
   if (!root || source?.kind !== 'doc') return
   const tab = newShellTab(project, agent)
-  setShellArgs(tab.id, [
-    `Read ${projectRelativePath(source.path)} and follow the instructions in it.`
-  ])
+  // The 'shell' agent spawns zsh directly, which treats a positional prompt argument as a script path to source.
+  if (agent.id !== 'shell') {
+    setShellArgs(tab.id, [
+      `Read ${projectRelativePath(source.path)} and follow the instructions in it.`
+    ])
+  }
   const next = tree.splitWithTab(root, paneId, 'right', tab)
   commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
 }
