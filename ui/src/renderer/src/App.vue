@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import ProjectSidebar from './components/ProjectSidebar.vue'
+import ProjectSwitcher from './components/ProjectSwitcher.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
-import BiblioPanel from './components/BiblioPanel.vue'
 import ConnectorPanel from './components/ConnectorPanel.vue'
 import {
   cancelShellPicker,
@@ -24,7 +24,6 @@ const activeProjectId = ref<string | null>(null)
 const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const loadedProjects = reactive<Record<string, boolean>>({})
 const sidebarCollapsed = ref(false)
-const showBiblioPanel = ref(true)
 const showConnector = ref(false)
 
 const activeProject = computed((): Project | undefined =>
@@ -144,28 +143,27 @@ onBeforeUnmount(() => {
           </svg>
         </span>
         <span class="wordmark">lemongrass</span>
+        <span class="switcher-zone">
+          <ProjectSwitcher
+            :projects="projects"
+            :active-project-id="activeProjectId"
+            @select="selectProject"
+            @add="addProject"
+          />
+        </span>
       </template>
     </HeaderBar>
 
     <div class="body-row">
       <ProjectSidebar
-        :projects="projects"
-        :active-project-id="activeProjectId"
         :collapsed="sidebarCollapsed"
-        :biblio-active="showBiblioPanel"
-        @select="selectProject"
-        @add="addProject"
+        :project="activeRef"
+        :tree="biblioTree"
         @open-connector="showConnector = true"
-        @toggle-biblio="showBiblioPanel = !showBiblioPanel"
+        @refresh-biblio="refreshBiblio"
       />
 
       <div v-if="activeRef && loadedProjects[activeRef.id]" class="main">
-        <BiblioPanel
-          v-if="showBiblioPanel && biblioTree"
-          :tree="biblioTree"
-          :project="activeRef"
-          @refresh="refreshBiblio"
-        />
         <WorkspaceView :project="activeRef" />
       </div>
 
@@ -208,6 +206,11 @@ onBeforeUnmount(() => {
   font-weight: var(--weight-bold);
   color: var(--color-fg-accent);
   letter-spacing: var(--tracking-snug);
+}
+
+.switcher-zone {
+  margin-left: var(--space-3);
+  -webkit-app-region: no-drag;
 }
 
 .body-row {
