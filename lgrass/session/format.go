@@ -68,6 +68,15 @@ func FormatBibliothekDeny() string {
 	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry."
 }
 
+// The id here must match memoryFeedbackChecklistID in cmd/lgrass/hook.go -- this only formats the message, the caller owns the sign/TTL check.
+func FormatMemoryFeedbackDeny() string {
+	const id = "memory-feedback-law"
+	const content = "Before this memory write goes through, check the `type:` field of what you're about to write.\n\n" +
+		"If `type: feedback` (a standing behavioral rule), it does not live in memory as content -- memory holds a one-or-two-sentence pointer only. The actual rule belongs in biblio/laws/<slug>.md (and biblio/laws/summary.md), per the bibliothek skill. Write or update that law file first if it isn't already in place this turn, then come back here.\n\n" +
+		"Other memory types (user, project, reference) are not gated by this -- proceed normally."
+	return fmt.Sprintf("lgrass: %q requires signing before this call proceeds -- run `lgrass sign %s`, then retry:\n\n%s", id, id, content)
+}
+
 func FormatPlanModeDeny() string {
 	return "lgrass: EnterPlanMode is banned in a bibliothek project. Plan the bibliothek way instead: work it out in biblio/scratchpad/<task-slug>/ (prd.md/plan.md), then present the plan directly in this response and wait for explicit confirmation before changing anything."
 }

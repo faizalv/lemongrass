@@ -146,6 +146,107 @@ func TestEnterPlanModeAllowedWithoutBibliothek(t *testing.T) {
 	}
 }
 
+func TestClaudeMemoryDirReplacesSlashesWithDashes(t *testing.T) {
+	t.Setenv("HOME", "/home/faizal")
+	got, err := claudeMemoryDir("/mnt/data/Projects/lemongrass")
+	if err != nil {
+		t.Fatalf("claudeMemoryDir: %v", err)
+	}
+	want := "/home/faizal/.claude/projects/-mnt-data-Projects-lemongrass/memory/"
+	if got != want {
+		t.Errorf("claudeMemoryDir() = %q, want %q", got, want)
+	}
+}
+
+func TestMemoryFeedbackDenyUntilSigned(t *testing.T) {
+	store := openHookTestStore(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	projectPath := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(projectPath, "biblio"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	memDir, err := claudeMemoryDir(projectPath)
+	if err != nil {
+		t.Fatalf("claudeMemoryDir: %v", err)
+	}
+	memFile := filepath.Join(memDir, "feedback_testing.md")
+	if err := store.Sign("session-a", bibliothekChecklistID); err != nil {
+		t.Fatalf("Sign bibliothek: %v", err)
+	}
+
+	payload := hookEvent{
+		SessionID:         "session-a",
+		ToolName:          "Write",
+		ToolInput:         json.RawMessage(`{"file_path":"` + memFile + `"}`),
+		EnforceBibliothek: true,
+	}
+	result := hookPreToolUse(store, payload, projectPath)
+	if result.PermissionDecision != "deny" {
+		t.Fatalf("PermissionDecision = %q, want deny before signing", result.PermissionDecision)
+	}
+	if !strings.Contains(result.PermissionDecisionReason, "memory-feedback-law") {
+		t.Errorf("PermissionDecisionReason = %q, want it to mention memory-feedback-law", result.PermissionDecisionReason)
+	}
+
+	if err := store.Sign("session-a", memoryFeedbackChecklistID); err != nil {
+		t.Fatalf("Sign: %v", err)
+	}
+
+	result = hookPreToolUse(store, payload, projectPath)
+	if result.PermissionDecision == "deny" {
+		t.Errorf("PermissionDecision = %q, want no deny after signing", result.PermissionDecision)
+	}
+}
+
+func TestMemoryFeedbackDenyIgnoresNonMemoryPaths(t *testing.T) {
+	store := openHookTestStore(t)
+	t.Setenv("HOME", t.TempDir())
+	projectPath := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(projectPath, "biblio"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Sign("session-a", bibliothekChecklistID); err != nil {
+		t.Fatalf("Sign bibliothek: %v", err)
+	}
+
+	payload := hookEvent{
+		SessionID:         "session-a",
+		ToolName:          "Write",
+		ToolInput:         json.RawMessage(`{"file_path":"` + filepath.Join(projectPath, "main.go") + `"}`),
+		EnforceBibliothek: true,
+	}
+	result := hookPreToolUse(store, payload, projectPath)
+	if result.PermissionDecision == "deny" {
+		t.Errorf("PermissionDecision = %q, want no deny for a file outside the memory directory", result.PermissionDecision)
+	}
+}
+
+func TestMemoryFeedbackDenyRequiresBiblio(t *testing.T) {
+	store := openHookTestStore(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	projectPath := t.TempDir()
+
+	memDir, err := claudeMemoryDir(projectPath)
+	if err != nil {
+		t.Fatalf("claudeMemoryDir: %v", err)
+	}
+	memFile := filepath.Join(memDir, "feedback_testing.md")
+
+	payload := hookEvent{
+		SessionID:         "session-a",
+		ToolName:          "Write",
+		ToolInput:         json.RawMessage(`{"file_path":"` + memFile + `"}`),
+		EnforceBibliothek: true,
+	}
+	result := hookPreToolUse(store, payload, projectPath)
+	if result.PermissionDecision == "deny" {
+		t.Errorf("PermissionDecision = %q, want no deny for a project without biblio/", result.PermissionDecision)
+	}
+}
+
 func writeTranscriptLines(t *testing.T, lines ...string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "transcript.jsonl")

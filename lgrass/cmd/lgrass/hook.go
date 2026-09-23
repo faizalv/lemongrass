@@ -51,6 +51,12 @@ const bibliothekChecklistID = "bibliothek"
 // Long enough to outlast any real session.
 const bibliothekSignatureTTL = 7 * 24 * time.Hour
 
+// Must match the id formatted into session.FormatMemoryFeedbackDeny.
+const memoryFeedbackChecklistID = "memory-feedback-law"
+
+// Short enough to resurface again within the same session if memory writes are still happening.
+const memoryFeedbackSignatureTTL = 30 * time.Minute
+
 // Every failure here fails soft so a hook-side problem never breaks the agent's own hook chain.
 func cmdHook(args []string) {
 	if len(args) < 1 {
@@ -130,6 +136,10 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 		} else if deny := bibliothekDeny(store, payload.SessionID, payload.TranscriptPath); deny != "" {
 			return newHookResult("PreToolUse", "deny", []string{deny})
 		}
+
+		if deny := memoryFeedbackDeny(store, payload, filePaths, projectPath); deny != "" {
+			return newHookResult("PreToolUse", "deny", []string{deny})
+		}
 	}
 
 	if deny := checklistDeny(store, payload, filePaths, projectPath); deny != "" {
@@ -181,6 +191,43 @@ func bibliothekDeny(store *session.Store, sessionID, transcriptPath string) stri
 	}
 
 	return session.FormatBibliothekDeny()
+}
+
+// memoryFeedbackDeny gates a Write/Edit/apply_patch into this project's own Claude Code memory directory behind a sign, once per session per memoryFeedbackSignatureTTL.
+func memoryFeedbackDeny(store *session.Store, payload hookEvent, filePaths []string, projectPath string) string {
+	if !isFileEdit(payload) {
+		return ""
+	}
+	memDir, err := claudeMemoryDir(projectPath)
+	if err != nil {
+		return ""
+	}
+	touchesMemory := false
+	for _, fp := range filePaths {
+		if strings.HasPrefix(fp, memDir) {
+			touchesMemory = true
+			break
+		}
+	}
+	if !touchesMemory {
+		return ""
+	}
+
+	signedAt, err := store.SignedAt(payload.SessionID, memoryFeedbackChecklistID)
+	if err == nil && !signedAt.IsZero() && time.Since(signedAt) <= memoryFeedbackSignatureTTL {
+		return ""
+	}
+	return session.FormatMemoryFeedbackDeny()
+}
+
+// claudeMemoryDir mirrors Claude Code's own project-slug algorithm: the resolved absolute project path with every path separator replaced by "-". projectPath must already be symlink-resolved, which project.Resolve guarantees.
+func claudeMemoryDir(projectPath string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	slug := strings.ReplaceAll(projectPath, string(filepath.Separator), "-")
+	return filepath.Join(home, ".claude", "projects", slug, "memory") + string(filepath.Separator), nil
 }
 
 type transcriptToolUse struct {

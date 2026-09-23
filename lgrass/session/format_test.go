@@ -77,6 +77,16 @@ func TestFormatMentionsListsEachMessage(t *testing.T) {
 	}
 }
 
+func TestFormatMemoryFeedbackDeny(t *testing.T) {
+	got := FormatMemoryFeedbackDeny()
+	if !strings.Contains(got, "lgrass sign memory-feedback-law") {
+		t.Errorf("FormatMemoryFeedbackDeny() = %q, missing the sign command", got)
+	}
+	if !strings.Contains(got, "biblio/laws") {
+		t.Errorf("FormatMemoryFeedbackDeny() = %q, missing the biblio/laws pointer", got)
+	}
+}
+
 func TestFormatThreadListEmpty(t *testing.T) {
 	got := FormatThreadList(nil)
 	if !strings.Contains(got, "no thread messages yet") {
