@@ -5,7 +5,7 @@ An agent orchestrator: an Electron shell for running coding-agent CLIs (Claude C
 ## Layout
 
 - `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome, a `biblio/` browser/editor, and the db vault's Connections/Channels panel.
-- `lgrassconf/` -- a tiny Go daemon (systemd user service) that owns Lemongrass agent configuration. It registers Claude Code and Codex hooks plus each agent's Lemongrass skill.
+- `lgrassconf/` -- a tiny Go daemon (systemd user service) that owns Lemongrass agent configuration. It registers Claude Code and Codex hooks plus each agent's `lgrass-connector` and `lgrass-staleness` skills, kept as one embedded folder per vendor and skill.
 - `lgrass/` -- the Go CLI:
   - Session/thread coordination between panes.
   - A `SessionStart` hook that delivers `biblio/laws/summary.md` and gates tool calls behind required skills. It never writes Claude config itself.
