@@ -132,6 +132,11 @@ function getMarkdown(e: { storage: unknown }): string {
   return (e.storage as unknown as { markdown: { getMarkdown(): string } }).markdown.getMarkdown()
 }
 
+function focusFromBlank(event: MouseEvent): void {
+  if ((event.target as HTMLElement).closest('.ProseMirror')) return
+  editor.value?.commands.focus('end')
+}
+
 onMounted(() => {
   editor.value = new Editor({
     content: props.modelValue,
@@ -249,7 +254,12 @@ watch(
       </button>
     </div>
     <p v-if="imageNotice" class="notice">{{ imageNotice }}</p>
-    <EditorContent v-if="editor" class="content lg-scroll" :editor="editor" />
+    <EditorContent
+      v-if="editor"
+      class="content lg-scroll"
+      :editor="editor"
+      @click="focusFromBlank"
+    />
   </div>
 </template>
 
@@ -334,6 +344,8 @@ watch(
 .content {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: var(--space-4);
   color: var(--color-fg-primary);
@@ -344,6 +356,7 @@ watch(
 
 .content :deep(.ProseMirror) {
   outline: none;
+  flex: 1 0 auto;
   min-height: 200px;
 }
 
