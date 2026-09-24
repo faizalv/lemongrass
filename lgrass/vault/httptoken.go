@@ -1,7 +1,9 @@
 package vault
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -84,6 +86,31 @@ func (s *Service) forgetTokens(id ChannelID) {
 			delete(s.tokens, key)
 		}
 	}
+}
+
+// resolveUser returns the user a call runs as: the named one, or the domain's only user when
+// name is empty. Otherwise the error lists the users a caller can choose from.
+func resolveUser(domain Domain, name string) (string, error) {
+	if name == "" && len(domain.Users) == 1 {
+		return domain.Users[0].Name, nil
+	}
+	if _, err := findDomainUser(domain, name); err == nil {
+		return name, nil
+	}
+	if len(domain.Users) == 0 {
+		return "", errors.New("vault: this domain has no users")
+	}
+	names := make([]string, len(domain.Users))
+	for i, u := range domain.Users {
+		names[i] = u.Name
+		if len(u.Tags) > 0 {
+			names[i] += " (" + strings.Join(u.Tags, ", ") + ")"
+		}
+	}
+	if name == "" {
+		return "", fmt.Errorf("vault: this domain has several users, pass --user with one of: %s", strings.Join(names, ", "))
+	}
+	return "", fmt.Errorf("vault: domain has no user %q, available users: %s", name, strings.Join(names, ", "))
 }
 
 func findDomainUser(domain Domain, userName string) (DomainUser, error) {

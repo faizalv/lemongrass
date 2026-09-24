@@ -1,0 +1,48 @@
+package vault
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+)
+
+const maxRedirects = 10
+
+// followRedirects returns a redirect policy for a proxied call: a redirect to another host is
+// followed, but with the token stripped from wherever placement put it and with cookies
+// and the referrer (which carries a query-placed token) dropped, so a presigned download URL still works and the domain's token never reaches a
+// second host.
+func followRedirects(placement TokenPlacement) func(req *http.Request, via []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return errors.New("stopped after 10 redirects")
+		}
+		if strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+			return nil
+		}
+		req.Header.Del("Authorization")
+		req.Header.Del("Cookie")
+		req.Header.Del("Referer")
+		switch placement.Kind {
+		case PlacementHeader:
+			req.Header.Del(placement.Name)
+		case PlacementQuery:
+			q := req.URL.Query()
+			q.Del(placement.Name)
+			req.URL.RawQuery = q.Encode()
+		}
+		return nil
+	}
+}
+
+// sameHostRedirectsOnly refuses any redirect to another host. A login call carries the user's
+// credentials in its body, which a 307 or 308 would resend to wherever it points.
+func sameHostRedirectsOnly(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return errors.New("stopped after 10 redirects")
+	}
+	if !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+		return errors.New("login redirected to another host, refusing to resend credentials")
+	}
+	return nil
+}

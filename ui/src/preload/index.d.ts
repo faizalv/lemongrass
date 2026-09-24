@@ -96,6 +96,8 @@ interface Api {
     resetVault: () => Promise<void>
     listDomains: () => Promise<string[]>
     putDomain: (passphrase: string, name: string, domain: VaultDomain) => Promise<void>
+    getDomain: (passphrase: string, name: string) => Promise<VaultDomain>
+    updateDomain: (passphrase: string, name: string, domain: VaultDomain) => Promise<void>
     deleteDomain: (name: string) => Promise<void>
     testDomainLogin: (domain: VaultDomain, user: VaultDomainUser) => Promise<void>
     listHTTPChannels: () => Promise<VaultHTTPChannel[]>

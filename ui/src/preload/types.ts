@@ -75,6 +75,7 @@ export interface VaultDomainUser {
   Name: string
   Fields: Record<string, string>
   Token: string
+  Tags: string[]
 }
 
 export interface VaultDomain {

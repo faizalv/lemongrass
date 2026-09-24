@@ -663,12 +663,15 @@ interface UserDraft {
   name: string
   isByot: boolean
   token: string
+  tags: string
   fields: UserFieldDraft[]
   testStatus: UserTestStatus
   testError: string
 }
 
 const showDomainForm = ref(false)
+const editingDomainName = ref<string | null>(null)
+const loadingDomainName = ref<string | null>(null)
 const newDomainName = ref('')
 const newDomainBaseUrl = ref('')
 const newDomainLoginEndpoint = ref('')
@@ -684,6 +687,7 @@ const domainFormError = ref('')
 const creatingDomain = ref(false)
 
 function openDomainForm(): void {
+  editingDomainName.value = null
   newDomainName.value = ''
   newDomainBaseUrl.value = ''
   newDomainLoginEndpoint.value = ''
@@ -703,11 +707,60 @@ function cancelDomainForm(): void {
   showDomainForm.value = false
 }
 
+function userDraftFromDomainUser(user: VaultDomainUser): UserDraft {
+  const fields = Object.entries(user.Fields ?? {}).map(([key, value]) => ({ key, value }))
+  return {
+    name: user.Name,
+    isByot: user.Token !== '',
+    token: user.Token,
+    tags: (user.Tags ?? []).join(', '),
+    fields: fields.length > 0 ? fields : [{ key: '', value: '' }],
+    testStatus: 'idle',
+    testError: ''
+  }
+}
+
+async function openDomainEdit(name: string): Promise<void> {
+  if (!vaultUnlocked.value || loadingDomainName.value) return
+  loadingDomainName.value = name
+  domainsError.value = ''
+  try {
+    const domain = await window.api.vault.getDomain(sessionPassphrase.value, name)
+    editingDomainName.value = name
+    newDomainName.value = name
+    newDomainBaseUrl.value = domain.BaseURL
+    newDomainLoginEndpoint.value = domain.LoginEndpoint
+    newDomainTokenPath.value = domain.TokenPath
+    if (domain.TTLOrigin === 'jwt-exp') {
+      newDomainTtlMode.value = 'jwt'
+      newDomainTtlField.value = ''
+    } else if (domain.TTLOrigin !== '') {
+      newDomainTtlMode.value = 'field'
+      newDomainTtlField.value = domain.TTLOrigin
+    } else {
+      newDomainTtlMode.value = 'fixed'
+      newDomainTtlField.value = ''
+    }
+    newDomainFixedTtlMinutes.value = domain.FixedTTLSeconds / 60
+    newDomainTokenKind.value = domain.TokenPlacement.Kind
+    newDomainTokenName.value = domain.TokenPlacement.Name
+    newDomainTokenPrefix.value = domain.TokenPlacement.Prefix
+    newDomainUsers.value = (domain.Users ?? []).map(userDraftFromDomainUser)
+    domainFormError.value = ''
+    showDomainForm.value = true
+  } catch (err) {
+    domainsError.value = describeError(err)
+  } finally {
+    loadingDomainName.value = null
+  }
+}
+
 function addUserDraft(): void {
   newDomainUsers.value.push({
     name: '',
     isByot: false,
     token: '',
+    tags: '',
     fields: [{ key: '', value: '' }],
     testStatus: 'idle',
     testError: ''
@@ -752,14 +805,18 @@ function buildDomainDraft(): VaultDomain {
 }
 
 function buildUserPayload(draft: UserDraft): VaultDomainUser {
+  const tags = draft.tags
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0)
   if (draft.isByot) {
-    return { Name: draft.name.trim(), Fields: {}, Token: draft.token }
+    return { Name: draft.name.trim(), Fields: {}, Token: draft.token, Tags: tags }
   }
   const fields: Record<string, string> = {}
   for (const f of draft.fields) {
     if (f.key.trim()) fields[f.key.trim()] = f.value
   }
-  return { Name: draft.name.trim(), Fields: fields, Token: '' }
+  return { Name: draft.name.trim(), Fields: fields, Token: '', Tags: tags }
 }
 
 async function testUserDraft(index: number): Promise<void> {
@@ -790,7 +847,11 @@ async function submitDomain(): Promise<void> {
   try {
     const domain = buildDomainDraft()
     domain.Users = newDomainUsers.value.map(buildUserPayload)
-    await window.api.vault.putDomain(sessionPassphrase.value, newDomainName.value.trim(), domain)
+    if (editingDomainName.value !== null) {
+      await window.api.vault.updateDomain(sessionPassphrase.value, editingDomainName.value, domain)
+    } else {
+      await window.api.vault.putDomain(sessionPassphrase.value, newDomainName.value.trim(), domain)
+    }
     showDomainForm.value = false
     await refreshDomains()
   } catch (err) {
@@ -1514,6 +1575,14 @@ async function copyHTTPShortId(id: string): Promise<void> {
                 </div>
                 <div class="channel-actions">
                   <button
+                    class="ghost-button"
+                    :disabled="!vaultUnlocked || loadingDomainName === name"
+                    :title="!vaultUnlocked ? 'Unlock the vault first' : ''"
+                    @click="openDomainEdit(name)"
+                  >
+                    {{ loadingDomainName === name ? 'Loading...' : 'Edit' }}
+                  </button>
+                  <button
                     class="ghost-button danger"
                     :disabled="deletingDomainName === name"
                     @click="deleteDomain(name)"
@@ -1533,7 +1602,9 @@ async function copyHTTPShortId(id: string): Promise<void> {
             </button>
 
             <div v-else class="inline-section">
-              <h4 class="inline-section-title">New domain</h4>
+              <h4 class="inline-section-title">
+                {{ editingDomainName !== null ? 'Edit domain' : 'New domain' }}
+              </h4>
 
               <div class="field-block">
                 <label class="field-label" for="domain-name">Name</label>
@@ -1542,6 +1613,7 @@ async function copyHTTPShortId(id: string): Promise<void> {
                   v-model="newDomainName"
                   type="text"
                   placeholder="e.g. staging-api"
+                  :disabled="editingDomainName !== null"
                   autofocus
                 />
               </div>
@@ -1650,6 +1722,12 @@ async function copyHTTPShortId(id: string): Promise<void> {
                       Bring your own token
                     </label>
                   </div>
+
+                  <input
+                    v-model="user.tags"
+                    type="text"
+                    placeholder="Tags, comma separated, e.g. tenant x, low level"
+                  />
 
                   <input
                     v-if="user.isByot"

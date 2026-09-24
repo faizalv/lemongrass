@@ -139,6 +139,10 @@ const vault = {
   listDomains: (): Promise<string[]> => ipcRenderer.invoke('vault:listDomains'),
   putDomain: (passphrase: string, name: string, domain: VaultDomain): Promise<void> =>
     ipcRenderer.invoke('vault:putDomain', passphrase, name, domain),
+  getDomain: (passphrase: string, name: string): Promise<VaultDomain> =>
+    ipcRenderer.invoke('vault:getDomain', passphrase, name),
+  updateDomain: (passphrase: string, name: string, domain: VaultDomain): Promise<void> =>
+    ipcRenderer.invoke('vault:updateDomain', passphrase, name, domain),
   deleteDomain: (name: string): Promise<void> => ipcRenderer.invoke('vault:deleteDomain', name),
   testDomainLogin: (domain: VaultDomain, user: VaultDomainUser): Promise<void> =>
     ipcRenderer.invoke('vault:testDomainLogin', domain, user),

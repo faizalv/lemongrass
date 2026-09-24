@@ -36,6 +36,10 @@ const (
 	opRevokeHTTP        = "revoke_http"
 	opHTTPChannelScope  = "http_channel_scope"
 	opListHTTPChannels  = "list_http_channels"
+	opHTTPChannelInfo   = "http_channel_info"
+	opHTTPChannelUsers  = "http_channel_users"
+	opGetDomain         = "get_domain"
+	opUpdateDomain      = "update_domain"
 )
 
 const connDeadline = 10 * time.Second
@@ -171,6 +175,23 @@ type httpChannelPayload struct {
 	Channel HTTPChannel `json:"channel"`
 }
 
+type httpChannelInfoPayload struct {
+	Info HTTPChannelInfo `json:"info"`
+}
+
+type httpChannelUsersPayload struct {
+	Users []HTTPUserInfo `json:"users"`
+}
+
+type getDomainPayload struct {
+	RootSecret string `json:"root_secret"`
+	Name       string `json:"name"`
+}
+
+type domainPayload struct {
+	Domain Domain `json:"domain"`
+}
+
 type httpChannelListPayload struct {
 	Channels []HTTPChannel `json:"channels"`
 }
@@ -218,7 +239,7 @@ func handleConn(svc *Service, adminLimiter *FailureLimiter, conn net.Conn) {
 // issues, as opposed to Electron's admin ops -- Electron's own binary path isn't fixed yet,
 // so those ops stay at UID-only verification.
 func requiresPeerBinaryCheck(op string) bool {
-	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opHTTPChannelScope
+	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers
 }
 
 func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response {
@@ -456,6 +477,47 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 		}
 		return payloadResponse(httpChannelPayload{Channel: c})
 
+	case opHTTPChannelInfo:
+		var p channelIDPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		info, err := svc.HTTPChannelInfo(p.ID)
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(httpChannelInfoPayload{Info: info})
+
+	case opHTTPChannelUsers:
+		var p channelIDPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		users, err := svc.HTTPChannelUsers(p.ID)
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(httpChannelUsersPayload{Users: users})
+
+	case opGetDomain:
+		var p getDomainPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			d, err := svc.GetDomain(p.RootSecret, p.Name)
+			return payloadResponse(domainPayload{Domain: d}), err
+		})
+
+	case opUpdateDomain:
+		var p putDomainPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.UpdateDomain(p.RootSecret, p.Name, p.Domain)
+		})
+
 	case opListHTTPChannels:
 		channels, err := svc.ListHTTPChannels()
 		if err != nil {
@@ -664,6 +726,28 @@ func (c *Client) HTTPChannelScope(id ChannelID) (HTTPChannel, error) {
 	var out httpChannelPayload
 	err := c.call(opHTTPChannelScope, channelIDPayload{ID: id}, &out)
 	return out.Channel, err
+}
+
+func (c *Client) HTTPChannelInfo(id ChannelID) (HTTPChannelInfo, error) {
+	var out httpChannelInfoPayload
+	err := c.call(opHTTPChannelInfo, channelIDPayload{ID: id}, &out)
+	return out.Info, err
+}
+
+func (c *Client) HTTPChannelUsers(id ChannelID) ([]HTTPUserInfo, error) {
+	var out httpChannelUsersPayload
+	err := c.call(opHTTPChannelUsers, channelIDPayload{ID: id}, &out)
+	return out.Users, err
+}
+
+func (c *Client) GetDomain(rootSecret, name string) (Domain, error) {
+	var out domainPayload
+	err := c.call(opGetDomain, getDomainPayload{RootSecret: rootSecret, Name: name}, &out)
+	return out.Domain, err
+}
+
+func (c *Client) UpdateDomain(rootSecret, name string, d Domain) error {
+	return c.call(opUpdateDomain, putDomainPayload{RootSecret: rootSecret, Name: name, Domain: d}, nil)
 }
 
 func (c *Client) ListHTTPChannels() ([]HTTPChannel, error) {

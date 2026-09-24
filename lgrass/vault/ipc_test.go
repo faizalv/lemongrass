@@ -152,3 +152,33 @@ func TestIPCQueryIsNotAdminGated(t *testing.T) {
 		}
 	}
 }
+
+func TestIPCGetAndUpdateDomainRoundTrip(t *testing.T) {
+	client := startTestServer(t)
+
+	d := Domain{BaseURL: "http://a.invalid", Users: []DomainUser{{Name: "alice", Fields: map[string]string{"password": "pw"}, Tags: []string{"tenant x"}}}}
+	if err := client.PutDomain(testRootSecret, "staging", d); err != nil {
+		t.Fatalf("PutDomain: %v", err)
+	}
+
+	got, err := client.GetDomain(testRootSecret, "staging")
+	if err != nil {
+		t.Fatalf("GetDomain: %v", err)
+	}
+	if got.BaseURL != "http://a.invalid" || got.Users[0].Fields["password"] != "pw" || got.Users[0].Tags[0] != "tenant x" {
+		t.Errorf("GetDomain = %+v, want the full stored config", got)
+	}
+
+	got.BaseURL = "http://b.invalid"
+	if err := client.UpdateDomain(testRootSecret, "staging", got); err != nil {
+		t.Fatalf("UpdateDomain: %v", err)
+	}
+	again, err := client.GetDomain(testRootSecret, "staging")
+	if err != nil || again.BaseURL != "http://b.invalid" {
+		t.Errorf("after UpdateDomain: %+v, err = %v, want base URL http://b.invalid", again, err)
+	}
+
+	if _, err := client.GetDomain("wrong-secret", "staging"); err == nil {
+		t.Error("GetDomain accepted a wrong passphrase")
+	}
+}

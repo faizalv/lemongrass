@@ -364,14 +364,14 @@ func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (
 	if c.Expired(time.Now()) {
 		s.closeDB(id)
 		s.forgetKey(id)
-		return QueryResult{}, fmt.Errorf("vault: channel %s has expired. Ask the channel owner to reactivate it or share a fresh channel id.", id)
+		return QueryResult{}, errors.New("vault: this channel has expired. Ask the channel owner to reactivate it or share a fresh channel id.")
 	}
 
 	s.mu.Lock()
 	channelKey, ok := s.activeKeys[id]
 	s.mu.Unlock()
 	if !ok {
-		return QueryResult{}, fmt.Errorf("vault: channel %s is not active", id)
+		return QueryResult{}, errors.New("vault: this channel is not active")
 	}
 
 	connString, err := s.channels.Get(string(id), channelKey)

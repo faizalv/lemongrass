@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -179,5 +180,37 @@ func TestRequestHTTPBYOTStaleTokenIsNotRetried(t *testing.T) {
 	}
 	if _, ok := svc.cachedTokenFor(id, "bot"); ok {
 		t.Error("stale bring-your-own-token should be evicted from the cache after the failed retry attempt")
+	}
+}
+
+func TestRequestHTTPSoleUserDefault(t *testing.T) {
+	var hits []string
+	srv := httptest.NewServer(newLoginMux(&hits))
+	defer srv.Close()
+	svc, id := setUpHTTPChannel(t, srv, []DomainUser{{Name: "alice", Fields: map[string]string{"u": "alice"}}}, []string{"GET"})
+
+	if _, err := svc.RequestHTTP(id, "", "GET", "/api/orders", nil); err != nil {
+		t.Fatalf("RequestHTTP with no user on a one-user domain: %v", err)
+	}
+}
+
+func TestRequestHTTPUserErrorsListUsers(t *testing.T) {
+	var hits []string
+	srv := httptest.NewServer(newLoginMux(&hits))
+	defer srv.Close()
+	users := []DomainUser{
+		{Name: "alice", Fields: map[string]string{"u": "alice"}},
+		{Name: "bob", Fields: map[string]string{"u": "bob"}},
+	}
+	svc, id := setUpHTTPChannel(t, srv, users, []string{"GET"})
+
+	if _, err := svc.RequestHTTP(id, "", "GET", "/api/orders", nil); err == nil || !strings.Contains(err.Error(), "alice, bob") {
+		t.Errorf("missing user: err = %v, want one listing alice, bob", err)
+	}
+	if _, err := svc.RequestHTTP(id, "carol", "GET", "/api/orders", nil); err == nil || !strings.Contains(err.Error(), `no user "carol"`) || !strings.Contains(err.Error(), "alice, bob") {
+		t.Errorf("unknown user: err = %v, want one naming carol and listing alice, bob", err)
+	}
+	if len(hits) != 0 {
+		t.Errorf("a request was sent despite the user error: %v", hits)
 	}
 }

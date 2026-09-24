@@ -4,6 +4,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/faizalv/lemongrass/vault"
@@ -56,7 +57,8 @@ func (s *Service) Query(shortID string, declaredTables []string, sqlText string)
 	if !ok {
 		return vault.QueryResult{}, ErrNoSuchChannel
 	}
-	return s.vaultClient.Query(realID, declaredTables, sqlText)
+	result, err := s.vaultClient.Query(realID, declaredTables, sqlText)
+	return result, redactID(err, realID, shortID)
 }
 
 // RequestHTTP resolves shortID to its real vault channel and forwards the HTTP request,
@@ -66,7 +68,39 @@ func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte) (
 	if !ok {
 		return vault.HTTPResult{}, ErrNoSuchChannel
 	}
-	return s.vaultClient.RequestHTTP(realID, user, method, path, body)
+	result, err := s.vaultClient.RequestHTTP(realID, user, method, path, body)
+	return result, redactID(err, realID, shortID)
+}
+
+// HTTPChannelInfo resolves shortID to its real vault channel and returns its model-facing
+// summary, returning the same error for an unregistered, forgotten, or mistyped id.
+func (s *Service) HTTPChannelInfo(shortID string) (vault.HTTPChannelInfo, error) {
+	realID, ok := s.lookup(shortID)
+	if !ok {
+		return vault.HTTPChannelInfo{}, ErrNoSuchChannel
+	}
+	info, err := s.vaultClient.HTTPChannelInfo(realID)
+	return info, redactID(err, realID, shortID)
+}
+
+// HTTPUsers resolves shortID to its real vault channel and lists its domain's users with their
+// tags, returning the same error for an unregistered, forgotten, or mistyped id.
+func (s *Service) HTTPUsers(shortID string) ([]vault.HTTPUserInfo, error) {
+	realID, ok := s.lookup(shortID)
+	if !ok {
+		return nil, ErrNoSuchChannel
+	}
+	users, err := s.vaultClient.HTTPChannelUsers(realID)
+	return users, redactID(err, realID, shortID)
+}
+
+// redactID replaces the real channel id in a vault error with the caller's short id, since
+// the real id is a credential the model must never see, including inside wrapped file errors.
+func redactID(err error, realID vault.ChannelID, shortID string) error {
+	if err == nil || !strings.Contains(err.Error(), string(realID)) {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(err.Error(), string(realID), shortID))
 }
 
 func (s *Service) lookup(shortID string) (vault.ChannelID, bool) {

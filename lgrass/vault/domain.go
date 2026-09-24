@@ -50,11 +50,13 @@ type Domain struct {
 
 // DomainUser is a login user (Fields carries whatever LoginEndpoint needs, e.g.
 // username/password) or a bring-your-own-token user (Token is pre-supplied and LoginEndpoint
-// is never called for it) -- never both.
+// is never called for it) -- never both. Tags are free text a human sets to say what the user
+// is for, and are the only part of a user a model is ever shown besides its name.
 type DomainUser struct {
 	Name   string
 	Fields map[string]string
 	Token  string
+	Tags   []string
 }
 
 func (u DomainUser) IsBYOT() bool {
@@ -154,7 +156,9 @@ func loginHTTP(domain Domain, user DomainUser) (token string, expiresAt time.Tim
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := httpClient.Do(req)
+	client := *httpClient
+	client.CheckRedirect = sameHostRedirectsOnly
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("vault: logging in: %w", err)
 	}

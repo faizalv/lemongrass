@@ -14,6 +14,8 @@ const (
 	opRegisterChannel = "register_channel"
 	opQuery           = "query"
 	opRequestHTTP     = "request_http"
+	opHTTPChannelInfo = "http_channel_info"
+	opHTTPUsers       = "http_users"
 	opForget          = "forget"
 )
 
@@ -58,6 +60,14 @@ type requestHTTPPayload struct {
 
 type httpResultPayload struct {
 	Result vault.HTTPResult `json:"result"`
+}
+
+type httpChannelInfoPayload struct {
+	Info vault.HTTPChannelInfo `json:"info"`
+}
+
+type httpUsersPayload struct {
+	Users []vault.HTTPUserInfo `json:"users"`
 }
 
 // Serve accepts connections on l and handles one request per connection, with queryLimiter gating repeated wrong short-id guesses at Query.
@@ -117,6 +127,26 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 		return queryOp(queryLimiter, func() (response, error) {
 			result, err := svc.RequestHTTP(p.ShortID, p.User, p.Method, p.Path, p.Body)
 			return payloadResponse(httpResultPayload{Result: result}), err
+		})
+
+	case opHTTPChannelInfo:
+		var p shortIDPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return queryOp(queryLimiter, func() (response, error) {
+			info, err := svc.HTTPChannelInfo(p.ShortID)
+			return payloadResponse(httpChannelInfoPayload{Info: info}), err
+		})
+
+	case opHTTPUsers:
+		var p shortIDPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return queryOp(queryLimiter, func() (response, error) {
+			users, err := svc.HTTPUsers(p.ShortID)
+			return payloadResponse(httpUsersPayload{Users: users}), err
 		})
 
 	case opForget:
@@ -221,6 +251,18 @@ func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte) (v
 	var out httpResultPayload
 	err := c.call(opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body}, &out)
 	return out.Result, err
+}
+
+func (c *Client) HTTPChannelInfo(shortID string) (vault.HTTPChannelInfo, error) {
+	var out httpChannelInfoPayload
+	err := c.call(opHTTPChannelInfo, shortIDPayload{ShortID: shortID}, &out)
+	return out.Info, err
+}
+
+func (c *Client) HTTPUsers(shortID string) ([]vault.HTTPUserInfo, error) {
+	var out httpUsersPayload
+	err := c.call(opHTTPUsers, shortIDPayload{ShortID: shortID}, &out)
+	return out.Users, err
 }
 
 func (c *Client) Forget(shortID string) error {

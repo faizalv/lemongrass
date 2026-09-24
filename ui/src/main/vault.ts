@@ -112,6 +112,7 @@ export interface DomainUser {
   Name: string
   Fields: Record<string, string>
   Token: string
+  Tags: string[]
 }
 
 export interface Domain {
@@ -279,6 +280,20 @@ async function putDomain(passphrase: string, name: string, domain: Domain): Prom
   await vaultCall<void>('put_domain', { root_secret: passphrase, name, domain })
 }
 
+// Reads a stored domain back in full, passwords and tokens included, for the edit form.
+async function getDomain(passphrase: string, name: string): Promise<Domain> {
+  const { domain } = await vaultCall<{ domain: Domain }>('get_domain', {
+    root_secret: passphrase,
+    name
+  })
+  return domain
+}
+
+// Replaces a stored domain and re-wraps it for every HTTP channel already minted from it.
+async function updateDomain(passphrase: string, name: string, domain: Domain): Promise<void> {
+  await vaultCall<void>('update_domain', { root_secret: passphrase, name, domain })
+}
+
 async function deleteDomain(name: string): Promise<void> {
   await vaultCall<void>('delete_domain', { name })
 }
@@ -371,6 +386,12 @@ export function registerVaultHandlers(): void {
   ipcMain.handle('vault:listDomains', () => listDomains())
   ipcMain.handle('vault:putDomain', (_event, passphrase: string, name: string, domain: Domain) =>
     putDomain(passphrase, name, domain)
+  )
+  ipcMain.handle('vault:getDomain', (_event, passphrase: string, name: string) =>
+    getDomain(passphrase, name)
+  )
+  ipcMain.handle('vault:updateDomain', (_event, passphrase: string, name: string, domain: Domain) =>
+    updateDomain(passphrase, name, domain)
   )
   ipcMain.handle('vault:deleteDomain', (_event, name: string) => deleteDomain(name))
   ipcMain.handle('vault:testDomainLogin', (_event, domain: Domain, user: DomainUser) =>

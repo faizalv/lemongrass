@@ -3,9 +3,11 @@ package vault
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -17,42 +19,47 @@ type HTTPResult struct {
 	Status  int                 `json:"status"`
 	Headers map[string][]string `json:"headers"`
 	Body    any                 `json:"body"`
+	URL     string              `json:"url"`
+}
+
+// liveHTTPChannel loads channel id and its decrypted domain copy, failing when the channel has
+// expired or is not active.
+func (s *Service) liveHTTPChannel(id ChannelID) (HTTPChannel, Domain, error) {
+	c, err := s.loadHTTPMeta(id)
+	if err != nil {
+		return HTTPChannel{}, Domain{}, err
+	}
+	if c.Expired(time.Now()) {
+		s.forgetKey(id)
+		s.forgetTokens(id)
+		return HTTPChannel{}, Domain{}, errors.New("vault: this channel has expired. Ask the channel owner to reactivate it or share a fresh channel id.")
+	}
+	domain, err := s.channelDomain(id)
+	if err != nil {
+		return HTTPChannel{}, Domain{}, err
+	}
+	return c, domain, nil
 }
 
 // RequestHTTP proxies one call through channel id as user: checks expiry and scope, obtains
 // (or reuses) that user's token, and on a non-400 4xx from an already-successfully-used token,
 // transparently re-logs in and retries exactly once before giving up.
 func (s *Service) RequestHTTP(id ChannelID, user, method, requestPath string, body []byte) (HTTPResult, error) {
-	c, err := s.loadHTTPMeta(id)
+	c, domain, err := s.liveHTTPChannel(id)
 	if err != nil {
 		return HTTPResult{}, err
 	}
-	if c.Expired(time.Now()) {
-		s.forgetKey(id)
-		s.forgetTokens(id)
-		return HTTPResult{}, fmt.Errorf("vault: channel %s has expired. Ask the channel owner to reactivate it or share a fresh channel id.", id)
-	}
 
-	s.mu.Lock()
-	channelKey, ok := s.activeKeys[id]
-	s.mu.Unlock()
-	if !ok {
-		return HTTPResult{}, fmt.Errorf("vault: channel %s is not active", id)
-	}
-
-	if !c.Scope.Allow(method, requestPath) {
-		return HTTPResult{}, fmt.Errorf("vault: channel %s does not grant %s %s", id, method, requestPath)
-	}
-
-	wrapped, err := s.channels.Get(string(id), channelKey)
+	user, err = resolveUser(domain, user)
 	if err != nil {
 		return HTTPResult{}, err
 	}
-	defer zero(wrapped)
-
-	var domain Domain
-	if err := json.Unmarshal(wrapped, &domain); err != nil {
-		return HTTPResult{}, fmt.Errorf("vault: decoding domain for channel %s: %w", id, err)
+	target, err := resolveRequestTarget(domain.BaseURL, requestPath)
+	if err != nil {
+		return HTTPResult{}, err
+	}
+	if !c.Scope.Allow(method, target.ScopePath) {
+		return HTTPResult{}, fmt.Errorf("vault: this channel does not grant %s %s", strings.ToUpper(method), target.ScopePath)
 	}
 
 	token, everUsed, err := s.obtainToken(id, domain, user)
@@ -60,13 +67,13 @@ func (s *Service) RequestHTTP(id ChannelID, user, method, requestPath string, bo
 		return HTTPResult{}, err
 	}
 
-	result, err := doHTTPRequest(domain, token, method, requestPath, body)
+	result, err := doHTTPRequest(domain, token, method, target, body)
 	if err != nil {
 		return HTTPResult{}, err
 	}
 
 	if everUsed && isStaleTokenSignal(result.Status) {
-		result, err = s.retryWithFreshToken(id, domain, user, method, requestPath, body)
+		result, err = s.retryWithFreshToken(id, domain, user, method, target, body)
 		if err != nil {
 			return HTTPResult{}, err
 		}
@@ -81,7 +88,7 @@ func (s *Service) RequestHTTP(id ChannelID, user, method, requestPath string, bo
 // retryWithFreshToken evicts the stale cached token, re-logs in (bring-your-own-token users
 // have no login to refresh from, so their token is only evicted, not replaced), and retries the
 // call exactly once.
-func (s *Service) retryWithFreshToken(id ChannelID, domain Domain, user, method, requestPath string, body []byte) (HTTPResult, error) {
+func (s *Service) retryWithFreshToken(id ChannelID, domain Domain, user, method string, target requestTarget, body []byte) (HTTPResult, error) {
 	domainUser, err := findDomainUser(domain, user)
 	if err != nil {
 		return HTTPResult{}, err
@@ -95,7 +102,7 @@ func (s *Service) retryWithFreshToken(id ChannelID, domain Domain, user, method,
 	if err != nil {
 		return HTTPResult{}, fmt.Errorf("vault: token appeared stale, re-login also failed: %w", err)
 	}
-	return doHTTPRequest(domain, freshToken, method, requestPath, body)
+	return doHTTPRequest(domain, freshToken, method, target, body)
 }
 
 // isStaleTokenSignal reports whether status is a non-400 4xx, the signal a used token has gone
@@ -104,21 +111,26 @@ func isStaleTokenSignal(status int) bool {
 	return status >= 400 && status < 500 && status != http.StatusBadRequest
 }
 
-func doHTTPRequest(domain Domain, token, method, requestPath string, body []byte) (HTTPResult, error) {
+func doHTTPRequest(domain Domain, token, method string, target requestTarget, body []byte) (HTTPResult, error) {
 	var reqBody io.Reader
 	if len(body) > 0 {
 		reqBody = bytes.NewReader(body)
 	}
-	req, err := http.NewRequest(strings.ToUpper(method), domain.BaseURL+requestPath, reqBody)
+	req, err := http.NewRequest(strings.ToUpper(method), target.URL, reqBody)
 	if err != nil {
 		return HTTPResult{}, fmt.Errorf("vault: building request: %w", err)
+	}
+	if base, err := url.Parse(domain.BaseURL); err != nil || !strings.EqualFold(req.URL.Host, base.Host) {
+		return HTTPResult{}, fmt.Errorf("vault: refusing to send a request for %s to a host other than %s", target.URL, domain.BaseURL)
 	}
 	if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	injectToken(req, domain.TokenPlacement, token)
 
-	resp, err := httpClient.Do(req)
+	client := *httpClient
+	client.CheckRedirect = followRedirects(domain.TokenPlacement)
+	resp, err := client.Do(req)
 	if err != nil {
 		return HTTPResult{}, fmt.Errorf("vault: request failed: %w", err)
 	}
@@ -133,6 +145,7 @@ func doHTTPRequest(domain Domain, token, method, requestPath string, body []byte
 		Status:  resp.StatusCode,
 		Headers: map[string][]string(resp.Header),
 		Body:    parseResponseBody(resp.Header.Get("Content-Type"), respBody),
+		URL:     target.URL,
 	}, nil
 }
 
