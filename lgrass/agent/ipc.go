@@ -16,6 +16,7 @@ const (
 	opRequestHTTP     = "request_http"
 	opHTTPChannelInfo = "http_channel_info"
 	opHTTPUsers       = "http_users"
+	opHTTPFlush       = "http_flush"
 	opForget          = "forget"
 )
 
@@ -68,6 +69,15 @@ type httpChannelInfoPayload struct {
 
 type httpUsersPayload struct {
 	Users []vault.HTTPUserInfo `json:"users"`
+}
+
+type httpFlushPayload struct {
+	ShortID string `json:"short_id"`
+	User    string `json:"user"`
+}
+
+type httpFlushedPayload struct {
+	Flushed int `json:"flushed"`
 }
 
 // Serve accepts connections on l and handles one request per connection, with queryLimiter gating repeated wrong short-id guesses at Query.
@@ -147,6 +157,16 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 		return queryOp(queryLimiter, func() (response, error) {
 			users, err := svc.HTTPUsers(p.ShortID)
 			return payloadResponse(httpUsersPayload{Users: users}), err
+		})
+
+	case opHTTPFlush:
+		var p httpFlushPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return queryOp(queryLimiter, func() (response, error) {
+			flushed, err := svc.FlushHTTPTokens(p.ShortID, p.User)
+			return payloadResponse(httpFlushedPayload{Flushed: flushed}), err
 		})
 
 	case opForget:
@@ -263,6 +283,12 @@ func (c *Client) HTTPUsers(shortID string) ([]vault.HTTPUserInfo, error) {
 	var out httpUsersPayload
 	err := c.call(opHTTPUsers, shortIDPayload{ShortID: shortID}, &out)
 	return out.Users, err
+}
+
+func (c *Client) FlushHTTPTokens(shortID, user string) (int, error) {
+	var out httpFlushedPayload
+	err := c.call(opHTTPFlush, httpFlushPayload{ShortID: shortID, User: user}, &out)
+	return out.Flushed, err
 }
 
 func (c *Client) Forget(shortID string) error {

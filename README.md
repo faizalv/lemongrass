@@ -48,7 +48,7 @@ A local credential vault for a project's databases.
 An HTTP counterpart to `lgrass db`, sharing the same vault, agent, and channel shape.
 
 - A domain holds a base URL, a login endpoint, and per-user credentials or a pre-supplied token. The vault logs in, caches the token with its expiry, and injects it into each request. A stale token triggers one re-login and retry.
-- A channel scopes an agent to a method allow-list plus an exclusion list of method and path pairs, and the agent calls `lgrass rester <short-id> <get|post|put|patch|delete|head|options> <path> [--user <name>]`. A path is resolved onto the domain's base URL and can never address another host. `lgrass rester <short-id> info` prints the base URL, expiry, allowed methods and users.
+- A channel scopes an agent to a method allow-list plus an exclusion list of method and path pairs, and the agent calls `lgrass rester <short-id> <get|post|put|patch|delete|head|options> <path> [--user <name>]`. A path is resolved onto the domain's base URL and can never address another host. `lgrass rester <short-id> info` prints the base URL, expiry, allowed methods and users, and `lgrass rester <short-id> flush [--user <name>]` drops cached login tokens so the next request logs in again.
 - Managed from the same Connector panel as database access, under a Database/HTTP switch.
 - Planned: a shared audit log for connector calls, covering `lgrass db` writes as well.
 

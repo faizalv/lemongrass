@@ -94,6 +94,18 @@ func (s *Service) HTTPUsers(shortID string) ([]vault.HTTPUserInfo, error) {
 	return users, redactID(err, realID, shortID)
 }
 
+// FlushHTTPTokens resolves shortID to its real vault channel and evicts its cached tokens for
+// user, or for every user when user is empty, returning the same error for an unregistered,
+// forgotten, or mistyped id.
+func (s *Service) FlushHTTPTokens(shortID, user string) (int, error) {
+	realID, ok := s.lookup(shortID)
+	if !ok {
+		return 0, ErrNoSuchChannel
+	}
+	flushed, err := s.vaultClient.FlushHTTPTokens(realID, user)
+	return flushed, redactID(err, realID, shortID)
+}
+
 // redactID replaces the real channel id in a vault error with the caller's short id, since
 // the real id is a credential the model must never see, including inside wrapped file errors.
 func redactID(err error, realID vault.ChannelID, shortID string) error {

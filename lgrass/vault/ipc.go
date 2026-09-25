@@ -40,6 +40,7 @@ const (
 	opListHTTPChannels  = "list_http_channels"
 	opHTTPChannelInfo   = "http_channel_info"
 	opHTTPChannelUsers  = "http_channel_users"
+	opFlushHTTPTokens   = "flush_http_tokens"
 	opGetDomain         = "get_domain"
 	opUpdateDomain      = "update_domain"
 )
@@ -195,6 +196,15 @@ type httpChannelUsersPayload struct {
 	Users []HTTPUserInfo `json:"users"`
 }
 
+type flushHTTPTokensPayload struct {
+	ID   ChannelID `json:"id"`
+	User string    `json:"user"`
+}
+
+type flushedPayload struct {
+	Flushed int `json:"flushed"`
+}
+
 type getDomainPayload struct {
 	RootSecret string `json:"root_secret"`
 	Name       string `json:"name"`
@@ -251,7 +261,7 @@ func handleConn(svc *Service, adminLimiter *FailureLimiter, conn net.Conn) {
 // issues, as opposed to Electron's admin ops -- Electron's own binary path isn't fixed yet,
 // so those ops stay at UID-only verification.
 func requiresPeerBinaryCheck(op string) bool {
-	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers
+	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers || op == opFlushHTTPTokens
 }
 
 func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response {
@@ -530,6 +540,17 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 		}
 		return payloadResponse(httpChannelUsersPayload{Users: users})
 
+	case opFlushHTTPTokens:
+		var p flushHTTPTokensPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		flushed, err := svc.FlushHTTPTokens(p.ID, p.User)
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(flushedPayload{Flushed: flushed})
+
 	case opGetDomain:
 		var p getDomainPayload
 		if err := json.Unmarshal(req.Payload, &p); err != nil {
@@ -779,6 +800,12 @@ func (c *Client) HTTPChannelUsers(id ChannelID) ([]HTTPUserInfo, error) {
 	var out httpChannelUsersPayload
 	err := c.call(opHTTPChannelUsers, channelIDPayload{ID: id}, &out)
 	return out.Users, err
+}
+
+func (c *Client) FlushHTTPTokens(id ChannelID, user string) (int, error) {
+	var out flushedPayload
+	err := c.call(opFlushHTTPTokens, flushHTTPTokensPayload{ID: id, User: user}, &out)
+	return out.Flushed, err
 }
 
 func (c *Client) GetDomain(rootSecret, name string) (Domain, error) {
