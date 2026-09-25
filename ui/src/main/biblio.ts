@@ -138,6 +138,12 @@ const watchDebounce = 400
 const watchers = new Map<string, FSWatcher>()
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
+// True for scratchpad/ and everything under it except scratchpad/archive, which only a model may change.
+function isLiveScratchpadPath(relativePath: string): boolean {
+  const parts = relativePath.split(sep)
+  return parts[0] === 'scratchpad' && parts[1] !== 'archive'
+}
+
 // Starts a recursive watch on a project's biblio/ root the first time its
 // tree is fetched, so a file added by anything other than this app's own
 // IPC handlers (another lgrass pane, a direct filesystem write) still
@@ -205,19 +211,16 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
     }
   )
 
-  // Writes are scoped to scratchpad/ only -- that's the one tier bibliothek
-  // itself calls user-editable; laws/handover/books aren't writable here.
+  // Saves an existing file under the live scratchpad tier only, so a stale editor can never recreate a moved or archived file.
   ipcMain.handle(
     'biblio:write',
     (_event, projectPath: string, relativePath: string, content: string): boolean => {
-      if (!relativePath.startsWith(`scratchpad${sep}`) && relativePath !== 'scratchpad')
-        return false
+      if (!isLiveScratchpadPath(relativePath)) return false
       const biblioRoot = join(projectPath, 'biblio')
       try {
         const root = realpathSync(biblioRoot)
         const target = resolveInBiblio(root, relativePath)
-        if (!target || !target.endsWith('.md')) return false
-        mkdirSync(dirname(target), { recursive: true })
+        if (!target || !target.endsWith('.md') || !existsSync(target)) return false
         writeFileSync(target, content, 'utf-8')
         return true
       } catch {
@@ -310,8 +313,7 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
       title: string,
       content: string
     ): string | null => {
-      if (folderRelativePath !== 'scratchpad' && !folderRelativePath.startsWith(`scratchpad${sep}`))
-        return null
+      if (!isLiveScratchpadPath(folderRelativePath)) return null
       const biblioRoot = join(projectPath, 'biblio')
       try {
         const root = realpathSync(biblioRoot)

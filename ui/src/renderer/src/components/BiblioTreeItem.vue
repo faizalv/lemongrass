@@ -31,10 +31,12 @@ const isTopLevelScratchpad = computed(
   (): boolean => props.depth === 0 && props.node.name === 'scratchpad'
 )
 
-// Covers the top-level scratchpad row and every folder nested under scratchpad/.
+// Covers the top-level scratchpad row and every folder nested under scratchpad/, except the archive.
 const showAddButton = computed(
   (): boolean =>
     props.node.type === 'dir' &&
+    props.node.path !== 'scratchpad/archive' &&
+    !props.node.path.startsWith('scratchpad/archive/') &&
     (isTopLevelScratchpad.value ||
       props.node.path === 'scratchpad' ||
       props.node.path.startsWith('scratchpad/'))

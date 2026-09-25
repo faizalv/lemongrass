@@ -65,7 +65,7 @@ export function workspaceOf(projectId: string): Workspace | undefined {
 }
 
 export function isEditablePath(path: string): boolean {
-  return path.startsWith('scratchpad/')
+  return path.startsWith('scratchpad/') && !path.startsWith('scratchpad/archive/')
 }
 
 export function projectRelativePath(path: string): string {
@@ -144,7 +144,11 @@ export function docTabCount(projectId: string): number {
 async function loadDoc(project: ProjectRef, path: string, force = false): Promise<void> {
   const workspace = workspaces[project.id]
   const existing = workspace.docs[path]
-  if (existing?.status === 'ready' && (!force || existing.editable)) return
+  if (existing?.status === 'ready' && !force) return
+  if (existing?.status === 'ready' && existing.editable) {
+    if ((await window.api.biblio.read(project.path, path)) === null) markMissing(project, path)
+    return
+  }
 
   const editable = isEditablePath(path)
   if (!existing) {
@@ -164,6 +168,14 @@ async function loadDoc(project: ProjectRef, path: string, force = false): Promis
   entry.status = 'ready'
 }
 
+function markMissing(project: ProjectRef, path: string): void {
+  const key = `${project.id}:${path}`
+  clearTimeout(docSaveTimers.get(key))
+  docSaveTimers.delete(key)
+  const doc = workspaces[project.id]?.docs[path]
+  if (doc) doc.status = 'missing'
+}
+
 async function flushDoc(project: ProjectRef, path: string): Promise<void> {
   const key = `${project.id}:${path}`
   const timer = docSaveTimers.get(key)
@@ -179,7 +191,11 @@ async function flushDoc(project: ProjectRef, path: string): Promise<void> {
   const onDisk = await window.api.biblio.read(project.path, path)
   const current = workspaces[project.id]?.docs[path]
   if (!current) return
-  if (onDisk !== null && onDisk !== current.baseline) {
+  if (onDisk === null) {
+    markMissing(project, path)
+    return
+  }
+  if (onDisk !== current.baseline) {
     current.content = onDisk
     current.baseline = onDisk
     return
