@@ -25,6 +25,8 @@ const (
 	opSetPassphrase       = "set_passphrase"
 	opVerifyPassphrase    = "verify_passphrase"
 	opResetVault          = "reset_vault"
+	opGetConnection       = "get_connection"
+	opUpdateConnection    = "update_connection"
 
 	opPutDomain         = "put_domain"
 	opListDomains       = "list_domains"
@@ -112,6 +114,16 @@ type testConnectionPayload struct {
 type testConnectionSavedPayload struct {
 	RootSecret string `json:"root_secret"`
 	DBName     string `json:"db_name"`
+}
+
+type connectionStringPayload struct {
+	ConnectionString string `json:"connection_string"`
+}
+
+type updateConnectionPayload struct {
+	RootSecret       string `json:"root_secret"`
+	DBName           string `json:"db_name"`
+	ConnectionString string `json:"connection_string"`
 }
 
 type rootSecretPayload struct {
@@ -346,6 +358,25 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 		}
 		return adminOp(adminLimiter, func() (response, error) {
 			return response{OK: true}, svc.TestConnectionSaved(p.RootSecret, p.DBName)
+		})
+
+	case opGetConnection:
+		var p testConnectionSavedPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			connString, err := svc.GetConnection(p.RootSecret, p.DBName)
+			return payloadResponse(connectionStringPayload{ConnectionString: connString}), err
+		})
+
+	case opUpdateConnection:
+		var p updateConnectionPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.UpdateConnection(p.RootSecret, p.DBName, p.ConnectionString)
 		})
 
 	case opListTables:
@@ -656,6 +687,16 @@ func (c *Client) TestConnection(connectionString string) error {
 
 func (c *Client) TestConnectionSaved(rootSecret, dbName string) error {
 	return c.call(opTestConnectionSaved, testConnectionSavedPayload{RootSecret: rootSecret, DBName: dbName}, nil)
+}
+
+func (c *Client) GetConnection(rootSecret, dbName string) (string, error) {
+	var out connectionStringPayload
+	err := c.call(opGetConnection, testConnectionSavedPayload{RootSecret: rootSecret, DBName: dbName}, &out)
+	return out.ConnectionString, err
+}
+
+func (c *Client) UpdateConnection(rootSecret, dbName, connectionString string) error {
+	return c.call(opUpdateConnection, updateConnectionPayload{RootSecret: rootSecret, DBName: dbName, ConnectionString: connectionString}, nil)
 }
 
 func (c *Client) ListTables(rootSecret, dbName string) ([]string, error) {

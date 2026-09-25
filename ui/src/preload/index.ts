@@ -130,6 +130,10 @@ const vault = {
   listConnections: (): Promise<string[]> => ipcRenderer.invoke('vault:listConnections'),
   putCredential: (passphrase: string, name: string, connectionString: string): Promise<void> =>
     ipcRenderer.invoke('vault:putCredential', passphrase, name, connectionString),
+  getConnection: (passphrase: string, name: string): Promise<string> =>
+    ipcRenderer.invoke('vault:getConnection', passphrase, name),
+  updateConnection: (passphrase: string, name: string, connectionString: string): Promise<void> =>
+    ipcRenderer.invoke('vault:updateConnection', passphrase, name, connectionString),
   deleteConnection: (name: string): Promise<void> =>
     ipcRenderer.invoke('vault:deleteConnection', name),
   testConnection: (connectionString: string): Promise<void> =>

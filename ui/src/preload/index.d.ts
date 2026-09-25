@@ -91,6 +91,8 @@ interface Api {
     revoke: (id: string) => Promise<void>
     listConnections: () => Promise<string[]>
     putCredential: (passphrase: string, name: string, connectionString: string) => Promise<void>
+    getConnection: (passphrase: string, name: string) => Promise<string>
+    updateConnection: (passphrase: string, name: string, connectionString: string) => Promise<void>
     deleteConnection: (name: string) => Promise<void>
     testConnection: (connectionString: string) => Promise<void>
     testSavedConnection: (passphrase: string, name: string) => Promise<void>

@@ -225,6 +225,9 @@ const defaultPorts: Record<EngineChoice, string> = {
 }
 
 const showConnectionForm = ref(false)
+const editingConnectionName = ref<string | null>(null)
+const loadingConnectionName = ref<string | null>(null)
+const preservedConnectionQuery = ref('')
 const newConnectionName = ref('')
 const newConnectionEngine = ref<EngineChoice>('mysql')
 const newConnectionHost = ref('')
@@ -265,10 +268,40 @@ function composeConnectionString(): string {
   const host = newConnectionHost.value.trim()
   const hostPort = port ? `${host}:${port}` : host
   const database = newConnectionDatabase.value.trim()
-  return `${newConnectionEngine.value}://${auth}${hostPort}${database ? '/' + database : ''}`
+  return `${newConnectionEngine.value}://${auth}${hostPort}${database ? '/' + database : ''}${preservedConnectionQuery.value}`
+}
+
+interface ParsedConnection {
+  engine: EngineChoice
+  host: string
+  port: string
+  user: string
+  password: string
+  database: string
+  query: string
+}
+
+function parseConnectionString(connectionString: string): ParsedConnection {
+  const url = new URL(connectionString)
+  const scheme = url.protocol.replace(/:$/, '').toLowerCase()
+  const engine = scheme === 'postgresql' ? 'postgres' : scheme
+  if (engine !== 'mysql' && engine !== 'mariadb' && engine !== 'postgres') {
+    throw new Error(`Unsupported engine "${scheme}".`)
+  }
+  return {
+    engine,
+    host: url.hostname,
+    port: url.port,
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database: url.pathname.replace(/^\//, ''),
+    query: url.search
+  }
 }
 
 function openConnectionForm(): void {
+  editingConnectionName.value = null
+  preservedConnectionQuery.value = ''
   newConnectionName.value = ''
   newConnectionEngine.value = 'mysql'
   newConnectionHost.value = ''
@@ -284,6 +317,33 @@ function openConnectionForm(): void {
 
 function cancelConnectionForm(): void {
   showConnectionForm.value = false
+}
+
+async function openConnectionEdit(name: string): Promise<void> {
+  if (!vaultUnlocked.value || loadingConnectionName.value) return
+  loadingConnectionName.value = name
+  connectionsError.value = ''
+  try {
+    const stored = await window.api.vault.getConnection(sessionPassphrase.value, name)
+    const parsed = parseConnectionString(stored)
+    editingConnectionName.value = name
+    preservedConnectionQuery.value = parsed.query
+    newConnectionName.value = name
+    newConnectionEngine.value = parsed.engine
+    newConnectionHost.value = parsed.host
+    newConnectionPort.value = parsed.port
+    newConnectionUser.value = parsed.user
+    newConnectionPassword.value = parsed.password
+    newConnectionDatabase.value = parsed.database
+    connectionFormError.value = ''
+    newConnectionTestStatus.value = 'idle'
+    newConnectionTestError.value = ''
+    showConnectionForm.value = true
+  } catch (err) {
+    connectionsError.value = describeError(err)
+  } finally {
+    loadingConnectionName.value = null
+  }
 }
 
 // Only fills the port if it's empty or still at some engine's default -- never overwrites a
@@ -322,11 +382,19 @@ async function submitConnection(): Promise<void> {
   creatingConnection.value = true
   connectionFormError.value = ''
   try {
-    await window.api.vault.putCredential(
-      sessionPassphrase.value,
-      newConnectionName.value.trim(),
-      composeConnectionString()
-    )
+    if (editingConnectionName.value !== null) {
+      await window.api.vault.updateConnection(
+        sessionPassphrase.value,
+        editingConnectionName.value,
+        composeConnectionString()
+      )
+    } else {
+      await window.api.vault.putCredential(
+        sessionPassphrase.value,
+        newConnectionName.value.trim(),
+        composeConnectionString()
+      )
+    }
     showConnectionForm.value = false
     await refreshConnections()
     await verifyAllConnections()
@@ -1172,6 +1240,14 @@ async function copyHTTPShortId(id: string): Promise<void> {
                     {{ rowStatus[name] === 'verifying' ? 'Testing...' : 'Test' }}
                   </button>
                   <button
+                    class="ghost-button"
+                    :disabled="!vaultUnlocked || loadingConnectionName === name"
+                    :title="!vaultUnlocked ? 'Unlock the vault first' : ''"
+                    @click="openConnectionEdit(name)"
+                  >
+                    {{ loadingConnectionName === name ? 'Loading...' : 'Edit' }}
+                  </button>
+                  <button
                     class="ghost-button danger"
                     :disabled="deletingConnectionName === name"
                     @click="deleteConnection(name)"
@@ -1191,7 +1267,9 @@ async function copyHTTPShortId(id: string): Promise<void> {
             </button>
 
             <div v-else class="inline-section">
-              <h4 class="inline-section-title">New connection</h4>
+              <h4 class="inline-section-title">
+                {{ editingConnectionName !== null ? 'Edit connection' : 'New connection' }}
+              </h4>
 
               <div>
                 <label class="field-label" for="conn-name">Name</label>
@@ -1200,6 +1278,7 @@ async function copyHTTPShortId(id: string): Promise<void> {
                   v-model="newConnectionName"
                   type="text"
                   placeholder="e.g. staging-db"
+                  :disabled="editingConnectionName !== null"
                   autofocus
                 />
               </div>
@@ -1207,7 +1286,12 @@ async function copyHTTPShortId(id: string): Promise<void> {
               <div class="field-grid">
                 <div>
                   <label class="field-label" for="conn-engine">Engine</label>
-                  <select id="conn-engine" v-model="newConnectionEngine" @change="onEngineChange">
+                  <select
+                    id="conn-engine"
+                    v-model="newConnectionEngine"
+                    :disabled="editingConnectionName !== null"
+                    @change="onEngineChange"
+                  >
                     <option value="mysql">MySQL</option>
                     <option value="mariadb">MariaDB</option>
                     <option value="postgres">Postgres</option>

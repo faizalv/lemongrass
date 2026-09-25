@@ -160,8 +160,8 @@ async function listConnections(): Promise<string[]> {
 }
 
 // Writes a connection's credential (engine folded into the connection string itself, e.g.
-// `mysql://user:pass@host:port/db`) under the master passphrase. Never read back -- the vault
-// has no op that returns a decrypted credential value to a caller.
+// `mysql://user:pass@host:port/db`) under the master passphrase. Only the human-facing edit
+// form reads it back (getConnection), and no op reachable from the agent returns it.
 async function putCredential(
   passphrase: string,
   name: string,
@@ -219,6 +219,28 @@ async function activateChannel(
 // fails at the next Query, so there's nothing this call needs from the agent to be correct.
 async function revokeChannel(id: string): Promise<void> {
   await vaultCall<void>('revoke', { id })
+}
+
+// Reads a stored connection string back in full, password included, for the edit form.
+async function getConnection(passphrase: string, name: string): Promise<string> {
+  const { connection_string: connectionString } = await vaultCall<{ connection_string: string }>(
+    'get_connection',
+    { root_secret: passphrase, db_name: name }
+  )
+  return connectionString
+}
+
+// Replaces a stored connection string and re-wraps it for every channel already minted from it.
+async function updateConnection(
+  passphrase: string,
+  name: string,
+  connectionString: string
+): Promise<void> {
+  await vaultCall<void>('update_connection', {
+    root_secret: passphrase,
+    db_name: name,
+    connection_string: connectionString
+  })
 }
 
 async function deleteConnection(name: string): Promise<void> {
@@ -365,6 +387,14 @@ export function registerVaultHandlers(): void {
     'vault:putCredential',
     (_event, passphrase: string, name: string, connectionString: string) =>
       putCredential(passphrase, name, connectionString)
+  )
+  ipcMain.handle('vault:getConnection', (_event, passphrase: string, name: string) =>
+    getConnection(passphrase, name)
+  )
+  ipcMain.handle(
+    'vault:updateConnection',
+    (_event, passphrase: string, name: string, connectionString: string) =>
+      updateConnection(passphrase, name, connectionString)
   )
   ipcMain.handle('vault:deleteConnection', (_event, name: string) => deleteConnection(name))
   ipcMain.handle('vault:testConnection', (_event, connectionString: string) =>
