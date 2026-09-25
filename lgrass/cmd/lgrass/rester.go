@@ -15,6 +15,7 @@ const resterUsage = `usage:
   lgrass rester <short-id> users
   lgrass rester <short-id> flush [--user <name>]
   lgrass rester <short-id> <get|post|put|patch|delete|head|options> <path> [--user <name>] [body flags]
+  lgrass rester <short-id> <get|post|put|patch|delete> <path> --out <file-or-directory> [--confirm]
 
 body flags, at most one kind per request:
   --body '<json>'                       an inline JSON body
@@ -30,6 +31,15 @@ through the channel's domain; the vault handles login and token injection. <path
 to the domain's base URL, a full URL under it also works. --user may be left out when the
 domain has a single user. Response is printed as JSON:
 {"status": N, "headers": {...}, "body": ..., "url": "..."}.
+
+--out saves the response body of a successful call to a file instead of printing it, byte for
+byte and with no size limit, and prints {"status": N, "headers": {...}, "size": N, "url": "...",
+"saved_to": "..."} without the file's bytes. <file-or-directory> may be any place this user can
+write. A directory gets the file name the server suggests. A target that already exists is not
+replaced unless --confirm is given, and the command stops before making any request when the
+target is a file that exists. A response that is not 2xx is printed as usual and nothing is
+written. The file is written to a temporary name beside the target and renamed into place only
+when the whole body arrived, so a failed download leaves an existing file untouched.
 
 Files are read from this machine as the current user and sent as they are, so a spreadsheet
 arrives byte for byte. A part's type comes from the file extension unless ;type= is given. A
@@ -55,6 +65,8 @@ type resterCommand struct {
 	path    string
 	user    string
 	body    string
+	out     string
+	confirm bool
 
 	bodyFile    string
 	contentType string
@@ -90,6 +102,10 @@ func parseResterArgs(args []string) (resterCommand, error) {
 			positional = append(positional, arg)
 			continue
 		}
+		if arg == "--confirm" {
+			cmd.confirm = true
+			continue
+		}
 		name, value, hasValue := strings.Cut(arg, "=")
 		if !hasValue {
 			i++
@@ -101,6 +117,8 @@ func parseResterArgs(args []string) (resterCommand, error) {
 		switch name {
 		case "--user":
 			cmd.user = value
+		case "--out":
+			cmd.out = value
 		case "--body":
 			cmd.body = value
 		case "--body-file":
@@ -125,13 +143,13 @@ func parseResterArgs(args []string) (resterCommand, error) {
 	}
 
 	if cmd.info || cmd.users {
-		if len(positional) > 0 || cmd.user != "" || cmd.hasBodyFlags() {
+		if len(positional) > 0 || cmd.user != "" || cmd.hasBodyFlags() || cmd.hasOutFlags() {
 			return resterCommand{}, fmt.Errorf("%s takes no other arguments", strings.ToLower(args[1]))
 		}
 		return cmd, nil
 	}
 	if cmd.flush {
-		if len(positional) > 0 || cmd.hasBodyFlags() {
+		if len(positional) > 0 || cmd.hasBodyFlags() || cmd.hasOutFlags() {
 			return resterCommand{}, fmt.Errorf("flush takes only --user")
 		}
 		return cmd, nil
@@ -143,7 +161,25 @@ func parseResterArgs(args []string) (resterCommand, error) {
 	if err := cmd.checkBodyFlags(); err != nil {
 		return resterCommand{}, err
 	}
+	if err := cmd.checkOutFlags(); err != nil {
+		return resterCommand{}, err
+	}
 	return cmd, nil
+}
+
+func (c resterCommand) hasOutFlags() bool {
+	return c.out != "" || c.confirm
+}
+
+// checkOutFlags rejects --confirm without --out and --out on a verb whose response has no body to save.
+func (c resterCommand) checkOutFlags() error {
+	if c.confirm && c.out == "" {
+		return fmt.Errorf("--confirm only goes with --out")
+	}
+	if c.out != "" && (c.method == "HEAD" || c.method == "OPTIONS") {
+		return fmt.Errorf("--out needs a call that returns a body, not %s", strings.ToLower(c.method))
+	}
+	return nil
 }
 
 func (c resterCommand) hasBodyFlags() bool {
@@ -185,25 +221,7 @@ func cmdRester(args []string) {
 		os.Exit(1)
 	}
 
-	client := &agent.Client{SocketPath: agentSocketPath()}
-	var result any
-	switch {
-	case cmd.info:
-		result, err = client.HTTPChannelInfo(cmd.shortID)
-	case cmd.users:
-		result, err = client.HTTPUsers(cmd.shortID)
-	case cmd.flush:
-		var flushed int
-		flushed, err = client.FlushHTTPTokens(cmd.shortID, cmd.user)
-		result = map[string]int{"flushed": flushed}
-	default:
-		var body []byte
-		var contentType string
-		body, contentType, err = buildResterBody(cmd)
-		if err == nil {
-			result, err = client.RequestHTTP(cmd.shortID, cmd.user, cmd.method, cmd.path, body, contentType)
-		}
-	}
+	result, err := execRester(&agent.Client{SocketPath: agentSocketPath()}, cmd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -215,4 +233,32 @@ func cmdRester(args []string) {
 		os.Exit(1)
 	}
 	fmt.Println(string(out))
+}
+
+func execRester(client *agent.Client, cmd resterCommand) (any, error) {
+	switch {
+	case cmd.info:
+		return client.HTTPChannelInfo(cmd.shortID)
+	case cmd.users:
+		return client.HTTPUsers(cmd.shortID)
+	case cmd.flush:
+		flushed, err := client.FlushHTTPTokens(cmd.shortID, cmd.user)
+		return map[string]int{"flushed": flushed}, err
+	}
+
+	var target downloadTarget
+	if cmd.out != "" {
+		var err error
+		if target, err = checkOutTarget(cmd.out, cmd.confirm); err != nil {
+			return nil, err
+		}
+	}
+	body, contentType, err := buildResterBody(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if cmd.out != "" {
+		return downloadThroughAgent(client, cmd, target, body, contentType)
+	}
+	return client.RequestHTTP(cmd.shortID, cmd.user, cmd.method, cmd.path, body, contentType)
 }

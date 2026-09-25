@@ -65,68 +65,79 @@ func checkRequestBody(body []byte, contentType string) error {
 // for a body read from a file or built from form input, and an empty one means an inline JSON
 // body.
 func (g *Gate) RequestHTTP(id vault.ChannelID, user, method, requestPath string, body []byte, contentType string) (HTTPResult, error) {
-	c, domain, err := g.vault.OpenHTTPChannel(id)
+	resp, target, err := g.exchange(id, user, method, requestPath, body, contentType, false)
 	if err != nil {
 		return HTTPResult{}, err
+	}
+	defer resp.Body.Close()
+	return readInline(resp, target.URL)
+}
+
+// exchange runs one call through the expiry, scope and token handling that every call shares and returns the open response, whose body the caller must close. A stream call has no total timeout: it waits RequestTimeout for response headers and then RequestTimeout of silence between body reads.
+func (g *Gate) exchange(id vault.ChannelID, user, method, requestPath string, body []byte, contentType string, stream bool) (*http.Response, requestTarget, error) {
+	c, domain, err := g.vault.OpenHTTPChannel(id)
+	if err != nil {
+		return nil, requestTarget{}, err
 	}
 
 	user, err = resolveUser(domain, user)
 	if err != nil {
-		return HTTPResult{}, err
+		return nil, requestTarget{}, err
 	}
 	target, err := resolveRequestTarget(domain.BaseURL, requestPath)
 	if err != nil {
-		return HTTPResult{}, err
+		return nil, requestTarget{}, err
 	}
 	if !c.Scope.Allow(method, target.ScopePath) {
-		return HTTPResult{}, fmt.Errorf("restergate: this channel does not grant %s %s", strings.ToUpper(method), target.ScopePath)
+		return nil, requestTarget{}, fmt.Errorf("restergate: this channel does not grant %s %s", strings.ToUpper(method), target.ScopePath)
 	}
 
 	if err := checkRequestBody(body, contentType); err != nil {
-		return HTTPResult{}, err
+		return nil, requestTarget{}, err
 	}
 
 	token, everUsed, err := g.obtainToken(id, domain, user)
 	if err != nil {
-		return HTTPResult{}, err
+		return nil, requestTarget{}, err
 	}
 
-	result, err := doHTTPRequest(domain, token, method, target, body, contentType)
+	resp, err := sendHTTPRequest(domain, token, method, target, body, contentType, stream)
 	if err != nil {
-		return HTTPResult{}, err
+		return nil, requestTarget{}, err
 	}
 
-	if everUsed && isStaleTokenSignal(result.Status) {
-		result, err = g.retryWithFreshToken(id, domain, user, method, target, body, contentType)
+	if everUsed && isStaleTokenSignal(resp.StatusCode) {
+		resp.Body.Close()
+		resp, err = g.retryWithFreshToken(id, domain, user, method, target, body, contentType, stream)
 		if err != nil {
-			return HTTPResult{}, err
+			return nil, requestTarget{}, err
 		}
 	}
 
-	if result.Status >= 200 && result.Status < 300 {
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		g.markTokenUsed(id, user)
 	}
-	return result, nil
+	return resp, target, nil
 }
 
 // retryWithFreshToken evicts the stale cached token, re-logs in (bring-your-own-token users
 // have no login to refresh from, so their token is only evicted, not replaced), and retries the
 // call exactly once.
-func (g *Gate) retryWithFreshToken(id vault.ChannelID, domain vault.Domain, user, method string, target requestTarget, body []byte, contentType string) (HTTPResult, error) {
+func (g *Gate) retryWithFreshToken(id vault.ChannelID, domain vault.Domain, user, method string, target requestTarget, body []byte, contentType string, stream bool) (*http.Response, error) {
 	domainUser, err := findDomainUser(domain, user)
 	if err != nil {
-		return HTTPResult{}, err
+		return nil, err
 	}
 	g.evictCachedToken(id, user)
 	if domainUser.IsBYOT() {
-		return HTTPResult{}, fmt.Errorf("restergate: %s's token appears to have gone stale; ask them to paste a fresh one into the domain and re-save it", user)
+		return nil, fmt.Errorf("restergate: %s's token appears to have gone stale; ask them to paste a fresh one into the domain and re-save it", user)
 	}
 
 	freshToken, _, err := g.refreshToken(id, domain, user)
 	if err != nil {
-		return HTTPResult{}, fmt.Errorf("restergate: token appeared stale, re-login also failed: %w", err)
+		return nil, fmt.Errorf("restergate: token appeared stale, re-login also failed: %w", err)
 	}
-	return doHTTPRequest(domain, freshToken, method, target, body, contentType)
+	return sendHTTPRequest(domain, freshToken, method, target, body, contentType, stream)
 }
 
 // isStaleTokenSignal reports whether status is a non-400 4xx, the signal a used token has gone
@@ -135,17 +146,17 @@ func isStaleTokenSignal(status int) bool {
 	return status >= 400 && status < 500 && status != http.StatusBadRequest
 }
 
-func doHTTPRequest(domain vault.Domain, token, method string, target requestTarget, body []byte, contentType string) (HTTPResult, error) {
+func sendHTTPRequest(domain vault.Domain, token, method string, target requestTarget, body []byte, contentType string, stream bool) (*http.Response, error) {
 	var reqBody io.Reader
 	if len(body) > 0 {
 		reqBody = bytes.NewReader(body)
 	}
 	req, err := http.NewRequest(strings.ToUpper(method), target.URL, reqBody)
 	if err != nil {
-		return HTTPResult{}, fmt.Errorf("restergate: building request: %w", err)
+		return nil, fmt.Errorf("restergate: building request: %w", err)
 	}
 	if base, err := url.Parse(domain.BaseURL); err != nil || !strings.EqualFold(req.URL.Host, base.Host) {
-		return HTTPResult{}, fmt.Errorf("restergate: refusing to send a request for %s to a host other than %s", target.URL, domain.BaseURL)
+		return nil, fmt.Errorf("restergate: refusing to send a request for %s to a host other than %s", target.URL, domain.BaseURL)
 	}
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
@@ -160,22 +171,38 @@ func doHTTPRequest(domain vault.Domain, token, method string, target requestTarg
 	if contentType != "" {
 		client.CheckRedirect = sameHostRedirectsForFiles
 	}
+
+	var idle *idleTimer
+	if stream {
+		client.Timeout = 0
+		idle = newIdleTimer(RequestTimeout)
+		req = req.WithContext(idle.ctx)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return HTTPResult{}, fmt.Errorf("restergate: request failed: %w", err)
+		if idle != nil {
+			err = idle.explain(err)
+			idle.stop()
+		}
+		return nil, fmt.Errorf("restergate: request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	if idle != nil {
+		resp.Body = idle.wrap(resp.Body)
+	}
+	return resp, nil
+}
 
+// readInline reads at most maxLoginResponseBytes of resp's body into a result, the shape every non-download call returns.
+func readInline(resp *http.Response, requestedURL string) (HTTPResult, error) {
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxLoginResponseBytes))
 	if err != nil {
 		return HTTPResult{}, fmt.Errorf("restergate: reading response: %w", err)
 	}
-
 	return HTTPResult{
 		Status:  resp.StatusCode,
 		Headers: map[string][]string(resp.Header),
 		Body:    parseResponseBody(resp.Header.Get("Content-Type"), respBody),
-		URL:     target.URL,
+		URL:     requestedURL,
 	}, nil
 }
 

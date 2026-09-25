@@ -75,6 +75,16 @@ func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte, c
 	return result, redactID(err, realID, shortID)
 }
 
+// RequestHTTPDownload resolves shortID to its real vault channel and forwards the download request, returning the same error for an unregistered, forgotten, or mistyped id. A streamed result's body is open and the caller must close it.
+func (s *Service) RequestHTTPDownload(shortID, user, method, path string, body []byte, contentType string) (gatekeeper.DownloadResult, error) {
+	realID, ok := s.lookup(shortID)
+	if !ok {
+		return gatekeeper.DownloadResult{}, ErrNoSuchChannel
+	}
+	res, err := s.vaultClient.RequestHTTPDownload(realID, user, method, path, body, contentType)
+	return res, redactID(err, realID, shortID)
+}
+
 // HTTPChannelInfo resolves shortID to its real vault channel and returns its model-facing
 // summary, returning the same error for an unregistered, forgotten, or mistyped id.
 func (s *Service) HTTPChannelInfo(shortID string) (restergate.HTTPChannelInfo, error) {

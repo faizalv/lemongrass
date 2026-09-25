@@ -8,18 +8,20 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/dbgate"
+	"github.com/faizalv/lemongrass/gatekeeper"
 	"github.com/faizalv/lemongrass/restergate"
 	"github.com/faizalv/lemongrass/vault"
 )
 
 const (
-	opRegisterChannel = "register_channel"
-	opQuery           = "query"
-	opRequestHTTP     = "request_http"
-	opHTTPChannelInfo = "http_channel_info"
-	opHTTPUsers       = "http_users"
-	opHTTPFlush       = "http_flush"
-	opForget          = "forget"
+	opRegisterChannel     = "register_channel"
+	opQuery               = "query"
+	opRequestHTTP         = "request_http"
+	opRequestHTTPDownload = "request_http_download"
+	opHTTPChannelInfo     = "http_channel_info"
+	opHTTPUsers           = "http_users"
+	opHTTPFlush           = "http_flush"
+	opForget              = "forget"
 )
 
 var connDeadline = 10 * time.Second
@@ -106,8 +108,12 @@ func handleConn(svc *Service, queryLimiter *vault.FailureLimiter, conn net.Conn)
 		json.NewEncoder(conn).Encode(errResponse(err))
 		return
 	}
-	if req.Op == opRequestHTTP {
+	if req.Op == opRequestHTTP || req.Op == opRequestHTTPDownload {
 		conn.SetDeadline(time.Now().Add(restergate.RequestTimeout))
+	}
+	if req.Op == opRequestHTTPDownload {
+		serveDownload(svc, conn, req)
+		return
 	}
 	json.NewEncoder(conn).Encode(dispatch(svc, queryLimiter, req))
 }
@@ -215,6 +221,21 @@ func payloadResponse(v interface{}) response {
 	return response{OK: true, Payload: b}
 }
 
+func serveDownload(svc *Service, conn net.Conn, req request) {
+	var p requestHTTPPayload
+	if err := json.Unmarshal(req.Payload, &p); err != nil {
+		gatekeeper.WriteDownloadError(conn, err)
+		return
+	}
+	res, err := svc.RequestHTTPDownload(p.ShortID, p.User, p.Method, p.Path, p.Body, p.ContentType)
+	if err != nil {
+		gatekeeper.WriteDownloadError(conn, err)
+		return
+	}
+	realID, _ := svc.lookup(p.ShortID)
+	gatekeeper.WriteDownload(conn, res, restergate.RequestTimeout, func(err error) error { return redactID(err, realID, p.ShortID) })
+}
+
 // Client talks to a running agent daemon over its unix socket.
 type Client struct {
 	SocketPath string
@@ -263,6 +284,35 @@ func (c *Client) callWithin(timeout time.Duration, op string, payload, out inter
 		return json.Unmarshal(resp.Payload, out)
 	}
 	return nil
+}
+
+// RequestHTTPDownload asks the agent daemon for a download and returns its header, and for a 2xx response the open body, which the caller must close.
+func (c *Client) RequestHTTPDownload(shortID, user, method, path string, body []byte, contentType string) (gatekeeper.DownloadResult, error) {
+	timeout := max(c.Timeout, restergate.RequestTimeout)
+	conn, err := net.DialTimeout("unix", c.SocketPath, timeout)
+	if err != nil {
+		return gatekeeper.DownloadResult{}, fmt.Errorf("agent: dialing %s: %w", c.SocketPath, err)
+	}
+	conn.SetDeadline(time.Now().Add(timeout))
+
+	payload, err := json.Marshal(requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body, ContentType: contentType})
+	if err == nil {
+		err = json.NewEncoder(conn).Encode(request{Op: opRequestHTTPDownload, Payload: payload})
+	}
+	if err != nil {
+		conn.Close()
+		return gatekeeper.DownloadResult{}, fmt.Errorf("agent: sending request: %w", err)
+	}
+
+	res, err := gatekeeper.ReadDownload(conn, restergate.RequestTimeout)
+	if err != nil || res.Body == nil {
+		conn.Close()
+	}
+	var remote gatekeeper.RemoteError
+	if err != nil && !errors.As(err, &remote) {
+		err = fmt.Errorf("agent: %w", err)
+	}
+	return res, err
 }
 
 func (c *Client) RegisterChannel(realID vault.ChannelID) (string, error) {

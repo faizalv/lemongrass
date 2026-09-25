@@ -32,21 +32,22 @@ const (
 	opGetConnection       = "get_connection"
 	opUpdateConnection    = "update_connection"
 
-	opPutDomain         = "put_domain"
-	opListDomains       = "list_domains"
-	opDeleteDomain      = "delete_domain"
-	opTestDomainLogin   = "test_domain_login"
-	opCreateHTTPChannel = "create_http_channel"
-	opActivateHTTP      = "activate_http"
-	opRequestHTTP       = "request_http"
-	opRevokeHTTP        = "revoke_http"
-	opHTTPChannelScope  = "http_channel_scope"
-	opListHTTPChannels  = "list_http_channels"
-	opHTTPChannelInfo   = "http_channel_info"
-	opHTTPChannelUsers  = "http_channel_users"
-	opFlushHTTPTokens   = "flush_http_tokens"
-	opGetDomain         = "get_domain"
-	opUpdateDomain      = "update_domain"
+	opPutDomain           = "put_domain"
+	opListDomains         = "list_domains"
+	opDeleteDomain        = "delete_domain"
+	opTestDomainLogin     = "test_domain_login"
+	opCreateHTTPChannel   = "create_http_channel"
+	opActivateHTTP        = "activate_http"
+	opRequestHTTP         = "request_http"
+	opRequestHTTPDownload = "request_http_download"
+	opRevokeHTTP          = "revoke_http"
+	opHTTPChannelScope    = "http_channel_scope"
+	opListHTTPChannels    = "list_http_channels"
+	opHTTPChannelInfo     = "http_channel_info"
+	opHTTPChannelUsers    = "http_channel_users"
+	opFlushHTTPTokens     = "flush_http_tokens"
+	opGetDomain           = "get_domain"
+	opUpdateDomain        = "update_domain"
 )
 
 var connDeadline = 10 * time.Second
@@ -259,8 +260,12 @@ func handleConn(svc *Backend, adminLimiter *vault.FailureLimiter, conn net.Conn)
 			return
 		}
 	}
-	if req.Op == opRequestHTTP {
+	if req.Op == opRequestHTTP || req.Op == opRequestHTTPDownload {
 		conn.SetDeadline(time.Now().Add(restergate.RequestTimeout))
+	}
+	if req.Op == opRequestHTTPDownload {
+		serveDownload(svc, conn, req)
+		return
 	}
 	json.NewEncoder(conn).Encode(dispatch(svc, adminLimiter, req))
 }
@@ -269,7 +274,7 @@ func handleConn(svc *Backend, adminLimiter *vault.FailureLimiter, conn net.Conn)
 // issues, as opposed to Electron's admin ops -- Electron's own binary path isn't fixed yet,
 // so those ops stay at UID-only verification.
 func requiresPeerBinaryCheck(op string) bool {
-	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers || op == opFlushHTTPTokens
+	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opRequestHTTPDownload || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers || op == opFlushHTTPTokens
 }
 
 func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) response {
