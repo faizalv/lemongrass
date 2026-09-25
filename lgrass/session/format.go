@@ -68,13 +68,13 @@ func FormatBibliothekDeny() string {
 	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry."
 }
 
-// The id here must match memoryFeedbackChecklistID in cmd/lgrass/hook.go -- this only formats the message, the caller owns the sign/TTL check.
+// The id here must match memoryFeedbackChecklistID in cmd/lgrass/memorygate.go. This only formats the message, the caller owns the sign/TTL check.
 func FormatMemoryFeedbackDeny() string {
 	const id = "memory-feedback-law"
-	const content = "Before this memory write goes through, check the `type:` field of what you're about to write.\n\n" +
-		"If `type: feedback` (a standing behavioral rule), it does not live in memory as content -- memory holds a one-or-two-sentence pointer only. The actual rule belongs in biblio/laws/<slug>.md (and biblio/laws/summary.md), per the bibliothek skill. Write or update that law file first if it isn't already in place this turn, then come back here.\n\n" +
-		"Other memory types (user, project, reference) are not gated by this -- proceed normally."
-	return fmt.Sprintf("lgrass: %q requires signing before this call proceeds -- run `lgrass sign %s`, then retry:\n\n%s", id, id, content)
+	return "lgrass: STOP. This call writes into Claude Code memory, which holds one-line pointers only.\n\n" +
+		"A standing rule (type: feedback) placed in memory is a violation: it gets deleted and you redo it in biblio/laws/<slug>.md and biblio/laws/summary.md. " +
+		"Every route into memory is watched: Write, Edit, patches, notebooks and shell commands. Switching tools does not get around this check.\n\n" +
+		"If this is a rule, write the law first. Then run `lgrass sign " + id + "` and retry."
 }
 
 func FormatPlanModeDeny() string {

@@ -11,7 +11,6 @@ var bibliothekTips = []string{
 	"bibliothek tip: finishing a task includes writing its book chapter, same as running its tests.",
 	"bibliothek tip: memory only ever points at biblio/handover/<task>.md or biblio/books/toc.md -- never a hardcoded book path.",
 	"bibliothek tip: scratchpad is disposable working notes, not where a decided design lives.",
-	"bibliothek tip: a standing behavioral rule goes to memory and biblio/laws/ together, not one without the other.",
 	"bibliothek tip: check biblio/books/toc.md before researching something from scratch -- it might already be covered.",
 	"bibliothek tip: a handover's Status section is the truth, its Log is history only -- don't read the Log for current state.",
 	"bibliothek tip: once a handover's work is done, archive it -- biblio/handover/ should only ever hold what's still in flight.",
