@@ -5,7 +5,7 @@ An agent orchestrator: an Electron shell for running coding-agent CLIs (Claude C
 ## Layout
 
 - `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome, a `biblio/` browser/editor, and the Connector panel for database and HTTP access.
-- `lgrassconf/` -- a tiny Go daemon (systemd user service) that owns Lemongrass agent configuration. It registers Claude Code and Codex hooks plus each agent's `lgrass-connector` and `lgrass-staleness` skills, kept as one embedded folder per vendor and skill.
+- `lgrassconf/` -- a tiny Go daemon (systemd user service) that owns Lemongrass agent configuration. It registers Claude Code and Codex hooks plus each agent's `lgrass-connector`, `lgrass-staleness` and `lgrass-closing` skills, kept as one embedded folder per vendor and skill.
 - `lgrass/` -- the Go CLI:
   - Session/thread coordination between panes.
   - A `SessionStart` hook that delivers `biblio/laws/summary.md` and gates tool calls behind required skills. It never writes Claude config itself.
@@ -27,10 +27,11 @@ The Electron shell surfaces bibliothek's `biblio/` convention as a UI, not just 
 
 ## Skills
 
-`lgrassconf` installs two skills for each supported agent (Claude Code and Codex) and keeps them current.
+`lgrassconf` installs three skills for each supported agent (Claude Code and Codex) and keeps them current.
 
 - `lgrass-connector` -- teaches an agent to run a database query or an HTTP call through an existing `lgrass db` or `lgrass rester` channel, so the real credential never enters the session.
 - `lgrass-staleness` -- teaches an agent to act on stale structure without being asked. When a document, book chapter, handover, PRD, `toc.md` line, README, or code comment contradicts the code or the bibliothek convention, the agent verifies the fact against its source and corrects the document in the same turn. Code wins over any document that describes it, dated records such as activity logs stay as written, and it asks only when the current state can't be determined or the fix is a design decision. It also checks structure: `toc.md` tags against the union of chapter tags, handovers pointing only at a `prd.md`, one whiteboard row per active handover, and finished handovers archived together with their scratchpad directory.
+- `lgrass-closing` -- teaches an agent to close a finished task and its sub-tasks: verify the work is done, write or update the book chapter and its `toc.md` line, promote standing rules to laws, archive the handover with its scratchpad directory, drop the whiteboard row, retire the memory pointer, and sweep stale references. Open issues are offered back to the user as new scratchpad tasks, with a choice to activate each one or leave it as a scratchpad only.
 
 Bibliothek itself is installed separately from its own repository.
 

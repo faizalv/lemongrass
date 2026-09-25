@@ -122,7 +122,7 @@ func TestEveryVendorInstallsEverySkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range vendors {
-		for _, name := range []string{"lgrass-connector", "lgrass-staleness"} {
+		for _, name := range []string{"lgrass-connector", "lgrass-staleness", "lgrass-closing"} {
 			if _, err := os.Stat(filepath.Join(k.skillsRoot(v), name, "SKILL.md")); err != nil {
 				t.Errorf("%s skill %s missing: %v", v.configDir, name, err)
 			}
