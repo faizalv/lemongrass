@@ -14,7 +14,7 @@ const idleThresholdForList = 5 * time.Minute
 
 func cmdSession(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass session <list|begin|end> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass session <list|begin|end|tabs> ...")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -24,6 +24,8 @@ func cmdSession(args []string) {
 		cmdSessionBegin(args[1:])
 	case "end":
 		cmdSessionEnd(args[1:])
+	case "tabs":
+		cmdSessionTabs(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown session command: %s\n", args[0])
 		os.Exit(1)

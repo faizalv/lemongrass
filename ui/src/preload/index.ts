@@ -30,6 +30,7 @@ const pty = {
   resize: (id: string, cols: number, rows: number): void =>
     ipcRenderer.send('pty:resize', { id, cols, rows }),
   kill: (id: string): void => ipcRenderer.send('pty:kill', { id }),
+  gracefulClose: (id: string): void => ipcRenderer.send('pty:graceful-close', { id }),
   onData: (callback: (payload: PtyDataPayload) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: PtyDataPayload): void =>
       callback(payload)
@@ -42,6 +43,13 @@ const pty = {
     ipcRenderer.on('pty:exit', listener)
     return () => ipcRenderer.removeListener('pty:exit', listener)
   }
+}
+
+const tabSessions = {
+  list: (projectPath: string): Promise<Record<string, string>> =>
+    ipcRenderer.invoke('tabSessions:list', projectPath),
+  forget: (projectPath: string, tabId: string): Promise<void> =>
+    ipcRenderer.invoke('tabSessions:forget', { projectPath, tabId })
 }
 
 const projects = {
@@ -175,10 +183,15 @@ const windowControls = {
       callback(maximized)
     ipcRenderer.on('window:maximized', listener)
     return () => ipcRenderer.removeListener('window:maximized', listener)
+  },
+  onClosing: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('window:closing', listener)
+    return () => ipcRenderer.removeListener('window:closing', listener)
   }
 }
 
-const api = { pty, projects, workspaceLayouts, biblio, git, vault, windowControls }
+const api = { pty, projects, workspaceLayouts, tabSessions, biblio, git, vault, windowControls }
 
 if (process.contextIsolated) {
   try {

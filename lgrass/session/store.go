@@ -66,6 +66,13 @@ CREATE TABLE IF NOT EXISTS lg_tips (
 	created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_lg_tips_project ON lg_tips(project_id);
+CREATE TABLE IF NOT EXISTS lg_tab_sessions (
+	project_id TEXT NOT NULL,
+	tab_id TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	PRIMARY KEY (project_id, tab_id)
+);
 CREATE TABLE IF NOT EXISTS lg_signatures (
 	project_id TEXT NOT NULL,
 	session_id TEXT NOT NULL,

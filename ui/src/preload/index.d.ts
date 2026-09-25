@@ -27,12 +27,17 @@ interface Api {
     write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => void
     kill: (id: string) => void
+    gracefulClose: (id: string) => void
     onData: (callback: (payload: PtyDataPayload) => void) => () => void
     onExit: (callback: (payload: PtyExitPayload) => void) => () => void
   }
   projects: {
     list: () => Promise<Project[]>
     add: () => Promise<Project | null>
+  }
+  tabSessions: {
+    list: (projectPath: string) => Promise<Record<string, string>>
+    forget: (projectPath: string, tabId: string) => Promise<void>
   }
   workspaceLayouts: {
     load: (projectId: string) => Promise<WorkspaceLayoutState | null>
@@ -121,6 +126,7 @@ interface Api {
     close: () => void
     isMaximized: () => Promise<boolean>
     onMaximizedChange: (callback: (maximized: boolean) => void) => () => void
+    onClosing: (callback: () => void) => () => void
   }
 }
 

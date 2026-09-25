@@ -2,7 +2,14 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { registerPtyHandlers, killAllShells } from './pty'
+import {
+  beginShutdown,
+  hasCodexShells,
+  killAllShells,
+  registerPtyHandlers,
+  stopCodexShells
+} from './pty'
+import { registerTabSessionHandlers } from './tabSessions'
 import { registerProjectHandlers } from './projects'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
@@ -15,6 +22,7 @@ import { ensureVaultAndAgentRunning, killDaemons } from './daemons'
 let mainWindow: BrowserWindow | undefined
 
 function createWindow(): void {
+  let closing = false
   const win = new BrowserWindow({
     width: 900,
     height: 670,
@@ -32,6 +40,15 @@ function createWindow(): void {
 
   win.on('ready-to-show', () => {
     win.show()
+  })
+
+  win.on('close', (event) => {
+    if (closing) return
+    event.preventDefault()
+    closing = true
+    beginShutdown()
+    if (hasCodexShells()) win.webContents.send('window:closing')
+    void stopCodexShells().finally(() => win.destroy())
   })
 
   // Otherwise mainWindow keeps pointing at a destroyed BrowserWindow after
@@ -72,6 +89,7 @@ app.whenReady().then(() => {
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerWorkspaceLayoutHandlers()
+  registerTabSessionHandlers(lgrassPath)
   registerBiblioHandlers(() => mainWindow?.webContents)
   registerGitHandlers()
   registerVaultHandlers()

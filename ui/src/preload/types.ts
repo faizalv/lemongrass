@@ -7,6 +7,7 @@ export interface PtySpawnOptions {
   command: string
   args?: string[]
   cwd?: string
+  tabId?: string
   cols?: number
   rows?: number
 }

@@ -2,9 +2,10 @@ import { reactive, watch } from 'vue'
 import { marked } from 'marked'
 import * as tree from './layoutTree'
 import type { DropZone, EdgeZone } from './layoutTree'
-import { disposeShell, onShellExit, setShellArgs } from './shellRegistry'
+import { disposeShell, onShellExit, setShellArgs, setShellResume } from './shellRegistry'
 import {
   preferredShellAgentId,
+  resumeArgs,
   setPreferredShellAgentId,
   shellAgentById,
   type ShellAgent
@@ -245,8 +246,25 @@ async function refreshDocs(project: ProjectRef): Promise<void> {
   await Promise.all([...paths].map((path) => loadDoc(project, path, true)))
 }
 
+async function restoreShellSessions(
+  project: ProjectRef,
+  root: tree.LayoutNode<WorkspaceTab> | null
+): Promise<void> {
+  const shellTabs = tree
+    .allLeaves(root)
+    .flatMap((leaf) => leaf.tabs)
+    .filter((tab): tab is ShellTab => tab.kind === 'shell')
+  const sessions = await window.api.tabSessions.list(project.path)
+  for (const tab of shellTabs) {
+    const sessionId = sessions[tab.id]
+    const args = sessionId ? resumeArgs(tab.command, sessionId) : null
+    if (args) setShellResume(tab.id, args)
+  }
+}
+
 async function init(project: ProjectRef): Promise<void> {
   const saved = await window.api.workspaceLayouts.load(project.id)
+  await restoreShellSessions(project, saved?.root ?? null)
   workspaces[project.id] = {
     layout: { root: saved?.root ?? null, focusedPaneId: saved?.focusedPaneId ?? null },
     docs: {}
@@ -410,11 +428,16 @@ export function activateTab(project: ProjectRef, paneId: string, tabId: string):
   if (root) commit(project, tree.setActiveTab(root, paneId, tabId), paneId)
 }
 
+function discardShell(project: ProjectRef, tabId: string): void {
+  disposeShell(tabId)
+  void window.api.tabSessions.forget(project.path, tabId)
+}
+
 export function closeTab(project: ProjectRef, paneId: string, tabId: string): void {
   const root = workspaces[project.id].layout.root
   if (!root) return
   const tab = tree.findLeaf(root, paneId)?.tabs.find((t) => t.id === tabId)
-  if (tab?.kind === 'shell') disposeShell(tab.id)
+  if (tab?.kind === 'shell') discardShell(project, tab.id)
   commit(project, tree.closeTab(root, paneId, tabId))
 }
 
@@ -446,7 +469,7 @@ function closeMatching(project: ProjectRef, matches: (tab: WorkspaceTab) => bool
   for (const leaf of tree.allLeaves(root)) {
     for (const tab of leaf.tabs) {
       if (!root || !matches(tab)) continue
-      if (tab.kind === 'shell') disposeShell(tab.id)
+      if (tab.kind === 'shell') discardShell(project, tab.id)
       root = tree.closeTab(root, leaf.id, tab.id)
     }
   }

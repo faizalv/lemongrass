@@ -310,3 +310,32 @@ func TestBibliothekDenyRecoversFromTranscript(t *testing.T) {
 		t.Error("bibliothekDeny found the transcript marker but did not sign the session")
 	}
 }
+
+func TestSessionEndRecordsTheLastTabSession(t *testing.T) {
+	store := openHookTestStore(t)
+
+	hookSessionEnd(store, hookEvent{SessionID: "session-a", TabID: "tab-1"})
+	hookSessionEnd(store, hookEvent{SessionID: "session-b", TabID: "tab-1"})
+
+	tabs, err := store.TabSessions()
+	if err != nil {
+		t.Fatalf("TabSessions: %v", err)
+	}
+	if len(tabs) != 1 || tabs["tab-1"] != "session-b" {
+		t.Errorf("TabSessions = %v, want tab-1=session-b", tabs)
+	}
+}
+
+func TestSessionStartWithoutTabIDRecordsNoTabSession(t *testing.T) {
+	store := openHookTestStore(t)
+
+	hookSessionStart(store, hookEvent{SessionID: "session-a"}, t.TempDir())
+
+	tabs, err := store.TabSessions()
+	if err != nil {
+		t.Fatalf("TabSessions: %v", err)
+	}
+	if len(tabs) != 0 {
+		t.Errorf("TabSessions = %v, want none", tabs)
+	}
+}

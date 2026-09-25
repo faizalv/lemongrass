@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	collisionWindow = 15 * time.Minute
-	idleThreshold   = 5 * time.Minute
-	nudgeThreshold  = 8 // tool calls between periodic nudges
+	collisionWindow  = 15 * time.Minute
+	idleThreshold    = 5 * time.Minute
+	nudgeThreshold   = 8 // tool calls between periodic nudges
+	hookProbeLogPath = "/tmp/lgrass-hook-probe.log"
 )
 
 // The full hook JSON carries more fields depending on hook_event_name; this is only the subset lgrass reads.
@@ -30,6 +31,7 @@ type hookEvent struct {
 	SessionSource        string          `json:"source"`
 	MessagingSocket      string
 	MessagingToken       string
+	TabID                string
 	EnforceBibliothek    bool
 	PreserveSessionState bool
 }
@@ -45,6 +47,9 @@ type skillToolInput struct {
 type patchToolInput struct {
 	Command string `json:"command"`
 }
+
+// Set by the Electron app on each agent shell it spawns, so a hook can tie the agent's session to the tab that runs it.
+const tabIDEnv = "LGRASS_TAB_ID"
 
 const bibliothekChecklistID = "bibliothek"
 
@@ -75,6 +80,11 @@ func cmdHook(args []string) {
 		os.Exit(0)
 	}
 
+	payload.TabID = os.Getenv(tabIDEnv)
+	if event == "SessionStart" || event == "SessionEnd" {
+		logHookProbe(event, os.Getenv("LGRASS_HOOK_VENDOR"), raw, payload)
+	}
+
 	proj, err := project.Resolve(payload.Cwd)
 	if err != nil {
 		os.Exit(0)
@@ -91,7 +101,7 @@ func cmdHook(args []string) {
 	case "SessionStart":
 		result = hookSessionStart(store, payload, proj.Path)
 	case "SessionEnd":
-		store.End(payload.SessionID)
+		hookSessionEnd(store, payload)
 	case "PreToolUse":
 		result = hookPreToolUse(store, payload, proj.Path)
 	case "PostToolUse":
@@ -100,11 +110,27 @@ func cmdHook(args []string) {
 	adapter.emit(result)
 }
 
+// Temporary probe that writes raw SessionStart and SessionEnd payloads to a /tmp file, for the Codex lifecycle investigation.
+func logHookProbe(event, vendor string, raw []byte, payload hookEvent) {
+	if vendor == "" {
+		vendor = "claude"
+	}
+	f, err := os.OpenFile(hookProbeLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s event=%s vendor=%s source=%s session_id=%s tab_id=%t payload=%s\n", time.Now().UTC().Format(time.RFC3339Nano), event, vendor, payload.SessionSource, payload.SessionID, payload.TabID != "", raw)
+}
+
 func hookSessionStart(store *session.Store, payload hookEvent, projectPath string) hookResult {
 	if payload.PreserveSessionState {
 		store.EnsureOpen(payload.SessionID)
 	} else {
 		store.Start(payload.SessionID, payload.MessagingSocket, payload.MessagingToken)
+	}
+	if payload.TabID != "" && payload.SessionID != "" {
+		store.RecordTabSession(payload.TabID, payload.SessionID)
 	}
 
 	var parts []string
@@ -112,6 +138,13 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 		parts = append(parts, summary)
 	}
 	return newHookResult("SessionStart", "", parts)
+}
+
+func hookSessionEnd(store *session.Store, payload hookEvent) {
+	store.End(payload.SessionID)
+	if payload.TabID != "" && payload.SessionID != "" {
+		store.RecordTabSession(payload.TabID, payload.SessionID)
+	}
 }
 
 // Missing biblio/laws/summary.md is not an error -- most projects have no laws to deliver.

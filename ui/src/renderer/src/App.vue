@@ -25,6 +25,7 @@ const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const loadedProjects = reactive<Record<string, boolean>>({})
 const sidebarCollapsed = ref(false)
 const showConnector = ref(false)
+const closing = ref(false)
 
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
@@ -108,15 +109,18 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 let unsubscribeBiblio: (() => void) | undefined
+let unsubscribeClosing: (() => void) | undefined
 
 onMounted(() => {
   loadProjects()
   window.addEventListener('keydown', onKeydown, { capture: true })
   unsubscribeBiblio = window.api.biblio.onChanged(onBiblioChanged)
+  unsubscribeClosing = window.api.windowControls.onClosing(() => (closing.value = true))
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown, { capture: true })
   unsubscribeBiblio?.()
+  unsubscribeClosing?.()
 })
 </script>
 
@@ -177,10 +181,71 @@ onBeforeUnmount(() => {
       :visible="showConnector"
       @close="showConnector = false"
     />
+
+    <div v-if="closing" class="closing-overlay">
+      <div class="closing-card">
+        <span class="closing-spinner"></span>
+        <div class="closing-text">
+          <p class="closing-title">Closing agent sessions</p>
+          <p class="closing-detail">
+            Saving each Codex session so it can resume on the next launch.
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.closing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--color-surface-0) 80%, transparent);
+}
+
+.closing-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+}
+
+.closing-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border-default);
+  border-top-color: var(--color-amber);
+  border-radius: 50%;
+  animation: closing-spin 0.8s linear infinite;
+}
+
+.closing-title {
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.closing-detail {
+  margin-top: var(--space-1);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+}
+
+@keyframes closing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .shell {
   height: 100%;
   display: flex;

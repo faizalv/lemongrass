@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { isResumableCommand, spawnArgs } from './shellAgents'
 import '@xterm/xterm/css/xterm.css'
 
 // Owns each shell's xterm instance and PTY by tab id, so a shell keeps running
@@ -21,19 +22,25 @@ interface ShellSession {
   opened: boolean
   disposed: boolean
   shellId?: string
+  resumeDeadline?: number
 }
 
 const sessions = new Map<string, ShellSession>()
 const byShellId = new Map<string, ShellSession>()
 const bufferedData = new Map<string, string[]>()
-const earlyExits = new Set<string>()
+const earlyExits = new Map<string, number>()
 const initialArgs = new Map<string, string[]>()
+const resumeAttempts = new Set<string>()
+const closedShellIds = new Set<string>()
+// An agent that exits with an error this soon after a resume spawn failed to restore its session.
+const RESUME_FAILURE_WINDOW_MS = 10_000
 // Escape followed by carriage return, which the agent CLI reads as a newline in its input.
 const NEWLINE_SEQUENCE = '\x1b\r'
 let exitHandler: ((tabId: string) => void) | undefined
 let listening = false
 
 export const shellTitles = reactive<Record<string, string>>({})
+export const shellRestoreFailures = reactive<Record<string, { exitCode: number }>>({})
 
 export function onShellExit(handler: (tabId: string) => void): void {
   exitHandler = handler
@@ -41,6 +48,22 @@ export function onShellExit(handler: (tabId: string) => void): void {
 
 export function setShellArgs(tabId: string, args: string[]): void {
   initialArgs.set(tabId, args)
+}
+
+export function setShellResume(tabId: string, args: string[]): void {
+  initialArgs.set(tabId, args)
+  resumeAttempts.add(tabId)
+}
+
+function handleExit(session: ShellSession, exitCode: number): void {
+  const failedResume =
+    session.resumeDeadline !== undefined && Date.now() < session.resumeDeadline && exitCode !== 0
+  session.resumeDeadline = undefined
+  if (failedResume) {
+    shellRestoreFailures[session.spec.id] = { exitCode }
+    return
+  }
+  exitHandler?.(session.spec.id)
 }
 
 function cssVar(name: string): string {
@@ -58,15 +81,16 @@ function listen(): void {
     }
     bufferedData.set(id, [...(bufferedData.get(id) ?? []), data])
   })
-  window.api.pty.onExit(({ id }) => {
+  window.api.pty.onExit(({ id, exitCode }) => {
+    if (closedShellIds.delete(id)) return
     const session = byShellId.get(id)
     if (!session) {
-      earlyExits.add(id)
+      earlyExits.set(id, exitCode)
       return
     }
     byShellId.delete(id)
     session.shellId = undefined
-    exitHandler?.(session.spec.id)
+    handleExit(session, exitCode)
   })
 }
 
@@ -127,12 +151,15 @@ function createSession(spec: ShellSpec): ShellSession {
 
 async function start(session: ShellSession): Promise<void> {
   const { spec, term } = session
-  const args = initialArgs.get(spec.id)
+  const initial = initialArgs.get(spec.id)
   initialArgs.delete(spec.id)
+  const args = spawnArgs(spec.command, spec.id, initial)
+  if (resumeAttempts.delete(spec.id)) session.resumeDeadline = Date.now() + RESUME_FAILURE_WINDOW_MS
   const { id } = await window.api.pty.spawn({
     command: spec.command,
     args,
     cwd: spec.cwd,
+    tabId: isResumableCommand(spec.command) ? spec.id : undefined,
     cols: term.cols,
     rows: term.rows
   })
@@ -144,11 +171,26 @@ async function start(session: ShellSession): Promise<void> {
   byShellId.set(id, session)
   for (const chunk of bufferedData.get(id) ?? []) term.write(chunk)
   bufferedData.delete(id)
-  if (earlyExits.delete(id)) {
+  const earlyExitCode = earlyExits.get(id)
+  if (earlyExitCode !== undefined) {
+    earlyExits.delete(id)
     byShellId.delete(id)
     session.shellId = undefined
-    exitHandler?.(spec.id)
+    handleExit(session, earlyExitCode)
   }
+}
+
+export function startFreshShell(tabId: string): void {
+  const session = sessions.get(tabId)
+  if (!session || session.shellId) return
+  delete shellRestoreFailures[tabId]
+  session.term.reset()
+  void start(session)
+}
+
+export function closeFailedShell(tabId: string): void {
+  delete shellRestoreFailures[tabId]
+  exitHandler?.(tabId)
 }
 
 export function fitShell(tabId: string): void {
@@ -182,10 +224,12 @@ export function disposeShell(tabId: string): void {
   if (!session) return
   sessions.delete(tabId)
   delete shellTitles[tabId]
+  delete shellRestoreFailures[tabId]
   session.disposed = true
   if (session.shellId) {
     byShellId.delete(session.shellId)
-    window.api.pty.kill(session.shellId)
+    closedShellIds.add(session.shellId)
+    window.api.pty.gracefulClose(session.shellId)
   }
   session.term.dispose()
   session.host.remove()

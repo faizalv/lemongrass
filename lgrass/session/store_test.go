@@ -619,3 +619,62 @@ func TestStartClearsSignaturesForReusedSessionID(t *testing.T) {
 		t.Errorf("SignedAt after Start = %v, want zero time (a reused session_id must not inherit a stale sign)", signedAt)
 	}
 }
+
+func TestRecordTabSessionReplacesTheTabsSession(t *testing.T) {
+	store := openTestStore(t)
+
+	if err := store.RecordTabSession("tab-1", "session-a"); err != nil {
+		t.Fatalf("RecordTabSession a: %v", err)
+	}
+	if err := store.RecordTabSession("tab-1", "session-b"); err != nil {
+		t.Fatalf("RecordTabSession b: %v", err)
+	}
+	if err := store.RecordTabSession("tab-2", "session-c"); err != nil {
+		t.Fatalf("RecordTabSession c: %v", err)
+	}
+
+	tabs, err := store.TabSessions()
+	if err != nil {
+		t.Fatalf("TabSessions: %v", err)
+	}
+	if len(tabs) != 2 || tabs["tab-1"] != "session-b" || tabs["tab-2"] != "session-c" {
+		t.Errorf("TabSessions = %v, want tab-1=session-b and tab-2=session-c", tabs)
+	}
+}
+
+func TestTabSessionsAreScopedToTheProject(t *testing.T) {
+	store := openTestStore(t)
+	other, err := Open(DBPath(), "otherproj")
+	if err != nil {
+		t.Fatalf("Open other: %v", err)
+	}
+	t.Cleanup(func() { other.Close() })
+
+	if err := store.RecordTabSession("tab-1", "session-a"); err != nil {
+		t.Fatalf("RecordTabSession: %v", err)
+	}
+	tabs, err := other.TabSessions()
+	if err != nil {
+		t.Fatalf("TabSessions: %v", err)
+	}
+	if len(tabs) != 0 {
+		t.Errorf("other project sees %v, want none", tabs)
+	}
+}
+
+func TestForgetTabSessionRemovesOnlyThatTab(t *testing.T) {
+	store := openTestStore(t)
+	for _, tab := range []string{"tab-1", "tab-2"} {
+		if err := store.RecordTabSession(tab, "session-"+tab); err != nil {
+			t.Fatalf("RecordTabSession %s: %v", tab, err)
+		}
+	}
+
+	if err := store.ForgetTabSession("tab-1"); err != nil {
+		t.Fatalf("ForgetTabSession: %v", err)
+	}
+	tabs, _ := store.TabSessions()
+	if len(tabs) != 1 || tabs["tab-2"] != "session-tab-2" {
+		t.Errorf("after forgetting tab-1, TabSessions = %v", tabs)
+	}
+}
