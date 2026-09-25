@@ -57,7 +57,7 @@ func TestServiceRegisterThenRequestHTTP(t *testing.T) {
 		t.Errorf("RegisterChannel returned id of length %d, want %d", len(shortID), shortIDLength)
 	}
 
-	result, err := svc.RequestHTTP(shortID, "alice", "GET", "/api/orders", nil)
+	result, err := svc.RequestHTTP(shortID, "alice", "GET", "/api/orders", nil, "")
 	if err != nil {
 		t.Fatalf("RequestHTTP: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestServiceRegisterThenRequestHTTP(t *testing.T) {
 
 func TestServiceRequestHTTPUnknownShortIDReturnsErrNoSuchChannel(t *testing.T) {
 	svc := NewService(startTestVault(t))
-	if _, err := svc.RequestHTTP("BOGUS1", "alice", "GET", "/api/orders", nil); !errors.Is(err, ErrNoSuchChannel) {
+	if _, err := svc.RequestHTTP("BOGUS1", "alice", "GET", "/api/orders", nil, ""); !errors.Is(err, ErrNoSuchChannel) {
 		t.Errorf("RequestHTTP with an unregistered short id: got %v, want ErrNoSuchChannel", err)
 	}
 }
@@ -147,7 +147,7 @@ func TestServiceRequestHTTPFullURLAndDefaultUser(t *testing.T) {
 		t.Fatalf("RegisterChannel: %v", err)
 	}
 
-	result, err := svc.RequestHTTP(shortID, "", "GET", srv.URL+"/api/orders", nil)
+	result, err := svc.RequestHTTP(shortID, "", "GET", srv.URL+"/api/orders", nil, "")
 	if err != nil {
 		t.Fatalf("RequestHTTP with a full URL and no user: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestServiceRequestHTTPFullURLAndDefaultUser(t *testing.T) {
 		t.Errorf("result = status %d url %q, want 200 and %q", result.Status, result.URL, srv.URL+"/api/orders")
 	}
 
-	if _, err := svc.RequestHTTP(shortID, "", "GET", "https://elsewhere.example/api/orders", nil); err == nil {
+	if _, err := svc.RequestHTTP(shortID, "", "GET", "https://elsewhere.example/api/orders", nil, ""); err == nil {
 		t.Error("a full URL on another host was accepted")
 	}
 }

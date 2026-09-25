@@ -38,11 +38,23 @@ func followRedirects(placement TokenPlacement) func(req *http.Request, via []*ht
 // sameHostRedirectsOnly refuses any redirect to another host. A login call carries the user's
 // credentials in its body, which a 307 or 308 would resend to wherever it points.
 func sameHostRedirectsOnly(req *http.Request, via []*http.Request) error {
-	if len(via) >= maxRedirects {
-		return errors.New("stopped after 10 redirects")
+	return refuseCrossHost("login redirected to another host, refusing to resend credentials")(req, via)
+}
+
+// sameHostRedirectsForFiles is the redirect policy for a request that sends a file or form body,
+// which a 307 or 308 would resend to wherever it points.
+func sameHostRedirectsForFiles(req *http.Request, via []*http.Request) error {
+	return refuseCrossHost("the request redirected to another host, refusing to resend the file")(req, via)
+}
+
+func refuseCrossHost(refusal string) func(req *http.Request, via []*http.Request) error {
+	return func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return errors.New("stopped after 10 redirects")
+		}
+		if !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
+			return errors.New(refusal)
+		}
+		return nil
 	}
-	if !strings.EqualFold(req.URL.Host, via[0].URL.Host) {
-		return errors.New("login redirected to another host, refusing to resend credentials")
-	}
-	return nil
 }

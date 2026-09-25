@@ -20,7 +20,7 @@ const (
 	opForget          = "forget"
 )
 
-const connDeadline = 10 * time.Second
+var connDeadline = 10 * time.Second
 
 type request struct {
 	Op      string          `json:"op"`
@@ -52,11 +52,12 @@ type queryResultPayload struct {
 }
 
 type requestHTTPPayload struct {
-	ShortID string `json:"short_id"`
-	User    string `json:"user"`
-	Method  string `json:"method"`
-	Path    string `json:"path"`
-	Body    []byte `json:"body"`
+	ShortID     string `json:"short_id"`
+	User        string `json:"user"`
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Body        []byte `json:"body"`
+	ContentType string `json:"content_type"`
 }
 
 type httpResultPayload struct {
@@ -103,6 +104,9 @@ func handleConn(svc *Service, queryLimiter *vault.FailureLimiter, conn net.Conn)
 		json.NewEncoder(conn).Encode(errResponse(err))
 		return
 	}
+	if req.Op == opRequestHTTP {
+		conn.SetDeadline(time.Now().Add(vault.RequestTimeout))
+	}
 	json.NewEncoder(conn).Encode(dispatch(svc, queryLimiter, req))
 }
 
@@ -135,7 +139,7 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return queryOp(queryLimiter, func() (response, error) {
-			result, err := svc.RequestHTTP(p.ShortID, p.User, p.Method, p.Path, p.Body)
+			result, err := svc.RequestHTTP(p.ShortID, p.User, p.Method, p.Path, p.Body, p.ContentType)
 			return payloadResponse(httpResultPayload{Result: result}), err
 		})
 
@@ -223,12 +227,16 @@ func (c *Client) timeout() time.Duration {
 }
 
 func (c *Client) call(op string, payload, out interface{}) error {
-	conn, err := net.DialTimeout("unix", c.SocketPath, c.timeout())
+	return c.callWithin(c.timeout(), op, payload, out)
+}
+
+func (c *Client) callWithin(timeout time.Duration, op string, payload, out interface{}) error {
+	conn, err := net.DialTimeout("unix", c.SocketPath, timeout)
 	if err != nil {
 		return fmt.Errorf("agent: dialing %s: %w", c.SocketPath, err)
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(c.timeout()))
+	conn.SetDeadline(time.Now().Add(timeout))
 
 	var payloadBytes json.RawMessage
 	if payload != nil {
@@ -267,9 +275,9 @@ func (c *Client) Query(shortID string, declaredTables []string, sqlText string) 
 	return out.Result, err
 }
 
-func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte) (vault.HTTPResult, error) {
+func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte, contentType string) (vault.HTTPResult, error) {
 	var out httpResultPayload
-	err := c.call(opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body}, &out)
+	err := c.callWithin(max(c.Timeout, vault.RequestTimeout), opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body, ContentType: contentType}, &out)
 	return out.Result, err
 }
 

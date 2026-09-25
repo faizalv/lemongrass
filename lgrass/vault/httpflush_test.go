@@ -31,7 +31,7 @@ func twoLoginUsers() []DomainUser {
 
 func mustRequest(t *testing.T, svc *Service, id ChannelID, user string) {
 	t.Helper()
-	if _, err := svc.RequestHTTP(id, user, "GET", "/api/x", nil); err != nil {
+	if _, err := svc.RequestHTTP(id, user, "GET", "/api/x", nil, ""); err != nil {
 		t.Fatalf("RequestHTTP as %q: %v", user, err)
 	}
 }
@@ -175,7 +175,7 @@ func TestIPCFlushHTTPTokensRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.RequestHTTP(c.ID, "alice", "GET", "/api/x", nil); err != nil {
+	if _, err := client.RequestHTTP(c.ID, "alice", "GET", "/api/x", nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	flushed, err := client.FlushHTTPTokens(c.ID, "")

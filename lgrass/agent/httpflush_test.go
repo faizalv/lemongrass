@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -49,7 +51,7 @@ func TestServiceFlushHTTPTokens(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		if _, err := svc.RequestHTTP(shortID, "", "GET", "/api/x", nil); err != nil {
+		if _, err := svc.RequestHTTP(shortID, "", "GET", "/api/x", nil, ""); err != nil {
 			t.Fatalf("RequestHTTP: %v", err)
 		}
 	}
@@ -61,7 +63,7 @@ func TestServiceFlushHTTPTokens(t *testing.T) {
 	if err != nil || flushed != 1 {
 		t.Fatalf("FlushHTTPTokens = %d, %v, want 1", flushed, err)
 	}
-	if _, err := svc.RequestHTTP(shortID, "", "GET", "/api/x", nil); err != nil {
+	if _, err := svc.RequestHTTP(shortID, "", "GET", "/api/x", nil, ""); err != nil {
 		t.Fatalf("RequestHTTP after flush: %v", err)
 	}
 	if logins.Load() != 2 {
@@ -70,5 +72,98 @@ func TestServiceFlushHTTPTokens(t *testing.T) {
 
 	if _, err := svc.FlushHTTPTokens("BOGUS1", ""); !errors.Is(err, ErrNoSuchChannel) {
 		t.Errorf("FlushHTTPTokens with an unregistered short id: got %v, want ErrNoSuchChannel", err)
+	}
+}
+
+func TestServiceRequestHTTPCarriesBinaryBodyAndContentType(t *testing.T) {
+	var gotType string
+	var gotBody []byte
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"access_token": "tok"})
+	})
+	mux.HandleFunc("/import", func(w http.ResponseWriter, r *http.Request) {
+		gotType = r.Header.Get("Content-Type")
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	vaultClient := startTestVault(t)
+	domain := vault.Domain{
+		BaseURL:         srv.URL,
+		LoginEndpoint:   "/login",
+		TokenPath:       "access_token",
+		TokenPlacement:  vault.TokenPlacement{Kind: vault.PlacementHeader, Name: "Authorization", Prefix: "Bearer "},
+		FixedTTLSeconds: 3600,
+		Users:           []vault.DomainUser{{Name: "alice", Fields: map[string]string{"u": "alice"}}},
+	}
+	if err := vaultClient.PutDomain(testRootSecret, "staging", domain); err != nil {
+		t.Fatal(err)
+	}
+	c, err := vaultClient.CreateHTTPChannel(testRootSecret, "ch", "staging", vault.HTTPScope{Methods: []string{"POST"}}, 5*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(vaultClient)
+	shortID, err := svc.RegisterChannel(c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := append([]byte("PK\x03\x04"), 0, 1, 2, 0xff, 0xfe, '\r', '\n', 0)
+	const xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	if _, err := svc.RequestHTTP(shortID, "", "POST", "/import", want, xlsx); err != nil {
+		t.Fatalf("RequestHTTP: %v", err)
+	}
+	if gotType != xlsx || !bytes.Equal(gotBody, want) {
+		t.Errorf("upstream saw type %q, body identical = %v", gotType, bytes.Equal(gotBody, want))
+	}
+}
+
+func TestIPCRequestHTTPOutlivesAgentConnDeadline(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"access_token": "tok"})
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(800 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	vaultClient := startTestVault(t)
+	domain := vault.Domain{
+		BaseURL:         srv.URL,
+		LoginEndpoint:   "/login",
+		TokenPath:       "access_token",
+		TokenPlacement:  vault.TokenPlacement{Kind: vault.PlacementHeader, Name: "Authorization", Prefix: "Bearer "},
+		FixedTTLSeconds: 3600,
+		Users:           []vault.DomainUser{{Name: "alice", Fields: map[string]string{"u": "alice"}}},
+	}
+	if err := vaultClient.PutDomain(testRootSecret, "staging", domain); err != nil {
+		t.Fatal(err)
+	}
+	c, err := vaultClient.CreateHTTPChannel(testRootSecret, "ch", "staging", vault.HTTPScope{Methods: []string{"POST"}}, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldDeadline, oldRequest := connDeadline, vault.RequestTimeout
+	connDeadline, vault.RequestTimeout = 300*time.Millisecond, 5*time.Second
+	t.Cleanup(func() { connDeadline, vault.RequestTimeout = oldDeadline, oldRequest })
+
+	agentClient := startTestAgent(t, vaultClient)
+	shortID, err := agentClient.RegisterChannel(c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := agentClient.RequestHTTP(shortID, "alice", "POST", "/import", []byte("x"), "text/csv")
+	if err != nil || result.Status != 200 {
+		t.Errorf("RequestHTTP = %+v, %v, want a call slower than the agent's connDeadline to complete", result, err)
 	}
 }

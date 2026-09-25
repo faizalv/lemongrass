@@ -45,7 +45,11 @@ const (
 	opUpdateDomain      = "update_domain"
 )
 
-const connDeadline = 10 * time.Second
+var connDeadline = 10 * time.Second
+
+// RequestTimeout bounds one proxied call end to end at every hop: the caller's socket, both
+// daemons' connections and the upstream request. Login and admin operations keep connDeadline.
+var RequestTimeout = 120 * time.Second
 
 type request struct {
 	Op      string          `json:"op"`
@@ -173,11 +177,12 @@ type activateHTTPPayload struct {
 }
 
 type requestHTTPPayload struct {
-	ID     ChannelID `json:"id"`
-	User   string    `json:"user"`
-	Method string    `json:"method"`
-	Path   string    `json:"path"`
-	Body   []byte    `json:"body"`
+	ID          ChannelID `json:"id"`
+	User        string    `json:"user"`
+	Method      string    `json:"method"`
+	Path        string    `json:"path"`
+	Body        []byte    `json:"body"`
+	ContentType string    `json:"content_type"`
 }
 
 type httpResultPayload struct {
@@ -253,6 +258,9 @@ func handleConn(svc *Service, adminLimiter *FailureLimiter, conn net.Conn) {
 			json.NewEncoder(conn).Encode(errResponse(err))
 			return
 		}
+	}
+	if req.Op == opRequestHTTP {
+		conn.SetDeadline(time.Now().Add(RequestTimeout))
 	}
 	json.NewEncoder(conn).Encode(dispatch(svc, adminLimiter, req))
 }
@@ -491,7 +499,7 @@ func dispatch(svc *Service, adminLimiter *FailureLimiter, req request) response 
 		if err := json.Unmarshal(req.Payload, &p); err != nil {
 			return errResponse(err)
 		}
-		result, err := svc.RequestHTTP(p.ID, p.User, p.Method, p.Path, p.Body)
+		result, err := svc.RequestHTTP(p.ID, p.User, p.Method, p.Path, p.Body, p.ContentType)
 		if err != nil {
 			return errResponse(err)
 		}
@@ -622,12 +630,16 @@ func (c *Client) timeout() time.Duration {
 }
 
 func (c *Client) call(op string, payload, out interface{}) error {
-	conn, err := net.DialTimeout("unix", c.SocketPath, c.timeout())
+	return c.callWithin(c.timeout(), op, payload, out)
+}
+
+func (c *Client) callWithin(timeout time.Duration, op string, payload, out interface{}) error {
+	conn, err := net.DialTimeout("unix", c.SocketPath, timeout)
 	if err != nil {
 		return fmt.Errorf("vault: dialing %s: %w", c.SocketPath, err)
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(c.timeout()))
+	conn.SetDeadline(time.Now().Add(timeout))
 
 	var payloadBytes json.RawMessage
 	if payload != nil {
@@ -774,9 +786,9 @@ func (c *Client) ActivateHTTP(rootSecret string, id ChannelID, ttl time.Duration
 	return out.Channel, err
 }
 
-func (c *Client) RequestHTTP(id ChannelID, user, method, path string, body []byte) (HTTPResult, error) {
+func (c *Client) RequestHTTP(id ChannelID, user, method, path string, body []byte, contentType string) (HTTPResult, error) {
 	var out httpResultPayload
-	err := c.call(opRequestHTTP, requestHTTPPayload{ID: id, User: user, Method: method, Path: path, Body: body}, &out)
+	err := c.callWithin(max(c.Timeout, RequestTimeout), opRequestHTTP, requestHTTPPayload{ID: id, User: user, Method: method, Path: path, Body: body, ContentType: contentType}, &out)
 	return out.Result, err
 }
 
