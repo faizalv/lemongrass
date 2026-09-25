@@ -397,7 +397,7 @@ func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (
 
 	db, err := s.getDB(id, string(connString))
 	if err != nil {
-		return QueryResult{}, err
+		return QueryResult{}, errors.New("vault: the stored connection could not be opened")
 	}
 	result, err := runQuery(db, sqlText)
 	if err != nil {

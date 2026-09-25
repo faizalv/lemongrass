@@ -434,9 +434,9 @@ async function copyShortId(id: string): Promise<void> {
 
 // -- Create channel --
 
-// Fixed to the only kinds Scope.AllowStatement (vault/bouncer.go) actually recognizes -- write
+// Fixed to the operations Scope.AllowStatement (vault/bouncer.go) actually recognizes -- write
 // kinds are a separate, later PRD, not offered here.
-const operationOptions = ['select', 'explain', 'show'] as const
+const operationOptions = ['select', 'explain', 'show', 'performance'] as const
 
 const showCreateForm = ref(false)
 const newChannelName = ref('')
@@ -1514,6 +1514,12 @@ async function copyHTTPShortId(id: string): Promise<void> {
                     {{ op }}
                   </label>
                 </div>
+                <p v-if="newOperations.includes('performance')" class="hint">
+                  Performance lets this channel read server-wide performance views (MySQL
+                  performance_schema and sys, Postgres pg_stat views). They include activity from
+                  every database on the server. Columns holding raw statement text are never
+                  returned.
+                </p>
               </div>
 
               <div class="field-block">

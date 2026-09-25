@@ -3,6 +3,7 @@ package vault
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -42,7 +43,7 @@ const (
 func engineOf(connString string) (Engine, error) {
 	scheme, _, ok := strings.Cut(connString, "://")
 	if !ok {
-		return "", fmt.Errorf("vault: connection string has no scheme: %q", connString)
+		return "", errors.New("vault: connection string has no scheme")
 	}
 	switch strings.ToLower(scheme) {
 	case "mysql", "mariadb":
@@ -81,6 +82,10 @@ func openDB(connString string) (*sql.DB, error) {
 func mysqlDSN(connString string) (string, error) {
 	u, err := url.Parse(connString)
 	if err != nil {
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return "", fmt.Errorf("vault: parsing connection string: %w", err)
 	}
 	var userinfo string
@@ -89,7 +94,7 @@ func mysqlDSN(connString string) (string, error) {
 	}
 	host := u.Host
 	if host == "" {
-		return "", fmt.Errorf("vault: connection string has no host: %q", connString)
+		return "", errors.New("vault: connection string has no host")
 	}
 	db := strings.TrimPrefix(u.Path, "/")
 	dsn := fmt.Sprintf("%stcp(%s)/%s", userinfo, host, db)
@@ -153,7 +158,7 @@ type QueryResult struct {
 func runQuery(db *sql.DB, sqlText string) (QueryResult, error) {
 	rows, err := db.Query(sqlText)
 	if err != nil {
-		return QueryResult{}, fmt.Errorf("vault: executing query: %w", err)
+		return QueryResult{}, fmt.Errorf("vault: executing query: %s", describeDBError(err))
 	}
 	defer rows.Close()
 

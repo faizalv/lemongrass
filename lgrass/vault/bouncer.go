@@ -15,6 +15,20 @@ func (e *ErrScopeViolation) Error() string {
 	return fmt.Sprintf("vault: channel scope does not permit %s on %s", e.Operation, e.Table)
 }
 
+// ErrRestrictedColumn reports a statement that names, or selects with a star that would include, a column the vault never returns from a performance view.
+type ErrRestrictedColumn struct {
+	Table  string
+	Column string
+	Star   bool
+}
+
+func (e *ErrRestrictedColumn) Error() string {
+	if e.Star {
+		return fmt.Sprintf("vault: %s cannot be read with * because its %s column is not readable, select the other columns by name", e.Table, e.Column)
+	}
+	return fmt.Sprintf("vault: the %s column of %s is not readable", e.Column, e.Table)
+}
+
 // ErrTableMismatch reports the caller's declared tables not matching what the statement actually references, distinct from a scope denial.
 type ErrTableMismatch struct {
 	Declared []string
@@ -25,7 +39,7 @@ func (e *ErrTableMismatch) Error() string {
 	return fmt.Sprintf("vault: declared tables %v, statement actually references %v", e.Declared, e.Actual)
 }
 
-// AllowStatement denies by default and checks every table a statement references against Tables, skipping that check only for introspection with no recoverable table.
+// AllowStatement denies by default and checks every table a statement references against Tables or, with the performance operation, the engine's view allowlist, skipping that check only for introspection with no recoverable table.
 func (s Scope) AllowStatement(stmt Statement) error {
 	op := string(stmt.Kind)
 	if stmt.Kind == KindIntrospect {
@@ -34,10 +48,15 @@ func (s Scope) AllowStatement(stmt Statement) error {
 	if !contains(s.Operations, op) {
 		return &ErrScopeViolation{Operation: op}
 	}
+	performance := contains(s.Operations, OperationPerformance)
 	for _, t := range stmt.Tables {
-		if !contains(s.Tables, t) {
-			return &ErrScopeViolation{Table: t, Operation: op}
+		if contains(s.Tables, t) {
+			continue
 		}
+		if _, ok := perfViewRestricted(stmt.Engine, t); ok && performance {
+			continue
+		}
+		return &ErrScopeViolation{Table: t, Operation: op}
 	}
 	return nil
 }
