@@ -7,6 +7,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/faizalv/lemongrass/dbgate"
+	"github.com/faizalv/lemongrass/restergate"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -48,7 +50,7 @@ type queryPayload struct {
 }
 
 type queryResultPayload struct {
-	Result vault.QueryResult `json:"result"`
+	Result dbgate.QueryResult `json:"result"`
 }
 
 type requestHTTPPayload struct {
@@ -61,15 +63,15 @@ type requestHTTPPayload struct {
 }
 
 type httpResultPayload struct {
-	Result vault.HTTPResult `json:"result"`
+	Result restergate.HTTPResult `json:"result"`
 }
 
 type httpChannelInfoPayload struct {
-	Info vault.HTTPChannelInfo `json:"info"`
+	Info restergate.HTTPChannelInfo `json:"info"`
 }
 
 type httpUsersPayload struct {
-	Users []vault.HTTPUserInfo `json:"users"`
+	Users []restergate.HTTPUserInfo `json:"users"`
 }
 
 type httpFlushPayload struct {
@@ -105,7 +107,7 @@ func handleConn(svc *Service, queryLimiter *vault.FailureLimiter, conn net.Conn)
 		return
 	}
 	if req.Op == opRequestHTTP {
-		conn.SetDeadline(time.Now().Add(vault.RequestTimeout))
+		conn.SetDeadline(time.Now().Add(restergate.RequestTimeout))
 	}
 	json.NewEncoder(conn).Encode(dispatch(svc, queryLimiter, req))
 }
@@ -269,25 +271,25 @@ func (c *Client) RegisterChannel(realID vault.ChannelID) (string, error) {
 	return out.ShortID, err
 }
 
-func (c *Client) Query(shortID string, declaredTables []string, sqlText string) (vault.QueryResult, error) {
+func (c *Client) Query(shortID string, declaredTables []string, sqlText string) (dbgate.QueryResult, error) {
 	var out queryResultPayload
 	err := c.call(opQuery, queryPayload{ShortID: shortID, DeclaredTables: declaredTables, SQL: sqlText}, &out)
 	return out.Result, err
 }
 
-func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte, contentType string) (vault.HTTPResult, error) {
+func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte, contentType string) (restergate.HTTPResult, error) {
 	var out httpResultPayload
-	err := c.callWithin(max(c.Timeout, vault.RequestTimeout), opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body, ContentType: contentType}, &out)
+	err := c.callWithin(max(c.Timeout, restergate.RequestTimeout), opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body, ContentType: contentType}, &out)
 	return out.Result, err
 }
 
-func (c *Client) HTTPChannelInfo(shortID string) (vault.HTTPChannelInfo, error) {
+func (c *Client) HTTPChannelInfo(shortID string) (restergate.HTTPChannelInfo, error) {
 	var out httpChannelInfoPayload
 	err := c.call(opHTTPChannelInfo, shortIDPayload{ShortID: shortID}, &out)
 	return out.Info, err
 }
 
-func (c *Client) HTTPUsers(shortID string) ([]vault.HTTPUserInfo, error) {
+func (c *Client) HTTPUsers(shortID string) ([]restergate.HTTPUserInfo, error) {
 	var out httpUsersPayload
 	err := c.call(opHTTPUsers, shortIDPayload{ShortID: shortID}, &out)
 	return out.Users, err

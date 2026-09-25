@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/faizalv/lemongrass/agent"
-	"github.com/faizalv/lemongrass/vault"
+	"github.com/faizalv/lemongrass/restergate"
 )
 
 const resterUsage = `usage:
@@ -166,7 +166,7 @@ func (c resterCommand) checkBodyFlags() error {
 		return fmt.Errorf("--content-type only goes with --body-file")
 	}
 	if c.contentType != "" {
-		if err := vault.CheckContentType(c.contentType); err != nil {
+		if err := restergate.CheckContentType(c.contentType); err != nil {
 			return fmt.Errorf("--content-type %q is not a valid media type", c.contentType)
 		}
 	}

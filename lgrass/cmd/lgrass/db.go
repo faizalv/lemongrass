@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/faizalv/lemongrass/agent"
-	"github.com/faizalv/lemongrass/vault"
+	"github.com/faizalv/lemongrass/dbgate"
 )
 
 const dbUsageBase = `usage: lgrass db <short-id> --tables <t1,t2|*> --sql "<statement>"
@@ -30,10 +30,10 @@ func dbUsageText() string {
 	b.WriteString(dbUsageBase)
 	for _, e := range []struct {
 		label  string
-		engine vault.Engine
-	}{{"MySQL", vault.EngineMySQL}, {"Postgres", vault.EnginePostgres}} {
-		fmt.Fprintf(&b, "\n%s performance views:\n  %s\n", e.label, strings.Join(vault.PerfViewNames(e.engine), "\n  "))
-		restricted := vault.PerfViewRestrictedColumns(e.engine)
+		engine dbgate.Engine
+	}{{"MySQL", dbgate.EngineMySQL}, {"Postgres", dbgate.EnginePostgres}} {
+		fmt.Fprintf(&b, "\n%s performance views:\n  %s\n", e.label, strings.Join(dbgate.PerfViewNames(e.engine), "\n  "))
+		restricted := dbgate.PerfViewRestrictedColumns(e.engine)
 		names := make([]string, 0, len(restricted))
 		for name := range restricted {
 			names = append(names, name)

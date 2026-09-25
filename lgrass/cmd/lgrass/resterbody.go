@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/faizalv/lemongrass/vault"
+	"github.com/faizalv/lemongrass/restergate"
 )
 
 const (
@@ -64,7 +64,7 @@ func parseFilePart(raw string) (filePart, error) {
 	if i := strings.LastIndex(rest, filePartTypeMarker); i >= 0 {
 		part.path = rest[:i]
 		part.contentType = rest[i+len(filePartTypeMarker):]
-		if err := vault.CheckContentType(part.contentType); err != nil {
+		if err := restergate.CheckContentType(part.contentType); err != nil {
 			return filePart{}, fmt.Errorf("--file %s has an invalid type %q", field, part.contentType)
 		}
 	}
@@ -86,7 +86,7 @@ func fileTypeFor(path string) string {
 }
 
 func requestLimitError(what string, size int64) error {
-	return fmt.Errorf("%s is %d bytes, over the %d MiB request limit", what, size, vault.MaxRequestBodyBytes>>20)
+	return fmt.Errorf("%s is %d bytes, over the %d MiB request limit", what, size, restergate.MaxRequestBodyBytes>>20)
 }
 
 // readRequestFile reads path when it is a regular file within the request size limit.
@@ -98,7 +98,7 @@ func readRequestFile(path string) ([]byte, error) {
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s is not a regular file", path)
 	}
-	if info.Size() > vault.MaxRequestBodyBytes {
+	if info.Size() > restergate.MaxRequestBodyBytes {
 		return nil, requestLimitError(path, info.Size())
 	}
 	b, err := os.ReadFile(path)
@@ -131,7 +131,7 @@ func buildResterBody(cmd resterCommand) ([]byte, string, error) {
 			values.Add(f.name, f.value)
 		}
 		b := []byte(values.Encode())
-		if len(b) > vault.MaxRequestBodyBytes {
+		if len(b) > restergate.MaxRequestBodyBytes {
 			return nil, "", requestLimitError("the form body", int64(len(b)))
 		}
 		return b, formURLEncodedType, nil
@@ -149,7 +149,7 @@ func buildMultipartBody(forms []formField, files []filePart) ([]byte, string, er
 		}
 		total += info.Size()
 	}
-	if total > vault.MaxRequestBodyBytes {
+	if total > restergate.MaxRequestBodyBytes {
 		return nil, "", requestLimitError("the files together", total)
 	}
 
@@ -186,7 +186,7 @@ func buildMultipartBody(forms []formField, files []filePart) ([]byte, string, er
 	if err := w.Close(); err != nil {
 		return nil, "", err
 	}
-	if buf.Len() > vault.MaxRequestBodyBytes {
+	if buf.Len() > restergate.MaxRequestBodyBytes {
 		return nil, "", requestLimitError("the request body", int64(buf.Len()))
 	}
 	return buf.Bytes(), w.FormDataContentType(), nil

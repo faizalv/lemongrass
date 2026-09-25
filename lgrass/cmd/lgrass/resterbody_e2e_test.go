@@ -12,12 +12,13 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/agent"
+	"github.com/faizalv/lemongrass/gatekeeper"
 	"github.com/faizalv/lemongrass/vault"
 )
 
-func startStack(t *testing.T) (*vault.Client, *agent.Client) {
+func startStack(t *testing.T) (*gatekeeper.Client, *agent.Client) {
 	t.Helper()
-	svc, err := vault.NewService(t.TempDir())
+	svc, err := gatekeeper.NewBackend(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,9 +27,9 @@ func startStack(t *testing.T) (*vault.Client, *agent.Client) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go vault.Serve(svc, vl, vault.NewFailureLimiter(1000, time.Minute, time.Hour))
+	go gatekeeper.Serve(svc, vl, vault.NewFailureLimiter(1000, time.Minute, time.Hour))
 	t.Cleanup(func() { vl.Close() })
-	vaultClient := &vault.Client{SocketPath: vaultSock}
+	vaultClient := &gatekeeper.Client{SocketPath: vaultSock}
 
 	agentSock := filepath.Join(t.TempDir(), "agent.sock")
 	al, err := net.Listen("unix", agentSock)

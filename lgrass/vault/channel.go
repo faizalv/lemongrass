@@ -1,4 +1,4 @@
-// Package vault holds credential-vault primitives: channel bookkeeping, key derivation, at-rest encryption, and scope checks.
+// Package vault keeps credentials safe: the encrypted store, key derivation, stored connections and domains, and channel metadata and keys. It executes nothing on a caller's behalf.
 package vault
 
 import (

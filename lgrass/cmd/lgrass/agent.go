@@ -9,6 +9,7 @@ import (
 
 	"github.com/faizalv/lemongrass/agent"
 	"github.com/faizalv/lemongrass/config"
+	"github.com/faizalv/lemongrass/gatekeeper"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -56,7 +57,7 @@ func cmdAgentRun() {
 		os.Exit(1)
 	}
 
-	vaultClient := &vault.Client{SocketPath: vaultSocketPath()}
+	vaultClient := &gatekeeper.Client{SocketPath: vaultSocketPath()}
 	svc := agent.NewService(vaultClient)
 	limiter := vault.NewFailureLimiter(agentQueryMaxFailures, agentQueryWindow, agentQueryLockout)
 

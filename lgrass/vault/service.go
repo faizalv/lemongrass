@@ -1,7 +1,6 @@
 package vault
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +22,7 @@ type Service struct {
 
 	mu         sync.Mutex
 	activeKeys map[ChannelID][]byte
-	dbConns    map[ChannelID]*sql.DB
-	tokens     map[tokenCacheKey]cachedToken
+	onInvalid  []func(ChannelID)
 }
 
 func NewService(dir string) (*Service, error) {
@@ -60,8 +58,6 @@ func NewService(dir string) (*Service, error) {
 		httpMetaDir: httpMetaDir,
 		rootSalt:    rootSalt,
 		activeKeys:  make(map[ChannelID][]byte),
-		dbConns:     make(map[ChannelID]*sql.DB),
-		tokens:      make(map[tokenCacheKey]cachedToken),
 	}, nil
 }
 
@@ -89,7 +85,7 @@ func (s *Service) PutCredential(rootSecret, dbName string, value []byte) error {
 	if err != nil {
 		return err
 	}
-	defer zero(rootKey)
+	defer Zero(rootKey)
 	return s.creds.Put(dbName, rootKey, value)
 }
 
@@ -132,7 +128,7 @@ func (s *Service) SetPassphrase(rootSecret string) error {
 	if err != nil {
 		return err
 	}
-	defer zero(rootKey)
+	defer Zero(rootKey)
 	return s.canary.Put(canaryEntryName, rootKey, []byte(canaryPlaintext))
 }
 
@@ -142,12 +138,12 @@ func (s *Service) VerifyPassphrase(rootSecret string) error {
 	if err != nil {
 		return err
 	}
-	defer zero(rootKey)
+	defer Zero(rootKey)
 	plain, err := s.canary.Get(canaryEntryName, rootKey)
 	if err != nil {
 		return ErrWrongPassphrase
 	}
-	defer zero(plain)
+	defer Zero(plain)
 	if string(plain) != canaryPlaintext {
 		return ErrWrongPassphrase
 	}
@@ -193,67 +189,6 @@ func (s *Service) DeleteConnection(dbName string) error {
 	return s.creds.Delete(dbName)
 }
 
-// TestConnection opens connString directly and pings it, with no root secret involved since the string never touches the credential store.
-func (s *Service) TestConnection(connString string) error {
-	db, err := openDB(connString)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	return pingWithTimeout(db)
-}
-
-// TestConnectionSaved decrypts dbName's stored credential and pings it, to check an
-// already-saved connection still works without creating a channel against it.
-func (s *Service) TestConnectionSaved(rootSecret, dbName string) error {
-	return s.withDecryptedConnection(rootSecret, dbName, func(db *sql.DB, _ Engine) error {
-		return pingWithTimeout(db)
-	})
-}
-
-// ListTables decrypts dbName's stored credential and lists the tables in its database, for
-// the Channels form's table picker.
-func (s *Service) ListTables(rootSecret, dbName string) ([]string, error) {
-	var tables []string
-	err := s.withDecryptedConnection(rootSecret, dbName, func(db *sql.DB, engine Engine) error {
-		found, err := listTables(db, engine)
-		if err != nil {
-			return err
-		}
-		tables = found
-		return nil
-	})
-	return tables, err
-}
-
-// withDecryptedConnection decrypts dbName's credential, opens a connection with it, passes both to fn, and always closes the connection and zeroes the credential before returning.
-func (s *Service) withDecryptedConnection(rootSecret, dbName string, fn func(*sql.DB, Engine) error) error {
-	rootKey, err := DeriveKey(rootSecret, s.rootSalt)
-	if err != nil {
-		return err
-	}
-	defer zero(rootKey)
-
-	connString, err := s.creds.Get(dbName, rootKey)
-	if err != nil {
-		return fmt.Errorf("vault: reading credential for %s: %w", dbName, err)
-	}
-	defer zero(connString)
-
-	engine, err := engineOf(string(connString))
-	if err != nil {
-		return err
-	}
-
-	db, err := openDB(string(connString))
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	return fn(db, engine)
-}
-
 // CreateChannel decrypts dbName's root-encrypted credential once and stores a separately-encrypted copy under a new channel id, wrapped with that channel's own derived key.
 func (s *Service) CreateChannel(rootSecret, name, dbName string, scope Scope, ttl time.Duration) (Channel, error) {
 	if name == "" {
@@ -264,13 +199,13 @@ func (s *Service) CreateChannel(rootSecret, name, dbName string, scope Scope, tt
 	if err != nil {
 		return Channel{}, err
 	}
-	defer zero(rootKey)
+	defer Zero(rootKey)
 
 	plain, err := s.creds.Get(dbName, rootKey)
 	if err != nil {
 		return Channel{}, fmt.Errorf("vault: reading credential for %s: %w", dbName, err)
 	}
-	defer zero(plain)
+	defer Zero(plain)
 
 	id, err := NewChannelID()
 	if err != nil {
@@ -284,20 +219,20 @@ func (s *Service) CreateChannel(rootSecret, name, dbName string, scope Scope, tt
 	if err != nil {
 		return Channel{}, err
 	}
-	locked, err := lockKey(channelKey)
+	locked, err := LockKey(channelKey)
 	if err != nil {
-		zero(channelKey)
+		Zero(channelKey)
 		return Channel{}, err
 	}
 
 	port, err := s.allocatePort()
 	if err != nil {
-		lockedFree(locked)
+		LockedFree(locked)
 		return Channel{}, err
 	}
 
 	if err := s.channels.Put(string(id), locked, plain); err != nil {
-		lockedFree(locked)
+		LockedFree(locked)
 		return Channel{}, fmt.Errorf("vault: wrapping credential for channel %s: %w", id, err)
 	}
 
@@ -313,7 +248,7 @@ func (s *Service) CreateChannel(rootSecret, name, dbName string, scope Scope, tt
 		ExpiresAt: now.Add(ttl),
 	}
 	if err := s.saveMeta(c); err != nil {
-		lockedFree(locked)
+		LockedFree(locked)
 		s.channels.Delete(string(id))
 		return Channel{}, err
 	}
@@ -334,110 +269,30 @@ func (s *Service) Activate(rootSecret string, id ChannelID, ttl time.Duration) (
 	if err != nil {
 		return Channel{}, err
 	}
-	locked, err := lockKey(channelKey)
+	locked, err := LockKey(channelKey)
 	if err != nil {
-		zero(channelKey)
+		Zero(channelKey)
 		return Channel{}, err
 	}
 
 	c.ExpiresAt = time.Now().Add(ttl)
 	if err := s.saveMeta(c); err != nil {
-		lockedFree(locked)
+		LockedFree(locked)
 		return Channel{}, err
 	}
 
 	s.mu.Lock()
 	if old, ok := s.activeKeys[id]; ok {
-		lockedFree(old)
+		LockedFree(old)
 	}
 	s.activeKeys[id] = locked
 	s.mu.Unlock()
 	return c, nil
 }
 
-// Query classifies sqlText and checks it against the channel's scope before the caller's declared tables, since scope is the real security boundary.
-func (s *Service) Query(id ChannelID, declaredTables []string, sqlText string) (QueryResult, error) {
-	c, err := s.loadMeta(id)
-	if err != nil {
-		return QueryResult{}, err
-	}
-	if c.Expired(time.Now()) {
-		s.closeDB(id)
-		s.forgetKey(id)
-		return QueryResult{}, errors.New("vault: this channel has expired. Ask the channel owner to reactivate it or share a fresh channel id.")
-	}
-
-	s.mu.Lock()
-	channelKey, ok := s.activeKeys[id]
-	s.mu.Unlock()
-	if !ok {
-		return QueryResult{}, errors.New("vault: this channel is not active")
-	}
-
-	connString, err := s.channels.Get(string(id), channelKey)
-	if err != nil {
-		return QueryResult{}, err
-	}
-	defer zero(connString)
-
-	engine, err := engineOf(string(connString))
-	if err != nil {
-		return QueryResult{}, err
-	}
-	stmt, err := ClassifyQuery(engine, sqlText)
-	if err != nil {
-		return QueryResult{}, err
-	}
-	if err := c.Scope.AllowStatement(stmt); err != nil {
-		return QueryResult{}, err
-	}
-	if err := checkDeclaredTables(stmt, declaredTables); err != nil {
-		return QueryResult{}, err
-	}
-
-	db, err := s.getDB(id, string(connString))
-	if err != nil {
-		return QueryResult{}, errors.New("vault: the stored connection could not be opened")
-	}
-	result, err := runQuery(db, sqlText)
-	if err != nil {
-		return QueryResult{}, err
-	}
-	if stmt.ListsTables {
-		result = c.Scope.FilterTableList(result)
-	}
-	return result, nil
-}
-
-// getDB returns id's cached *sql.DB, opening and caching one on first use.
-func (s *Service) getDB(id ChannelID, connString string) (*sql.DB, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if db, ok := s.dbConns[id]; ok {
-		return db, nil
-	}
-	db, err := openDB(connString)
-	if err != nil {
-		return nil, err
-	}
-	s.dbConns[id] = db
-	return db, nil
-}
-
-// closeDB closes and evicts id's cached *sql.DB if any, best-effort since a close error here doesn't change the caller's own outcome.
-func (s *Service) closeDB(id ChannelID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if db, ok := s.dbConns[id]; ok {
-		db.Close()
-		delete(s.dbConns, id)
-	}
-}
-
-// Revoke removes a channel's metadata, wrapped credential, cached key, and cached db connection, succeeding even if the channel was never active.
+// Revoke removes a channel's metadata, wrapped credential, cached key, succeeding even if the channel was never active.
 func (s *Service) Revoke(id ChannelID) error {
 	s.forgetKey(id)
-	s.closeDB(id)
 
 	if err := s.channels.Delete(string(id)); err != nil {
 		return err
@@ -449,10 +304,11 @@ func (s *Service) Revoke(id ChannelID) error {
 func (s *Service) forgetKey(id ChannelID) {
 	s.mu.Lock()
 	if key, ok := s.activeKeys[id]; ok {
-		lockedFree(key)
+		LockedFree(key)
 		delete(s.activeKeys, id)
 	}
 	s.mu.Unlock()
+	s.invalidate(id)
 }
 
 // ChannelScope returns a channel's metadata without needing the channel to be active.

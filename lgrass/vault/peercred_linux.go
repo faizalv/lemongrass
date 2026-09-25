@@ -11,10 +11,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// verifyPeerUID checks that conn's connecting process shares this process's UID, via the
+// VerifyPeerUID checks that conn's connecting process shares this process's UID, via the
 // kernel-verified SO_PEERCRED credential on the unix socket -- not just the socket file's own
 // permission bits, which any process able to open the socket would already satisfy.
-func verifyPeerUID(conn net.Conn) error {
+func VerifyPeerUID(conn net.Conn) error {
 	uc, ok := conn.(*net.UnixConn)
 	if !ok {
 		return nil
@@ -29,12 +29,12 @@ func verifyPeerUID(conn net.Conn) error {
 	return nil
 }
 
-// verifyPeerBinary checks that conn's connecting process is running this same lgrass binary,
+// VerifyPeerBinary checks that conn's connecting process is running this same lgrass binary,
 // via /proc/<pid>/exe -- SO_PEERCRED only gives a pid, so the executable path check is a
 // separate step. Scoped to the ops the agent process actually issues (see
 // requiresPeerBinaryCheck in ipc.go); Electron's own binary path isn't fixed yet, so its ops
 // stay at UID-only verification.
-func verifyPeerBinary(conn net.Conn) error {
+func VerifyPeerBinary(conn net.Conn) error {
 	uc, ok := conn.(*net.UnixConn)
 	if !ok {
 		return nil

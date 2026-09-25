@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/faizalv/lemongrass/restergate"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -152,9 +153,9 @@ func TestIPCRequestHTTPOutlivesAgentConnDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldDeadline, oldRequest := connDeadline, vault.RequestTimeout
-	connDeadline, vault.RequestTimeout = 300*time.Millisecond, 5*time.Second
-	t.Cleanup(func() { connDeadline, vault.RequestTimeout = oldDeadline, oldRequest })
+	oldDeadline, oldRequest := connDeadline, restergate.RequestTimeout
+	connDeadline, restergate.RequestTimeout = 300*time.Millisecond, 5*time.Second
+	t.Cleanup(func() { connDeadline, restergate.RequestTimeout = oldDeadline, oldRequest })
 
 	agentClient := startTestAgent(t, vaultClient)
 	shortID, err := agentClient.RegisterChannel(c.ID)

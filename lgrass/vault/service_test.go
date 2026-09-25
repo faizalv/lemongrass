@@ -2,16 +2,13 @@ package vault
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 )
 
 const testRootSecret = "correct horse battery staple"
 
-// unreachableConnString points at a port nothing listens on, on loopback -- connecting to it
-// fails fast with "connection refused" rather than hanging on a timeout, so tests can drive
-// Query all the way to the execution step without a real database or any real network access.
+// unreachableConnString points at a port nothing listens on, on loopback, so it parses as a real connection string without a database behind it.
 const unreachableConnString = "mysql://root:secret@127.0.0.1:1/appdb"
 
 func openTestService(t *testing.T) *Service {
@@ -27,176 +24,112 @@ func fullScope() Scope {
 	return Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
 }
 
-// wantsExecution asserts err is the "reached the database" failure runQuery reports for an
-// unreachable connection -- proof Query got all the way through decrypt/classify/scope before
-// failing, as opposed to failing at one of those earlier steps.
-func wantsExecution(t *testing.T, err error) {
+func newTestChannel(t *testing.T, svc *Service, ttl time.Duration) Channel {
 	t.Helper()
-	if err == nil {
-		t.Fatal("Query against an unreachable database returned nil error")
-	}
-	if !strings.Contains(err.Error(), "vault: executing query") {
-		t.Errorf("Query error = %q, want it to fail at execution, not earlier", err.Error())
-	}
-}
-
-func TestServiceQueryReachesExecutionAfterScopeChecksPass(t *testing.T) {
-	svc := openTestService(t)
 	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
 		t.Fatalf("PutCredential: %v", err)
 	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), ttl)
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
-
-	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
-	wantsExecution(t, err)
+	return c
 }
 
-func TestServiceQueryDeniesOutOfScopeTable(t *testing.T) {
+func TestServiceOpenChannelReturnsDecryptedSecret(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
+	c := newTestChannel(t, svc, 5*time.Minute)
 
-	_, err = svc.Query(c.ID, []string{"salaries"}, "SELECT id FROM salaries")
-	var violation *ErrScopeViolation
-	if !errors.As(err, &violation) {
-		t.Errorf("Query on an out-of-scope table: got %v, want ErrScopeViolation", err)
+	got, secret, err := svc.OpenChannel(c.ID)
+	if err != nil {
+		t.Fatalf("OpenChannel: %v", err)
+	}
+	if string(secret) != unreachableConnString {
+		t.Errorf("OpenChannel secret = %q, want the stored connection string", secret)
+	}
+	if got.DBName != "app-backend" {
+		t.Errorf("OpenChannel.DBName = %q, want app-backend", got.DBName)
 	}
 }
 
-func TestServiceQueryDeniesDeclaredTableMismatch(t *testing.T) {
+func TestServiceOpenChannelFailsAfterExpiry(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	scope := Scope{Tables: []string{"employees", "salaries"}, Operations: []string{"select"}}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", scope, 5*time.Minute)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
+	c := newTestChannel(t, svc, -1*time.Second)
 
-	// Scope grants both tables, so a declared list missing "salaries" exercises the declared-tables check alone, not a scope denial.
-	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT e.id FROM employees e JOIN salaries s ON s.employee_id = e.id")
-	var mismatch *ErrTableMismatch
-	if !errors.As(err, &mismatch) {
-		t.Errorf("Query with a mismatched declared table list: got %v, want ErrTableMismatch", err)
+	if _, _, err := svc.OpenChannel(c.ID); !errors.Is(err, ErrChannelExpired) {
+		t.Errorf("OpenChannel on an expired channel: got %v, want ErrChannelExpired", err)
 	}
 }
 
-func TestServiceQueryDeniesIntrospectWithoutShowGranted(t *testing.T) {
+func TestServiceOpenChannelFailsAfterRevoke(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
-
-	_, err = svc.Query(c.ID, []string{"*"}, "SHOW TABLES")
-	var violation *ErrScopeViolation
-	if !errors.As(err, &violation) {
-		t.Errorf("Query for SHOW without show granted: got %v, want ErrScopeViolation", err)
-	}
-}
-
-func TestServiceQueryRejectsWriteStatement(t *testing.T) {
-	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
-
-	if _, err := svc.Query(c.ID, []string{"employees"}, "DELETE FROM employees"); err == nil {
-		t.Error("Query with a write statement returned nil error")
-	}
-}
-
-func TestServiceQueryFailsAfterExpiry(t *testing.T) {
-	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), -1*time.Second)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
-
-	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
-		t.Error("Query on an already-expired channel returned nil error")
-	}
-}
-
-func TestServiceQueryFailsAfterRevoke(t *testing.T) {
-	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
+	c := newTestChannel(t, svc, 5*time.Minute)
 	if err := svc.Revoke(c.ID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
 
-	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("Query after Revoke: got %v, want ErrNotFound", err)
+	if _, _, err := svc.OpenChannel(c.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("OpenChannel after Revoke: got %v, want ErrNotFound", err)
 	}
 }
 
-func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
+func TestServiceOpenChannelFailsWhenNeverActivated(t *testing.T) {
 	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), -1*time.Second)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
-	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
-		t.Fatal("expected the freshly-created channel to already be expired")
-	}
-
-	// Deleting the base credential proves Activate never touches it again -- only the already-wrapped per-channel copy.
-	if err := svc.creds.Delete("app-backend"); err != nil {
-		t.Fatalf("deleting base credential: %v", err)
-	}
-
-	if _, err := svc.Activate(testRootSecret, c.ID, 5*time.Minute); err != nil {
-		t.Fatalf("Activate: %v", err)
-	}
-	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
-	wantsExecution(t, err)
-}
-
-func TestServiceQueryFailsWhenNeverActivated(t *testing.T) {
-	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte("creds")); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend", fullScope(), 5*time.Minute)
-	if err != nil {
-		t.Fatalf("CreateChannel: %v", err)
-	}
+	c := newTestChannel(t, svc, 5*time.Minute)
 
 	// Simulate a vault restart: metadata and the wrapped copy persist on disk, but the in-memory key cache is gone.
 	svc.mu.Lock()
 	delete(svc.activeKeys, c.ID)
 	svc.mu.Unlock()
 
-	if _, err := svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
-		t.Error("Query on a channel with no cached key returned nil error")
+	if _, _, err := svc.OpenChannel(c.ID); !errors.Is(err, ErrChannelInactive) {
+		t.Errorf("OpenChannel with no cached key: got %v, want ErrChannelInactive", err)
+	}
+}
+
+func TestServiceActivateReusesWrappedCopyWithoutRootCredential(t *testing.T) {
+	svc := openTestService(t)
+	c := newTestChannel(t, svc, -1*time.Second)
+	if _, _, err := svc.OpenChannel(c.ID); err == nil {
+		t.Fatal("expected the freshly-created channel to already be expired")
+	}
+
+	// Deleting the base credential proves Activate never touches it again, only the already-wrapped per-channel copy.
+	if err := svc.DeleteConnection("app-backend"); err != nil {
+		t.Fatalf("deleting base credential: %v", err)
+	}
+
+	if _, err := svc.Activate(testRootSecret, c.ID, 5*time.Minute); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+	_, secret, err := svc.OpenChannel(c.ID)
+	if err != nil {
+		t.Fatalf("OpenChannel after Activate: %v", err)
+	}
+	if string(secret) != unreachableConnString {
+		t.Errorf("OpenChannel secret = %q, want the wrapped copy's connection string", secret)
+	}
+}
+
+func TestServiceInvalidateHooksRunOnRevokeAndExpiry(t *testing.T) {
+	svc := openTestService(t)
+	var got []ChannelID
+	svc.OnInvalidate(func(id ChannelID) { got = append(got, id) })
+
+	revoked := newTestChannel(t, svc, 5*time.Minute)
+	if err := svc.Revoke(revoked.ID); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	expired, err := svc.CreateChannel(testRootSecret, "expired-channel", "app-backend", fullScope(), -1*time.Second)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+	if _, _, err := svc.OpenChannel(expired.ID); !errors.Is(err, ErrChannelExpired) {
+		t.Fatalf("OpenChannel on an expired channel: got %v, want ErrChannelExpired", err)
+	}
+
+	if len(got) != 2 || got[0] != revoked.ID || got[1] != expired.ID {
+		t.Errorf("invalidated channels = %v, want [%s %s]", got, revoked.ID, expired.ID)
 	}
 }
 
@@ -230,39 +163,6 @@ func TestServiceChannelScopeReadableWithoutActivation(t *testing.T) {
 	}
 	if got.DBName != "app-backend" {
 		t.Errorf("ChannelScope.DBName = %q, want app-backend", got.DBName)
-	}
-}
-
-// wantsListingTables asserts err is the "reached the query" failure listTables reports for an
-// unreachable connection -- proof ListTables got past decrypt/open before failing.
-func wantsListingTables(t *testing.T, err error) {
-	t.Helper()
-	if err == nil {
-		t.Fatal("ListTables against an unreachable database returned nil error")
-	}
-	if !strings.Contains(err.Error(), "vault: listing tables") {
-		t.Errorf("ListTables error = %q, want it to fail at the listing query, not earlier", err.Error())
-	}
-}
-
-func TestServiceListTablesReachesQueryAfterDecrypt(t *testing.T) {
-	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-
-	_, err := svc.ListTables(testRootSecret, "app-backend")
-	wantsListingTables(t, err)
-}
-
-func TestServiceListTablesWrongRootSecretFails(t *testing.T) {
-	svc := openTestService(t)
-	if err := svc.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
-		t.Fatalf("PutCredential: %v", err)
-	}
-
-	if _, err := svc.ListTables("wrong passphrase", "app-backend"); err == nil {
-		t.Error("ListTables with the wrong root secret returned nil error")
 	}
 }
 

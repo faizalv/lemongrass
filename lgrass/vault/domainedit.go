@@ -14,7 +14,7 @@ func (s *Service) GetDomain(rootSecret, name string) (Domain, error) {
 }
 
 // UpdateDomain replaces the stored domain name with d, then re-wraps d for every HTTP channel
-// minted from that domain, active or not, and drops their cached tokens so the next call logs
+// minted from that domain, active or not, and invalidates their cached state so the next call logs
 // in with the new config. The existing domain is decrypted first, which fails on a wrong
 // passphrase or an unknown name before anything is written. A channel that cannot be rewritten
 // is named in the returned error; saving the same edit again retries it.
@@ -30,7 +30,7 @@ func (s *Service) UpdateDomain(rootSecret, name string, d Domain) error {
 	if err != nil {
 		return fmt.Errorf("vault: encoding domain %s: %w", name, err)
 	}
-	defer zero(plain)
+	defer Zero(plain)
 
 	channels, err := s.ListHTTPChannels()
 	if err != nil {
@@ -45,7 +45,7 @@ func (s *Service) UpdateDomain(rootSecret, name string, d Domain) error {
 			failed = append(failed, fmt.Sprintf("%s (%v)", c.ID, err))
 			continue
 		}
-		s.forgetTokens(c.ID)
+		s.invalidate(c.ID)
 	}
 	if len(failed) > 0 {
 		return errors.New("vault: domain " + name + " saved, but these channels still hold the old config, save again to retry: " + strings.Join(failed, "; "))
@@ -58,6 +58,6 @@ func (s *Service) rewrapHTTPChannel(rootSecret string, c HTTPChannel, plain []by
 	if err != nil {
 		return err
 	}
-	defer zero(key)
+	defer Zero(key)
 	return s.channels.Put(string(c.ID), key, plain)
 }

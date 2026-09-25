@@ -25,7 +25,7 @@ func (s *Service) CreateHTTPChannel(rootSecret, name, domainName string, scope H
 	if err != nil {
 		return HTTPChannel{}, fmt.Errorf("vault: encoding domain %s: %w", domainName, err)
 	}
-	defer zero(plain)
+	defer Zero(plain)
 
 	id, err := NewChannelID()
 	if err != nil {
@@ -39,14 +39,14 @@ func (s *Service) CreateHTTPChannel(rootSecret, name, domainName string, scope H
 	if err != nil {
 		return HTTPChannel{}, err
 	}
-	locked, err := lockKey(channelKey)
+	locked, err := LockKey(channelKey)
 	if err != nil {
-		zero(channelKey)
+		Zero(channelKey)
 		return HTTPChannel{}, err
 	}
 
 	if err := s.channels.Put(string(id), locked, plain); err != nil {
-		lockedFree(locked)
+		LockedFree(locked)
 		return HTTPChannel{}, fmt.Errorf("vault: wrapping domain for channel %s: %w", id, err)
 	}
 
@@ -61,7 +61,7 @@ func (s *Service) CreateHTTPChannel(rootSecret, name, domainName string, scope H
 		ExpiresAt: now.Add(ttl),
 	}
 	if err := s.saveHTTPMeta(c); err != nil {
-		lockedFree(locked)
+		LockedFree(locked)
 		s.channels.Delete(string(id))
 		return HTTPChannel{}, err
 	}
@@ -83,32 +83,31 @@ func (s *Service) ActivateHTTP(rootSecret string, id ChannelID, ttl time.Duratio
 	if err != nil {
 		return HTTPChannel{}, err
 	}
-	locked, err := lockKey(channelKey)
+	locked, err := LockKey(channelKey)
 	if err != nil {
-		zero(channelKey)
+		Zero(channelKey)
 		return HTTPChannel{}, err
 	}
 
 	c.ExpiresAt = time.Now().Add(ttl)
 	if err := s.saveHTTPMeta(c); err != nil {
-		lockedFree(locked)
+		LockedFree(locked)
 		return HTTPChannel{}, err
 	}
 
 	s.mu.Lock()
 	if old, ok := s.activeKeys[id]; ok {
-		lockedFree(old)
+		LockedFree(old)
 	}
 	s.activeKeys[id] = locked
 	s.mu.Unlock()
 	return c, nil
 }
 
-// RevokeHTTP removes an HTTP channel's metadata, wrapped domain config, cached key, and cached
-// tokens, succeeding even if the channel was never active.
+// RevokeHTTP removes an HTTP channel's metadata, wrapped domain config, and cached key,
+// succeeding even if the channel was never active.
 func (s *Service) RevokeHTTP(id ChannelID) error {
 	s.forgetKey(id)
-	s.forgetTokens(id)
 
 	if err := s.channels.Delete(string(id)); err != nil {
 		return err

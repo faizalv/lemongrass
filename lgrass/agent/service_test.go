@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/faizalv/lemongrass/gatekeeper"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -23,9 +24,9 @@ func fullScope() vault.Scope {
 }
 
 // startTestVault brings up a real vault daemon over its own unix socket.
-func startTestVault(t *testing.T) *vault.Client {
+func startTestVault(t *testing.T) *gatekeeper.Client {
 	t.Helper()
-	svc, err := vault.NewService(t.TempDir())
+	svc, err := gatekeeper.NewBackend(t.TempDir())
 	if err != nil {
 		t.Fatalf("vault.NewService: %v", err)
 	}
@@ -35,9 +36,9 @@ func startTestVault(t *testing.T) *vault.Client {
 		t.Fatalf("net.Listen: %v", err)
 	}
 	limiter := vault.NewFailureLimiter(1000, time.Minute, time.Hour)
-	go vault.Serve(svc, l, limiter)
+	go gatekeeper.Serve(svc, l, limiter)
 	t.Cleanup(func() { l.Close() })
-	return &vault.Client{SocketPath: sockPath}
+	return &gatekeeper.Client{SocketPath: sockPath}
 }
 
 // wantsExecution asserts err is the "reached the database" failure the vault reports for an
@@ -48,7 +49,7 @@ func wantsExecution(t *testing.T, err error) {
 	if err == nil {
 		t.Fatal("Query against an unreachable database returned nil error")
 	}
-	if !strings.Contains(err.Error(), "vault: executing query") {
+	if !strings.Contains(err.Error(), "dbgate: executing query") {
 		t.Errorf("Query error = %q, want it to fail at execution, not earlier", err.Error())
 	}
 }

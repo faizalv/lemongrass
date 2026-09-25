@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/faizalv/lemongrass/gatekeeper"
 	"github.com/faizalv/lemongrass/vault"
 )
 
-func startTestAgent(t *testing.T, vaultClient *vault.Client) *Client {
+func startTestAgent(t *testing.T, vaultClient *gatekeeper.Client) *Client {
 	t.Helper()
 	svc := NewService(vaultClient)
 	sockPath := filepath.Join(t.TempDir(), "agent.sock")

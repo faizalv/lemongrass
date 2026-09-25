@@ -13,42 +13,35 @@ func (s *Service) GetConnection(rootSecret, dbName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer zero(rootKey)
+	defer Zero(rootKey)
 
 	b, err := s.creds.Get(dbName, rootKey)
 	if err != nil {
 		return "", fmt.Errorf("vault: reading credential for %s: %w", dbName, err)
 	}
-	defer zero(b)
+	defer Zero(b)
 	return string(b), nil
 }
 
-// UpdateConnection replaces the stored connection string dbName with connString, then re-wraps
-// it for every db channel minted from that connection, active or not, and closes their cached
-// database handles so the next query connects with the new value. The existing credential is
+// ReplaceConnection stores connString as dbName after check accepts the existing value, then
+// re-wraps it for every db channel minted from that connection, active or not, and invalidates
+// their cached state so the next query connects with the new value. The existing credential is
 // decrypted first, which fails on a wrong passphrase or an unknown name before anything is
-// written, and the engine cannot change because a channel's scope was built against it. A
-// channel that cannot be rewritten is named in the returned error; saving the same edit again
-// retries.
-func (s *Service) UpdateConnection(rootSecret, dbName, connString string) error {
+// written. A channel that cannot be rewritten is named in the returned error; saving the same
+// edit again retries.
+func (s *Service) ReplaceConnection(rootSecret, dbName, connString string, check func(old string) error) error {
 	old, err := s.GetConnection(rootSecret, dbName)
 	if err != nil {
 		return err
 	}
-	oldEngine, err := engineOf(old)
-	if err != nil {
-		return err
-	}
-	newEngine, err := engineOf(connString)
-	if err != nil {
-		return err
-	}
-	if oldEngine != newEngine {
-		return fmt.Errorf("vault: connection %s is a %s connection, the engine cannot change", dbName, oldEngine)
+	if check != nil {
+		if err := check(old); err != nil {
+			return err
+		}
 	}
 
 	plain := []byte(connString)
-	defer zero(plain)
+	defer Zero(plain)
 	if err := s.PutCredential(rootSecret, dbName, plain); err != nil {
 		return err
 	}
@@ -66,7 +59,7 @@ func (s *Service) UpdateConnection(rootSecret, dbName, connString string) error 
 			failed = append(failed, fmt.Sprintf("%s (%v)", c.ID, err))
 			continue
 		}
-		s.closeDB(c.ID)
+		s.invalidate(c.ID)
 	}
 	if len(failed) > 0 {
 		return errors.New("vault: connection " + dbName + " saved, but these channels still hold the old credential, save again to retry: " + strings.Join(failed, "; "))
@@ -79,6 +72,6 @@ func (s *Service) rewrapChannel(rootSecret string, c Channel, plain []byte) erro
 	if err != nil {
 		return err
 	}
-	defer zero(key)
+	defer Zero(key)
 	return s.channels.Put(string(c.ID), key, plain)
 }

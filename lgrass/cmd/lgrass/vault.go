@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/config"
+	"github.com/faizalv/lemongrass/gatekeeper"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -57,7 +58,7 @@ func cmdVaultRun() {
 		os.Exit(1)
 	}
 
-	svc, err := vault.NewService(filepath.Join(config.Dir(), "vault"))
+	svc, err := gatekeeper.NewBackend(filepath.Join(config.Dir(), "vault"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -65,7 +66,7 @@ func cmdVaultRun() {
 	limiter := vault.NewFailureLimiter(vaultAdminMaxFailures, vaultAdminWindow, vaultAdminLockout)
 
 	fmt.Printf("lgrass vault: listening on %s\n", sockPath)
-	if err := vault.Serve(svc, l, limiter); err != nil {
+	if err := gatekeeper.Serve(svc, l, limiter); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

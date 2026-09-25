@@ -8,9 +8,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// lockKey copies b into a locked, anonymous memory mapping the OS will never write to swap,
+// LockKey copies b into a locked, anonymous memory mapping the OS will never write to swap,
 // then zeroes b. The caller must release the result with lockedFree once it's no longer needed.
-func lockKey(b []byte) ([]byte, error) {
+func LockKey(b []byte) ([]byte, error) {
 	if len(b) == 0 {
 		return nil, nil
 	}
@@ -25,16 +25,16 @@ func lockKey(b []byte) ([]byte, error) {
 	// Best-effort: excludes the page from core dumps too. Not fatal if the kernel doesn't support it.
 	unix.Madvise(locked, unix.MADV_DONTDUMP)
 	copy(locked, b)
-	zero(b)
+	Zero(b)
 	return locked, nil
 }
 
-// lockedFree zeroes and releases memory returned by lockKey.
-func lockedFree(b []byte) {
+// LockedFree zeroes and releases memory returned by LockKey.
+func LockedFree(b []byte) {
 	if len(b) == 0 {
 		return
 	}
-	zero(b)
+	Zero(b)
 	unix.Munlock(b)
 	unix.Munmap(b)
 }

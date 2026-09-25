@@ -7,20 +7,23 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/faizalv/lemongrass/dbgate"
+	"github.com/faizalv/lemongrass/gatekeeper"
+	"github.com/faizalv/lemongrass/restergate"
 	"github.com/faizalv/lemongrass/vault"
 )
 
 var ErrNoSuchChannel = errors.New("agent: no such channel")
 
-// Service holds a vault.Client and the short-id-to-real-channel-id mapping, never a root secret or credential material.
+// Service holds a gatekeeper.Client and the short-id-to-real-channel-id mapping, never a root secret or credential material.
 type Service struct {
-	vaultClient *vault.Client
+	vaultClient *gatekeeper.Client
 
 	mu   sync.Mutex
 	byID map[string]vault.ChannelID
 }
 
-func NewService(vaultClient *vault.Client) *Service {
+func NewService(vaultClient *gatekeeper.Client) *Service {
 	return &Service{
 		vaultClient: vaultClient,
 		byID:        make(map[string]vault.ChannelID),
@@ -52,10 +55,10 @@ func (s *Service) RegisterChannel(realID vault.ChannelID) (string, error) {
 }
 
 // Query resolves shortID to its real vault channel and forwards the query, returning the same error for an unregistered, forgotten, or mistyped id.
-func (s *Service) Query(shortID string, declaredTables []string, sqlText string) (vault.QueryResult, error) {
+func (s *Service) Query(shortID string, declaredTables []string, sqlText string) (dbgate.QueryResult, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
-		return vault.QueryResult{}, ErrNoSuchChannel
+		return dbgate.QueryResult{}, ErrNoSuchChannel
 	}
 	result, err := s.vaultClient.Query(realID, declaredTables, sqlText)
 	return result, redactID(err, realID, shortID)
@@ -63,10 +66,10 @@ func (s *Service) Query(shortID string, declaredTables []string, sqlText string)
 
 // RequestHTTP resolves shortID to its real vault channel and forwards the HTTP request,
 // returning the same error for an unregistered, forgotten, or mistyped id.
-func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte, contentType string) (vault.HTTPResult, error) {
+func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte, contentType string) (restergate.HTTPResult, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
-		return vault.HTTPResult{}, ErrNoSuchChannel
+		return restergate.HTTPResult{}, ErrNoSuchChannel
 	}
 	result, err := s.vaultClient.RequestHTTP(realID, user, method, path, body, contentType)
 	return result, redactID(err, realID, shortID)
@@ -74,10 +77,10 @@ func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte, c
 
 // HTTPChannelInfo resolves shortID to its real vault channel and returns its model-facing
 // summary, returning the same error for an unregistered, forgotten, or mistyped id.
-func (s *Service) HTTPChannelInfo(shortID string) (vault.HTTPChannelInfo, error) {
+func (s *Service) HTTPChannelInfo(shortID string) (restergate.HTTPChannelInfo, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
-		return vault.HTTPChannelInfo{}, ErrNoSuchChannel
+		return restergate.HTTPChannelInfo{}, ErrNoSuchChannel
 	}
 	info, err := s.vaultClient.HTTPChannelInfo(realID)
 	return info, redactID(err, realID, shortID)
@@ -85,7 +88,7 @@ func (s *Service) HTTPChannelInfo(shortID string) (vault.HTTPChannelInfo, error)
 
 // HTTPUsers resolves shortID to its real vault channel and lists its domain's users with their
 // tags, returning the same error for an unregistered, forgotten, or mistyped id.
-func (s *Service) HTTPUsers(shortID string) ([]vault.HTTPUserInfo, error) {
+func (s *Service) HTTPUsers(shortID string) ([]restergate.HTTPUserInfo, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
 		return nil, ErrNoSuchChannel

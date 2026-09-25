@@ -4,12 +4,12 @@ package vault
 
 import "net"
 
-// verifyPeerUID is a no-op on platforms without SO_PEERCRED.
-func verifyPeerUID(conn net.Conn) error {
+// VerifyPeerUID is a no-op on platforms without SO_PEERCRED.
+func VerifyPeerUID(conn net.Conn) error {
 	return nil
 }
 
-// verifyPeerBinary is a no-op on platforms without SO_PEERCRED.
-func verifyPeerBinary(conn net.Conn) error {
+// VerifyPeerBinary is a no-op on platforms without SO_PEERCRED.
+func VerifyPeerBinary(conn net.Conn) error {
 	return nil
 }

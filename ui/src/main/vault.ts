@@ -17,7 +17,7 @@ interface RPCResponse<T> {
   payload?: T
 }
 
-// One request per connection, mirroring the Go side (vault/ipc.go, agent/ipc.go): write one
+// One request per connection, mirroring the Go side (gatekeeper/ipc.go, agent/ipc.go): write one
 // JSON line, then read until the peer closes -- both daemons answer exactly once per connection.
 function connectOnce<T>(socketPath: string, op: string, payload?: unknown): Promise<T> {
   return new Promise((resolve, reject) => {

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/faizalv/lemongrass/restergate"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -104,7 +105,7 @@ func TestServiceHTTPChannelInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HTTPChannelInfo: %v", err)
 	}
-	if info.BaseURL != srv.URL || info.Status != vault.HTTPStatusActive || len(info.Users) != 1 {
+	if info.BaseURL != srv.URL || info.Status != restergate.HTTPStatusActive || len(info.Users) != 1 {
 		t.Errorf("info = %+v, want an active channel on %s with one user", info, srv.URL)
 	}
 

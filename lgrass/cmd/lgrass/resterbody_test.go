@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/faizalv/lemongrass/vault"
+	"github.com/faizalv/lemongrass/restergate"
 )
 
 const xlsxMIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -157,7 +157,7 @@ func TestBuildResterBodyRefusesUnreadableAndOversizeFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := f.Truncate(vault.MaxRequestBodyBytes + 1); err != nil {
+	if err := f.Truncate(restergate.MaxRequestBodyBytes + 1); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()
