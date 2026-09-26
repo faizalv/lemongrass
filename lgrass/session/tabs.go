@@ -93,3 +93,22 @@ func (s *Store) ForgetTab(tabID string) error {
 	_, err := s.db.Exec(`DELETE FROM lg_tabs WHERE project_id = ? AND tab_id = ?`, s.projectID, tabID)
 	return err
 }
+
+// Maps tab id to vendor for every registered tab in this project.
+func (s *Store) TabVendors() (map[string]string, error) {
+	rows, err := s.db.Query(`SELECT tab_id, vendor FROM lg_tabs WHERE project_id = ?`, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]string{}
+	for rows.Next() {
+		var tabID, vendor string
+		if err := rows.Scan(&tabID, &vendor); err != nil {
+			return nil, err
+		}
+		out[tabID] = vendor
+	}
+	return out, rows.Err()
+}

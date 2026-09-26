@@ -47,11 +47,25 @@ func cmdSessionList(args []string) {
 		fmt.Println("lgrass: no other sessions open in this project.")
 		return
 	}
+	tabBySession := map[string]string{}
+	if tabs, err := store.TabSessions(); err == nil {
+		for tab, sessionID := range tabs {
+			tabBySession[sessionID] = tab
+		}
+	}
+	vendors, _ := store.TabVendors()
 	for _, s := range liveness {
 		status := "idling"
 		if s.Active {
 			status = "active"
 		}
-		fmt.Printf("%s  %s\n", s.SessionID, status)
+		line := fmt.Sprintf("%s  %s", s.SessionID, status)
+		if tab := tabBySession[s.SessionID]; tab != "" {
+			line += fmt.Sprintf("  tab %s", tab)
+			if vendor := vendors[tab]; vendor != "" {
+				line += "  " + vendor
+			}
+		}
+		fmt.Println(line)
 	}
 }

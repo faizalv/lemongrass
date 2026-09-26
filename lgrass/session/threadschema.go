@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS lg_messages (
 	created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_lg_messages_thread ON lg_messages(thread_id, id);
+CREATE TABLE IF NOT EXISTS lg_message_mentions (
+	message_id INTEGER NOT NULL,
+	tab_id TEXT NOT NULL,
+	PRIMARY KEY (message_id, tab_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lg_message_mentions_tab ON lg_message_mentions(tab_id);
 CREATE TABLE IF NOT EXISTS lg_groups (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	project_id TEXT NOT NULL,

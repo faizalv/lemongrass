@@ -25,6 +25,8 @@ func main() {
 		cmdInit()
 	case "hook":
 		cmdHook(os.Args[2:])
+	case "thread":
+		cmdThread(os.Args[2:])
 	case "session":
 		cmdSession(os.Args[2:])
 	case "vault":
@@ -76,6 +78,16 @@ COMMANDS
 
   hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
 
+  thread create "<title>" "<content>"
+                                     Opens a thread with content as its first message and prints its id;
+                                     content may be - for stdin or --file <path>, capped at 2000 characters
+  thread post <thread-id> "<content>"
+                                     Adds a message; !>>tab-id<<! in content mentions a tab by id or by
+                                     a unique prefix of at least 8 characters
+  thread read <thread-id> [--before <message-id>] [--limit N]
+                                     Reads a thread newest first, 10 messages a page
+  thread list [--limit N]           Threads in this project, most recently active first
+
   tips add "<message>"              Add a project-local custom tip, surfaced alongside the
                                      built-in ones on the periodic PostToolUse nudge
   tips list                         List this project's custom tips, with their ids
@@ -88,7 +100,7 @@ COMMANDS
   rules list
   rules add ...                     Human/UI-driven, not a model-facing write path
 
-  session list                      Other live sessions in this project, with active/idling state
+  session list                      Other live sessions in this project, with active/idling state, tab id and vendor
   session tabs list                 Tab id to session id map for this project, as JSON
   session tabs register <tab-id> <vendor>
                                      Electron-driven, records the agent vendor a tab runs
