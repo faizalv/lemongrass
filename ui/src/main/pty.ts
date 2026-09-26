@@ -2,6 +2,7 @@ import { ipcMain, WebContents } from 'electron'
 import { homedir } from 'os'
 import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
+import { registerTab } from './tabSessions'
 
 // Every shell spawns an agent binary directly, never a login shell. Codex
 // receives repeated Ctrl+C during a graceful tab or app shutdown, so it can
@@ -46,6 +47,7 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
   ipcMain.handle('pty:spawn', async (_event, opts: SpawnOptions) => {
     const id = randomUUID()
     const args = opts.args ?? []
+    if (opts.tabId && opts.cwd) await registerTab(opts.cwd, opts.tabId, opts.command)
     const proc = pty.spawn(opts.command, args, {
       name: 'xterm-256color',
       cols: opts.cols ?? 80,

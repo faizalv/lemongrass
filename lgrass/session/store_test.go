@@ -215,101 +215,6 @@ func TestIncrementNudgeCounterFiresAtThresholdThenResets(t *testing.T) {
 	}
 }
 
-func TestPostThreadMessageAndRecentThreadMessages(t *testing.T) {
-	store := openTestStore(t)
-
-	if _, err := store.PostThreadMessage("session-a", "first", ""); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-	if _, err := store.PostThreadMessage("session-b", "second", "session-a"); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-
-	msgs, err := store.RecentThreadMessages(10)
-	if err != nil {
-		t.Fatalf("RecentThreadMessages: %v", err)
-	}
-	if len(msgs) != 2 {
-		t.Fatalf("len(msgs) = %d, want 2", len(msgs))
-	}
-	// Newest first.
-	if msgs[0].Body != "second" || msgs[0].Mention != "session-a" {
-		t.Errorf("msgs[0] = %+v, want the second, mentioning session-a", msgs[0])
-	}
-	if msgs[1].Body != "first" {
-		t.Errorf("msgs[1] = %+v, want the first message", msgs[1])
-	}
-}
-
-func TestRecentThreadMessagesRespectsLimit(t *testing.T) {
-	store := openTestStore(t)
-	for i := 0; i < 5; i++ {
-		if _, err := store.PostThreadMessage("session-a", "msg", ""); err != nil {
-			t.Fatalf("PostThreadMessage: %v", err)
-		}
-	}
-	msgs, err := store.RecentThreadMessages(2)
-	if err != nil {
-		t.Fatalf("RecentThreadMessages: %v", err)
-	}
-	if len(msgs) != 2 {
-		t.Fatalf("len(msgs) = %d, want 2 (limit)", len(msgs))
-	}
-}
-
-func TestUnreadMentionsOnlyReturnsUnreadMentionsAddressedToSelf(t *testing.T) {
-	store := openTestStore(t)
-	if err := store.Start("session-a", "", ""); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-
-	if _, err := store.PostThreadMessage("session-b", "not a mention", ""); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-	if _, err := store.PostThreadMessage("session-b", "mentions someone else", "session-c"); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-	if _, err := store.PostThreadMessage("session-b", "mentions session-a", "session-a"); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-
-	msgs, err := store.UnreadMentions("session-a")
-	if err != nil {
-		t.Fatalf("UnreadMentions: %v", err)
-	}
-	if len(msgs) != 1 || msgs[0].Body != "mentions session-a" {
-		t.Fatalf("UnreadMentions = %+v, want exactly the one message mentioning session-a", msgs)
-	}
-
-	if err := store.MarkThreadRead("session-a"); err != nil {
-		t.Fatalf("MarkThreadRead: %v", err)
-	}
-	msgs, err = store.UnreadMentions("session-a")
-	if err != nil {
-		t.Fatalf("UnreadMentions after mark-read: %v", err)
-	}
-	if len(msgs) != 0 {
-		t.Fatalf("UnreadMentions after mark-read = %+v, want none (already surfaced once)", msgs)
-	}
-}
-
-func TestUnreadMentionsExcludesSelfMention(t *testing.T) {
-	store := openTestStore(t)
-	if err := store.Start("session-a", "", ""); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	if _, err := store.PostThreadMessage("session-a", "mentioning myself", "session-a"); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-	msgs, err := store.UnreadMentions("session-a")
-	if err != nil {
-		t.Fatalf("UnreadMentions: %v", err)
-	}
-	if len(msgs) != 0 {
-		t.Fatalf("UnreadMentions = %+v, want none (a session's own post never surfaces to itself)", msgs)
-	}
-}
-
 func TestLiveMessagingTargetsExcludesSelfEndedAndSocketless(t *testing.T) {
 	store := openTestStore(t)
 	if err := store.Start("session-a", "/tmp/a.sock", "token-a"); err != nil {
@@ -334,44 +239,6 @@ func TestLiveMessagingTargetsExcludesSelfEndedAndSocketless(t *testing.T) {
 	}
 	if len(targets) != 1 || targets[0].SessionID != "session-b" || targets[0].Socket != "/tmp/b.sock" || targets[0].Token != "token-b" {
 		t.Fatalf("targets = %+v, want exactly session-b (a is self, c has no socket, d has ended)", targets)
-	}
-}
-
-func TestLatestThreadMessageIDEmptyIsZero(t *testing.T) {
-	store := openTestStore(t)
-	id, err := store.LatestThreadMessageID()
-	if err != nil {
-		t.Fatalf("LatestThreadMessageID: %v", err)
-	}
-	if id != 0 {
-		t.Errorf("LatestThreadMessageID on an empty project = %d, want 0", id)
-	}
-}
-
-func TestNewThreadMessagesAfterOnlyReturnsLaterMessages(t *testing.T) {
-	store := openTestStore(t)
-
-	if _, err := store.PostThreadMessage("session-a", "before listening started", ""); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-	cursor, err := store.LatestThreadMessageID()
-	if err != nil {
-		t.Fatalf("LatestThreadMessageID: %v", err)
-	}
-
-	if _, err := store.PostThreadMessage("session-b", "first new", ""); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-	if _, err := store.PostThreadMessage("session-c", "second new", ""); err != nil {
-		t.Fatalf("PostThreadMessage: %v", err)
-	}
-
-	msgs, err := store.NewThreadMessagesAfter(cursor)
-	if err != nil {
-		t.Fatalf("NewThreadMessagesAfter: %v", err)
-	}
-	if len(msgs) != 2 || msgs[0].Body != "first new" || msgs[1].Body != "second new" {
-		t.Fatalf("NewThreadMessagesAfter = %+v, want the two later messages in order, not the earlier one", msgs)
 	}
 }
 
@@ -407,95 +274,6 @@ func TestEnsureOpenPreservesExistingSignature(t *testing.T) {
 	}
 	if signedAt.IsZero() {
 		t.Error("EnsureOpen cleared the existing signature")
-	}
-}
-
-func TestBeginParticipantAssignsSuffixOnCollision(t *testing.T) {
-	store := openTestStore(t)
-
-	first, err := store.BeginParticipant("lemongrass-64", "")
-	if err != nil {
-		t.Fatalf("BeginParticipant (first): %v", err)
-	}
-	if first != "lemongrass-64" {
-		t.Errorf("first BeginParticipant = %q, want no suffix", first)
-	}
-
-	second, err := store.BeginParticipant("lemongrass-64", "")
-	if err != nil {
-		t.Fatalf("BeginParticipant (second): %v", err)
-	}
-	if second != "lemongrass-64-2" {
-		t.Errorf("second BeginParticipant = %q, want %q", second, "lemongrass-64-2")
-	}
-}
-
-func TestBeginParticipantReusesNameOnceEnded(t *testing.T) {
-	store := openTestStore(t)
-
-	if _, err := store.BeginParticipant("foo", ""); err != nil {
-		t.Fatalf("BeginParticipant: %v", err)
-	}
-	if err := store.EndParticipant("foo"); err != nil {
-		t.Fatalf("EndParticipant: %v", err)
-	}
-
-	again, err := store.BeginParticipant("foo", "")
-	if err != nil {
-		t.Fatalf("BeginParticipant (after end): %v", err)
-	}
-	if again != "foo" {
-		t.Errorf("BeginParticipant after EndParticipant = %q, want the name freed up, not suffixed", again)
-	}
-}
-
-func TestBeginParticipantLinksClaudeSessionID(t *testing.T) {
-	store := openTestStore(t)
-
-	if _, err := store.BeginParticipant("foo", "claude-session-a"); err != nil {
-		t.Fatalf("BeginParticipant: %v", err)
-	}
-
-	p, err := store.ParticipantByName("foo")
-	if err != nil {
-		t.Fatalf("ParticipantByName: %v", err)
-	}
-	if p.ClaudeSessionID != "claude-session-a" {
-		t.Errorf("ParticipantByName.ClaudeSessionID = %q, want %q", p.ClaudeSessionID, "claude-session-a")
-	}
-}
-
-func TestParticipantByNameUnknownReturnsZeroValueNoError(t *testing.T) {
-	store := openTestStore(t)
-
-	p, err := store.ParticipantByName("nobody")
-	if err != nil {
-		t.Fatalf("ParticipantByName: %v", err)
-	}
-	if p.ClaudeSessionID != "" {
-		t.Errorf("ParticipantByName(unknown).ClaudeSessionID = %q, want empty", p.ClaudeSessionID)
-	}
-}
-
-func TestHasOpenSession(t *testing.T) {
-	store := openTestStore(t)
-
-	if has, err := store.HasOpenSession("session-a"); err != nil || has {
-		t.Fatalf("HasOpenSession before Start = %v, %v, want false, nil", has, err)
-	}
-
-	if err := store.Start("session-a", "", ""); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	if has, err := store.HasOpenSession("session-a"); err != nil || !has {
-		t.Fatalf("HasOpenSession after Start = %v, %v, want true, nil", has, err)
-	}
-
-	if err := store.End("session-a"); err != nil {
-		t.Fatalf("End: %v", err)
-	}
-	if has, err := store.HasOpenSession("session-a"); err != nil || has {
-		t.Fatalf("HasOpenSession after End = %v, %v, want false, nil", has, err)
 	}
 }
 
@@ -676,5 +454,129 @@ func TestForgetTabSessionRemovesOnlyThatTab(t *testing.T) {
 	tabs, _ := store.TabSessions()
 	if len(tabs) != 1 || tabs["tab-2"] != "session-tab-2" {
 		t.Errorf("after forgetting tab-1, TabSessions = %v", tabs)
+	}
+}
+
+func TestRegisterTabRecordsVendorAndReplacesIt(t *testing.T) {
+	store := openTestStore(t)
+
+	if v, err := store.TabVendor("tab-1"); err != nil || v != "" {
+		t.Fatalf("TabVendor before register = %q, %v, want empty, nil", v, err)
+	}
+	if err := store.RegisterTab("tab-1", "claude"); err != nil {
+		t.Fatalf("RegisterTab: %v", err)
+	}
+	if v, _ := store.TabVendor("tab-1"); v != "claude" {
+		t.Errorf("TabVendor = %q, want claude", v)
+	}
+	if err := store.RegisterTab("tab-1", "codex"); err != nil {
+		t.Fatalf("RegisterTab again: %v", err)
+	}
+	if v, _ := store.TabVendor("tab-1"); v != "codex" {
+		t.Errorf("TabVendor after re-register = %q, want codex", v)
+	}
+}
+
+func TestForgetTabRemovesVendorAndSession(t *testing.T) {
+	store := openTestStore(t)
+
+	store.RegisterTab("tab-1", "claude")
+	store.RegisterTab("tab-2", "codex")
+	store.RecordTabSession("tab-1", "session-a")
+
+	if err := store.ForgetTab("tab-1"); err != nil {
+		t.Fatalf("ForgetTab: %v", err)
+	}
+	if v, _ := store.TabVendor("tab-1"); v != "" {
+		t.Errorf("TabVendor(tab-1) = %q, want empty after forget", v)
+	}
+	if id, _ := store.SessionForTab("tab-1"); id != "" {
+		t.Errorf("SessionForTab(tab-1) = %q, want empty after forget", id)
+	}
+	if v, _ := store.TabVendor("tab-2"); v != "codex" {
+		t.Errorf("TabVendor(tab-2) = %q, want codex untouched", v)
+	}
+}
+
+func TestRegisterTabPrunesStaleRecordsAcrossProjects(t *testing.T) {
+	store := openTestStore(t)
+
+	store.RegisterTab("stale-tab", "claude")
+	store.RegisterTab("fresh-tab", "claude")
+	old := time.Now().Add(-tabRecordTTL - time.Hour).UTC().Format(time.RFC3339Nano)
+	if _, err := store.db.Exec(`UPDATE lg_tabs SET updated_at = ? WHERE tab_id = 'stale-tab'`, old); err != nil {
+		t.Fatalf("backdating: %v", err)
+	}
+	if _, err := store.db.Exec(`INSERT INTO lg_tabs (project_id, tab_id, vendor, updated_at) VALUES ('other-project', 'other-stale', 'codex', ?)`, old); err != nil {
+		t.Fatalf("seeding other project: %v", err)
+	}
+
+	if err := store.RegisterTab("new-tab", "codex"); err != nil {
+		t.Fatalf("RegisterTab: %v", err)
+	}
+
+	var count int
+	store.db.QueryRow(`SELECT COUNT(*) FROM lg_tabs`).Scan(&count)
+	if count != 2 {
+		t.Errorf("lg_tabs rows = %d, want 2 (fresh-tab and new-tab), stale rows from every project pruned", count)
+	}
+	if v, _ := store.TabVendor("fresh-tab"); v != "claude" {
+		t.Errorf("TabVendor(fresh-tab) = %q, want claude kept", v)
+	}
+}
+
+func TestTouchTabRefreshesOnlyRegisteredTabs(t *testing.T) {
+	store := openTestStore(t)
+
+	store.RegisterTab("tab-1", "claude")
+	old := time.Now().Add(-tabRecordTTL + time.Hour).UTC().Format(time.RFC3339Nano)
+	store.db.Exec(`UPDATE lg_tabs SET updated_at = ?`, old)
+
+	if err := store.TouchTab("tab-1"); err != nil {
+		t.Fatalf("TouchTab: %v", err)
+	}
+	if err := store.TouchTab("never-registered"); err != nil {
+		t.Fatalf("TouchTab unregistered: %v", err)
+	}
+
+	var updated string
+	store.db.QueryRow(`SELECT updated_at FROM lg_tabs WHERE tab_id = 'tab-1'`).Scan(&updated)
+	if updated <= old {
+		t.Errorf("updated_at = %q, want later than %q", updated, old)
+	}
+	if v, _ := store.TabVendor("never-registered"); v != "" {
+		t.Errorf("TouchTab created a record for an unregistered tab: vendor %q", v)
+	}
+}
+
+func TestSessionForTab(t *testing.T) {
+	store := openTestStore(t)
+
+	if id, err := store.SessionForTab("tab-1"); err != nil || id != "" {
+		t.Fatalf("SessionForTab unknown = %q, %v, want empty, nil", id, err)
+	}
+	store.RecordTabSession("tab-1", "session-a")
+	if id, _ := store.SessionForTab("tab-1"); id != "session-a" {
+		t.Errorf("SessionForTab = %q, want session-a", id)
+	}
+}
+
+func TestOpenDropsLegacyThreadTables(t *testing.T) {
+	store := openTestStore(t)
+	dbPath := DBPath()
+
+	if _, err := store.db.Exec(`CREATE TABLE thread_messages (id INTEGER)`); err != nil {
+		t.Fatalf("seeding legacy table: %v", err)
+	}
+	reopened, err := Open(dbPath, testProjectID)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer reopened.Close()
+
+	var name string
+	err = reopened.db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'thread_messages'`).Scan(&name)
+	if err == nil {
+		t.Error("thread_messages still exists after Open")
 	}
 }

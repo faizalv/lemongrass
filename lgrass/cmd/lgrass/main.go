@@ -14,6 +14,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	tabID = os.Getenv(tabIDEnv)
+
 	switch os.Args[1] {
 	case "version":
 		fmt.Println(version.Version)
@@ -23,8 +25,6 @@ func main() {
 		cmdInit()
 	case "hook":
 		cmdHook(os.Args[2:])
-	case "thread":
-		cmdThread(os.Args[2:])
 	case "session":
 		cmdSession(os.Args[2:])
 	case "vault":
@@ -39,7 +39,7 @@ func main() {
 		cmdTips(os.Args[2:])
 	case "sign":
 		cmdSign(os.Args[2:])
-	case "mention", "rules":
+	case "rules":
 		notBuiltYet(os.Args[1])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
@@ -76,14 +76,6 @@ COMMANDS
 
   hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
 
-  thread post "message" [--mention <session-id>]   Project-wide, not point-to-point; pushed live to other
-                                     sessions' inbox sockets, and mentions surface via hook regardless
-  thread list [--limit N]           Recent thread messages in this project, newest first
-  thread listen [--timeout 10m]     Blocks until a new message arrives or the timeout elapses; meant to
-                                     run backgrounded for a live channel, vendor neutral, relaunch on return
-
-  mention <id> "comment"             Human-facing, opens a thread against the right session
-
   tips add "<message>"              Add a project-local custom tip, surfaced alongside the
                                      built-in ones on the periodic PostToolUse nudge
   tips list                         List this project's custom tips, with their ids
@@ -97,6 +89,10 @@ COMMANDS
   rules add ...                     Human/UI-driven, not a model-facing write path
 
   session list                      Other live sessions in this project, with active/idling state
+  session tabs list                 Tab id to session id map for this project, as JSON
+  session tabs register <tab-id> <vendor>
+                                     Electron-driven, records the agent vendor a tab runs
+  session tabs forget <tab-id>      Electron-driven, drops a closed tab's records
 
   vault run                         Starts the credential-vault daemon, listening on a unix socket
                                      under ~/.lemongrass; not model-facing, has no admin CLI yet
@@ -119,6 +115,6 @@ COMMANDS
 
   version                           Print version
 
-mention and rules are not built yet.
+rules is not built yet.
 `)
 }

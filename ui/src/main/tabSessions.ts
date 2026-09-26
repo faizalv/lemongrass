@@ -14,7 +14,23 @@ function runLgrass(lgrassPath: string, projectPath: string, args: string[]): Pro
   })
 }
 
+let registeredLgrassPath: string | null = null
+
+export async function registerTab(
+  projectPath: string,
+  tabId: string,
+  vendor: string
+): Promise<void> {
+  if (!registeredLgrassPath) return
+  try {
+    await runLgrass(registeredLgrassPath, projectPath, ['register', tabId, vendor])
+  } catch (err) {
+    console.error('lgrass session tabs register failed:', err)
+  }
+}
+
 export function registerTabSessionHandlers(lgrassPath: string | null): void {
+  registeredLgrassPath = lgrassPath
   ipcMain.handle(
     'tabSessions:list',
     async (_event, projectPath: string): Promise<Record<string, string>> => {

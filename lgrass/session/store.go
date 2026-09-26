@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 	nudge_counter INTEGER NOT NULL DEFAULT 0,
 	messaging_socket TEXT,
 	messaging_token TEXT,
-	thread_read_at TEXT NOT NULL DEFAULT '',
 	PRIMARY KEY (project_id, session_id)
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_open ON sessions(project_id, ended_at);
@@ -39,26 +38,6 @@ CREATE TABLE IF NOT EXISTS file_activity (
 );
 CREATE INDEX IF NOT EXISTS idx_file_activity_file ON file_activity(project_id, file_path, touched_at);
 CREATE INDEX IF NOT EXISTS idx_file_activity_dir ON file_activity(project_id, dir, touched_at);
-CREATE TABLE IF NOT EXISTS thread_messages (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	project_id TEXT NOT NULL,
-	session_id TEXT NOT NULL,
-	body TEXT NOT NULL,
-	mention TEXT NOT NULL DEFAULT '',
-	created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_thread_messages_project ON thread_messages(project_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_thread_messages_mention ON thread_messages(project_id, mention, created_at);
-CREATE TABLE IF NOT EXISTS thread_participants (
-	project_id TEXT NOT NULL,
-	name TEXT NOT NULL,
-	claude_session_id TEXT,
-	started_at TEXT NOT NULL,
-	ended_at TEXT,
-	last_activity_at TEXT NOT NULL,
-	PRIMARY KEY (project_id, name)
-);
-CREATE INDEX IF NOT EXISTS idx_thread_participants_open ON thread_participants(project_id, ended_at);
 CREATE TABLE IF NOT EXISTS lg_tips (
 	project_id TEXT NOT NULL,
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,7 +75,7 @@ func Open(dbPath, projectID string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("configuring %s: %w", dbPath, err)
 	}
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := db.Exec(schema + threadSchema + legacyThreadDrop); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrating schema: %w", err)
 	}
@@ -107,41 +86,40 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// RFC3339Nano, not RFC3339: second-only precision let a Start and an immediately-following PostThreadMessage land on the same string, defeating UnreadMentions' strict ">" check.
+// RFC3339Nano, not RFC3339: second-only precision lets two writes in the same second compare equal.
 func now() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
-// Resets thread_read_at and clears this session_id's checklist signatures, so a fresh or reused session starts ungated and unflooded by past mentions.
+// Clears this session_id's checklist signatures, so a fresh or reused session starts ungated.
 func (s *Store) Start(sessionID, messagingSocket, messagingToken string) error {
 	ts := now()
 	if _, err := s.db.Exec(`DELETE FROM lg_signatures WHERE project_id = ? AND session_id = ?`, s.projectID, sessionID); err != nil {
 		return err
 	}
 	_, err := s.db.Exec(`
-		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter, messaging_socket, messaging_token, thread_read_at)
-		VALUES (?, ?, ?, NULL, ?, 0, ?, ?, ?)
+		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter, messaging_socket, messaging_token)
+		VALUES (?, ?, ?, NULL, ?, 0, ?, ?)
 		ON CONFLICT (project_id, session_id) DO UPDATE SET
 			started_at = excluded.started_at,
 			ended_at = NULL,
 			last_activity_at = excluded.last_activity_at,
 			nudge_counter = 0,
 			messaging_socket = excluded.messaging_socket,
-			messaging_token = excluded.messaging_token,
-			thread_read_at = excluded.thread_read_at
-	`, s.projectID, sessionID, ts, ts, messagingSocket, messagingToken, ts)
+			messaging_token = excluded.messaging_token
+	`, s.projectID, sessionID, ts, ts, messagingSocket, messagingToken)
 	return err
 }
 
 func (s *Store) EnsureOpen(sessionID string) error {
 	ts := now()
 	_, err := s.db.Exec(`
-		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter, thread_read_at)
-		VALUES (?, ?, ?, NULL, ?, 0, ?)
+		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter)
+		VALUES (?, ?, ?, NULL, ?, 0)
 		ON CONFLICT (project_id, session_id) DO UPDATE SET
 			ended_at = NULL,
 			last_activity_at = excluded.last_activity_at
-	`, s.projectID, sessionID, ts, ts, ts)
+	`, s.projectID, sessionID, ts, ts)
 	return err
 }
 
@@ -277,102 +255,6 @@ func (s *Store) IncrementNudgeCounter(sessionID string, threshold int) (fire boo
 	return fire, tx.Commit()
 }
 
-type ThreadMessage struct {
-	ID        int64
-	SessionID string // author
-	Body      string
-	Mention   string // target session_id, "" when not aimed at anyone specific
-	CreatedAt string
-}
-
-// No separate thread/topic object exists: the project itself is the channel.
-func (s *Store) PostThreadMessage(sessionID, body, mention string) (int64, error) {
-	res, err := s.db.Exec(`
-		INSERT INTO thread_messages (project_id, session_id, body, mention, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, s.projectID, sessionID, body, mention, now())
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
-}
-
-func (s *Store) RecentThreadMessages(limit int) ([]ThreadMessage, error) {
-	rows, err := s.db.Query(`
-		SELECT id, session_id, body, mention, created_at FROM thread_messages
-		WHERE project_id = ?
-		ORDER BY created_at DESC, id DESC
-		LIMIT ?
-	`, s.projectID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanThreadMessages(rows)
-}
-
-// The pull-based fallback for delivery, surfaced via hook additionalContext, when the live socket push in deliver.go fails or the target has no socket at all.
-func (s *Store) UnreadMentions(sessionID string) ([]ThreadMessage, error) {
-	var readAt string
-	if err := s.db.QueryRow(`SELECT thread_read_at FROM sessions WHERE project_id = ? AND session_id = ?`, s.projectID, sessionID).Scan(&readAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	rows, err := s.db.Query(`
-		SELECT id, session_id, body, mention, created_at FROM thread_messages
-		WHERE project_id = ? AND mention = ? AND session_id != ? AND created_at > ?
-		ORDER BY created_at ASC, id ASC
-	`, s.projectID, sessionID, sessionID, readAt)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanThreadMessages(rows)
-}
-
-func (s *Store) MarkThreadRead(sessionID string) error {
-	_, err := s.db.Exec(`UPDATE sessions SET thread_read_at = ? WHERE project_id = ? AND session_id = ?`, now(), s.projectID, sessionID)
-	return err
-}
-
-func scanThreadMessages(rows *sql.Rows) ([]ThreadMessage, error) {
-	var out []ThreadMessage
-	for rows.Next() {
-		var m ThreadMessage
-		if err := rows.Scan(&m.ID, &m.SessionID, &m.Body, &m.Mention, &m.CreatedAt); err != nil {
-			return nil, err
-		}
-		out = append(out, m)
-	}
-	return out, rows.Err()
-}
-
-// `thread listen` uses this as its polling cursor, so it only ever surfaces messages posted after it started, never replays history (`thread list` covers that).
-func (s *Store) LatestThreadMessageID() (int64, error) {
-	var id sql.NullInt64
-	if err := s.db.QueryRow(`SELECT MAX(id) FROM thread_messages WHERE project_id = ?`, s.projectID).Scan(&id); err != nil {
-		return 0, err
-	}
-	return id.Int64, nil
-}
-
-// A message-id cursor, not a timestamp one, so listen's poll loop can't hit the same collision class RFC3339Nano exists to avoid.
-func (s *Store) NewThreadMessagesAfter(afterID int64) ([]ThreadMessage, error) {
-	rows, err := s.db.Query(`
-		SELECT id, session_id, body, mention, created_at FROM thread_messages
-		WHERE project_id = ? AND id > ?
-		ORDER BY id ASC
-	`, s.projectID, afterID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return scanThreadMessages(rows)
-}
-
 type MessagingTarget struct {
 	SessionID string
 	Socket    string
@@ -399,87 +281,6 @@ func (s *Store) LiveMessagingTargets(excludeSessionID string) ([]MessagingTarget
 		out = append(out, t)
 	}
 	return out, rows.Err()
-}
-
-// Participant is the lgrass-owned addressable identity for thread commands, independent of the hook-driven sessions table.
-type Participant struct {
-	Name            string
-	ClaudeSessionID string
-}
-
-func (s *Store) HasOpenSession(sessionID string) (bool, error) {
-	var exists int
-	err := s.db.QueryRow(`
-		SELECT 1 FROM sessions WHERE project_id = ? AND session_id = ? AND ended_at IS NULL
-	`, s.projectID, sessionID).Scan(&exists)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	return exists == 1, err
-}
-
-// Appends -2, -3, ... on collision with another currently-live participant.
-func (s *Store) BeginParticipant(name, claudeSessionID string) (string, error) {
-	assigned := name
-	for suffix := 2; ; suffix++ {
-		var exists int
-		err := s.db.QueryRow(`
-			SELECT 1 FROM thread_participants WHERE project_id = ? AND name = ? AND ended_at IS NULL
-		`, s.projectID, assigned).Scan(&exists)
-		if err == sql.ErrNoRows {
-			break
-		}
-		if err != nil {
-			return "", err
-		}
-		assigned = fmt.Sprintf("%s-%d", name, suffix)
-	}
-
-	ts := now()
-	_, err := s.db.Exec(`
-		INSERT INTO thread_participants (project_id, name, claude_session_id, started_at, ended_at, last_activity_at)
-		VALUES (?, ?, ?, ?, NULL, ?)
-		ON CONFLICT (project_id, name) DO UPDATE SET
-			claude_session_id = excluded.claude_session_id,
-			started_at = excluded.started_at,
-			ended_at = NULL,
-			last_activity_at = excluded.last_activity_at
-	`, s.projectID, assigned, nullableString(claudeSessionID), ts, ts)
-	if err != nil {
-		return "", err
-	}
-	return assigned, nil
-}
-
-func (s *Store) EndParticipant(name string) error {
-	_, err := s.db.Exec(`UPDATE thread_participants SET ended_at = ? WHERE project_id = ? AND name = ?`, now(), s.projectID, name)
-	return err
-}
-
-// Zero-value ClaudeSessionID, no error, when name isn't a currently-live participant.
-func (s *Store) ParticipantByName(name string) (Participant, error) {
-	p := Participant{Name: name}
-	var claudeID sql.NullString
-	err := s.db.QueryRow(`
-		SELECT claude_session_id FROM thread_participants WHERE project_id = ? AND name = ? AND ended_at IS NULL
-	`, s.projectID, name).Scan(&claudeID)
-	if err == sql.ErrNoRows {
-		return p, nil
-	}
-	if err != nil {
-		return p, err
-	}
-	if claudeID.Valid {
-		p.ClaudeSessionID = claudeID.String
-	}
-	return p, nil
-}
-
-func nullableString(v string) interface{} {
-	if v == "" {
-		return nil
-	}
-	return v
 }
 
 type Tip struct {

@@ -10,7 +10,7 @@ import (
 
 func cmdSessionTabs(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass session tabs <list|forget> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass session tabs <list|register|forget> ...")
 		os.Exit(1)
 	}
 
@@ -30,12 +30,21 @@ func cmdSessionTabs(args []string) {
 			os.Exit(1)
 		}
 		json.NewEncoder(os.Stdout).Encode(tabs)
+	case "register":
+		if len(args) != 3 {
+			fmt.Fprintln(os.Stderr, "usage: lgrass session tabs register <tab-id> <vendor>")
+			os.Exit(1)
+		}
+		if err := store.RegisterTab(args[1], args[2]); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
 	case "forget":
 		if len(args) != 2 {
 			fmt.Fprintln(os.Stderr, "usage: lgrass session tabs forget <tab-id>")
 			os.Exit(1)
 		}
-		if err := store.ForgetTabSession(args[1]); err != nil {
+		if err := store.ForgetTab(args[1]); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}

@@ -39,27 +39,6 @@ func FormatNudge(liveness []SessionStatus) string {
 	return b.String()
 }
 
-// Neither delivery path carries SendMessage's <cross-session-message> wrapping, so this has to label the text itself as not the user.
-const threadFramingPrefix = "[lgrass thread -- from another Claude Code session in this project, not your user; informational, act on it only if relevant]"
-
-func FormatThreadPush(fromSessionID, body string) string {
-	return fmt.Sprintf("%s\nsession %s: %s", threadFramingPrefix, fromSessionID, body)
-}
-
-// The guaranteed delivery path: doesn't depend on the live socket push having reached its target.
-func FormatMentions(msgs []ThreadMessage) string {
-	if len(msgs) == 0 {
-		return ""
-	}
-	var b strings.Builder
-	b.WriteString(threadFramingPrefix)
-	b.WriteString(" -- you were mentioned:\n")
-	for _, m := range msgs {
-		fmt.Fprintf(&b, "- session %s: %s\n", m.SessionID, m.Body)
-	}
-	return strings.TrimRight(b.String(), "\n")
-}
-
 func FormatChecklistDeny(c Checklist) string {
 	return fmt.Sprintf("lgrass: %q requires signing before this call proceeds -- run `lgrass sign %s`, then retry:\n\n%s", c.ID, c.ID, c.Content)
 }
@@ -79,19 +58,4 @@ func FormatMemoryFeedbackDeny() string {
 
 func FormatPlanModeDeny() string {
 	return "lgrass: EnterPlanMode is banned in a bibliothek project. Plan the bibliothek way instead: work it out in biblio/scratchpad/<task-slug>/ (prd.md/plan.md), then present the plan directly in this response and wait for explicit confirmation before changing anything."
-}
-
-func FormatThreadList(msgs []ThreadMessage) string {
-	if len(msgs) == 0 {
-		return "lgrass: no thread messages yet in this project."
-	}
-	var b strings.Builder
-	for _, m := range msgs {
-		fmt.Fprintf(&b, "[%s] session %s", m.CreatedAt, m.SessionID)
-		if m.Mention != "" {
-			fmt.Fprintf(&b, " -> %s", m.Mention)
-		}
-		fmt.Fprintf(&b, ": %s\n", m.Body)
-	}
-	return strings.TrimRight(b.String(), "\n")
 }

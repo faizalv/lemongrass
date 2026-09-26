@@ -49,9 +49,6 @@ type patchToolInput struct {
 	Command string `json:"command"`
 }
 
-// Set by the Electron app on each agent shell it spawns, so a hook can tie the agent's session to the tab that runs it.
-const tabIDEnv = "LGRASS_TAB_ID"
-
 const bibliothekChecklistID = "bibliothek"
 
 // Long enough to outlast any real session.
@@ -75,7 +72,7 @@ func cmdHook(args []string) {
 		os.Exit(0)
 	}
 
-	payload.TabID = os.Getenv(tabIDEnv)
+	payload.TabID = tabID
 	if (event == "SessionStart" || event == "SessionEnd") && os.Getenv(hookProbeEnv) != "" {
 		logHookProbe(event, os.Getenv("LGRASS_HOOK_VENDOR"), raw, payload)
 	}
@@ -185,8 +182,6 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 			}
 		}
 	}
-	parts = append(parts, mentionContext(store, payload.SessionID)...)
-
 	return newHookResult("PreToolUse", "allow", parts)
 }
 
@@ -294,6 +289,9 @@ func checklistDeny(store *session.Store, payload hookEvent, filePaths []string, 
 
 func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string) hookResult {
 	store.Touch(payload.SessionID)
+	if payload.TabID != "" {
+		store.TouchTab(payload.TabID)
+	}
 
 	if isFileEdit(payload) {
 		for _, filePath := range toolFilePaths(payload) {
@@ -302,7 +300,6 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 	}
 
 	var parts []string
-	parts = append(parts, mentionContext(store, payload.SessionID)...)
 
 	if fire, err := store.IncrementNudgeCounter(payload.SessionID, nudgeThreshold); err == nil && fire {
 		if liveness, err := store.Liveness(payload.SessionID, idleThreshold); err == nil {
@@ -325,20 +322,6 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 func hasBiblio(projectPath string) bool {
 	info, err := os.Stat(filepath.Join(projectPath, "biblio"))
 	return err == nil && info.IsDir()
-}
-
-// Unthrottled unlike the nudge, so a mention surfaces at the next tool call regardless of whether the live socket push reached this session.
-func mentionContext(store *session.Store, sessionID string) []string {
-	msgs, err := store.UnreadMentions(sessionID)
-	if err != nil || len(msgs) == 0 {
-		return nil
-	}
-	text := session.FormatMentions(msgs)
-	if text == "" {
-		return nil
-	}
-	store.MarkThreadRead(sessionID)
-	return []string{text}
 }
 
 func hookAdapterForEnvironment() hookAdapter {
