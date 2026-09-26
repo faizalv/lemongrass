@@ -32,6 +32,21 @@ CREATE TABLE IF NOT EXISTS lg_message_mentions (
 	PRIMARY KEY (message_id, tab_id)
 );
 CREATE INDEX IF NOT EXISTS idx_lg_message_mentions_tab ON lg_message_mentions(tab_id);
+CREATE TABLE IF NOT EXISTS lg_notifications (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	project_id TEXT NOT NULL,
+	thread_id INTEGER NOT NULL,
+	message_id INTEGER NOT NULL,
+	target_tab_id TEXT NOT NULL,
+	state TEXT NOT NULL DEFAULT 'pending',
+	attempts INTEGER NOT NULL DEFAULT 0,
+	last_attempt_at TEXT,
+	created_at TEXT NOT NULL,
+	sent_at TEXT,
+	read_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_lg_notifications_target ON lg_notifications(target_tab_id, state);
+CREATE INDEX IF NOT EXISTS idx_lg_notifications_created ON lg_notifications(created_at);
 CREATE TABLE IF NOT EXISTS lg_groups (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	project_id TEXT NOT NULL,

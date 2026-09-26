@@ -129,6 +129,7 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	if summary := lawsSummary(projectPath); summary != "" {
 		parts = append(parts, summary)
 	}
+	parts = append(parts, notificationContext(store, payload.TabID)...)
 	return newHookResult("SessionStart", "", parts)
 }
 
@@ -182,6 +183,8 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 			}
 		}
 	}
+	parts = append(parts, notificationContext(store, payload.TabID)...)
+
 	return newHookResult("PreToolUse", "allow", parts)
 }
 
@@ -300,6 +303,7 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 	}
 
 	var parts []string
+	parts = append(parts, notificationContext(store, payload.TabID)...)
 
 	if fire, err := store.IncrementNudgeCounter(payload.SessionID, nudgeThreshold); err == nil && fire {
 		if liveness, err := store.Liveness(payload.SessionID, idleThreshold); err == nil {
@@ -322,6 +326,23 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 func hasBiblio(projectPath string) bool {
 	info, err := os.Stat(filepath.Join(projectPath, "biblio"))
 	return err == nil && info.IsDir()
+}
+
+// Surfaces the tab's pending thread notifications once, then marks them sent so the next tool call does not repeat them.
+func notificationContext(store *session.Store, tab string) []string {
+	if tab == "" {
+		return nil
+	}
+	pending, err := store.PendingForTab(tab)
+	if err != nil || len(pending) == 0 {
+		return nil
+	}
+	var rowIDs []int64
+	for _, p := range pending {
+		rowIDs = append(rowIDs, p.RowIDs...)
+	}
+	store.MarkNotificationsSent(rowIDs)
+	return []string{session.FormatNotification(pending)}
 }
 
 func hookAdapterForEnvironment() hookAdapter {

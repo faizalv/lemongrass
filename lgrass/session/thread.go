@@ -83,7 +83,7 @@ func (s *Store) CreateThread(tabID, title, content string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if _, err := insertMessage(tx, threadID, tabID, content, mentions, ts); err != nil {
+	if _, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, ts); err != nil {
 		return 0, err
 	}
 	return threadID, tx.Commit()
@@ -107,14 +107,15 @@ func (s *Store) PostMessage(tabID string, threadID int64, content string) (Messa
 	}
 	defer tx.Rollback()
 
-	msg, err := insertMessage(tx, threadID, tabID, content, mentions, now())
+	msg, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, now())
 	if err != nil {
 		return Message{}, err
 	}
 	return msg, tx.Commit()
 }
 
-func insertMessage(tx *sql.Tx, threadID int64, tabID, body string, mentions []string, ts string) (Message, error) {
+// Every mentioned tab except the author gets a pending notification.
+func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body string, mentions []string, ts string) (Message, error) {
 	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at) VALUES (?, ?, ?, ?)`, threadID, tabID, body, ts)
 	if err != nil {
 		return Message{}, err
@@ -125,6 +126,15 @@ func insertMessage(tx *sql.Tx, threadID int64, tabID, body string, mentions []st
 	}
 	for _, tab := range mentions {
 		if _, err := tx.Exec(`INSERT INTO lg_message_mentions (message_id, tab_id) VALUES (?, ?)`, id, tab); err != nil {
+			return Message{}, err
+		}
+		if tab == tabID {
+			continue
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO lg_notifications (project_id, thread_id, message_id, target_tab_id, created_at)
+			VALUES (?, ?, ?, ?, ?)
+		`, projectID, threadID, id, tab, ts); err != nil {
 			return Message{}, err
 		}
 	}

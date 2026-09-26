@@ -6,8 +6,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/faizalv/lemongrass/session"
+	"github.com/faizalv/lemongrass/threadsvc"
 )
 
 const (
@@ -82,6 +84,15 @@ func requireTab() {
 	}
 }
 
+// Wakes the thread service, or delivers directly and prunes the ledger itself when the service is unreachable.
+func notifyTargets(store *session.Store) {
+	if threadsvc.Wake(threadsvc.SocketPath()) == nil {
+		return
+	}
+	threadsvc.NewDeliverer(store).DeliverPending()
+	store.PruneNotifications(time.Now())
+}
+
 func openStore() *session.Store {
 	store, err := session.Open(session.DBPath(), currentProject().ID)
 	if err != nil {
@@ -130,6 +141,7 @@ func cmdThreadCreate(args []string) {
 	if err != nil {
 		fail(err)
 	}
+	notifyTargets(store)
 	fmt.Printf("thread %d created.\n", id)
 }
 
@@ -156,6 +168,7 @@ func cmdThreadPost(args []string) {
 	if err != nil {
 		fail(err)
 	}
+	notifyTargets(store)
 	fmt.Printf("posted as message %d.\n", msg.ID)
 }
 
@@ -180,6 +193,13 @@ func cmdThreadRead(args []string) {
 	msgs, more, err := store.ReadThread(threadID, parsed.before, parsed.limit)
 	if err != nil {
 		fail(err)
+	}
+	if tabID != "" {
+		ids := make([]int64, len(msgs))
+		for i, m := range msgs {
+			ids[i] = m.ID
+		}
+		store.MarkMessagesRead(tabID, ids)
 	}
 	fmt.Println(session.FormatThreadRead(thread, msgs, more))
 }

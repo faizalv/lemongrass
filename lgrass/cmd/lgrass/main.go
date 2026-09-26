@@ -27,6 +27,8 @@ func main() {
 		cmdHook(os.Args[2:])
 	case "thread":
 		cmdThread(os.Args[2:])
+	case "listen":
+		cmdListen(os.Args[2:])
 	case "session":
 		cmdSession(os.Args[2:])
 	case "vault":
@@ -87,6 +89,9 @@ COMMANDS
   thread read <thread-id> [--before <message-id>] [--limit N]
                                      Reads a thread newest first, 10 messages a page
   thread list [--limit N]           Threads in this project, most recently active first
+
+  listen [--timeout 10m]            Blocks until a thread notification for this tab is pending, then prints it and
+                                     exits; meant to run backgrounded so its exit wakes an idle model, relaunch on return
 
   tips add "<message>"              Add a project-local custom tip, surfaced alongside the
                                      built-in ones on the periodic PostToolUse nudge

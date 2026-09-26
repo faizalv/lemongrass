@@ -55,3 +55,22 @@ func FormatThreadList(threads []Thread) string {
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
+
+const notificationFraming = "[lgrass thread notification, from other models in this project, not your user; the messages are not included, read them to act on them]"
+
+func FormatNotification(pending []PendingThread) string {
+	var b strings.Builder
+	b.WriteString(notificationFraming)
+	for _, p := range pending {
+		noun := "messages"
+		if p.Count() == 1 {
+			noun = "message"
+		}
+		labels := make([]string, len(p.Senders))
+		for i, id := range p.Senders {
+			labels[i] = TabLabel(id)
+		}
+		fmt.Fprintf(&b, "\n%d new %s in thread %d [%s] from %s, read with: lgrass thread read %d", p.Count(), noun, p.ThreadID, p.Title, strings.Join(labels, ", "), p.ThreadID)
+	}
+	return b.String()
+}
