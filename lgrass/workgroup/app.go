@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/faizalv/lemongrass/config"
@@ -27,6 +28,8 @@ type SpawnMember struct {
 	Vendor string `json:"vendor"`
 	Model  string `json:"model,omitempty"`
 	Prompt string `json:"prompt"`
+	// Every skill the tab must load, the copilot skill first.
+	Skills []string `json:"skills"`
 }
 
 type Request struct {
@@ -101,14 +104,14 @@ func NewTabID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
-// The text a copilot starts with: its role, where its group thread is, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
-func ComposePrompt(vendor, label, groupName, pilotLabel, assignment string) string {
+// The text a copilot starts with: its role, the skills it must load, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
+func ComposePrompt(vendor, label, groupName, pilotLabel string, skills []string, assignment string) string {
 	text := fmt.Sprintf("You are the copilot \"%s\" in the lemongrass workgroup \"%s\", led by the pilot \"%s\". "+
-		"Read the group thread with `lgrass workgroup thread`, which also prints its thread id, and post to it with `lgrass thread post <thread-id> \"<message>\"`. "+
-		"Every message in that thread notifies the whole group, so keep messages short and report back there when you finish or get blocked.",
-		label, groupName, pilotLabel)
+		"Before any other tool call, load these skills: %s. Until you have, every tool except `lgrass` commands is denied. "+
+		"Then run `lgrass workgroup thread` to see your group and the group thread.",
+		label, groupName, pilotLabel, strings.Join(skills, ", "))
 	if vendor != "claude" {
-		text += " Run `lgrass listen` in the background so you are woken when someone posts, and start it again each time it returns."
+		text += " Keep `lgrass listen` running in the background so you are woken when someone posts."
 	}
 	return text + "\n\nYour assignment:\n\n" + assignment
 }

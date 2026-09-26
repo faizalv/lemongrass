@@ -10,6 +10,9 @@ import (
 const (
 	RolePilot   = "pilot"
 	RoleCopilot = "copilot"
+
+	// Every copilot loads this skill.
+	CopilotSkill = "lgrass-copilot"
 )
 
 type Group struct {
@@ -28,6 +31,8 @@ type Member struct {
 	Role   string
 	Label  string
 	Vendor string
+	Prompt string   // the assignment from the group config
+	Skills []string // skills the member must load, beyond the ones every copilot loads
 }
 
 var (
@@ -74,7 +79,7 @@ func (s *Store) CreateGroup(name string, pilot Member, copilots []Member) (Group
 		return Group{}, err
 	}
 	for _, m := range members {
-		if _, err := tx.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor) VALUES (?, ?, ?, ?, ?)`, groupID, m.TabID, m.Role, m.Label, m.Vendor); err != nil {
+		if _, err := tx.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor, prompt, skills) VALUES (?, ?, ?, ?, ?, ?, ?)`, groupID, m.TabID, m.Role, m.Label, m.Vendor, m.Prompt, strings.Join(m.Skills, ",")); err != nil {
 			return Group{}, err
 		}
 	}
@@ -119,7 +124,7 @@ func (s *Store) LiveGroupForTab(tabID string) (Group, error) {
 }
 
 func (s *Store) GroupMembers(groupID int64) ([]Member, error) {
-	rows, err := s.db.Query(`SELECT tab_id, role, label, vendor FROM lg_group_members WHERE group_id = ? ORDER BY CASE role WHEN 'pilot' THEN 0 ELSE 1 END, rowid`, groupID)
+	rows, err := s.db.Query(`SELECT tab_id, role, label, vendor, prompt, skills FROM lg_group_members WHERE group_id = ? ORDER BY CASE role WHEN 'pilot' THEN 0 ELSE 1 END, rowid`, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -127,12 +132,34 @@ func (s *Store) GroupMembers(groupID int64) ([]Member, error) {
 	var out []Member
 	for rows.Next() {
 		var m Member
-		if err := rows.Scan(&m.TabID, &m.Role, &m.Label, &m.Vendor); err != nil {
+		var skills string
+		if err := rows.Scan(&m.TabID, &m.Role, &m.Label, &m.Vendor, &m.Prompt, &skills); err != nil {
 			return nil, err
+		}
+		if skills != "" {
+			m.Skills = strings.Split(skills, ",")
 		}
 		out = append(out, m)
 	}
 	return out, rows.Err()
+}
+
+// The tab's live group and its own member row; ErrNoSuchGroup when the tab is in no live group.
+func (s *Store) LiveMembership(tabID string) (Group, Member, error) {
+	group, err := s.LiveGroupForTab(tabID)
+	if err != nil {
+		return Group{}, Member{}, err
+	}
+	members, err := s.GroupMembers(group.ID)
+	if err != nil {
+		return Group{}, Member{}, err
+	}
+	for _, m := range members {
+		if m.TabID == tabID {
+			return group, m, nil
+		}
+	}
+	return Group{}, Member{}, ErrNoSuchGroup
 }
 
 // Keeps the thread and its messages, so a disbanded group stays readable.
@@ -196,4 +223,19 @@ func (s *Store) Labels(tabIDs []string) map[string]string {
 		}
 	}
 	return out
+}
+
+// The copilot skill first, then the skills the pilot listed, each once.
+func (m Member) RequiredSkills() []string {
+	out := []string{CopilotSkill}
+	for _, name := range m.Skills {
+		if !containsString(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func (m Member) Requires(skill string) bool {
+	return containsString(m.RequiredSkills(), skill)
 }

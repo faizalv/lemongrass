@@ -41,6 +41,12 @@ func cmdWorkgroupCreate(args []string) {
 		fail(err)
 	}
 
+	if home, err := os.UserHomeDir(); err == nil {
+		if err := cfg.CheckSkillsInstalled(home); err != nil {
+			fail(err)
+		}
+	}
+
 	store := openStore()
 	defer store.Close()
 	if _, err := store.LiveGroupForTab(tabID); err == nil {
@@ -56,7 +62,8 @@ func cmdWorkgroupCreate(args []string) {
 			Label:  c.Label,
 			Vendor: c.Vendor,
 			Model:  c.Model,
-			Prompt: workgroup.ComposePrompt(c.Vendor, c.Label, cfg.Name, cfg.PilotLabel, c.Prompt),
+			Prompt: workgroup.ComposePrompt(c.Vendor, c.Label, cfg.Name, cfg.PilotLabel, c.RequiredSkills(), c.Prompt),
+			Skills: c.RequiredSkills(),
 		}
 	}
 	req := workgroup.Request{ProjectPath: proj.Path, PilotTabID: tabID, PilotLabel: cfg.PilotLabel, GroupName: cfg.Name, Members: members}
@@ -71,7 +78,7 @@ func cmdWorkgroupCreate(args []string) {
 		os.Exit(1)
 	}
 
-	group, err := store.CreateGroup(cfg.Name, session.Member{TabID: tabID, Label: cfg.PilotLabel, Vendor: pilotVendor}, toMembers(members))
+	group, err := store.CreateGroup(cfg.Name, session.Member{TabID: tabID, Label: cfg.PilotLabel, Vendor: pilotVendor}, toMembers(members, cfg.Copilots))
 	if err != nil {
 		fail(err)
 	}
@@ -86,10 +93,10 @@ func cmdWorkgroupCreate(args []string) {
 	}
 }
 
-func toMembers(spawn []workgroup.SpawnMember) []session.Member {
+func toMembers(spawn []workgroup.SpawnMember, copilots []workgroup.Copilot) []session.Member {
 	out := make([]session.Member, len(spawn))
 	for i, m := range spawn {
-		out[i] = session.Member{TabID: m.TabID, Label: m.Label, Vendor: m.Vendor}
+		out[i] = session.Member{TabID: m.TabID, Label: m.Label, Vendor: m.Vendor, Prompt: copilots[i].Prompt, Skills: copilots[i].Skills}
 	}
 	return out
 }
@@ -139,5 +146,11 @@ func cmdWorkgroupThread(args []string) {
 	if err != nil {
 		fail(err)
 	}
-	printThread(store, group.ThreadID, parsed, session.FormatGroupHeader(group, members))
+	header := session.FormatGroupHeader(group, members)
+	for _, m := range members {
+		if m.TabID == tabID {
+			header += "\n" + session.FormatMemberHeader(m)
+		}
+	}
+	printThread(store, group.ThreadID, parsed, header)
 }

@@ -66,7 +66,10 @@ func (s *Store) RegisterTab(tabID, vendor string) error {
 		return err
 	}
 	cutoff := time.Now().Add(-tabRecordTTL).UTC().Format(time.RFC3339Nano)
-	_, err := s.db.Exec(`DELETE FROM lg_tabs WHERE updated_at < ?`, cutoff)
+	if _, err := s.db.Exec(`DELETE FROM lg_tabs WHERE updated_at < ?`, cutoff); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM lg_ready_marks WHERE marked_at < ? AND tab_id NOT IN (SELECT tab_id FROM lg_tabs)`, cutoff)
 	return err
 }
 
@@ -88,6 +91,9 @@ func (s *Store) TabVendor(tabID string) (string, error) {
 
 func (s *Store) ForgetTab(tabID string) error {
 	if err := s.ForgetTabSession(tabID); err != nil {
+		return err
+	}
+	if err := s.ClearMarks(tabID); err != nil {
 		return err
 	}
 	_, err := s.db.Exec(`DELETE FROM lg_tabs WHERE project_id = ? AND tab_id = ?`, s.projectID, tabID)

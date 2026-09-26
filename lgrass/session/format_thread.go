@@ -102,3 +102,32 @@ func FormatGroupHeader(g Group, members []Member) string {
 	}
 	return fmt.Sprintf("lgrass workgroup %d [%s], thread %d, %s, members: %s", g.ID, g.Name, g.ThreadID, state, strings.Join(parts, "; "))
 }
+
+func FormatCopilotStart(m Member, group Group) string {
+	text := fmt.Sprintf("lgrass: you are the copilot %q in the lemongrass workgroup %q. Before any other tool call, load these skills: %s. Until you have, every tool except `lgrass` commands is denied. Then run `lgrass workgroup thread`.",
+		m.Label, group.Name, strings.Join(m.RequiredSkills(), ", "))
+	if m.Vendor != "claude" {
+		text += " Keep `lgrass listen [--timeout 10m]` running in the background so you are woken when someone posts."
+	}
+	return text
+}
+
+func FormatCopilotSkillsDeny(missing []string) string {
+	return fmt.Sprintf("lgrass: you are a copilot in a lemongrass workgroup and have not loaded these skills yet: %s. Load them first (call the Skill tool for each on Claude Code, read the skill's SKILL.md on other agents), then retry. Until then only `lgrass` commands and loading those skills are allowed.", strings.Join(missing, ", "))
+}
+
+func FormatCopilotListenDeny() string {
+	return "lgrass: no listener is running for this tab. Start `lgrass listen [--timeout 10m]` in the background, then retry. Until then only `lgrass` commands are allowed."
+}
+
+// What the caller is in its group, with its assignment and required skills, so a resumed copilot gets its role back.
+func FormatMemberHeader(m Member) string {
+	if m.Role == RolePilot {
+		return "You are the pilot of this workgroup."
+	}
+	text := fmt.Sprintf("You are the copilot %q. Skills you must load: %s.", m.Label, strings.Join(m.RequiredSkills(), ", "))
+	if m.Prompt != "" {
+		text += "\nYour assignment:\n" + m.Prompt
+	}
+	return text
+}

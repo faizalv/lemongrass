@@ -16,6 +16,8 @@ const SPAWN_ACK_TIMEOUT_MS = 15_000
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9_-]{0,29}$/
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/
+const SKILL = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+const MAX_SKILLS = 9
 const VENDORS = new Set(['claude', 'codex'])
 
 interface Proposal {
@@ -24,7 +26,14 @@ interface Proposal {
   pilot_tab_id: string
   pilot_label: string
   group_name: string
-  members: { tab_id: string; label: string; vendor: string; model?: string; prompt: string }[]
+  members: {
+    tab_id: string
+    label: string
+    vendor: string
+    model?: string
+    prompt: string
+    skills: string[]
+  }[]
   token?: string
 }
 
@@ -63,6 +72,13 @@ function validate(p: Proposal): string | null {
     if (!LABEL.test(m.label ?? '')) return 'a copilot label is not valid'
     if (!VENDORS.has(m.vendor)) return 'a copilot vendor is not supported'
     if (m.model && !MODEL.test(m.model)) return 'a copilot model is not valid'
+    if (
+      !Array.isArray(m.skills) ||
+      m.skills.length > MAX_SKILLS ||
+      !m.skills.every((name) => typeof name === 'string' && SKILL.test(name))
+    ) {
+      return 'a copilot skill list is not valid'
+    }
     if (typeof m.prompt !== 'string' || !m.prompt || m.prompt.length > MAX_PROMPT_CHARS) {
       return `a copilot prompt must be 1 to ${MAX_PROMPT_CHARS} characters`
     }
@@ -74,7 +90,8 @@ function describe(p: Proposal): { message: string; detail: string } {
   const detail = p.members
     .map((m) => {
       const model = m.model ? `, model ${m.model}` : ''
-      return `${m.label} (${m.vendor}${model})\n${m.prompt}`
+      const skills = m.skills.length ? `Must load: ${m.skills.join(', ')}\n` : ''
+      return `${m.label} (${m.vendor}${model})\n${skills}${m.prompt}`
     })
     .join('\n\n----\n\n')
   return {

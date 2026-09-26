@@ -79,6 +79,10 @@ func Open(dbPath, projectID string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("migrating schema: %w", err)
 	}
+	if err := addMissingColumns(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrating schema: %w", err)
+	}
 	return &Store{db: db, projectID: projectID}, nil
 }
 

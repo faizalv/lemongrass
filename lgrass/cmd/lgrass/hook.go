@@ -73,7 +73,7 @@ func cmdHook(args []string) {
 	}
 
 	payload.TabID = tabID
-	if (event == "SessionStart" || event == "SessionEnd") && os.Getenv(hookProbeEnv) != "" {
+	if (event == "SessionStart" || event == "SessionEnd" || event == "PreToolUse") && os.Getenv(hookProbeEnv) != "" {
 		logHookProbe(event, os.Getenv("LGRASS_HOOK_VENDOR"), raw, payload)
 	}
 
@@ -102,7 +102,7 @@ func cmdHook(args []string) {
 	adapter.emit(result)
 }
 
-// Temporary probe that writes raw SessionStart and SessionEnd payloads to a /tmp file, for the Codex lifecycle investigation. Off unless LGRASS_HOOK_PROBE is set.
+// Temporary probe that writes raw SessionStart, SessionEnd and PreToolUse payloads to a /tmp file, for the Codex lifecycle investigation. Off unless LGRASS_HOOK_PROBE is set.
 func logHookProbe(event, vendor string, raw []byte, payload hookEvent) {
 	if vendor == "" {
 		vendor = "claude"
@@ -124,10 +124,16 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	if payload.TabID != "" && payload.SessionID != "" {
 		store.RecordTabSession(payload.TabID, payload.SessionID)
 	}
+	if payload.TabID != "" {
+		store.ClearMarks(payload.TabID)
+	}
 
 	var parts []string
 	if summary := lawsSummary(projectPath); summary != "" {
 		parts = append(parts, summary)
+	}
+	if member, group, ok := liveCopilot(store, payload.TabID); ok {
+		parts = append(parts, session.FormatCopilotStart(member, group))
 	}
 	parts = append(parts, notificationContext(store, payload.TabID)...)
 	return newHookResult("SessionStart", "", parts)
@@ -156,11 +162,20 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 		return newHookResult("PreToolUse", "deny", []string{session.FormatPlanModeDeny()})
 	}
 
+	member, isCopilot, deny := copilotGateDecision(store, payload)
+	if deny != "" {
+		return newHookResult("PreToolUse", "deny", []string{deny})
+	}
+
 	if payload.EnforceBibliothek && hasBiblio(projectPath) {
+		// A copilot skips only the bibliothek gate, and only unless its pilot required the bibliothek skill for it.
+		bibliothekOptional := isCopilot && !member.Requires(bibliothekChecklistID)
 		if isBibliothekSkillCall(payload) {
 			store.Sign(payload.SessionID, bibliothekChecklistID)
-		} else if deny := bibliothekDeny(store, payload.SessionID, payload.TranscriptPath); deny != "" {
-			return newHookResult("PreToolUse", "deny", []string{deny})
+		} else if !bibliothekOptional {
+			if deny := bibliothekDeny(store, payload.SessionID, payload.TranscriptPath); deny != "" {
+				return newHookResult("PreToolUse", "deny", []string{deny})
+			}
 		}
 
 		if deny := memoryFeedbackDeny(store, payload, projectPath); deny != "" {
@@ -186,6 +201,43 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 	parts = append(parts, notificationContext(store, payload.TabID)...)
 
 	return newHookResult("PreToolUse", "allow", parts)
+}
+
+// The copilot this tab is in its live group, if any. Any lookup failure reads as not a copilot, so a store problem never blocks a tool call.
+func liveCopilot(store *session.Store, tab string) (session.Member, session.Group, bool) {
+	if tab == "" {
+		return session.Member{}, session.Group{}, false
+	}
+	group, member, err := store.LiveMembership(tab)
+	if err != nil || member.Role != session.RoleCopilot {
+		return session.Member{}, session.Group{}, false
+	}
+	return member, group, true
+}
+
+// Applies the copilot gates and records a skill load. Returns the tab's member row, whether it is a copilot, and a deny message or "".
+func copilotGateDecision(store *session.Store, payload hookEvent) (session.Member, bool, string) {
+	member, _, ok := liveCopilot(store, payload.TabID)
+	if !ok {
+		return session.Member{}, false, ""
+	}
+	marks, err := store.Marks(payload.TabID)
+	if err != nil {
+		return member, true, ""
+	}
+	listening, _ := store.ListenerLive(payload.TabID, time.Now())
+	deny, loaded := copilotGate(copilotGateInput{
+		ToolName:  payload.ToolName,
+		ToolInput: payload.ToolInput,
+		Vendor:    member.Vendor,
+		Required:  member.RequiredSkills(),
+		Marks:     marks,
+		Listening: listening,
+	})
+	if loaded != "" {
+		store.MarkReady(payload.TabID, session.SkillMark(loaded))
+	}
+	return member, true, deny
 }
 
 func isBibliothekSkillCall(payload hookEvent) bool {

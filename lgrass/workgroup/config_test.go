@@ -82,3 +82,56 @@ func TestParseRejectsInvalidConfigs(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillsAreDedupedAndTheCopilotSkillIsImplicit(t *testing.T) {
+	cfg, err := Parse([]byte("copilots:\n  - {label: a, vendor: claude, prompt: x, skills: [lgrass-connector, lgrass-copilot, bibliothek, lgrass-connector]}"), t.TempDir())
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	c := cfg.Copilots[0]
+	if got := c.RequiredSkills(); len(got) != 3 || got[0] != "lgrass-copilot" || got[1] != "lgrass-connector" || got[2] != "bibliothek" {
+		t.Errorf("RequiredSkills = %v, want the copilot skill first then the listed ones once each", got)
+	}
+	plain, _ := Parse([]byte("copilots:\n  - {label: a, vendor: claude, prompt: x}"), t.TempDir())
+	if got := plain.Copilots[0].RequiredSkills(); len(got) != 1 || got[0] != "lgrass-copilot" {
+		t.Errorf("RequiredSkills without a list = %v", got)
+	}
+}
+
+func TestSkillNamesAreValidated(t *testing.T) {
+	for name, body := range map[string]string{
+		"path in name": "copilots:\n  - {label: a, vendor: claude, prompt: x, skills: ['../evil']}",
+		"space":        "copilots:\n  - {label: a, vendor: claude, prompt: x, skills: ['a b']}",
+		"too many":     "copilots:\n  - {label: a, vendor: claude, prompt: x, skills: [a1, a2, a3, a4, a5, a6, a7, a8, a9]}",
+	} {
+		if _, err := Parse([]byte(body), t.TempDir()); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+}
+
+func TestCheckSkillsInstalledPerVendor(t *testing.T) {
+	home := t.TempDir()
+	install := func(vendorDir, name string) {
+		dir := filepath.Join(home, vendorDir, "skills", name)
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("x"), 0o600)
+	}
+	install(".claude", "lgrass-copilot")
+	install(".claude", "bibliothek")
+	install(".codex", "lgrass-copilot")
+
+	cfg, _ := Parse([]byte("copilots:\n  - {label: a, vendor: claude, prompt: x, skills: [bibliothek]}\n  - {label: b, vendor: codex, prompt: y}"), t.TempDir())
+	if err := cfg.CheckSkillsInstalled(home); err != nil {
+		t.Fatalf("CheckSkillsInstalled: %v", err)
+	}
+
+	cfg, _ = Parse([]byte("copilots:\n  - {label: b, vendor: codex, prompt: y, skills: [bibliothek]}"), t.TempDir())
+	err := cfg.CheckSkillsInstalled(home)
+	if err == nil || !strings.Contains(err.Error(), `"bibliothek"`) || !strings.Contains(err.Error(), "lgrass-copilot") {
+		t.Errorf("error = %v, want the missing codex skill named and the installed ones listed", err)
+	}
+	if err := (Config{Copilots: []Copilot{{Label: "a", Vendor: "claude"}}}).CheckSkillsInstalled(t.TempDir()); err == nil {
+		t.Error("a home with no skills passed the check")
+	}
+}

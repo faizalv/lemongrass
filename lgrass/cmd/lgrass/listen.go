@@ -15,17 +15,21 @@ const (
 	listenPollInterval   = 2 * time.Second
 )
 
-// Blocks until this tab has a pending notification, meant to run backgrounded so its exit wakes an idle model, and relaunched on return.
+// Blocks until this tab has a pending notification, meant to run backgrounded so its exit wakes an idle model, and relaunched on return. A Claude tab is notified directly, so it only records that it is ready unless --block is given.
 func cmdListen(args []string) {
 	timeout := defaultListenTimeout
+	block := false
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--timeout" {
+		switch args[i] {
+		case "--timeout":
 			i++
 			if i < len(args) {
 				if d, err := time.ParseDuration(args[i]); err == nil {
 					timeout = d
 				}
 			}
+		case "--block":
+			block = true
 		}
 	}
 	if tabID == "" {
@@ -35,6 +39,12 @@ func cmdListen(args []string) {
 
 	store := openStore()
 	defer store.Close()
+
+	if vendor, _ := store.VendorForTab(tabID); vendor == "claude" && !block {
+		store.MarkReady(tabID, session.MarkListening)
+		fmt.Println("lgrass: this tab is notified directly, so there is nothing to wait for. Marked ready. Use `lgrass listen --block` to wait for a notification anyway.")
+		return
+	}
 
 	deadline := time.Now().Add(timeout)
 	for {

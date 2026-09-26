@@ -1,5 +1,7 @@
 package session
 
+import "database/sql"
+
 const threadSchema = `
 CREATE TABLE IF NOT EXISTS lg_tabs (
 	project_id TEXT NOT NULL,
@@ -78,6 +80,40 @@ CREATE TABLE IF NOT EXISTS lg_listener_heartbeats (
 	PRIMARY KEY (project_id, tab_id)
 );
 `
+
+// Columns added after their table first shipped, since CREATE TABLE IF NOT EXISTS does not alter an existing table.
+var addedColumns = []struct{ table, column, definition string }{
+	{"lg_group_members", "prompt", "TEXT NOT NULL DEFAULT ''"},
+	{"lg_group_members", "skills", "TEXT NOT NULL DEFAULT ''"},
+}
+
+func addMissingColumns(db *sql.DB) error {
+	for _, c := range addedColumns {
+		rows, err := db.Query(`SELECT name FROM pragma_table_info(?)`, c.table)
+		if err != nil {
+			return err
+		}
+		found := false
+		for rows.Next() {
+			var name string
+			if err := rows.Scan(&name); err != nil {
+				rows.Close()
+				return err
+			}
+			if name == c.column {
+				found = true
+			}
+		}
+		rows.Close()
+		if found {
+			continue
+		}
+		if _, err := db.Exec(`ALTER TABLE ` + c.table + ` ADD COLUMN ` + c.column + ` ` + c.definition); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 const legacyThreadDrop = `
 DROP TABLE IF EXISTS thread_messages;

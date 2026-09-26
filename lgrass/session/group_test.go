@@ -171,3 +171,16 @@ func TestNotificationAndReadOutputShowGroupLabels(t *testing.T) {
 		t.Errorf("header = %q", header)
 	}
 }
+
+func TestFormatMemberHeaderGivesACopilotItsRoleBack(t *testing.T) {
+	pilot := FormatMemberHeader(Member{Role: RolePilot})
+	if !strings.Contains(pilot, "pilot") {
+		t.Errorf("pilot header = %q", pilot)
+	}
+	header := FormatMemberHeader(Member{Role: RoleCopilot, Label: "reviewer", Prompt: "Review the diff.", Skills: []string{"lgrass-connector"}})
+	for _, want := range []string{`copilot "reviewer"`, "lgrass-copilot, lgrass-connector", "Your assignment:", "Review the diff."} {
+		if !strings.Contains(header, want) {
+			t.Errorf("header missing %q:\n%s", want, header)
+		}
+	}
+}

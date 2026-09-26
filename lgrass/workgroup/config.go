@@ -11,11 +11,17 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/faizalv/lemongrass/session"
+
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	MaxCopilots      = 5
+	MaxCopilots = 5
+	MaxSkills   = 8
+
+	// Every copilot loads this skill, so a config never has to list it.
+	CopilotSkill     = session.CopilotSkill
 	MaxPromptRunes   = 3000
 	MaxNameRunes     = 120
 	defaultName      = "workgroup"
@@ -25,15 +31,17 @@ const (
 var (
 	labelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,29}$`)
 	modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$`)
+	skillPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 	vendors      = map[string]bool{"claude": true, "codex": true}
 )
 
 type Copilot struct {
-	Label      string `yaml:"label"`
-	Vendor     string `yaml:"vendor"`
-	Model      string `yaml:"model"`
-	Prompt     string `yaml:"prompt"`
-	PromptFile string `yaml:"prompt_file"`
+	Label      string   `yaml:"label"`
+	Vendor     string   `yaml:"vendor"`
+	Model      string   `yaml:"model"`
+	Prompt     string   `yaml:"prompt"`
+	PromptFile string   `yaml:"prompt_file"`
+	Skills     []string `yaml:"skills"`
 }
 
 type Config struct {
@@ -95,6 +103,19 @@ func Parse(data []byte, baseDir string) (Config, error) {
 		if c.Model != "" && !modelPattern.MatchString(c.Model) {
 			return Config{}, fmt.Errorf("workgroup: copilot %q model %q is not a valid model name", c.Label, c.Model)
 		}
+		if len(c.Skills) > MaxSkills {
+			return Config{}, fmt.Errorf("workgroup: copilot %q lists %d skills and the limit is %d", c.Label, len(c.Skills), MaxSkills)
+		}
+		var skills []string
+		for _, name := range c.Skills {
+			if !skillPattern.MatchString(name) {
+				return Config{}, fmt.Errorf("workgroup: copilot %q skill %q is not a valid skill name", c.Label, name)
+			}
+			if name != CopilotSkill && !containsString(skills, name) {
+				skills = append(skills, name)
+			}
+		}
+		c.Skills = skills
 		if (c.Prompt == "") == (c.PromptFile == "") {
 			return Config{}, fmt.Errorf("workgroup: copilot %q needs exactly one of prompt and prompt_file", c.Label)
 		}
@@ -118,4 +139,50 @@ func Parse(data []byte, baseDir string) (Config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+func containsString(list []string, v string) bool {
+	for _, item := range list {
+		if item == v {
+			return true
+		}
+	}
+	return false
+}
+
+// Every skill a copilot must load: the copilot skill first, then the ones the pilot listed.
+func (c Copilot) RequiredSkills() []string {
+	return append([]string{CopilotSkill}, c.Skills...)
+}
+
+var skillDirs = map[string]string{"claude": ".claude", "codex": ".codex"}
+
+// Checks that each copilot's required skills are installed for its vendor, so a group is never approved with a skill nobody can load.
+func (cfg Config) CheckSkillsInstalled(home string) error {
+	for _, c := range cfg.Copilots {
+		root := filepath.Join(home, skillDirs[c.Vendor], "skills")
+		for _, name := range c.RequiredSkills() {
+			if _, err := os.Stat(filepath.Join(root, name, "SKILL.md")); err != nil {
+				return fmt.Errorf("workgroup: copilot %q needs the skill %q, which is not installed for %s at %s. Installed: %s", c.Label, name, c.Vendor, root, installedSkills(root))
+			}
+		}
+	}
+	return nil
+}
+
+func installedSkills(root string) string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "none"
+	}
+	var names []string
+	for _, e := range entries {
+		if _, err := os.Stat(filepath.Join(root, e.Name(), "SKILL.md")); err == nil {
+			names = append(names, e.Name())
+		}
+	}
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ", ")
 }
