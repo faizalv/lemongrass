@@ -173,30 +173,12 @@ func TestVendorForTabFallsBackToGroupMembership(t *testing.T) {
 	}
 }
 
-func TestMessagingTargetForTabNeedsALiveSessionWithASocket(t *testing.T) {
-	store := openTestStore(t)
-
-	if _, ok, _ := store.MessagingTargetForTab(tabA); ok {
-		t.Fatal("target found for a tab with no session")
-	}
-	store.Start("session-a", "/tmp/a.sock", "tok")
-	store.RecordTabSession(tabA, "session-a")
-	target, ok, err := store.MessagingTargetForTab(tabA)
-	if err != nil || !ok || target.Socket != "/tmp/a.sock" || target.Token != "tok" {
-		t.Fatalf("target = %+v, %v, %v, want the session's socket", target, ok, err)
-	}
-	store.End("session-a")
-	if _, ok, _ := store.MessagingTargetForTab(tabA); ok {
-		t.Error("target found for an ended session")
-	}
-}
-
 func TestFormatNotificationCoalescesAndCarriesNoContent(t *testing.T) {
 	out := FormatNotification([]PendingThread{
 		{ThreadID: 4, Title: "Review", Senders: []string{tabA, tabB}, RowIDs: []int64{1, 2}},
 		{ThreadID: 5, Title: "Other", Senders: []string{tabB}, RowIDs: []int64{3}},
 	}, nil)
-	for _, want := range []string{"not your user", "2 new messages in thread 4 [Review] from aaaaaaaa, bbbbbbbb", "1 new message in thread 5 [Other]", "lgrass thread read 5"} {
+	for _, want := range []string{"[lg] thread 4: 2 new from aaaaaaaa, bbbbbbbb", "[lg] thread 5: 1 new from bbbbbbbb"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}

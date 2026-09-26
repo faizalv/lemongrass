@@ -139,6 +139,16 @@ function openPaths(projectId: string): string[] {
   return [...new Set(paths)]
 }
 
+export function isTabOpen(projectId: string, tabId: string): boolean {
+  return workspaces[projectId] ? tabsOf(projectId).some((tab) => tab.id === tabId) : false
+}
+
+export function focusTab(project: ProjectRef, tabId: string): void {
+  const root = workspaces[project.id]?.layout.root ?? null
+  const leaf = tree.findLeafByTab(root, tabId)
+  if (root && leaf) commit(project, tree.setActiveTab(root, leaf.id, tabId), leaf.id)
+}
+
 export function liveShellCount(projectId: string): number {
   return workspaces[projectId] ? tabsOf(projectId).filter((t) => t.kind === 'shell').length : 0
 }
@@ -524,16 +534,10 @@ onShellExit((tabId) => {
   }
 })
 
-// Claude takes the prompt as extra system prompt text. Codex takes it as its opening prompt argument.
+// A positional prompt starts the session with it as the first message, which extra system prompt text does not.
 function workgroupArgs(member: WorkgroupSpawnMember): string[] {
-  if (member.vendor === 'claude') {
-    return [
-      ...(member.model ? ['--model', member.model] : []),
-      '--append-system-prompt',
-      member.prompt
-    ]
-  }
-  return [...(member.model ? ['-m', member.model] : []), member.prompt]
+  const modelFlag = member.vendor === 'claude' ? '--model' : '-m'
+  return [...(member.model ? [modelFlag, member.model] : []), member.prompt]
 }
 
 function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {

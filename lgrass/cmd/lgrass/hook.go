@@ -30,6 +30,8 @@ type hookEvent struct {
 	ToolName             string          `json:"tool_name"`
 	ToolInput            json.RawMessage `json:"tool_input"`
 	SessionSource        string          `json:"source"`
+	NotificationType     string          `json:"notification_type"`
+	Message              string          `json:"message"`
 	MessagingSocket      string
 	MessagingToken       string
 	TabID                string
@@ -57,7 +59,7 @@ const bibliothekSignatureTTL = 7 * 24 * time.Hour
 // Every failure here fails soft so a hook-side problem never breaks the agent's own hook chain.
 func cmdHook(args []string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse>")
+		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop>")
 		os.Exit(1)
 	}
 	event := args[0]
@@ -88,6 +90,8 @@ func cmdHook(args []string) {
 	}
 	defer store.Close()
 
+	recordTabState(store, event, payload)
+
 	var result hookResult
 	switch event {
 	case "SessionStart":
@@ -116,10 +120,14 @@ func logHookProbe(event, vendor string, raw []byte, payload hookEvent) {
 }
 
 func hookSessionStart(store *session.Store, payload hookEvent, projectPath string) hookResult {
+	var startErr error
 	if payload.PreserveSessionState {
-		store.EnsureOpen(payload.SessionID)
+		startErr = store.EnsureOpen(payload.SessionID)
 	} else {
-		store.Start(payload.SessionID, payload.MessagingSocket, payload.MessagingToken)
+		startErr = store.Start(payload.SessionID, payload.MessagingSocket, payload.MessagingToken)
+	}
+	if startErr != nil {
+		fmt.Fprintf(os.Stderr, "lgrass: recording the session failed: %v\n", startErr)
 	}
 	if payload.TabID != "" && payload.SessionID != "" {
 		store.RecordTabSession(payload.TabID, payload.SessionID)
@@ -131,6 +139,9 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	var parts []string
 	if summary := lawsSummary(projectPath); summary != "" {
 		parts = append(parts, summary)
+	}
+	if payload.TabID != "" {
+		parts = append(parts, session.FormatPrefixNote())
 	}
 	if member, group, ok := liveCopilot(store, payload.TabID); ok {
 		parts = append(parts, session.FormatCopilotStart(member, group))

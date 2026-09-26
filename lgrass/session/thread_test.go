@@ -193,7 +193,7 @@ func TestFormatThreadReadShowsFramingMentionsAndNextPage(t *testing.T) {
 		{ID: 8, TabID: tabA, Body: "first", CreatedAt: "2026-09-26T10:01:00Z"},
 	}
 	out := FormatThreadRead(thread, msgs, true, nil)
-	for _, want := range []string{"thread 7 [Review]", "not your user", "#9", "bbbbbbbb", "(mentions aaaaaaaa)", "lgrass thread read 7 --before 8"} {
+	for _, want := range []string{"[lg] thread 7 [Review]", "#9", "bbbbbbbb", "(mentions aaaaaaaa)", "lgrass thread read 7 --before 8"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}

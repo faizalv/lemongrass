@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 
 func cmdWorkgroup(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass workgroup <create|disband|thread> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass workgroup <create|disband|thread|list> ...")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -21,6 +22,8 @@ func cmdWorkgroup(args []string) {
 		cmdWorkgroupDisband(args[1:])
 	case "thread":
 		cmdWorkgroupThread(args[1:])
+	case "list":
+		cmdWorkgroupList(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown workgroup command: %s\n", args[0])
 		os.Exit(1)
@@ -153,4 +156,61 @@ func cmdWorkgroupThread(args []string) {
 		}
 	}
 	printThread(store, group.ThreadID, parsed, header)
+}
+
+type listedMember struct {
+	TabID  string `json:"tabId"`
+	Role   string `json:"role"`
+	Label  string `json:"label"`
+	Vendor string `json:"vendor"`
+}
+
+type listedGroup struct {
+	ID         int64          `json:"id"`
+	Name       string         `json:"name"`
+	ThreadID   int64          `json:"threadId"`
+	PilotTabID string         `json:"pilotTabId"`
+	Members    []listedMember `json:"members"`
+}
+
+func cmdWorkgroupList(args []string) {
+	asJSON := len(args) == 1 && args[0] == "--json"
+	if len(args) > 1 || (len(args) == 1 && !asJSON) {
+		fmt.Fprintln(os.Stderr, "usage: lgrass workgroup list [--json]")
+		os.Exit(1)
+	}
+
+	store := openStore()
+	defer store.Close()
+	groups, err := store.LiveGroups()
+	if err != nil {
+		fail(err)
+	}
+	listed := make([]listedGroup, 0, len(groups))
+	for _, g := range groups {
+		members, err := store.GroupMembers(g.ID)
+		if err != nil {
+			fail(err)
+		}
+		entry := listedGroup{ID: g.ID, Name: g.Name, ThreadID: g.ThreadID, PilotTabID: g.PilotTabID, Members: make([]listedMember, len(members))}
+		for i, m := range members {
+			entry.Members[i] = listedMember{TabID: m.TabID, Role: m.Role, Label: m.Label, Vendor: m.Vendor}
+		}
+		listed = append(listed, entry)
+	}
+
+	if asJSON {
+		json.NewEncoder(os.Stdout).Encode(listed)
+		return
+	}
+	if len(listed) == 0 {
+		fmt.Println("no live workgroups in this project")
+		return
+	}
+	for _, g := range listed {
+		fmt.Printf("workgroup %d [%s], thread %d\n", g.ID, g.Name, g.ThreadID)
+		for _, m := range g.Members {
+			fmt.Printf("  %s (%s, %s) tab %s\n", m.Label, m.Role, m.Vendor, m.TabID)
+		}
+	}
 }

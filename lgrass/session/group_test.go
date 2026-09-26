@@ -184,3 +184,19 @@ func TestFormatMemberHeaderGivesACopilotItsRoleBack(t *testing.T) {
 		}
 	}
 }
+
+func TestLiveGroupsListsOnlyLiveOnesWithTheirThread(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+
+	groups, err := store.LiveGroups()
+	if err != nil || len(groups) != 1 || groups[0].ID != g.ID || groups[0].ThreadID != g.ThreadID || groups[0].Name != "Schema review" {
+		t.Fatalf("LiveGroups = %+v, %v, want the one live group", groups, err)
+	}
+	if err := store.DisbandGroup(g.ID); err != nil {
+		t.Fatalf("disband: %v", err)
+	}
+	if groups, err := store.LiveGroups(); err != nil || len(groups) != 0 {
+		t.Errorf("LiveGroups after disband = %+v, %v, want none", groups, err)
+	}
+}

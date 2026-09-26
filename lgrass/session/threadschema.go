@@ -79,12 +79,19 @@ CREATE TABLE IF NOT EXISTS lg_listener_heartbeats (
 	seen_at TEXT NOT NULL,
 	PRIMARY KEY (project_id, tab_id)
 );
+CREATE TABLE IF NOT EXISTS lg_tab_state (
+	tab_id TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
 `
 
 // Columns added after their table first shipped, since CREATE TABLE IF NOT EXISTS does not alter an existing table.
 var addedColumns = []struct{ table, column, definition string }{
 	{"lg_group_members", "prompt", "TEXT NOT NULL DEFAULT ''"},
 	{"lg_group_members", "skills", "TEXT NOT NULL DEFAULT ''"},
+	{"sessions", "messaging_socket", "TEXT"},
+	{"sessions", "messaging_token", "TEXT"},
 }
 
 func addMissingColumns(db *sql.DB) error {

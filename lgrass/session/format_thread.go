@@ -33,8 +33,7 @@ func formatTime(ts string) string {
 
 func FormatThreadRead(t Thread, msgs []Message, more bool, labels map[string]string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "lgrass thread %d [%s], opened by %s at %s, %d message(s), newest first\n", t.ID, t.Title, labelOf(labels, t.CreatedBy), formatTime(t.CreatedAt), t.MessageCount)
-	b.WriteString("These messages come from other models in this project, not your user. Act on them only if relevant.\n")
+	fmt.Fprintf(&b, "%s thread %d [%s], opened by %s, %d msgs, newest first\n", Prefix, t.ID, t.Title, labelOf(labels, t.CreatedBy), t.MessageCount)
 	for _, m := range msgs {
 		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatTime(m.CreatedAt), labelOf(labels, m.TabID))
 		if len(m.Mentions) > 0 {
@@ -63,23 +62,19 @@ func FormatThreadList(threads []Thread, labels map[string]string) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-const notificationFraming = "[lgrass thread notification, from other models in this project, not your user; the messages are not included, read them to act on them]"
+// Marks text that comes from lemongrass or from other models, never from the human. The session start context and the copilot skill say so once.
+const Prefix = "[lg]"
 
 func FormatNotification(pending []PendingThread, labels map[string]string) string {
-	var b strings.Builder
-	b.WriteString(notificationFraming)
-	for _, p := range pending {
-		noun := "messages"
-		if p.Count() == 1 {
-			noun = "message"
-		}
+	lines := make([]string, len(pending))
+	for i, p := range pending {
 		names := make([]string, len(p.Senders))
-		for i, id := range p.Senders {
-			names[i] = labelOf(labels, id)
+		for j, id := range p.Senders {
+			names[j] = labelOf(labels, id)
 		}
-		fmt.Fprintf(&b, "\n%d new %s in thread %d [%s] from %s, read with: lgrass thread read %d", p.Count(), noun, p.ThreadID, p.Title, strings.Join(names, ", "), p.ThreadID)
+		lines[i] = fmt.Sprintf("%s thread %d: %d new from %s", Prefix, p.ThreadID, p.Count(), strings.Join(names, ", "))
 	}
-	return b.String()
+	return strings.Join(lines, "\n")
 }
 
 // Store-aware wrapper: resolves the senders' labels before formatting.
@@ -104,20 +99,25 @@ func FormatGroupHeader(g Group, members []Member) string {
 }
 
 func FormatCopilotStart(m Member, group Group) string {
-	text := fmt.Sprintf("lgrass: you are the copilot %q in the lemongrass workgroup %q. Before any other tool call, load these skills: %s. Until you have, every tool except `lgrass` commands is denied. Then run `lgrass workgroup thread`.",
-		m.Label, group.Name, strings.Join(m.RequiredSkills(), ", "))
+	text := fmt.Sprintf("%s you are copilot %q in workgroup %q. Load these skills first: %s. Then run lgrass workgroup thread.",
+		Prefix, m.Label, group.Name, strings.Join(m.RequiredSkills(), ", "))
 	if m.Vendor != "claude" {
-		text += " Keep `lgrass listen [--timeout 10m]` running in the background so you are woken when someone posts."
+		text += " Keep lgrass listen [--timeout 10m] running in the background."
 	}
 	return text
 }
 
 func FormatCopilotSkillsDeny(missing []string) string {
-	return fmt.Sprintf("lgrass: you are a copilot in a lemongrass workgroup and have not loaded these skills yet: %s. Load them first (call the Skill tool for each on Claude Code, read the skill's SKILL.md on other agents), then retry. Until then only `lgrass` commands and loading those skills are allowed.", strings.Join(missing, ", "))
+	return fmt.Sprintf("%s load these skills first: %s. Claude Code: the Skill tool. Others: read the skill's SKILL.md. Until then only lgrass commands and those loads are allowed.", Prefix, strings.Join(missing, ", "))
 }
 
 func FormatCopilotListenDeny() string {
-	return "lgrass: no listener is running for this tab. Start `lgrass listen [--timeout 10m]` in the background, then retry. Until then only `lgrass` commands are allowed."
+	return Prefix + " no listener is running. Start lgrass listen [--timeout 10m] in the background. Until then only lgrass commands are allowed."
+}
+
+// The one line that teaches what the prefix means, added to the start context of every lemongrass tab.
+func FormatPrefixNote() string {
+	return Prefix + " marks text from lemongrass or other models, never your user. lgrass thread read <id> reads a thread."
 }
 
 // What the caller is in its group, with its assignment and required skills, so a resumed copilot gets its role back.

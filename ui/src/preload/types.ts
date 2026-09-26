@@ -205,3 +205,23 @@ export interface WorkgroupSpawnResult {
   ok: boolean
   error?: string
 }
+
+export interface WorkgroupMemberInfo {
+  tabId: string
+  role: 'pilot' | 'copilot'
+  label: string
+  vendor: string
+}
+
+export interface WorkgroupInfo {
+  id: number
+  name: string
+  threadId: number
+  pilotTabId: string
+  members: WorkgroupMemberInfo[]
+}
+
+export interface WorkgroupDisbandResult {
+  ok: boolean
+  error?: string
+}

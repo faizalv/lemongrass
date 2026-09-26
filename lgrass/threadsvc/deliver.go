@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/session"
+	"github.com/faizalv/lemongrass/workgroup"
 )
 
 const (
@@ -26,14 +27,20 @@ func Backoff(attempts int) time.Duration {
 
 type Deliverer struct {
 	Store *session.Store
-	Push  func(session.MessagingTarget, string) error
+	// Asks the app to type the tab's nudge into its terminal. The app composes the line and marks the rows sent.
+	Nudge func(tabID string) (typed bool, reason string, err error)
+	// Set by the service only. Ready reports a tab whose agent is between turns with no prompt open, and Later asks for another look at a tab that is not ready.
+	Ready func(tabID string) bool
+	Later func(tabID string)
 }
 
 func NewDeliverer(store *session.Store) *Deliverer {
-	return &Deliverer{Store: store, Push: session.Deliver}
+	return &Deliverer{Store: store, Nudge: func(tabID string) (bool, string, error) {
+		return workgroup.Nudge(workgroup.AppSocketPath(), tabID)
+	}}
 }
 
-// Pushes one coalesced nudge to a Claude tab's inbox socket. Other vendors are left pending for their listener or a hook, and it reports whether a push reached the tab.
+// Types one coalesced nudge into a Claude tab's terminal when the agent is between turns. Other vendors are left pending for their listener or a hook, and it reports whether a nudge was typed.
 func (d *Deliverer) DeliverTab(tabID string) (bool, error) {
 	vendor, err := d.Store.VendorForTab(tabID)
 	if err != nil || vendor != vendorClaude {
@@ -43,19 +50,29 @@ func (d *Deliverer) DeliverTab(tabID string) (bool, error) {
 	if err != nil || len(pending) == 0 {
 		return false, err
 	}
-	var rowIDs []int64
-	for _, p := range pending {
-		rowIDs = append(rowIDs, p.RowIDs...)
+	if d.Ready != nil && !d.Ready(tabID) {
+		d.later(tabID)
+		return false, nil
 	}
 
-	target, ok, err := d.Store.MessagingTargetForTab(tabID)
+	typed, _, err := d.Nudge(tabID)
 	if err != nil {
-		return false, err
-	}
-	if !ok || d.Push(target, d.Store.NotificationText(pending)) != nil {
+		var rowIDs []int64
+		for _, p := range pending {
+			rowIDs = append(rowIDs, p.RowIDs...)
+		}
 		return false, d.Store.RecordNotificationAttempt(rowIDs)
 	}
-	return true, d.Store.MarkNotificationsSent(rowIDs)
+	if !typed {
+		d.later(tabID)
+	}
+	return typed, nil
+}
+
+func (d *Deliverer) later(tabID string) {
+	if d.Later != nil {
+		d.Later(tabID)
+	}
 }
 
 // The direct path a posting command takes when the service is unreachable.

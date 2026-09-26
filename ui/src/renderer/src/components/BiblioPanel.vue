@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import GitPanel from './GitPanel.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
+import WorkgroupPanel from './WorkgroupPanel.vue'
 import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
 import type { BiblioTree } from '../../../preload/types'
 
@@ -166,6 +167,7 @@ function onGutterUp(): void {
         </div>
       </div>
 
+      <WorkgroupPanel :project="project" />
       <GitPanel :project="project" />
     </div>
 

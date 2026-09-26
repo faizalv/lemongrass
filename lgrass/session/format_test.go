@@ -56,3 +56,14 @@ func TestFormatMemoryFeedbackDeny(t *testing.T) {
 		t.Errorf("FormatMemoryFeedbackDeny() = %q, missing the biblio/laws pointer", got)
 	}
 }
+
+func TestPrefixNoteAndNotificationsStayShort(t *testing.T) {
+	note := FormatPrefixNote()
+	if !strings.HasPrefix(note, Prefix) || len(note) > 140 {
+		t.Errorf("prefix note = %q, want the prefix and a short line", note)
+	}
+	text := FormatNotification([]PendingThread{{ThreadID: 1, Title: "Review", Senders: []string{"aaaaaaaa"}, RowIDs: []int64{1}}}, map[string]string{"aaaaaaaa": "reviewer"})
+	if text != "[lg] thread 1: 1 new from reviewer" {
+		t.Errorf("notification = %q", text)
+	}
+}

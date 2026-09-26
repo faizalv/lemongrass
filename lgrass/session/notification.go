@@ -199,21 +199,3 @@ func (s *Store) VendorForTab(tabID string) (string, error) {
 	}
 	return vendor, err
 }
-
-// False when the tab has no live session that captured a messaging socket.
-func (s *Store) MessagingTargetForTab(tabID string) (MessagingTarget, bool, error) {
-	var t MessagingTarget
-	err := s.db.QueryRow(`
-		SELECT s.session_id, s.messaging_socket, s.messaging_token
-		FROM lg_tab_sessions ts
-		JOIN sessions s ON s.project_id = ts.project_id AND s.session_id = ts.session_id
-		WHERE ts.tab_id = ? AND s.ended_at IS NULL AND s.messaging_socket IS NOT NULL AND s.messaging_socket != ''
-	`, tabID).Scan(&t.SessionID, &t.Socket, &t.Token)
-	if err == sql.ErrNoRows {
-		return MessagingTarget{}, false, nil
-	}
-	if err != nil {
-		return MessagingTarget{}, false, err
-	}
-	return t, true, nil
-}

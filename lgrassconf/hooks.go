@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var claudeHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse"}
+var claudeHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification", "Stop"}
 
 type hookHandler struct {
 	Type                   string `json:"type"`

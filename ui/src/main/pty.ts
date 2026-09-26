@@ -24,7 +24,14 @@ interface SpawnOptions {
 interface ManagedShell {
   process: pty.IPty
   command: string
+  tabId?: string
+  cwd: string
+  lastInputAt: number
 }
+
+// Terminal replies such as focus and cursor reports start with an escape byte and are not typing.
+const ESCAPE = 27
+const HUMAN_QUIET_MS = 5_000
 
 const shells = new Map<string, ManagedShell>()
 const stopping = new Map<string, Promise<void>>()
@@ -68,12 +75,21 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       shells.delete(id)
     })
 
-    shells.set(id, { process: proc, command: opts.command })
+    shells.set(id, {
+      process: proc,
+      command: opts.command,
+      tabId: opts.tabId,
+      cwd: opts.cwd ?? homedir(),
+      lastInputAt: 0
+    })
     return { id }
   })
 
   ipcMain.on('pty:write', (_event, { id, data }: { id: string; data: string }) => {
-    shells.get(id)?.process.write(data)
+    const shell = shells.get(id)
+    if (!shell) return
+    if (data.charCodeAt(0) !== ESCAPE) shell.lastInputAt = Date.now()
+    shell.process.write(data)
   })
 
   ipcMain.on(
@@ -91,6 +107,24 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
   ipcMain.on('pty:graceful-close', (_event, { id }: { id: string }) => {
     void closeShell(id)
   })
+}
+
+export interface TabShell {
+  cwd: string
+  humanIsTyping: () => boolean
+  type: (text: string) => void
+}
+
+export function findShellByTab(tabId: string): TabShell | undefined {
+  for (const shell of shells.values()) {
+    if (shell.tabId !== tabId) continue
+    return {
+      cwd: shell.cwd,
+      humanIsTyping: () => Date.now() - shell.lastInputAt < HUMAN_QUIET_MS,
+      type: (text) => shell.process.write(text)
+    }
+  }
+  return undefined
 }
 
 export function killAllShells(): void {

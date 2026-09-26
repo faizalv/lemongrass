@@ -16,6 +16,7 @@ import (
 const (
 	opPropose = "propose"
 	opSpawn   = "spawn"
+	opNudge   = "nudge"
 
 	dialTimeout    = time.Second
 	proposeTimeout = 10 * time.Minute
@@ -40,6 +41,7 @@ type Request struct {
 	GroupName   string        `json:"group_name,omitempty"`
 	Members     []SpawnMember `json:"members,omitempty"`
 	Token       string        `json:"token,omitempty"`
+	TabID       string        `json:"tab_id,omitempty"`
 }
 
 type Response struct {
@@ -47,6 +49,8 @@ type Response struct {
 	Approved bool   `json:"approved,omitempty"`
 	Token    string `json:"token,omitempty"`
 	Error    string `json:"error,omitempty"`
+	Typed    bool   `json:"typed,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 // The socket the lemongrass app listens on for group requests.
@@ -68,6 +72,15 @@ func Propose(socketPath string, req Request) (token string, approved bool, err e
 func Spawn(socketPath, token string) error {
 	_, err := call(socketPath, Request{Op: opSpawn, Token: token}, spawnTimeout)
 	return err
+}
+
+// Asks the app to type the tab's pending nudge into its terminal. The request carries only the tab id, since the app composes the line itself from the ledger. Typed is false with a reason when the human is typing or nothing is pending.
+func Nudge(socketPath, tabID string) (typed bool, reason string, err error) {
+	resp, err := call(socketPath, Request{Op: opNudge, TabID: tabID}, spawnTimeout)
+	if err != nil {
+		return false, "", err
+	}
+	return resp.Typed, resp.Reason, nil
 }
 
 func call(socketPath string, req Request, deadline time.Duration) (Response, error) {

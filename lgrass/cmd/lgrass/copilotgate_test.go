@@ -152,7 +152,7 @@ func TestGateTwoNeedsALiveListenerOnNonClaudeVendorsOnly(t *testing.T) {
 func TestGateOneComesBeforeGateTwo(t *testing.T) {
 	tool, input := bash("ls")
 	deny, _ := gateFor("codex", tool, input, nil, false)
-	if !strings.Contains(deny, "have not loaded these skills") {
+	if !strings.Contains(deny, "load these skills first") {
 		t.Errorf("deny = %q, want the skills message first", deny)
 	}
 }

@@ -1,9 +1,7 @@
 package threadsvc
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"net"
 	"path/filepath"
@@ -35,31 +33,47 @@ func openStore(t *testing.T) *session.Store {
 	return store
 }
 
-func liveClaudeSession(store *session.Store, socket string) {
-	store.Start("session-claude", socket, "tok")
-	store.RecordTabSession(tabClaude, "session-claude")
-}
-
+// Stands in for the app: types the tab's pending nudge, marking the rows sent the way `lgrass session nudge` does.
 type recorder struct {
 	mu    sync.Mutex
+	store *session.Store
 	texts []string
 	fail  bool
+	human bool
 }
 
-func (r *recorder) push(_ session.MessagingTarget, text string) error {
+func (r *recorder) nudge(tab string) (bool, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail {
-		return errors.New("push failed")
+		return false, "", errors.New("the app is not reachable")
 	}
-	r.texts = append(r.texts, text)
-	return nil
+	if r.human {
+		return false, "typing", nil
+	}
+	pending, _ := r.store.PendingForTab(tab)
+	if len(pending) == 0 {
+		return false, "nothing pending", nil
+	}
+	var ids []int64
+	for _, p := range pending {
+		ids = append(ids, p.RowIDs...)
+	}
+	r.store.MarkNotificationsSent(ids)
+	r.texts = append(r.texts, r.store.NotificationText(pending))
+	return true, "", nil
 }
 
 func (r *recorder) count() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return len(r.texts)
+}
+
+func (r *recorder) set(fail, human bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.fail, r.human = fail, human
 }
 
 func TestBackoffDoublesAndFitsFiveAttemptsInTenMinutes(t *testing.T) {
@@ -75,67 +89,60 @@ func TestBackoffDoublesAndFitsFiveAttemptsInTenMinutes(t *testing.T) {
 	}
 }
 
-func TestDeliverTabPushesOneCoalescedNudgeAndMarksSent(t *testing.T) {
+func TestDeliverTabTypesOneCoalescedNudgeAndMarksSent(t *testing.T) {
 	store := openStore(t)
-	liveClaudeSession(store, "/tmp/x.sock")
 	id, _ := store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
 	store.PostMessage(tabAuthor, id, "b !>>"+tabClaude+"<<!")
 
-	rec := &recorder{}
-	d := &Deliverer{Store: store, Push: rec.push}
-	sent, err := d.DeliverTab(tabClaude)
-	if err != nil || !sent {
-		t.Fatalf("DeliverTab = %v, %v, want a push", sent, err)
+	rec := &recorder{store: store}
+	d := &Deliverer{Store: store, Nudge: rec.nudge}
+	typed, err := d.DeliverTab(tabClaude)
+	if err != nil || !typed {
+		t.Fatalf("DeliverTab = %v, %v, want a typed nudge", typed, err)
 	}
-	if rec.count() != 1 || !strings.Contains(rec.texts[0], "2 new messages in thread") || strings.Contains(rec.texts[0], "a !>>") {
-		t.Errorf("pushed %q, want one coalesced nudge without content", rec.texts)
+	if rec.count() != 1 || !strings.Contains(rec.texts[0], "thread 1: 2 new") || strings.Contains(rec.texts[0], "a !>>") {
+		t.Errorf("typed %q, want one coalesced nudge without content", rec.texts)
 	}
 	if pending, _ := store.PendingForTab(tabClaude); len(pending) != 0 {
-		t.Errorf("rows still pending after a push: %+v", pending)
+		t.Errorf("rows still pending after a nudge: %+v", pending)
 	}
-	if sent, _ := d.DeliverTab(tabClaude); sent || rec.count() != 1 {
-		t.Error("a second delivery pushed again")
+	if typed, _ := d.DeliverTab(tabClaude); typed || rec.count() != 1 {
+		t.Error("a second delivery typed again")
 	}
 }
 
-func TestDeliverTabFailureAndNoSessionCountAttemptsAndStayPending(t *testing.T) {
+func TestDeliverTabFailureCountsAnAttemptAndStaysPending(t *testing.T) {
 	store := openStore(t)
 	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
-	rec := &recorder{}
-	d := &Deliverer{Store: store, Push: rec.push}
+	rec := &recorder{store: store, fail: true}
+	d := &Deliverer{Store: store, Nudge: rec.nudge}
 
-	if sent, _ := d.DeliverTab(tabClaude); sent {
-		t.Error("pushed to a tab with no live session")
+	if typed, _ := d.DeliverTab(tabClaude); typed {
+		t.Error("reported a nudge that failed")
 	}
-	liveClaudeSession(store, "/tmp/x.sock")
-	rec.fail = true
-	if sent, _ := d.DeliverTab(tabClaude); sent {
-		t.Error("reported a push that failed")
-	}
-	pending, _ := store.PendingForTab(tabClaude)
-	if len(pending) != 1 {
+	if pending, _ := store.PendingForTab(tabClaude); len(pending) != 1 {
 		t.Fatalf("pending = %+v, want the row kept", pending)
 	}
 	if due, _ := store.TabsDueForRetry(MaxAttempts, Backoff, time.Now().Add(time.Hour)); len(due) != 1 {
-		t.Errorf("row with 2 attempts not due after the backoff: %v", due)
+		t.Errorf("row with an attempt is not due after the backoff: %v", due)
 	}
 }
 
 func TestDeliverTabLeavesNonClaudeTabsPending(t *testing.T) {
 	store := openStore(t)
 	store.CreateThread(tabAuthor, "Review", "a !>>"+tabCodex+"<<!")
-	rec := &recorder{}
-	d := &Deliverer{Store: store, Push: rec.push}
+	rec := &recorder{store: store}
+	d := &Deliverer{Store: store, Nudge: rec.nudge}
 
-	if sent, err := d.DeliverTab(tabCodex); sent || err != nil || rec.count() != 0 {
-		t.Errorf("codex tab: sent %v, err %v, pushes %d, want none", sent, err, rec.count())
+	if typed, err := d.DeliverTab(tabCodex); typed || err != nil || rec.count() != 0 {
+		t.Errorf("codex tab: typed %v, err %v, nudges %d, want none", typed, err, rec.count())
 	}
 	if pending, _ := store.PendingForTab(tabCodex); len(pending) != 1 {
 		t.Error("codex row not left pending")
 	}
 }
 
-func startService(t *testing.T, store *session.Store) (*Service, string) {
+func startService(t *testing.T, store *session.Store, rec *recorder) (*Service, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "threads.sock")
 	l, err := net.Listen("unix", path)
@@ -144,58 +151,39 @@ func startService(t *testing.T, store *session.Store) (*Service, string) {
 	}
 	t.Cleanup(func() { l.Close() })
 	svc := NewService(store)
+	if rec != nil {
+		svc.deliver.Nudge = rec.nudge
+	}
 	go svc.Serve(l)
 	return svc, path
 }
 
-func TestWakeDeliversToClaudeOverTheSocket(t *testing.T) {
-	store := openStore(t)
-	claudeLn, err := net.Listen("unix", filepath.Join(t.TempDir(), "claude.sock"))
-	if err != nil {
-		t.Fatalf("Listen: %v", err)
+func waitForCount(rec *recorder, want int) bool {
+	deadline := time.Now().Add(3 * time.Second)
+	for rec.count() < want && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
 	}
-	defer claudeLn.Close()
-	got := make(chan string, 1)
-	go func() {
-		conn, err := claudeLn.Accept()
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-		var lines []string
-		sc := bufio.NewScanner(conn)
-		for sc.Scan() {
-			lines = append(lines, sc.Text())
-		}
-		if len(lines) == 2 {
-			var m struct {
-				Message struct{ Content string } `json:"message"`
-			}
-			json.Unmarshal([]byte(lines[1]), &m)
-			got <- m.Message.Content
-		}
-	}()
-	liveClaudeSession(store, claudeLn.Addr().String())
+	return rec.count() >= want
+}
+
+func TestWakeTypesTheNudgeForAnIdleClaudeTab(t *testing.T) {
+	store := openStore(t)
 	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
-	_, path := startService(t, store)
+	rec := &recorder{store: store}
+	_, path := startService(t, store, rec)
 
 	if err := Wake(path); err != nil {
 		t.Fatalf("Wake: %v", err)
 	}
-	select {
-	case text := <-got:
-		if !strings.Contains(text, "1 new message in thread 1 [Review]") {
-			t.Errorf("claude received %q", text)
-		}
-	case <-time.After(3 * time.Second):
-		t.Fatal("claude socket received nothing")
+	if !waitForCount(rec, 1) || !strings.Contains(rec.texts[0], "thread 1: 1 new") {
+		t.Fatalf("typed = %q, want the nudge", rec.texts)
 	}
 }
 
 func TestWaitReturnsImmediatelyWhenRowsAlreadyPending(t *testing.T) {
 	store := openStore(t)
 	store.CreateThread(tabAuthor, "Review", "a !>>"+tabCodex+"<<!")
-	_, path := startService(t, store)
+	_, path := startService(t, store, nil)
 
 	start := time.Now()
 	woke, err := Wait(path, tabCodex, 10)
@@ -206,7 +194,7 @@ func TestWaitReturnsImmediatelyWhenRowsAlreadyPending(t *testing.T) {
 
 func TestWaitWakesWhenAMessageArrivesLater(t *testing.T) {
 	store := openStore(t)
-	_, path := startService(t, store)
+	_, path := startService(t, store, nil)
 
 	type result struct {
 		woke bool
@@ -234,7 +222,7 @@ func TestWaitWakesWhenAMessageArrivesLater(t *testing.T) {
 
 func TestWaitTimesOutWithoutAWake(t *testing.T) {
 	store := openStore(t)
-	_, path := startService(t, store)
+	_, path := startService(t, store, nil)
 
 	woke, err := Wait(path, tabCodex, 1)
 	if err != nil || woke {
@@ -254,11 +242,10 @@ func TestClientsReportAnUnreachableService(t *testing.T) {
 
 func TestRunScansAtStartAndRetriesDueRows(t *testing.T) {
 	store := openStore(t)
-	liveClaudeSession(store, "/tmp/x.sock")
 	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
-	rec := &recorder{fail: true}
+	rec := &recorder{store: store, fail: true}
 	svc := NewService(store)
-	svc.deliver.Push = rec.push
+	svc.deliver.Nudge = rec.nudge
 	svc.now = func() time.Time { return time.Now().Add(time.Hour) }
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -266,19 +253,102 @@ func TestRunScansAtStartAndRetriesDueRows(t *testing.T) {
 	go func() { svc.Run(ctx, 60*time.Millisecond, time.Hour); close(done) }()
 
 	time.Sleep(15 * time.Millisecond)
-	rec.mu.Lock()
-	rec.fail = false
-	rec.mu.Unlock()
-	deadline := time.Now().Add(2 * time.Second)
-	for rec.count() == 0 && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
-	}
+	rec.set(false, false)
+	ok := waitForCount(rec, 1)
 	cancel()
 	<-done
-	if rec.count() != 1 {
-		t.Errorf("pushes after retry = %d, want 1", rec.count())
+	if !ok || rec.count() != 1 {
+		t.Errorf("nudges after retry = %d, want 1", rec.count())
 	}
 	if pending, _ := store.PendingForTab(tabClaude); len(pending) != 0 {
 		t.Error("row still pending after a successful retry")
+	}
+}
+
+func TestATabMidTurnIsNotNudgedUntilItsTurnEnds(t *testing.T) {
+	store := openStore(t)
+	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
+	store.SetTabState(tabClaude, session.StateWorking)
+
+	rec := &recorder{store: store}
+	svc := NewService(store)
+	svc.deliver.Nudge = rec.nudge
+	svc.recheckDelay = 50 * time.Millisecond
+
+	svc.Wake()
+	if rec.count() != 0 {
+		t.Fatalf("a tab mid-turn was nudged: %q", rec.texts)
+	}
+	if due, _ := store.TabsDueForRetry(MaxAttempts, Backoff, time.Now()); len(due) != 1 {
+		t.Errorf("a deferred nudge should not count as an attempt, due = %v", due)
+	}
+
+	store.SetTabState(tabClaude, session.StateIdle)
+	if !waitForCount(rec, 1) {
+		t.Fatal("no nudge after the turn ended")
+	}
+}
+
+func TestATabShowingAPermissionPromptIsNeverNudged(t *testing.T) {
+	store := openStore(t)
+	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
+	store.SetTabState(tabClaude, session.StatePrompting)
+
+	rec := &recorder{store: store}
+	svc := NewService(store)
+	svc.deliver.Nudge = rec.nudge
+	svc.recheckDelay = 30 * time.Millisecond
+	svc.now = func() time.Time { return time.Now().Add(24 * time.Hour) }
+
+	svc.Wake()
+	time.Sleep(300 * time.Millisecond)
+	if rec.count() != 0 {
+		t.Errorf("nudged a tab with an open permission prompt: %q", rec.texts)
+	}
+}
+
+func TestANudgeWaitsWhileTheHumanIsTyping(t *testing.T) {
+	store := openStore(t)
+	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
+	rec := &recorder{store: store, human: true}
+	svc := NewService(store)
+	svc.deliver.Nudge = rec.nudge
+	svc.recheckDelay = 50 * time.Millisecond
+
+	svc.Wake()
+	time.Sleep(150 * time.Millisecond)
+	if rec.count() != 0 {
+		t.Fatalf("typed while the human was typing: %q", rec.texts)
+	}
+	rec.set(false, false)
+	if !waitForCount(rec, 1) {
+		t.Fatal("no nudge once the human stopped typing")
+	}
+}
+
+func TestATabThatReadTheThreadIsNeverNudged(t *testing.T) {
+	store := openStore(t)
+	id, _ := store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
+	store.SetTabState(tabClaude, session.StateWorking)
+
+	rec := &recorder{store: store}
+	svc := NewService(store)
+	svc.deliver.Nudge = rec.nudge
+	svc.recheckDelay = 50 * time.Millisecond
+
+	svc.Wake()
+	msgs, _, err := store.ReadThread(id, 0, 10)
+	if err != nil {
+		t.Fatalf("ReadThread: %v", err)
+	}
+	var ids []int64
+	for _, m := range msgs {
+		ids = append(ids, m.ID)
+	}
+	store.MarkMessagesRead(tabClaude, ids)
+	store.SetTabState(tabClaude, session.StateIdle)
+	time.Sleep(300 * time.Millisecond)
+	if rec.count() != 0 {
+		t.Errorf("nudged for a message the tab had already read: %q", rec.texts)
 	}
 }

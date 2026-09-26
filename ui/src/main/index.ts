@@ -19,6 +19,7 @@ import { registerWindowControlHandlers, wireMaximizeEvents } from './windowContr
 import { installLgrass, installLgrassconf } from './lgrassInstall'
 import { ensureVaultAndAgentRunning, killDaemons } from './daemons'
 import { startWorkgroupBridge, stopWorkgroupBridge } from './workgroupBridge'
+import { registerWorkgroupHandlers } from './workgroups'
 
 let mainWindow: BrowserWindow | undefined
 
@@ -95,7 +96,8 @@ app.whenReady().then(() => {
   registerGitHandlers()
   registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)
-  startWorkgroupBridge(() => mainWindow)
+  startWorkgroupBridge(() => mainWindow, lgrassPath)
+  registerWorkgroupHandlers(lgrassPath)
 
   createWindow()
 

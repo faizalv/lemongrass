@@ -21,8 +21,14 @@ Run `lgrass workgroup thread`. It prints your group, its members with their role
 
 ## Hear the group
 
-- On Claude Code, messages reach you on their own as a short notice. Read the thread when one arrives.
-- On other agents, run `lgrass listen [--timeout 10m]` in the background. It exits when a message arrives, which wakes you. Read the thread, then start it again. Until a listener is running, every tool except `lgrass` commands is denied.
+- Text that starts with `[lg]` comes from lemongrass or from other models in the group, never from your user. A line like `[lg] thread 3: 2 new from reviewer` is a notice, and the messages are not in it.
+- On Claude Code, a notice arrives as a line typed into your prompt, or as hook context during a turn. Run `lgrass workgroup thread` right away, before you continue and before you end your turn, then act on what it says. Never end a turn with an unread notice.
+- On other agents, run `lgrass listen [--timeout 10m]` in the background. It exits when a message arrives, which wakes you. Read the thread before anything else, then start it again. Until a listener is running, every tool except `lgrass` commands is denied.
+- Messages in your group thread are part of your work, and the pilot's messages may change your assignment.
+
+## Your output
+
+Your user does not read your replies. Do the work, post results to the group thread, and keep your own replies to one line or none. Do not narrate what you are doing.
 
 ## Limits
 

@@ -123,6 +123,23 @@ func (s *Store) LiveGroupForTab(tabID string) (Group, error) {
 	`, s.projectID, tabID))
 }
 
+func (s *Store) LiveGroups() ([]Group, error) {
+	rows, err := s.db.Query(groupSelect+` WHERE g.project_id = ? AND g.disbanded_at IS NULL ORDER BY g.id`, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Group
+	for rows.Next() {
+		var g Group
+		if err := rows.Scan(&g.ID, &g.PilotTabID, &g.ThreadID, &g.Name, &g.CreatedAt, &g.DisbandedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GroupMembers(groupID int64) ([]Member, error) {
 	rows, err := s.db.Query(`SELECT tab_id, role, label, vendor, prompt, skills FROM lg_group_members WHERE group_id = ? ORDER BY CASE role WHEN 'pilot' THEN 0 ELSE 1 END, rowid`, groupID)
 	if err != nil {

@@ -5,6 +5,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import type { WorkgroupSpawnMember, WorkgroupSpawnResult } from '../preload/types'
+import { handleNudge } from './tabNudge'
 
 // The socket `lgrass workgroup create` talks to. A proposal shows the human a confirmation dialog and,
 // once approved, returns a one-time token. Only that token spawns tabs, and it spawns exactly what was shown.
@@ -35,6 +36,7 @@ interface Proposal {
     skills: string[]
   }[]
   token?: string
+  tab_id?: string
 }
 
 interface Approved {
@@ -49,6 +51,8 @@ interface Reply {
   approved?: boolean
   token?: string
   error?: string
+  typed?: boolean
+  reason?: string
 }
 
 const approvals = new Map<string, Approved>()
@@ -210,6 +214,8 @@ async function respond(line: string, getWindow: () => BrowserWindow | undefined)
   try {
     if (request.op === 'propose') return await handlePropose(request, getWindow)
     if (request.op === 'spawn') return await handleSpawn(String(request.token ?? ''), getWindow)
+    if (request.op === 'nudge')
+      return await handleNudge(nudgeLgrassPath, String(request.tab_id ?? ''))
     return { ok: false, error: `unknown op ${String(request.op)}` }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -217,8 +223,13 @@ async function respond(line: string, getWindow: () => BrowserWindow | undefined)
 }
 
 let server: net.Server | undefined
+let nudgeLgrassPath: string | null = null
 
-export function startWorkgroupBridge(getWindow: () => BrowserWindow | undefined): void {
+export function startWorkgroupBridge(
+  getWindow: () => BrowserWindow | undefined,
+  lgrassPath: string | null
+): void {
+  nudgeLgrassPath = lgrassPath
   ipcMain.on(
     'workgroup:spawn-result',
     (_event, payload: WorkgroupSpawnResult & { requestId: string }) => {

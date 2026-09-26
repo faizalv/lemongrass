@@ -1,6 +1,9 @@
 package session
 
 import (
+	"database/sql"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -578,5 +581,42 @@ func TestOpenDropsLegacyThreadTables(t *testing.T) {
 	err = reopened.db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'thread_messages'`).Scan(&name)
 	if err == nil {
 		t.Error("thread_messages still exists after Open")
+	}
+}
+
+func TestOpenAddsMessagingColumnsToAnOlderSessionsTable(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	if err := os.MkdirAll(filepath.Dir(DBPath()), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	old, err := sql.Open("sqlite", DBPath())
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	if _, err := old.Exec(`CREATE TABLE sessions (
+		project_id TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		started_at TEXT NOT NULL,
+		ended_at TEXT,
+		last_activity_at TEXT NOT NULL,
+		nudge_counter INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (project_id, session_id)
+	)`); err != nil {
+		t.Fatalf("creating the older table: %v", err)
+	}
+	old.Close()
+
+	store, err := Open(DBPath(), testProjectID)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer store.Close()
+
+	if err := store.Start("session-a", "/run/user/1000/cc-socks/1.sock", "token-a"); err != nil {
+		t.Fatalf("Start on a migrated table: %v", err)
+	}
+	targets, err := store.LiveMessagingTargets("other")
+	if err != nil || len(targets) != 1 || targets[0].Socket != "/run/user/1000/cc-socks/1.sock" || targets[0].Token != "token-a" {
+		t.Errorf("LiveMessagingTargets = %+v, %v, want the captured socket and token", targets, err)
 	}
 }

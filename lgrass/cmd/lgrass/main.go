@@ -98,6 +98,8 @@ COMMANDS
   workgroup disband <id>            Ends a workgroup; only its pilot may. Tabs stay open and the thread stays readable
   workgroup thread [--before <message-id>] [--limit N]
                                      Reads this tab's workgroup thread, post to it with thread post
+  session nudge <tab-id>            Prints the tab's pending thread nudge and marks it sent; the app types that line into the tab
+  workgroup list [--json]           Live workgroups in this project with their members and tab ids; needs no tab
 
   listen [--timeout 10m] [--block] Blocks until a thread notification for this tab is pending, then prints it and
                                      exits; meant to run backgrounded so its exit wakes an idle model, relaunch on return.

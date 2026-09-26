@@ -20,6 +20,8 @@ import type {
   VaultHTTPChannel,
   VaultHTTPChannelWithShortId,
   WorkspaceLayoutState,
+  WorkgroupDisbandResult,
+  WorkgroupInfo,
   WorkgroupSpawnRequest,
   WorkgroupSpawnResult
 } from './types'
@@ -205,7 +207,11 @@ const workgroup = {
     return () => ipcRenderer.removeListener('workgroup:spawn', listener)
   },
   reportSpawn: (requestId: string, result: WorkgroupSpawnResult): void =>
-    ipcRenderer.send('workgroup:spawn-result', { requestId, ...result })
+    ipcRenderer.send('workgroup:spawn-result', { requestId, ...result }),
+  list: (projectPath: string): Promise<WorkgroupInfo[]> =>
+    ipcRenderer.invoke('workgroups:list', projectPath),
+  disband: (projectPath: string, groupId: number): Promise<WorkgroupDisbandResult> =>
+    ipcRenderer.invoke('workgroups:disband', { projectPath, groupId })
 }
 
 const api = {

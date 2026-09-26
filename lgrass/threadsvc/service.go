@@ -39,20 +39,52 @@ type response struct {
 
 // A wake carries no data, so the ledger stays the only source of what is owed and a forged wake cannot inject a nudge.
 type Service struct {
-	store   *session.Store
-	deliver *Deliverer
-	mu      sync.Mutex
-	waiters map[string][]chan struct{}
-	now     func() time.Time
+	store        *session.Store
+	deliver      *Deliverer
+	mu           sync.Mutex
+	waiters      map[string][]chan struct{}
+	rechecking   map[string]bool
+	recheckDelay time.Duration
+	now          func() time.Time
 }
 
+// How long a tab that is mid-turn or showing a prompt waits before its nudge is tried again.
+const defaultRecheckDelay = 10 * time.Second
+
 func NewService(store *session.Store) *Service {
-	return &Service{
-		store:   store,
-		deliver: NewDeliverer(store),
-		waiters: map[string][]chan struct{}{},
-		now:     time.Now,
+	s := &Service{
+		store:        store,
+		deliver:      NewDeliverer(store),
+		waiters:      map[string][]chan struct{}{},
+		rechecking:   map[string]bool{},
+		recheckDelay: defaultRecheckDelay,
+		now:          time.Now,
 	}
+	s.deliver.Ready = s.ready
+	s.deliver.Later = s.later
+	return s
+}
+
+func (s *Service) ready(tabID string) bool {
+	ready, err := s.store.TabReadyForNudge(tabID, s.now())
+	return err != nil || ready
+}
+
+// One pending look per tab, so a busy session is not rechecked by several timers at once.
+func (s *Service) later(tabID string) {
+	s.mu.Lock()
+	if s.rechecking[tabID] {
+		s.mu.Unlock()
+		return
+	}
+	s.rechecking[tabID] = true
+	s.mu.Unlock()
+	time.AfterFunc(s.recheckDelay, func() {
+		s.mu.Lock()
+		delete(s.rechecking, tabID)
+		s.mu.Unlock()
+		s.deliver.DeliverTab(tabID)
+	})
 }
 
 func (s *Service) Serve(l net.Listener) error {
