@@ -83,7 +83,7 @@ func (s *Store) CreateThread(tabID, title, content string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if _, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, ts); err != nil {
+	if _, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, mentions, ts); err != nil {
 		return 0, err
 	}
 	return threadID, tx.Commit()
@@ -93,12 +93,19 @@ func (s *Store) PostMessage(tabID string, threadID int64, content string) (Messa
 	if err := validateMessage(content); err != nil {
 		return Message{}, err
 	}
-	if _, err := s.ThreadByID(threadID); err != nil {
+	thread, err := s.ThreadByID(threadID)
+	if err != nil {
 		return Message{}, err
 	}
 	mentions, err := s.ResolveMentions(ParseMentions(content))
 	if err != nil {
 		return Message{}, err
+	}
+	notify := mentions
+	if thread.GroupID != 0 {
+		if notify, err = s.groupRecipients(thread.GroupID, tabID, mentions); err != nil {
+			return Message{}, err
+		}
 	}
 
 	tx, err := s.db.Begin()
@@ -107,15 +114,15 @@ func (s *Store) PostMessage(tabID string, threadID int64, content string) (Messa
 	}
 	defer tx.Rollback()
 
-	msg, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, now())
+	msg, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, notify, now())
 	if err != nil {
 		return Message{}, err
 	}
 	return msg, tx.Commit()
 }
 
-// Every mentioned tab except the author gets a pending notification.
-func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body string, mentions []string, ts string) (Message, error) {
+// Every tab in notify except the author gets a pending notification, and mentions are recorded on the message.
+func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body string, mentions, notify []string, ts string) (Message, error) {
 	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at) VALUES (?, ?, ?, ?)`, threadID, tabID, body, ts)
 	if err != nil {
 		return Message{}, err
@@ -128,6 +135,8 @@ func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body str
 		if _, err := tx.Exec(`INSERT INTO lg_message_mentions (message_id, tab_id) VALUES (?, ?)`, id, tab); err != nil {
 			return Message{}, err
 		}
+	}
+	for _, tab := range notify {
 		if tab == tabID {
 			continue
 		}
@@ -139,6 +148,35 @@ func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body str
 		}
 	}
 	return Message{ID: id, ThreadID: threadID, TabID: tabID, Body: body, CreatedAt: ts, Mentions: mentions}, nil
+}
+
+// A group thread accepts posts from live members only, and notifies every member plus the mentioned tabs.
+func (s *Store) groupRecipients(groupID int64, author string, mentions []string) ([]string, error) {
+	group, err := s.GroupByID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if !group.Live() {
+		return nil, fmt.Errorf("session: workgroup %d is disbanded", group.ID)
+	}
+	members, err := s.GroupMembers(groupID)
+	if err != nil {
+		return nil, err
+	}
+	isMember := false
+	out := append([]string(nil), mentions...)
+	for _, m := range members {
+		if m.TabID == author {
+			isMember = true
+		}
+		if !containsString(out, m.TabID) {
+			out = append(out, m.TabID)
+		}
+	}
+	if !isMember {
+		return nil, fmt.Errorf("session: only members of workgroup %d can post to its thread", groupID)
+	}
+	return out, nil
 }
 
 func (s *Store) ThreadByID(id int64) (Thread, error) {

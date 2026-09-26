@@ -27,6 +27,8 @@ func main() {
 		cmdHook(os.Args[2:])
 	case "thread":
 		cmdThread(os.Args[2:])
+	case "workgroup":
+		cmdWorkgroup(os.Args[2:])
 	case "listen":
 		cmdListen(os.Args[2:])
 	case "session":
@@ -89,6 +91,13 @@ COMMANDS
   thread read <thread-id> [--before <message-id>] [--limit N]
                                      Reads a thread newest first, 10 messages a page
   thread list [--limit N]           Threads in this project, most recently active first
+
+  workgroup create <path-to-config>
+                                     Declares a workgroup from a YAML or JSON config and asks the human to approve it in the
+                                     lemongrass app; approved copilots open as tabs next to this one, and this tab is the pilot
+  workgroup disband <id>            Ends a workgroup; only its pilot may. Tabs stay open and the thread stays readable
+  workgroup thread [--before <message-id>] [--limit N]
+                                     Reads this tab's workgroup thread, post to it with thread post
 
   listen [--timeout 10m]            Blocks until a thread notification for this tab is pending, then prints it and
                                      exits; meant to run backgrounded so its exit wakes an idle model, relaunch on return

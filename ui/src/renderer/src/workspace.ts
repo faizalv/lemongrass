@@ -10,7 +10,13 @@ import {
   shellAgentById,
   type ShellAgent
 } from './shellAgents'
-import type { WorkspaceLayoutState, WorkspaceTab } from '../../preload/types'
+import type {
+  WorkgroupSpawnMember,
+  WorkgroupSpawnRequest,
+  WorkgroupSpawnResult,
+  WorkspaceLayoutState,
+  WorkspaceTab
+} from '../../preload/types'
 
 export interface ProjectRef {
   id: string
@@ -516,4 +522,50 @@ onShellExit((tabId) => {
       return
     }
   }
+})
+
+// Claude takes the prompt as extra system prompt text. Codex takes it as its opening prompt argument.
+function workgroupArgs(member: WorkgroupSpawnMember): string[] {
+  if (member.vendor === 'claude') {
+    return [
+      ...(member.model ? ['--model', member.model] : []),
+      '--append-system-prompt',
+      member.prompt
+    ]
+  }
+  return [...(member.model ? ['-m', member.model] : []), member.prompt]
+}
+
+function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
+  const project = [...projectRefs.values()].find((ref) => ref.path === request.projectPath)
+  const root = project ? workspaces[project.id]?.layout.root : null
+  if (!project || !root)
+    return { ok: false, error: 'the pilot project is not open in the workspace' }
+  const pilotLeaf = tree.findLeafByTab(root, request.pilotTabId)
+  if (!pilotLeaf) return { ok: false, error: 'the pilot tab is not in the workspace' }
+
+  let next = root
+  for (const member of request.members) {
+    const tab: ShellTab = {
+      id: member.tabId,
+      kind: 'shell',
+      label: member.label,
+      command: shellAgentById(member.vendor).command,
+      cwd: project.path
+    }
+    setShellArgs(tab.id, workgroupArgs(member))
+    next = tree.addTab(next, pilotLeaf.id, tab)
+  }
+  commit(project, tree.setActiveTab(next, pilotLeaf.id, request.pilotTabId))
+  return { ok: true }
+}
+
+window.api.workgroup.onSpawn((request) => {
+  let result: WorkgroupSpawnResult
+  try {
+    result = spawnWorkgroup(request)
+  } catch (err) {
+    result = { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+  window.api.workgroup.reportSpawn(request.requestId, result)
 })

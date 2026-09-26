@@ -18,10 +18,16 @@ import type {
   VaultDomainUser,
   VaultHTTPScope,
   VaultHTTPChannel,
-  VaultHTTPChannelWithShortId
+  VaultHTTPChannelWithShortId,
+  WorkgroupSpawnRequest,
+  WorkgroupSpawnResult
 } from './types'
 
 interface Api {
+  workgroup: {
+    onSpawn: (callback: (request: WorkgroupSpawnRequest) => void) => () => void
+    reportSpawn: (requestId: string, result: WorkgroupSpawnResult) => void
+  }
   pty: {
     spawn: (opts: PtySpawnOptions) => Promise<{ id: string }>
     write: (id: string, data: string) => void

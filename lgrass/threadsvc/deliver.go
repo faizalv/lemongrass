@@ -52,7 +52,7 @@ func (d *Deliverer) DeliverTab(tabID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if !ok || d.Push(target, session.FormatNotification(pending)) != nil {
+	if !ok || d.Push(target, d.Store.NotificationText(pending)) != nil {
 		return false, d.Store.RecordNotificationAttempt(rowIDs)
 	}
 	return true, d.Store.MarkNotificationsSent(rowIDs)

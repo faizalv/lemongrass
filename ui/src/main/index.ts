@@ -18,6 +18,7 @@ import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
 import { installLgrass, installLgrassconf } from './lgrassInstall'
 import { ensureVaultAndAgentRunning, killDaemons } from './daemons'
+import { startWorkgroupBridge, stopWorkgroupBridge } from './workgroupBridge'
 
 let mainWindow: BrowserWindow | undefined
 
@@ -94,6 +95,7 @@ app.whenReady().then(() => {
   registerGitHandlers()
   registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)
+  startWorkgroupBridge(() => mainWindow)
 
   createWindow()
 
@@ -103,6 +105,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+app.on('before-quit', () => stopWorkgroupBridge())
 
 // macOS apps conventionally stay alive with no windows open until Cmd+Q.
 app.on('window-all-closed', () => {

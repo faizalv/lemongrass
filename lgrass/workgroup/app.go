@@ -1,0 +1,114 @@
+package workgroup
+
+import (
+	"crypto/rand"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"path/filepath"
+	"time"
+
+	"github.com/faizalv/lemongrass/config"
+)
+
+const (
+	opPropose = "propose"
+	opSpawn   = "spawn"
+
+	dialTimeout    = time.Second
+	proposeTimeout = 10 * time.Minute
+	spawnTimeout   = 30 * time.Second
+)
+
+type SpawnMember struct {
+	TabID  string `json:"tab_id"`
+	Label  string `json:"label"`
+	Vendor string `json:"vendor"`
+	Model  string `json:"model,omitempty"`
+	Prompt string `json:"prompt"`
+}
+
+type Request struct {
+	Op          string        `json:"op"`
+	ProjectPath string        `json:"project_path,omitempty"`
+	PilotTabID  string        `json:"pilot_tab_id,omitempty"`
+	PilotLabel  string        `json:"pilot_label,omitempty"`
+	GroupName   string        `json:"group_name,omitempty"`
+	Members     []SpawnMember `json:"members,omitempty"`
+	Token       string        `json:"token,omitempty"`
+}
+
+type Response struct {
+	OK       bool   `json:"ok"`
+	Approved bool   `json:"approved,omitempty"`
+	Token    string `json:"token,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+// The socket the lemongrass app listens on for group requests.
+func AppSocketPath() string {
+	return filepath.Join(config.Dir(), "app.sock")
+}
+
+// Blocks until the human answers the app's confirmation dialog. Nothing has been spawned when it returns, and an approval returns the one-time token that spawns exactly what was shown.
+func Propose(socketPath string, req Request) (token string, approved bool, err error) {
+	req.Op = opPropose
+	resp, err := call(socketPath, req, proposeTimeout)
+	if err != nil {
+		return "", false, err
+	}
+	return resp.Token, resp.Approved, nil
+}
+
+// Asks the app to open the approved members' tabs next to the pilot's.
+func Spawn(socketPath, token string) error {
+	_, err := call(socketPath, Request{Op: opSpawn, Token: token}, spawnTimeout)
+	return err
+}
+
+func call(socketPath string, req Request, deadline time.Duration) (Response, error) {
+	conn, err := net.DialTimeout("unix", socketPath, dialTimeout)
+	if err != nil {
+		return Response{}, fmt.Errorf("workgroup: the lemongrass app is not reachable at %s, is it running: %w", socketPath, err)
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(deadline))
+	if err := json.NewEncoder(conn).Encode(req); err != nil {
+		return Response{}, fmt.Errorf("workgroup: sending to the app: %w", err)
+	}
+	var resp Response
+	if err := json.NewDecoder(conn).Decode(&resp); err != nil {
+		return Response{}, fmt.Errorf("workgroup: reading the app's answer: %w", err)
+	}
+	if !resp.OK {
+		if resp.Error == "" {
+			return Response{}, errors.New("workgroup: the app refused the request")
+		}
+		return Response{}, errors.New("workgroup: " + resp.Error)
+	}
+	return resp, nil
+}
+
+// A random version 4 UUID, the same shape the app mints for its own tabs.
+func NewTabID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// The text a copilot starts with: its role, where its group thread is, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
+func ComposePrompt(vendor, label, groupName, pilotLabel, assignment string) string {
+	text := fmt.Sprintf("You are the copilot \"%s\" in the lemongrass workgroup \"%s\", led by the pilot \"%s\". "+
+		"Read the group thread with `lgrass workgroup thread`, which also prints its thread id, and post to it with `lgrass thread post <thread-id> \"<message>\"`. "+
+		"Every message in that thread notifies the whole group, so keep messages short and report back there when you finish or get blocked.",
+		label, groupName, pilotLabel)
+	if vendor != "claude" {
+		text += " Run `lgrass listen` in the background so you are woken when someone posts, and start it again each time it returns."
+	}
+	return text + "\n\nYour assignment:\n\n" + assignment
+}

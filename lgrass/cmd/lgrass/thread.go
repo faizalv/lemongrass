@@ -186,6 +186,11 @@ func cmdThreadRead(args []string) {
 
 	store := openStore()
 	defer store.Close()
+	printThread(store, threadID, parsed, "")
+}
+
+// The shared read path: prints the page, then settles this tab's notifications for the messages shown.
+func printThread(store *session.Store, threadID int64, parsed threadArgs, header string) {
 	thread, err := store.ThreadByID(threadID)
 	if err != nil {
 		fail(err)
@@ -201,7 +206,10 @@ func cmdThreadRead(args []string) {
 		}
 		store.MarkMessagesRead(tabID, ids)
 	}
-	fmt.Println(session.FormatThreadRead(thread, msgs, more))
+	if header != "" {
+		fmt.Println(header)
+	}
+	fmt.Println(session.FormatThreadRead(thread, msgs, more, threadLabels(store, thread, msgs)))
 }
 
 func cmdThreadList(args []string) {
@@ -213,5 +221,22 @@ func cmdThreadList(args []string) {
 	if err != nil {
 		fail(err)
 	}
-	fmt.Println(session.FormatThreadList(threads))
+	fmt.Println(session.FormatThreadList(threads, store.Labels(threadCreators(threads))))
+}
+
+func threadCreators(threads []session.Thread) []string {
+	ids := make([]string, len(threads))
+	for i, t := range threads {
+		ids[i] = t.CreatedBy
+	}
+	return ids
+}
+
+func threadLabels(store *session.Store, thread session.Thread, msgs []session.Message) map[string]string {
+	ids := []string{thread.CreatedBy}
+	for _, m := range msgs {
+		ids = append(ids, m.TabID)
+		ids = append(ids, m.Mentions...)
+	}
+	return store.Labels(ids)
 }

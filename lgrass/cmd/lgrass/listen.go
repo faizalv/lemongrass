@@ -64,5 +64,5 @@ func listenOnce(store *session.Store, tab string) (string, bool) {
 		rowIDs = append(rowIDs, p.RowIDs...)
 	}
 	store.MarkNotificationsSent(rowIDs)
-	return session.FormatNotification(pending), true
+	return store.NotificationText(pending), true
 }

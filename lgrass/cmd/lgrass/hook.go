@@ -342,7 +342,7 @@ func notificationContext(store *session.Store, tab string) []string {
 		rowIDs = append(rowIDs, p.RowIDs...)
 	}
 	store.MarkNotificationsSent(rowIDs)
-	return []string{session.FormatNotification(pending)}
+	return []string{store.NotificationText(pending)}
 }
 
 func hookAdapterForEnvironment() hookAdapter {

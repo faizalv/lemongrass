@@ -19,7 +19,9 @@ import type {
   VaultHTTPScope,
   VaultHTTPChannel,
   VaultHTTPChannelWithShortId,
-  WorkspaceLayoutState
+  WorkspaceLayoutState,
+  WorkgroupSpawnRequest,
+  WorkgroupSpawnResult
 } from './types'
 
 // Custom APIs for renderer -- raw PTY bytes only, never a control-signal
@@ -195,7 +197,28 @@ const windowControls = {
   }
 }
 
-const api = { pty, projects, workspaceLayouts, tabSessions, biblio, git, vault, windowControls }
+const workgroup = {
+  onSpawn: (callback: (request: WorkgroupSpawnRequest) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: WorkgroupSpawnRequest): void =>
+      callback(request)
+    ipcRenderer.on('workgroup:spawn', listener)
+    return () => ipcRenderer.removeListener('workgroup:spawn', listener)
+  },
+  reportSpawn: (requestId: string, result: WorkgroupSpawnResult): void =>
+    ipcRenderer.send('workgroup:spawn-result', { requestId, ...result })
+}
+
+const api = {
+  pty,
+  projects,
+  workspaceLayouts,
+  tabSessions,
+  biblio,
+  git,
+  vault,
+  windowControls,
+  workgroup
+}
 
 if (process.contextIsolated) {
   try {

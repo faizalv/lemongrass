@@ -1,0 +1,173 @@
+package session
+
+import (
+	"errors"
+	"strings"
+	"testing"
+)
+
+func newTestGroup(t *testing.T, store *Store) Group {
+	t.Helper()
+	store.RegisterTab(tabA, "claude")
+	g, err := store.CreateGroup("Schema review", Member{TabID: tabA, Label: "lead", Vendor: "claude"}, []Member{
+		{TabID: tabB, Label: "reviewer", Vendor: "claude"},
+		{TabID: tabC, Label: "tester", Vendor: "codex"},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	return g
+}
+
+func TestCreateGroupStoresMembersAndItsThread(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+
+	members, err := store.GroupMembers(g.ID)
+	if err != nil || len(members) != 3 || members[0].Role != RolePilot || members[0].TabID != tabA {
+		t.Fatalf("members = %+v, %v, want the pilot first then two copilots", members, err)
+	}
+	thread, err := store.ThreadByID(g.ThreadID)
+	if err != nil || thread.GroupID != g.ID || thread.Title != "Schema review" || thread.MessageCount != 0 {
+		t.Errorf("thread = %+v, %v, want an empty thread owned by the group", thread, err)
+	}
+	live, err := store.LiveGroupForTab(tabC)
+	if err != nil || live.ID != g.ID || !live.Live() {
+		t.Errorf("LiveGroupForTab(copilot) = %+v, %v, want the group", live, err)
+	}
+}
+
+func TestATabCanBelongToOnlyOneLiveGroup(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+
+	_, err := store.CreateGroup("other", Member{TabID: tabB, Label: "x", Vendor: "claude"}, []Member{{TabID: "dddddddd-4444-4444-8444-444444444444", Label: "y", Vendor: "codex"}})
+	if !errors.Is(err, ErrAlreadyInside) {
+		t.Errorf("error = %v, want ErrAlreadyInside for a member creating a group", err)
+	}
+	if err := store.DisbandGroup(g.ID); err != nil {
+		t.Fatalf("DisbandGroup: %v", err)
+	}
+	if _, err := store.CreateGroup("again", Member{TabID: tabB, Label: "x", Vendor: "claude"}, []Member{{TabID: tabC, Label: "y", Vendor: "codex"}}); err != nil {
+		t.Errorf("a disbanded group's tabs cannot form a new one: %v", err)
+	}
+}
+
+func TestGroupThreadBroadcastsToEveryMemberExceptTheAuthor(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+
+	if _, err := store.PostMessage(tabB, g.ThreadID, "status update"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	for tab, want := range map[string]int{tabA: 1, tabB: 0, tabC: 1} {
+		pending, _ := store.PendingForTab(tab)
+		if len(pending) != want {
+			t.Errorf("tab %s pending threads = %d, want %d", TabLabel(tab), len(pending), want)
+		}
+	}
+}
+
+func TestGroupThreadAddsMentionedOutsidersToTheBroadcast(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+	outsider := "eeeeeeee-5555-4555-8555-555555555555"
+	store.RegisterTab(outsider, "codex")
+
+	if _, err := store.PostMessage(tabA, g.ThreadID, "fyi !>>eeeeeeee<<!"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if pending, _ := store.PendingForTab(outsider); len(pending) != 1 {
+		t.Errorf("mentioned outsider pending = %d, want 1", len(pending))
+	}
+	if pending, _ := store.PendingForTab(tabB); len(pending) != 1 {
+		t.Errorf("member pending = %d, want 1", len(pending))
+	}
+}
+
+func TestOnlyLiveMembersCanPostToAGroupThread(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+	outsider := "eeeeeeee-5555-4555-8555-555555555555"
+
+	if _, err := store.PostMessage(outsider, g.ThreadID, "let me in"); err == nil || !strings.Contains(err.Error(), "only members") {
+		t.Errorf("outsider post error = %v, want a members-only refusal", err)
+	}
+	store.DisbandGroup(g.ID)
+	if _, err := store.PostMessage(tabA, g.ThreadID, "still here"); err == nil || !strings.Contains(err.Error(), "disbanded") {
+		t.Errorf("post to a disbanded group error = %v, want a disbanded refusal", err)
+	}
+	if _, _, err := store.ReadThread(g.ThreadID, 0, 10); err != nil {
+		t.Errorf("a disbanded group's thread is not readable: %v", err)
+	}
+}
+
+func TestDisbandGroupTwiceAndUnknown(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+
+	if err := store.DisbandGroup(g.ID); err != nil {
+		t.Fatalf("first disband: %v", err)
+	}
+	if err := store.DisbandGroup(g.ID); err == nil || !strings.Contains(err.Error(), "already disbanded") {
+		t.Errorf("second disband error = %v", err)
+	}
+	if err := store.DisbandGroup(999); !errors.Is(err, ErrNoSuchGroup) {
+		t.Errorf("unknown disband error = %v, want ErrNoSuchGroup", err)
+	}
+	if _, err := store.LiveGroupForTab(tabA); !errors.Is(err, ErrNoSuchGroup) {
+		t.Errorf("LiveGroupForTab after disband = %v, want ErrNoSuchGroup", err)
+	}
+}
+
+func TestDeleteGroupRemovesAnUnusedGroupAndKeepsOneWithMessages(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+	if err := store.DeleteGroup(g.ID); err != nil {
+		t.Fatalf("DeleteGroup: %v", err)
+	}
+	if _, err := store.GroupByID(g.ID); !errors.Is(err, ErrNoSuchGroup) {
+		t.Errorf("group survived delete: %v", err)
+	}
+	if _, err := store.ThreadByID(g.ThreadID); err != ErrNoSuchThread {
+		t.Errorf("thread survived delete: %v", err)
+	}
+	var members int
+	store.db.QueryRow(`SELECT COUNT(*) FROM lg_group_members`).Scan(&members)
+	if members != 0 {
+		t.Errorf("%d member rows survived delete", members)
+	}
+}
+
+func TestLabelsUseGroupLabelsAndFallBackToShortIds(t *testing.T) {
+	store := openTestStore(t)
+	newTestGroup(t, store)
+	outsider := "eeeeeeee-5555-4555-8555-555555555555"
+
+	labels := store.Labels([]string{tabA, tabC, outsider})
+	if labels[tabA] != "lead" || labels[tabC] != "tester" || labels[outsider] != "eeeeeeee" {
+		t.Errorf("labels = %v, want lead, tester and the outsider's short id", labels)
+	}
+}
+
+func TestNotificationAndReadOutputShowGroupLabels(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+	store.PostMessage(tabB, g.ThreadID, "hello team")
+
+	pending, _ := store.PendingForTab(tabA)
+	if text := store.NotificationText(pending); !strings.Contains(text, "from reviewer") {
+		t.Errorf("notification = %q, want the sender's group label", text)
+	}
+	msgs, _, _ := store.ReadThread(g.ThreadID, 0, 10)
+	thread, _ := store.ThreadByID(g.ThreadID)
+	labels := store.Labels([]string{thread.CreatedBy, msgs[0].TabID})
+	out := FormatThreadRead(thread, msgs, false, labels)
+	if !strings.Contains(out, "opened by lead") || !strings.Contains(out, "reviewer:") {
+		t.Errorf("read output missing group labels:\n%s", out)
+	}
+	members, _ := store.GroupMembers(g.ID)
+	if header := FormatGroupHeader(g, members); !strings.Contains(header, "lead (pilot, claude") || !strings.Contains(header, "tester (copilot, codex") {
+		t.Errorf("header = %q", header)
+	}
+}

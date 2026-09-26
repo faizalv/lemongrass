@@ -185,3 +185,23 @@ export interface WorkspaceLayoutState {
   root: WorkspaceLayoutNode | null
   focusedPaneId: string | null
 }
+
+export interface WorkgroupSpawnMember {
+  tabId: string
+  label: string
+  vendor: string
+  model?: string
+  prompt: string
+}
+
+export interface WorkgroupSpawnRequest {
+  requestId: string
+  projectPath: string
+  pilotTabId: string
+  members: WorkgroupSpawnMember[]
+}
+
+export interface WorkgroupSpawnResult {
+  ok: boolean
+  error?: string
+}
