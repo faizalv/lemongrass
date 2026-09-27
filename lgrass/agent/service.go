@@ -65,13 +65,14 @@ func (s *Service) Query(shortID string, declaredTables []string, sqlText string)
 }
 
 // RequestHTTP resolves shortID to its real vault channel and forwards the HTTP request,
-// returning the same error for an unregistered, forgotten, or mistyped id.
-func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte, contentType string) (restergate.HTTPResult, error) {
+// returning the same error for an unregistered, forgotten, or mistyped id. actor is the
+// caller-facing identity the call is audited under, forwarded as-is to the vault.
+func (s *Service) RequestHTTP(shortID, user, method, path string, body []byte, contentType, actor string) (restergate.HTTPResult, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
 		return restergate.HTTPResult{}, ErrNoSuchChannel
 	}
-	result, err := s.vaultClient.RequestHTTP(realID, user, method, path, body, contentType)
+	result, err := s.vaultClient.RequestHTTP(realID, user, method, path, body, contentType, actor)
 	return result, redactID(err, realID, shortID)
 }
 

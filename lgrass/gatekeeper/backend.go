@@ -2,6 +2,9 @@
 package gatekeeper
 
 import (
+	"path/filepath"
+
+	"github.com/faizalv/lemongrass/channelaudit"
 	"github.com/faizalv/lemongrass/dbgate"
 	"github.com/faizalv/lemongrass/restergate"
 	"github.com/faizalv/lemongrass/vault"
@@ -14,13 +17,23 @@ type Backend struct {
 	HTTP *restergate.Gate
 }
 
-// NewBackend opens the vault under dir and attaches both gates to it.
+// NewBackend opens the vault under dir, attaches both gates to it, and opens the shared
+// connector audit log in a sibling file so both gates can write to it.
 func NewBackend(dir string) (*Backend, error) {
 	svc, err := vault.NewService(dir)
 	if err != nil {
 		return nil, err
 	}
-	return NewBackendFor(svc), nil
+	b := NewBackendFor(svc)
+
+	audit, err := channelaudit.Open(filepath.Join(dir, "audit.db"))
+	if err != nil {
+		return nil, err
+	}
+	b.DB.Audit = audit
+	b.HTTP.Audit = audit
+
+	return b, nil
 }
 
 // NewBackendFor attaches both gates to an already-open vault.

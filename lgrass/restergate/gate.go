@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/faizalv/lemongrass/channelaudit"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -14,6 +15,9 @@ var RequestTimeout = 120 * time.Second
 
 type Gate struct {
 	vault *vault.Service
+
+	// Audit is the shared connector audit log. Nil in a Gate built for a test that doesn't care about it; always set on the Gate a running vault daemon serves.
+	Audit *channelaudit.Store
 
 	mu     sync.Mutex
 	tokens map[tokenCacheKey]cachedToken

@@ -62,6 +62,8 @@ type requestHTTPPayload struct {
 	Path        string `json:"path"`
 	Body        []byte `json:"body"`
 	ContentType string `json:"content_type"`
+	// Actor is the caller-facing identity RequestHTTP audits under; empty for RequestHTTPDownload, which is not audited.
+	Actor string `json:"actor,omitempty"`
 }
 
 type httpResultPayload struct {
@@ -147,7 +149,7 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return queryOp(queryLimiter, func() (response, error) {
-			result, err := svc.RequestHTTP(p.ShortID, p.User, p.Method, p.Path, p.Body, p.ContentType)
+			result, err := svc.RequestHTTP(p.ShortID, p.User, p.Method, p.Path, p.Body, p.ContentType, p.Actor)
 			return payloadResponse(httpResultPayload{Result: result}), err
 		})
 
@@ -327,9 +329,9 @@ func (c *Client) Query(shortID string, declaredTables []string, sqlText string) 
 	return out.Result, err
 }
 
-func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte, contentType string) (restergate.HTTPResult, error) {
+func (c *Client) RequestHTTP(shortID, user, method, path string, body []byte, contentType, actor string) (restergate.HTTPResult, error) {
 	var out httpResultPayload
-	err := c.callWithin(max(c.Timeout, restergate.RequestTimeout), opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body, ContentType: contentType}, &out)
+	err := c.callWithin(max(c.Timeout, restergate.RequestTimeout), opRequestHTTP, requestHTTPPayload{ShortID: shortID, User: user, Method: method, Path: path, Body: body, ContentType: contentType, Actor: actor}, &out)
 	return out.Result, err
 }
 

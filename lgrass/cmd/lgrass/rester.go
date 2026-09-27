@@ -260,5 +260,5 @@ func execRester(client *agent.Client, cmd resterCommand) (any, error) {
 	if cmd.out != "" {
 		return downloadThroughAgent(client, cmd, target, body, contentType)
 	}
-	return client.RequestHTTP(cmd.shortID, cmd.user, cmd.method, cmd.path, body, contentType)
+	return client.RequestHTTP(cmd.shortID, cmd.user, cmd.method, cmd.path, body, contentType, actorFor(cmd.shortID))
 }

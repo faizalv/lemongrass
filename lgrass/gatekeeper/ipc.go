@@ -184,6 +184,10 @@ type requestHTTPPayload struct {
 	Path        string          `json:"path"`
 	Body        []byte          `json:"body"`
 	ContentType string          `json:"content_type"`
+	// Actor is the caller-facing identity RequestHTTP will audit under once the audit write
+	// lands; carried over the wire already so that build doesn't need another round of
+	// payload changes.
+	Actor string `json:"actor,omitempty"`
 }
 
 type httpResultPayload struct {
@@ -791,9 +795,9 @@ func (c *Client) ActivateHTTP(rootSecret string, id vault.ChannelID, ttl time.Du
 	return out.Channel, err
 }
 
-func (c *Client) RequestHTTP(id vault.ChannelID, user, method, path string, body []byte, contentType string) (restergate.HTTPResult, error) {
+func (c *Client) RequestHTTP(id vault.ChannelID, user, method, path string, body []byte, contentType, actor string) (restergate.HTTPResult, error) {
 	var out httpResultPayload
-	err := c.callWithin(max(c.Timeout, restergate.RequestTimeout), opRequestHTTP, requestHTTPPayload{ID: id, User: user, Method: method, Path: path, Body: body, ContentType: contentType}, &out)
+	err := c.callWithin(max(c.Timeout, restergate.RequestTimeout), opRequestHTTP, requestHTTPPayload{ID: id, User: user, Method: method, Path: path, Body: body, ContentType: contentType, Actor: actor}, &out)
 	return out.Result, err
 }
 

@@ -17,3 +17,5 @@ biblio/
 
 # local macOS packaging artifacts
 /Lemongrass.app/
+
+/ui/*.tsbuildinfo

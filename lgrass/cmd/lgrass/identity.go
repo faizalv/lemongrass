@@ -20,3 +20,11 @@ func currentSessionExclusion(store *session.Store) string {
 	}
 	return os.Getenv("CLAUDE_CODE_SESSION_ID")
 }
+
+// actorFor is the caller-facing label a connector audit row is stamped with: the tab that made the call when known, the channel's own short id otherwise, never authorizing anything either way.
+func actorFor(shortID string) string {
+	if tabID != "" {
+		return tabID
+	}
+	return shortID
+}
