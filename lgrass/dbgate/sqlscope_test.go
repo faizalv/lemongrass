@@ -61,11 +61,8 @@ func TestClassifyQueryMySQLIntrospect(t *testing.T) {
 	}
 }
 
-func TestClassifyQueryMySQLRejectsWritesAndDDL(t *testing.T) {
+func TestClassifyQueryMySQLRejectsDDL(t *testing.T) {
 	for _, sql := range []string{
-		"INSERT INTO employees (name) VALUES ('a')",
-		"UPDATE employees SET name = 'a' WHERE id = 1",
-		"DELETE FROM employees WHERE id = 1",
 		"DROP TABLE employees",
 		"CREATE TABLE x (id INT)",
 		"REPAIR TABLE employees",
@@ -73,6 +70,99 @@ func TestClassifyQueryMySQLRejectsWritesAndDDL(t *testing.T) {
 		if _, err := ClassifyQuery(EngineMySQL, sql); err == nil {
 			t.Errorf("ClassifyQuery(%q): expected rejection, got nil error", sql)
 		}
+	}
+}
+
+func TestClassifyQueryMySQLInsert(t *testing.T) {
+	got, err := ClassifyQuery(EngineMySQL, "INSERT INTO employees (name) VALUES ('a')")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if got.Kind != KindInsert {
+		t.Errorf("Kind = %q, want %q", got.Kind, KindInsert)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"employees"}) {
+		t.Errorf("Tables = %v, want [employees]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryMySQLInsertSelectPullsInReadTable(t *testing.T) {
+	got, err := ClassifyQuery(EngineMySQL, "INSERT INTO employees (name) SELECT name FROM contractors")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"contractors", "employees"}) {
+		t.Errorf("Tables = %v, want [contractors employees]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryMySQLUpdateSingleTable(t *testing.T) {
+	got, err := ClassifyQuery(EngineMySQL, "UPDATE employees SET name = 'a' WHERE id = 1")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if got.Kind != KindUpdate {
+		t.Errorf("Kind = %q, want %q", got.Kind, KindUpdate)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryMySQLUpdateMultiTableResolvesAliasedTarget(t *testing.T) {
+	got, err := ClassifyQuery(EngineMySQL, "UPDATE employees e JOIN salaries s ON e.id = s.emp_id SET e.name = s.amount WHERE e.id = 1")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"employees", "salaries"}) {
+		t.Errorf("Tables = %v, want [employees salaries]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryMySQLUpdateRejectsMissingWhere(t *testing.T) {
+	if _, err := ClassifyQuery(EngineMySQL, "UPDATE employees SET name = 'a'"); err == nil {
+		t.Error("expected a WHERE-less UPDATE to be rejected")
+	}
+}
+
+func TestClassifyQueryMySQLDeleteSingleTable(t *testing.T) {
+	got, err := ClassifyQuery(EngineMySQL, "DELETE FROM employees WHERE id = 1")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if got.Kind != KindDelete {
+		t.Errorf("Kind = %q, want %q", got.Kind, KindDelete)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryMySQLDeleteMultiTableUsesTargetList(t *testing.T) {
+	got, err := ClassifyQuery(EngineMySQL, "DELETE employees FROM employees JOIN salaries ON employees.id = salaries.emp_id WHERE salaries.amount < 0")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"employees", "salaries"}) {
+		t.Errorf("Tables = %v, want [employees salaries]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryMySQLDeleteRejectsMissingWhere(t *testing.T) {
+	if _, err := ClassifyQuery(EngineMySQL, "DELETE FROM employees"); err == nil {
+		t.Error("expected a WHERE-less DELETE to be rejected")
 	}
 }
 
@@ -146,17 +236,87 @@ func TestClassifyQueryPostgresShow(t *testing.T) {
 	}
 }
 
-func TestClassifyQueryPostgresRejectsWritesAndDDL(t *testing.T) {
+func TestClassifyQueryPostgresRejectsDDL(t *testing.T) {
 	for _, sql := range []string{
-		"INSERT INTO employees (name) VALUES ('a')",
-		"UPDATE employees SET name = 'a' WHERE id = 1",
-		"DELETE FROM employees WHERE id = 1",
 		"DROP TABLE employees",
 		"CREATE TABLE x (id INT)",
 	} {
 		if _, err := ClassifyQuery(EnginePostgres, sql); err == nil {
 			t.Errorf("ClassifyQuery(%q): expected rejection, got nil error", sql)
 		}
+	}
+}
+
+func TestClassifyQueryPostgresInsert(t *testing.T) {
+	got, err := ClassifyQuery(EnginePostgres, "INSERT INTO employees (name) VALUES ('a')")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if got.Kind != KindInsert {
+		t.Errorf("Kind = %q, want %q", got.Kind, KindInsert)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"employees"}) {
+		t.Errorf("Tables = %v, want [employees]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryPostgresInsertSelectPullsInReadTable(t *testing.T) {
+	got, err := ClassifyQuery(EnginePostgres, "INSERT INTO employees (name) SELECT name FROM contractors")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"contractors", "employees"}) {
+		t.Errorf("Tables = %v, want [contractors employees]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryPostgresUpdateWithFromKeepsWriteTargetAlone(t *testing.T) {
+	got, err := ClassifyQuery(EnginePostgres, "UPDATE employees SET name = salaries.payee FROM salaries WHERE employees.id = salaries.emp_id")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if got.Kind != KindUpdate {
+		t.Errorf("Kind = %q, want %q", got.Kind, KindUpdate)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"employees", "salaries"}) {
+		t.Errorf("Tables = %v, want [employees salaries]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryPostgresUpdateRejectsMissingWhere(t *testing.T) {
+	if _, err := ClassifyQuery(EnginePostgres, "UPDATE employees SET name = 'a'"); err == nil {
+		t.Error("expected a WHERE-less UPDATE to be rejected")
+	}
+}
+
+func TestClassifyQueryPostgresDeleteWithUsingKeepsWriteTargetAlone(t *testing.T) {
+	got, err := ClassifyQuery(EnginePostgres, "DELETE FROM employees USING salaries WHERE employees.id = salaries.emp_id AND salaries.amount < 0")
+	if err != nil {
+		t.Fatalf("ClassifyQuery: %v", err)
+	}
+	if got.Kind != KindDelete {
+		t.Errorf("Kind = %q, want %q", got.Kind, KindDelete)
+	}
+	if !reflect.DeepEqual(got.Tables, []string{"employees", "salaries"}) {
+		t.Errorf("Tables = %v, want [employees salaries]", got.Tables)
+	}
+	if !reflect.DeepEqual(got.WriteTables, []string{"employees"}) {
+		t.Errorf("WriteTables = %v, want [employees]", got.WriteTables)
+	}
+}
+
+func TestClassifyQueryPostgresDeleteRejectsMissingWhere(t *testing.T) {
+	if _, err := ClassifyQuery(EnginePostgres, "DELETE FROM employees"); err == nil {
+		t.Error("expected a WHERE-less DELETE to be rejected")
 	}
 }
 

@@ -23,6 +23,9 @@ const (
 	KindExplain Kind = "explain"
 	// KindIntrospect is SHOW/DESCRIBE-shaped schema or server metadata, table-scope checked only when a specific table is recoverable.
 	KindIntrospect Kind = "introspect"
+	KindInsert     Kind = "insert"
+	KindUpdate     Kind = "update"
+	KindDelete     Kind = "delete"
 )
 
 // Statement holds what a piece of SQL actually does and which real tables it references, the ground truth scope is checked against rather than the caller's declared intent.
@@ -30,6 +33,8 @@ type Statement struct {
 	Kind   Kind
 	Engine Engine
 	Tables []string
+	// WriteTables is the subset of Tables this statement actually writes to, empty for every read kind.
+	WriteTables []string
 	// ListsTables marks a SHOW TABLES-shaped statement, whose result rows name every table in the database rather than one this Statement itself references.
 	ListsTables bool
 }
@@ -87,9 +92,87 @@ func classifyMySQL(sqlText string) (Statement, error) {
 		return Statement{Kind: KindIntrospect, Tables: introspectTableFromText(stmts[0])}, nil
 	case *sqlparser.OtherRead:
 		return Statement{Kind: KindIntrospect, Tables: introspectTableFromText(stmts[0])}, nil
+	case *sqlparser.Insert:
+		return classifyMySQLInsert(st)
+	case *sqlparser.Update:
+		return classifyMySQLUpdate(st)
+	case *sqlparser.Delete:
+		return classifyMySQLDelete(st)
 	default:
-		return Statement{}, fmt.Errorf("dbgate: %T is not a supported read-only statement", stmt)
+		return Statement{}, fmt.Errorf("dbgate: %T is not a supported statement", stmt)
 	}
+}
+
+// classifyMySQLInsert always writes exactly one table, the parser's own dedicated Table field rather than an AliasedTableExpr, so it isn't picked up by mysqlTables and is added to Tables separately.
+func classifyMySQLInsert(stmt *sqlparser.Insert) (Statement, error) {
+	target := qualifiedTable(EngineMySQL, stmt.Table.Qualifier.String(), stmt.Table.Name.String())
+	tables := toSet(mysqlTables(stmt))
+	tables[target] = true
+	return Statement{Kind: KindInsert, Tables: sortedKeys(tables), WriteTables: []string{target}}, nil
+}
+
+func classifyMySQLUpdate(stmt *sqlparser.Update) (Statement, error) {
+	if stmt.Where == nil {
+		return Statement{}, fmt.Errorf("dbgate: UPDATE without a WHERE clause is not allowed")
+	}
+	tables := mysqlTables(stmt)
+	return Statement{Kind: KindUpdate, Tables: tables, WriteTables: mysqlUpdateWriteTables(stmt, tables)}, nil
+}
+
+// mysqlUpdateWriteTables resolves which of the update's tables are actually written to. A single-table update is unambiguous; a multi-table one (UPDATE a, b SET a.x = b.x ...) is resolved by tracing each SET column's table qualifier, alias or real name, back to a real table via mysqlTableAliases.
+func mysqlUpdateWriteTables(stmt *sqlparser.Update, tables []string) []string {
+	if len(tables) == 1 {
+		return tables
+	}
+	aliases := mysqlTableAliases(stmt.TableExprs)
+	seen := make(map[string]bool)
+	for _, e := range stmt.Exprs {
+		q := e.Name.Qualifier
+		if q.IsEmpty() {
+			continue
+		}
+		if schema := q.Qualifier.String(); schema != "" {
+			seen[qualifiedTable(EngineMySQL, schema, q.Name.String())] = true
+			continue
+		}
+		if real, ok := aliases[strings.ToLower(q.Name.String())]; ok {
+			seen[real] = true
+		}
+	}
+	return sortedKeys(seen)
+}
+
+func classifyMySQLDelete(stmt *sqlparser.Delete) (Statement, error) {
+	if stmt.Where == nil {
+		return Statement{}, fmt.Errorf("dbgate: DELETE without a WHERE clause is not allowed")
+	}
+	tables := mysqlTables(stmt)
+	if len(stmt.Targets) == 0 {
+		return Statement{Kind: KindDelete, Tables: tables, WriteTables: tables}, nil
+	}
+	seen := make(map[string]bool)
+	for _, tn := range stmt.Targets {
+		seen[qualifiedTable(EngineMySQL, tn.Qualifier.String(), tn.Name.String())] = true
+	}
+	return Statement{Kind: KindDelete, Tables: tables, WriteTables: sortedKeys(seen)}, nil
+}
+
+// mysqlTableAliases maps each table's alias, and its real name, to its qualified table name, for resolving a SET column's qualifier in a multi-table UPDATE back to a real table.
+func mysqlTableAliases(node sqlparser.SQLNode) map[string]string {
+	aliases := make(map[string]string)
+	sqlparser.Walk(func(n sqlparser.SQLNode) (bool, error) {
+		if ate, ok := n.(*sqlparser.AliasedTableExpr); ok {
+			if tn, ok := ate.Expr.(sqlparser.TableName); ok && !tn.IsEmpty() {
+				qualified := qualifiedTable(EngineMySQL, tn.Qualifier.String(), tn.Name.String())
+				aliases[strings.ToLower(tn.Name.String())] = qualified
+				if !ate.As.IsEmpty() {
+					aliases[strings.ToLower(ate.As.String())] = qualified
+				}
+			}
+		}
+		return true, nil
+	}, node)
+	return aliases
 }
 
 // introspectTableRegex recovers the table this parser force_eofs out of DESCRIBE/DESC and SHOW CREATE TABLE/COLUMNS/FIELDS/INDEX/INDEXES/KEYS.
@@ -151,15 +234,32 @@ func classifyPostgres(sqlText string) (Statement, error) {
 	}
 
 	var kind Kind
-	switch tree.Stmts[0].Stmt.Node.(type) {
+	// writeRelation is the statement's single write target, set only for insert/update/delete, always alone since Postgres names exactly one relation per write statement even when FROM/USING references others.
+	var writeRelation *pganalyze.RangeVar
+	switch st := tree.Stmts[0].Stmt.Node.(type) {
 	case *pganalyze.Node_SelectStmt:
 		kind = KindSelect
 	case *pganalyze.Node_ExplainStmt:
 		kind = KindExplain
 	case *pganalyze.Node_VariableShowStmt:
 		return Statement{Kind: KindIntrospect}, nil
+	case *pganalyze.Node_InsertStmt:
+		kind = KindInsert
+		writeRelation = st.InsertStmt.Relation
+	case *pganalyze.Node_UpdateStmt:
+		if st.UpdateStmt.WhereClause == nil {
+			return Statement{}, fmt.Errorf("dbgate: UPDATE without a WHERE clause is not allowed")
+		}
+		kind = KindUpdate
+		writeRelation = st.UpdateStmt.Relation
+	case *pganalyze.Node_DeleteStmt:
+		if st.DeleteStmt.WhereClause == nil {
+			return Statement{}, fmt.Errorf("dbgate: DELETE without a WHERE clause is not allowed")
+		}
+		kind = KindDelete
+		writeRelation = st.DeleteStmt.Relation
 	default:
-		return Statement{}, fmt.Errorf("dbgate: %T is not a supported read-only statement", tree.Stmts[0].Stmt.Node)
+		return Statement{}, fmt.Errorf("dbgate: %T is not a supported statement", tree.Stmts[0].Stmt.Node)
 	}
 
 	parsed, err := postgresJSON(sqlText)
@@ -167,6 +267,15 @@ func classifyPostgres(sqlText string) (Statement, error) {
 		return Statement{}, err
 	}
 	tables := postgresTables(parsed)
+
+	if writeRelation != nil {
+		// Relation is a direct *RangeVar field, not a Node-oneof wrapped in a "RangeVar" JSON key like FromClause/UsingClause entries are, so postgresTables never sees it and it's folded in here instead.
+		write := qualifiedTable(EnginePostgres, writeRelation.Schemaname, writeRelation.Relname)
+		all := toSet(tables)
+		all[write] = true
+		return Statement{Kind: kind, Tables: sortedKeys(all), WriteTables: []string{write}}, nil
+	}
+
 	if err := checkRestrictedColumns(EnginePostgres, tables, postgresColumnRefs(parsed)); err != nil {
 		return Statement{}, err
 	}

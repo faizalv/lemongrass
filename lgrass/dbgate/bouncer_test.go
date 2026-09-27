@@ -56,6 +56,54 @@ func TestAllowStatementIntrospectDeniedWithoutShow(t *testing.T) {
 	}
 }
 
+func TestAllowStatementPermitsGrantedWrite(t *testing.T) {
+	s := vault.Scope{Tables: []string{"employees"}, Operations: []string{"insert"}}
+	stmt := Statement{Kind: KindInsert, Tables: []string{"employees"}, WriteTables: []string{"employees"}}
+	if err := AllowStatement(s, stmt); err != nil {
+		t.Errorf("AllowStatement on a granted insert: %v", err)
+	}
+}
+
+func TestAllowStatementDeniesUngrantedWriteTable(t *testing.T) {
+	s := vault.Scope{Tables: []string{"employees"}, Operations: []string{"insert"}}
+	stmt := Statement{Kind: KindInsert, Tables: []string{"salaries"}, WriteTables: []string{"salaries"}}
+	if err := AllowStatement(s, stmt); err == nil {
+		t.Error("AllowStatement on an ungranted write table returned nil, want ErrScopeViolation")
+	}
+}
+
+func TestAllowStatementDeniesUngrantedWriteKind(t *testing.T) {
+	s := vault.Scope{Tables: []string{"employees"}, Operations: []string{"select"}}
+	stmt := Statement{Kind: KindInsert, Tables: []string{"employees"}, WriteTables: []string{"employees"}}
+	if err := AllowStatement(s, stmt); err == nil {
+		t.Error("AllowStatement on an ungranted write kind returned nil, want ErrScopeViolation")
+	}
+}
+
+func TestAllowStatementWriteRequiresSelectForReadTable(t *testing.T) {
+	s := vault.Scope{Tables: []string{"a", "b"}, Operations: []string{"insert"}}
+	stmt := Statement{Kind: KindInsert, Tables: []string{"a", "b"}, WriteTables: []string{"a"}}
+	if err := AllowStatement(s, stmt); err == nil {
+		t.Error("AllowStatement writing a with an incidental read of b, no select granted, returned nil, want ErrScopeViolation")
+	}
+}
+
+func TestAllowStatementWritePermitsReadTableWithSelectGranted(t *testing.T) {
+	s := vault.Scope{Tables: []string{"a", "b"}, Operations: []string{"insert", "select"}}
+	stmt := Statement{Kind: KindInsert, Tables: []string{"a", "b"}, WriteTables: []string{"a"}}
+	if err := AllowStatement(s, stmt); err != nil {
+		t.Errorf("AllowStatement writing a with an incidental read of b, select granted: %v", err)
+	}
+}
+
+func TestAllowStatementWriteDeniesReadTableUngranted(t *testing.T) {
+	s := vault.Scope{Tables: []string{"a"}, Operations: []string{"insert", "select"}}
+	stmt := Statement{Kind: KindInsert, Tables: []string{"a", "b"}, WriteTables: []string{"a"}}
+	if err := AllowStatement(s, stmt); err == nil {
+		t.Error("AllowStatement with select granted but b itself ungranted returned nil, want ErrScopeViolation")
+	}
+}
+
 func TestFilterTableListDropsUngrantedTables(t *testing.T) {
 	s := vault.Scope{Tables: []string{"menu", "sub_menu"}}
 	result := QueryResult{
