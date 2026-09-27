@@ -147,6 +147,57 @@ func TestIPCListTablesRoundTrips(t *testing.T) {
 	}
 }
 
+func writeScope() vault.Scope {
+	return vault.Scope{Tables: []string{"employees"}, Operations: []string{"delete"}}
+}
+
+func TestIPCExecuteRoundTrip(t *testing.T) {
+	client := startTestServer(t)
+	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	c, err := client.CreateChannel(testRootSecret, "test-channel", "app-backend", writeScope(), 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	// Reaches transaction open and fails only because nothing's listening -- proof the write travelled the whole IPC round trip.
+	_, err = client.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+	if err == nil || !strings.Contains(err.Error(), "beginning transaction") {
+		t.Errorf("Execute = %v, want it to fail opening the transaction", err)
+	}
+
+	if _, err := client.Execute(c.ID, []string{"salaries"}, "DELETE FROM salaries WHERE id = 1", true, "tester"); err == nil {
+		t.Error("Execute on an out-of-scope table returned nil error")
+	}
+
+	if err := client.Revoke(c.ID); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	if _, err := client.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester"); err == nil {
+		t.Error("Execute after Revoke returned nil error")
+	}
+}
+
+func TestIPCExecuteIsNotAdminGated(t *testing.T) {
+	client := startTestServer(t)
+	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	c, err := client.CreateChannel(testRootSecret, "test-channel", "app-backend", writeScope(), 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	// Many Execute calls in a row should never trip the admin limiter -- it only gates root-secret-bearing ops.
+	for i := 0; i < 20; i++ {
+		_, err := client.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+		if err == nil || !strings.Contains(err.Error(), "beginning transaction") {
+			t.Fatalf("Execute attempt %d = %v, want it to fail opening the transaction, not be admin-gated", i, err)
+		}
+	}
+}
+
 func TestIPCQueryIsNotAdminGated(t *testing.T) {
 	client := startTestServer(t)
 	if err := client.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {

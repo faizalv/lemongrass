@@ -173,6 +173,96 @@ func TestQueryFailsWhenNeverActivated(t *testing.T) {
 	}
 }
 
+// wantsTransaction asserts err is the "reached the database" failure Execute reports when it
+// gets as far as opening a transaction against an unreachable connection, proof Execute got all
+// the way through decrypt/classify/scope before failing, as opposed to failing at one of those
+// earlier steps.
+func wantsTransaction(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("Execute against an unreachable database returned nil error")
+	}
+	if !strings.Contains(err.Error(), "dbgate: beginning transaction") {
+		t.Errorf("Execute error = %q, want it to fail opening the transaction, not earlier", err.Error())
+	}
+}
+
+func writeScope() vault.Scope {
+	return vault.Scope{Tables: []string{"employees"}, Operations: []string{"delete"}}
+}
+
+func TestExecuteReachesTransactionAfterScopeChecksPass(t *testing.T) {
+	svc, g := openTestGate(t)
+	c := newTestChannel(t, svc, writeScope(), 5*time.Minute)
+
+	_, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+	wantsTransaction(t, err)
+}
+
+func TestExecuteDeniesOutOfScopeTable(t *testing.T) {
+	svc, g := openTestGate(t)
+	c := newTestChannel(t, svc, writeScope(), 5*time.Minute)
+
+	_, err := g.Execute(c.ID, []string{"salaries"}, "DELETE FROM salaries WHERE id = 1", true, "tester")
+	var violation *ErrScopeViolation
+	if !errors.As(err, &violation) {
+		t.Errorf("Execute on an out-of-scope table: got %v, want ErrScopeViolation", err)
+	}
+}
+
+func TestExecuteRejectsMissingWhereBeforeReachingScope(t *testing.T) {
+	svc, g := openTestGate(t)
+	// No delete operation granted at all -- if scope were checked first, this would be an
+	// ErrScopeViolation instead, since the WHERE-less guard runs at classification time.
+	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
+
+	_, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees", true, "tester")
+	var violation *ErrScopeViolation
+	if errors.As(err, &violation) {
+		t.Error("Execute on a WHERE-less DELETE returned ErrScopeViolation, want the classification-time rejection")
+	}
+	if err == nil {
+		t.Error("Execute on a WHERE-less DELETE returned nil error")
+	}
+}
+
+func TestExecuteRejectsReadStatement(t *testing.T) {
+	svc, g := openTestGate(t)
+	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
+
+	if _, err := g.Execute(c.ID, []string{"employees"}, "SELECT id FROM employees", true, "tester"); err == nil {
+		t.Error("Execute with a read statement returned nil error")
+	}
+}
+
+func TestQueryRejectsWriteStatementWithWhere(t *testing.T) {
+	svc, g := openTestGate(t)
+	c := newTestChannel(t, svc, writeScope(), 5*time.Minute)
+
+	if _, err := g.Query(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1"); err == nil {
+		t.Error("Query with a valid write statement returned nil error, want the mirror rejection")
+	}
+}
+
+func TestExecuteFailsAfterExpiry(t *testing.T) {
+	svc, g := openTestGate(t)
+	c := newTestChannel(t, svc, writeScope(), -1*time.Second)
+
+	if _, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester"); !errors.Is(err, vault.ErrChannelExpired) {
+		t.Errorf("Execute on an already-expired channel: got %v, want ErrChannelExpired", err)
+	}
+}
+
+func TestExecuteDryRunDoesNotAuditWithoutAStore(t *testing.T) {
+	svc, g := openTestGate(t)
+	c := newTestChannel(t, svc, writeScope(), 5*time.Minute)
+
+	// g.Audit is nil, as in any Gate a test doesn't wire one for; auditWrite must be a no-op
+	// rather than panicking.
+	_, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", false, "tester")
+	wantsTransaction(t, err)
+}
+
 func wantsListingTables(t *testing.T, err error) {
 	t.Helper()
 	if err == nil {

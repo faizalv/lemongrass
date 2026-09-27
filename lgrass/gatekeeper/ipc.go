@@ -17,6 +17,7 @@ const (
 	opCreateChannel       = "create_channel"
 	opActivate            = "activate"
 	opQuery               = "query"
+	opExecute             = "execute"
 	opRevoke              = "revoke"
 	opChannelScope        = "channel_scope"
 	opListChannels        = "list_channels"
@@ -91,6 +92,19 @@ type queryPayload struct {
 
 type queryResultPayload struct {
 	Result dbgate.QueryResult `json:"result"`
+}
+
+type executePayload struct {
+	ID             vault.ChannelID `json:"id"`
+	DeclaredTables []string        `json:"declared_tables"`
+	SQL            string          `json:"sql"`
+	Commit         bool            `json:"commit"`
+	// Actor is the caller-facing identity Execute audits under.
+	Actor string `json:"actor,omitempty"`
+}
+
+type executeResultPayload struct {
+	Result dbgate.WriteResult `json:"result"`
 }
 
 type channelIDPayload struct {
@@ -278,7 +292,7 @@ func handleConn(svc *Backend, adminLimiter *vault.FailureLimiter, conn net.Conn)
 // issues, as opposed to Electron's admin ops -- Electron's own binary path isn't fixed yet,
 // so those ops stay at UID-only verification.
 func requiresPeerBinaryCheck(op string) bool {
-	return op == opQuery || op == opChannelScope || op == opRequestHTTP || op == opRequestHTTPDownload || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers || op == opFlushHTTPTokens
+	return op == opQuery || op == opExecute || op == opChannelScope || op == opRequestHTTP || op == opRequestHTTPDownload || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers || op == opFlushHTTPTokens
 }
 
 func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) response {
@@ -322,6 +336,17 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return payloadResponse(queryResultPayload{Result: result})
+
+	case opExecute:
+		var p executePayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		result, err := svc.DB.Execute(p.ID, p.DeclaredTables, p.SQL, p.Commit, p.Actor)
+		if err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(executeResultPayload{Result: result})
 
 	case opRevoke:
 		var p channelIDPayload
@@ -694,6 +719,12 @@ func (c *Client) Activate(rootSecret string, id vault.ChannelID, ttl time.Durati
 func (c *Client) Query(id vault.ChannelID, declaredTables []string, sqlText string) (dbgate.QueryResult, error) {
 	var out queryResultPayload
 	err := c.call(opQuery, queryPayload{ID: id, DeclaredTables: declaredTables, SQL: sqlText}, &out)
+	return out.Result, err
+}
+
+func (c *Client) Execute(id vault.ChannelID, declaredTables []string, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
+	var out executeResultPayload
+	err := c.call(opExecute, executePayload{ID: id, DeclaredTables: declaredTables, SQL: sqlText, Commit: commit, Actor: actor}, &out)
 	return out.Result, err
 }
 

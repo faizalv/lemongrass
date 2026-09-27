@@ -3,9 +3,11 @@ package dbgate
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/faizalv/lemongrass/channelaudit"
 	"github.com/faizalv/lemongrass/vault"
 )
 
@@ -116,5 +118,105 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 	svc.mu.Unlock()
 	if numConns != 0 {
 		t.Errorf("len(dbConns) after Revoke = %d, want 0", numConns)
+	}
+}
+
+// TestServiceExecuteAgainstRealMySQL exercises the whole write path -- classify, the WHERE-less
+// guard, scope, the transaction itself, and the audit row -- against a real server. It needs
+// LGRASS_TEST_MYSQL_DSN set the same way TestServiceQueryAgainstRealMySQL does; skipped otherwise.
+func TestServiceExecuteAgainstRealMySQL(t *testing.T) {
+	dsn := os.Getenv("LGRASS_TEST_MYSQL_DSN")
+	if dsn == "" {
+		t.Skip("LGRASS_TEST_MYSQL_DSN not set, skipping real-MySQL test")
+	}
+
+	setupDSN, err := mysqlDSN(dsn)
+	if err != nil {
+		t.Fatalf("mysqlDSN: %v", err)
+	}
+	setup, err := sql.Open("mysql", setupDSN)
+	if err != nil {
+		t.Fatalf("opening setup connection: %v", err)
+	}
+	defer setup.Close()
+
+	if _, err := setup.Exec(`DROP TABLE IF EXISTS lg_test_write_employees`); err != nil {
+		t.Fatalf("dropping lg_test_write_employees: %v", err)
+	}
+	if _, err := setup.Exec(`CREATE TABLE lg_test_write_employees (id INT, name VARCHAR(64))`); err != nil {
+		t.Fatalf("creating lg_test_write_employees: %v", err)
+	}
+	t.Cleanup(func() { setup.Exec(`DROP TABLE IF EXISTS lg_test_write_employees`) })
+	if _, err := setup.Exec(`INSERT INTO lg_test_write_employees (id, name) VALUES (1, 'Alice')`); err != nil {
+		t.Fatalf("seeding lg_test_write_employees: %v", err)
+	}
+
+	svc, g := openTestGate(t)
+	auditPath := filepath.Join(t.TempDir(), "audit.db")
+	auditStore, err := channelaudit.Open(auditPath)
+	if err != nil {
+		t.Fatalf("channelaudit.Open: %v", err)
+	}
+	t.Cleanup(func() { auditStore.Close() })
+	g.Audit = auditStore
+
+	if err := svc.PutCredential(testRootSecret, "app-backend-write", []byte(dsn)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	scope := vault.Scope{Tables: []string{"lg_test_write_employees"}, Operations: []string{"update", "delete"}}
+	c, err := svc.CreateChannel(testRootSecret, "test-channel", "app-backend-write", scope, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	// A WHERE-less DELETE is rejected before it ever touches the database.
+	if _, err := g.Execute(c.ID, []string{"lg_test_write_employees"}, "DELETE FROM lg_test_write_employees", true, "tester"); err == nil {
+		t.Error("Execute with a WHERE-less DELETE returned nil error")
+	}
+
+	// A dry run reports the row it would have changed but leaves it untouched.
+	dryResult, err := g.Execute(c.ID, []string{"lg_test_write_employees"}, "UPDATE lg_test_write_employees SET name = 'Zara' WHERE id = 1", false, "tester")
+	if err != nil {
+		t.Fatalf("dry-run Execute: %v", err)
+	}
+	if !dryResult.DryRun || dryResult.AffectedRows != 1 {
+		t.Errorf("dry-run result = %+v, want {AffectedRows:1 DryRun:true}", dryResult)
+	}
+	var name string
+	if err := setup.QueryRow(`SELECT name FROM lg_test_write_employees WHERE id = 1`).Scan(&name); err != nil {
+		t.Fatalf("reading back row after dry run: %v", err)
+	}
+	if name != "Alice" {
+		t.Errorf("name after dry run = %q, want it unchanged at Alice", name)
+	}
+
+	// A commit actually changes the row.
+	commitResult, err := g.Execute(c.ID, []string{"lg_test_write_employees"}, "UPDATE lg_test_write_employees SET name = 'Zara' WHERE id = 1", true, "tester")
+	if err != nil {
+		t.Fatalf("commit Execute: %v", err)
+	}
+	if commitResult.DryRun || commitResult.AffectedRows != 1 {
+		t.Errorf("commit result = %+v, want {AffectedRows:1 DryRun:false}", commitResult)
+	}
+	if err := setup.QueryRow(`SELECT name FROM lg_test_write_employees WHERE id = 1`).Scan(&name); err != nil {
+		t.Fatalf("reading back row after commit: %v", err)
+	}
+	if name != "Zara" {
+		t.Errorf("name after commit = %q, want Zara", name)
+	}
+
+	// The WHERE-less rejection never opened a transaction, so it never audited; the dry run and
+	// the commit both did.
+	auditDB, err := sql.Open("sqlite", auditPath)
+	if err != nil {
+		t.Fatalf("opening audit db: %v", err)
+	}
+	defer auditDB.Close()
+	var count int
+	if err := auditDB.QueryRow(`SELECT COUNT(*) FROM lg_channel_audit WHERE channel_id = ?`, string(c.ID)).Scan(&count); err != nil {
+		t.Fatalf("counting audit rows: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("audit row count = %d, want 2 (dry run and commit, not the WHERE-less rejection)", count)
 	}
 }

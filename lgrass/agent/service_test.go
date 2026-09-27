@@ -77,6 +77,49 @@ func TestServiceRegisterThenQuery(t *testing.T) {
 	wantsExecution(t, err)
 }
 
+// wantsTransaction asserts err is the "reached the database" failure the vault reports when it
+// gets as far as opening a transaction against an unreachable connection.
+func wantsTransaction(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("Execute against an unreachable database returned nil error")
+	}
+	if !strings.Contains(err.Error(), "dbgate: beginning transaction") {
+		t.Errorf("Execute error = %q, want it to fail opening the transaction, not earlier", err.Error())
+	}
+}
+
+func writeScope() vault.Scope {
+	return vault.Scope{Tables: []string{"employees"}, Operations: []string{"delete"}}
+}
+
+func TestServiceRegisterThenExecute(t *testing.T) {
+	vaultClient := startTestVault(t)
+	if err := vaultClient.PutCredential(testRootSecret, "app-backend", []byte(unreachableConnString)); err != nil {
+		t.Fatalf("PutCredential: %v", err)
+	}
+	c, err := vaultClient.CreateChannel(testRootSecret, "test-channel", "app-backend", writeScope(), 5*time.Minute)
+	if err != nil {
+		t.Fatalf("CreateChannel: %v", err)
+	}
+
+	svc := NewService(vaultClient)
+	shortID, err := svc.RegisterChannel(c.ID)
+	if err != nil {
+		t.Fatalf("RegisterChannel: %v", err)
+	}
+
+	_, err = svc.Execute(shortID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+	wantsTransaction(t, err)
+}
+
+func TestServiceExecuteUnknownShortIDReturnsErrNoSuchChannel(t *testing.T) {
+	svc := NewService(startTestVault(t))
+	if _, err := svc.Execute("BOGUS1", []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester"); !errors.Is(err, ErrNoSuchChannel) {
+		t.Errorf("Execute with an unregistered short id: got %v, want ErrNoSuchChannel", err)
+	}
+}
+
 func TestServiceRegisterChannelRejectsUnknownRealID(t *testing.T) {
 	vaultClient := startTestVault(t)
 	svc := NewService(vaultClient)

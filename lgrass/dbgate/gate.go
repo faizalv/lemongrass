@@ -4,6 +4,8 @@ package dbgate
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/faizalv/lemongrass/channelaudit"
@@ -96,7 +98,7 @@ func (g *Gate) withConnection(rootSecret, dbName string, fn func(*sql.DB, Engine
 	})
 }
 
-// Query classifies sqlText and checks it against the channel's scope before the caller's declared tables, since scope is the real security boundary.
+// Query classifies sqlText and checks it against the channel's scope before the caller's declared tables, since scope is the real security boundary. It rejects a write-kind statement outright, mirroring Execute's own rejection of a read-kind one, so a caller can't commit through the read path or silently no-op a write through it.
 func (g *Gate) Query(id vault.ChannelID, declaredTables []string, sqlText string) (QueryResult, error) {
 	c, connBytes, err := g.vault.OpenChannel(id)
 	if err != nil {
@@ -112,6 +114,9 @@ func (g *Gate) Query(id vault.ChannelID, declaredTables []string, sqlText string
 	stmt, err := ClassifyQuery(engine, sqlText)
 	if err != nil {
 		return QueryResult{}, err
+	}
+	if isWriteKind(stmt.Kind) {
+		return QueryResult{}, errors.New("dbgate: use Execute for a write statement")
 	}
 	if err := AllowStatement(c.Scope, stmt); err != nil {
 		return QueryResult{}, err
@@ -132,6 +137,108 @@ func (g *Gate) Query(id vault.ChannelID, declaredTables []string, sqlText string
 		result = FilterTableList(c.Scope, result)
 	}
 	return result, nil
+}
+
+// isWriteKind reports whether k is one Execute handles rather than Query.
+func isWriteKind(k Kind) bool {
+	return k == KindInsert || k == KindUpdate || k == KindDelete
+}
+
+// WriteResult is a write statement's shaped output: no rows, since a write has none to show.
+type WriteResult struct {
+	AffectedRows int64 `json:"affected_rows"`
+	DryRun       bool  `json:"dry_run"`
+}
+
+// Execute classifies sqlText and checks it against the channel's scope before the caller's declared tables, same order Query uses, then runs it inside a transaction: committed when commit is true, rolled back otherwise so nothing persists from a dry run. It rejects a read-kind statement outright, the mirror of Query's own rejection above. actor is the caller-facing identity the resulting audit row is stamped under, never verified and never a security boundary.
+func (g *Gate) Execute(id vault.ChannelID, declaredTables []string, sqlText string, commit bool, actor string) (WriteResult, error) {
+	c, connBytes, err := g.vault.OpenChannel(id)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	defer vault.Zero(connBytes)
+	connString := string(connBytes)
+
+	engine, err := engineOf(connString)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	stmt, err := ClassifyQuery(engine, sqlText)
+	if err != nil {
+		return WriteResult{}, err
+	}
+	if !isWriteKind(stmt.Kind) {
+		return WriteResult{}, errors.New("dbgate: use Query for a read statement")
+	}
+	if err := AllowStatement(c.Scope, stmt); err != nil {
+		return WriteResult{}, err
+	}
+	if err := checkDeclaredTables(stmt, declaredTables); err != nil {
+		return WriteResult{}, err
+	}
+
+	db, err := g.getDB(id, connString)
+	if err != nil {
+		return WriteResult{}, errors.New("dbgate: the stored connection could not be opened")
+	}
+	return g.runWrite(id, actor, stmt, db, sqlText, commit)
+}
+
+// runWrite runs sqlText inside a transaction and resolves it, committing when commit is true and rolling back otherwise, or rolling back regardless if the statement itself failed. The audit row is written right after resolution either way, so a rejection earlier in Execute (classify, scope, declared tables) that never opened a transaction never produces one, but an attempt that reached the database and failed there still does.
+func (g *Gate) runWrite(id vault.ChannelID, actor string, stmt Statement, db *sql.DB, sqlText string, commit bool) (WriteResult, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return WriteResult{}, fmt.Errorf("dbgate: beginning transaction: %s", describeDBError(err))
+	}
+
+	res, execErr := tx.Exec(sqlText)
+	var affected int64
+	if execErr == nil {
+		affected, execErr = res.RowsAffected()
+	}
+
+	var resolveErr error
+	if execErr != nil || !commit {
+		resolveErr = tx.Rollback()
+	} else {
+		resolveErr = tx.Commit()
+	}
+	g.auditWrite(id, actor, stmt, affected, commit, execErr)
+
+	if execErr != nil {
+		return WriteResult{}, fmt.Errorf("dbgate: executing statement: %s", describeDBError(execErr))
+	}
+	if resolveErr != nil {
+		verb := "committing"
+		if !commit {
+			verb = "rolling back"
+		}
+		return WriteResult{}, fmt.Errorf("dbgate: %s transaction: %s", verb, describeDBError(resolveErr))
+	}
+	return WriteResult{AffectedRows: affected, DryRun: !commit}, nil
+}
+
+// auditWrite records a write call's outcome, best-effort: nil Audit (a Gate built for a test that doesn't set it) and an insert failure are both silently skipped, since an audit-store outage must never block a write the transaction itself already resolved.
+func (g *Gate) auditWrite(id vault.ChannelID, actor string, stmt Statement, affected int64, commit bool, execErr error) {
+	if g.Audit == nil {
+		return
+	}
+	verb := "dry_run"
+	if commit {
+		verb = "commit"
+	}
+	status := fmt.Sprintf("%s affected=%d", verb, affected)
+	if execErr != nil {
+		status = "error"
+	}
+	_ = g.Audit.Insert(channelaudit.Row{
+		ChannelID:   string(id),
+		ChannelKind: "db",
+		Actor:       actor,
+		Action:      string(stmt.Kind),
+		Target:      strings.Join(stmt.WriteTables, ","),
+		Status:      status,
+	})
 }
 
 // getDB returns id's cached *sql.DB, opening and caching one on first use.

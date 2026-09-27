@@ -64,6 +64,18 @@ func (s *Service) Query(shortID string, declaredTables []string, sqlText string)
 	return result, redactID(err, realID, shortID)
 }
 
+// Execute resolves shortID to its real vault channel and forwards the write, returning the same
+// error for an unregistered, forgotten, or mistyped id. actor is the caller-facing identity the
+// call is audited under, forwarded as-is to the vault.
+func (s *Service) Execute(shortID string, declaredTables []string, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
+	realID, ok := s.lookup(shortID)
+	if !ok {
+		return dbgate.WriteResult{}, ErrNoSuchChannel
+	}
+	result, err := s.vaultClient.Execute(realID, declaredTables, sqlText, commit, actor)
+	return result, redactID(err, realID, shortID)
+}
+
 // RequestHTTP resolves shortID to its real vault channel and forwards the HTTP request,
 // returning the same error for an unregistered, forgotten, or mistyped id. actor is the
 // caller-facing identity the call is audited under, forwarded as-is to the vault.
