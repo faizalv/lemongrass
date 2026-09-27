@@ -149,11 +149,17 @@ func cmdWorkgroupThread(args []string) {
 	if err != nil {
 		fail(err)
 	}
-	header := session.FormatGroupHeader(group, members)
+	var self session.Member
 	for _, m := range members {
 		if m.TabID == tabID {
-			header += "\n" + session.FormatMemberHeader(m)
+			self = m
 		}
+	}
+	header := func(firstRead bool) string {
+		if !firstRead {
+			return session.FormatGroupShort(group, self)
+		}
+		return session.FormatGroupHeader(group, members) + "\n" + session.FormatMemberHeader(self)
 	}
 	printThread(store, group.ThreadID, parsed, header)
 }

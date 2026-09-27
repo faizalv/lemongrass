@@ -22,8 +22,6 @@ func (claudeHookAdapter) decode(raw []byte) (hookEvent, error) {
 	if err := json.Unmarshal(raw, &event); err != nil {
 		return hookEvent{}, err
 	}
-	event.MessagingSocket = os.Getenv("CLAUDE_CODE_MESSAGING_SOCKET")
-	event.MessagingToken = os.Getenv("CLAUDE_CODE_MESSAGING_TOKEN")
 	event.EnforceBibliothek = true
 	return event, nil
 }

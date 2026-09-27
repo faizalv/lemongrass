@@ -121,7 +121,8 @@ func NewTabID() string {
 func ComposePrompt(vendor, label, groupName, pilotLabel string, skills []string, assignment string) string {
 	text := fmt.Sprintf("You are the copilot \"%s\" in the lemongrass workgroup \"%s\", led by the pilot \"%s\". "+
 		"Before any other tool call, load these skills: %s. Until you have, every tool except `lgrass` commands is denied. "+
-		"Then run `lgrass workgroup thread` to see your group and the group thread.",
+		"Then run `lgrass workgroup thread` to see your group and the group thread. "+
+		"Before you change anything, post your plan to the group thread and wait for the pilot's go.",
 		label, groupName, pilotLabel, strings.Join(skills, ", "))
 	if vendor != "claude" {
 		text += " Keep `lgrass listen` running in the background so you are woken when someone posts."

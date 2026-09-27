@@ -121,6 +121,18 @@ func (s *Store) PostMessage(tabID string, threadID int64, content string) (Messa
 	return msg, tx.Commit()
 }
 
+// How a target relates to a message: mentioned, addressed to everyone, or addressed to someone else.
+func notificationKind(target string, mentions []string) string {
+	switch {
+	case containsString(mentions, target):
+		return KindYou
+	case len(mentions) == 0:
+		return KindAll
+	default:
+		return KindOther
+	}
+}
+
 // Every tab in notify except the author gets a pending notification, and mentions are recorded on the message.
 func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body string, mentions, notify []string, ts string) (Message, error) {
 	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at) VALUES (?, ?, ?, ?)`, threadID, tabID, body, ts)
@@ -141,9 +153,9 @@ func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body str
 			continue
 		}
 		if _, err := tx.Exec(`
-			INSERT INTO lg_notifications (project_id, thread_id, message_id, target_tab_id, created_at)
-			VALUES (?, ?, ?, ?, ?)
-		`, projectID, threadID, id, tab, ts); err != nil {
+			INSERT INTO lg_notifications (project_id, thread_id, message_id, target_tab_id, kind, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, projectID, threadID, id, tab, notificationKind(tab, mentions), ts); err != nil {
 			return Message{}, err
 		}
 	}
@@ -200,6 +212,15 @@ func (s *Store) ThreadByID(id int64) (Thread, error) {
 
 // Newest first, at most limit messages older than beforeID (0 for the newest page); more reports whether older ones remain.
 func (s *Store) ReadThread(threadID, beforeID int64, limit int) (msgs []Message, more bool, err error) {
+	return s.readMessages(threadID, beforeID, 0, "", limit)
+}
+
+// Newest first, at most limit messages newer than afterID that tabID did not write; more reports whether older ones remain, read or not.
+func (s *Store) ReadUnread(threadID int64, tabID string, afterID int64, limit int) (msgs []Message, more bool, err error) {
+	return s.readMessages(threadID, 0, afterID, tabID, limit)
+}
+
+func (s *Store) readMessages(threadID, beforeID, afterID int64, excludeTab string, limit int) (msgs []Message, more bool, err error) {
 	if limit < 1 {
 		limit = 1
 	}
@@ -209,8 +230,16 @@ func (s *Store) ReadThread(threadID, beforeID int64, limit int) (msgs []Message,
 		query += ` AND id < ?`
 		args = append(args, beforeID)
 	}
+	if afterID > 0 {
+		query += ` AND id > ?`
+		args = append(args, afterID)
+	}
+	if excludeTab != "" {
+		query += ` AND tab_id != ?`
+		args = append(args, excludeTab)
+	}
 	query += ` ORDER BY id DESC LIMIT ?`
-	args = append(args, limit+1)
+	args = append(args, limit)
 
 	rows, err := s.db.Query(query, args...)
 	if err != nil {
@@ -227,9 +256,12 @@ func (s *Store) ReadThread(threadID, beforeID int64, limit int) (msgs []Message,
 	if err := rows.Err(); err != nil {
 		return nil, false, err
 	}
-	if len(msgs) > limit {
-		msgs = msgs[:limit]
-		more = true
+	if len(msgs) > 0 {
+		var older int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM (SELECT 1 FROM lg_messages WHERE thread_id = ? AND id < ? LIMIT 1)`, threadID, msgs[len(msgs)-1].ID).Scan(&older); err != nil {
+			return nil, false, err
+		}
+		more = older > 0
 	}
 	for i := range msgs {
 		if msgs[i].Mentions, err = s.messageMentions(msgs[i].ID); err != nil {

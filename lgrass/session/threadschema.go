@@ -79,6 +79,12 @@ CREATE TABLE IF NOT EXISTS lg_listener_heartbeats (
 	seen_at TEXT NOT NULL,
 	PRIMARY KEY (project_id, tab_id)
 );
+CREATE TABLE IF NOT EXISTS lg_thread_reads (
+	tab_id TEXT NOT NULL,
+	thread_id INTEGER NOT NULL,
+	last_message_id INTEGER NOT NULL,
+	PRIMARY KEY (tab_id, thread_id)
+);
 CREATE TABLE IF NOT EXISTS lg_tab_state (
 	tab_id TEXT PRIMARY KEY,
 	state TEXT NOT NULL,
@@ -90,8 +96,7 @@ CREATE TABLE IF NOT EXISTS lg_tab_state (
 var addedColumns = []struct{ table, column, definition string }{
 	{"lg_group_members", "prompt", "TEXT NOT NULL DEFAULT ''"},
 	{"lg_group_members", "skills", "TEXT NOT NULL DEFAULT ''"},
-	{"sessions", "messaging_socket", "TEXT"},
-	{"sessions", "messaging_token", "TEXT"},
+	{"lg_notifications", "kind", "TEXT NOT NULL DEFAULT 'all'"},
 }
 
 func addMissingColumns(db *sql.DB) error {

@@ -17,51 +17,132 @@ const (
 	listenerHeartbeatTTL = time.Hour
 )
 
+// How a notification's target relates to its message.
+const (
+	KindYou   = "you"   // the target is mentioned
+	KindAll   = "all"   // the message mentions nobody, so it is for everyone
+	KindOther = "other" // the message mentions someone else and not the target
+)
+
+// The notifications of one kind for one thread. Tabs are the authors for you and all, and the mentioned tabs for other.
+type KindPart struct {
+	Count int
+	Tabs  []string
+}
+
+func (k *KindPart) add(tab string) {
+	k.Count++
+	if !containsString(k.Tabs, tab) {
+		k.Tabs = append(k.Tabs, tab)
+	}
+}
+
 // The pending notifications of one tab for one thread.
 type PendingThread struct {
 	ThreadID int64
 	Title    string
-	Senders  []string // distinct author tab ids, in order of first appearance
+	You      KindPart
+	All      KindPart
+	Other    KindPart
 	RowIDs   []int64
 }
 
 func (p PendingThread) Count() int { return len(p.RowIDs) }
 
-// A tab id is globally unique, so this ignores the store's project.
+// The rows that may wake a tab, meaning every kind but other. A tab id is globally unique, so this ignores the store's project.
 func (s *Store) PendingForTab(tabID string) ([]PendingThread, error) {
+	return s.pendingRows(tabID, `AND n.kind != 'other'`)
+}
+
+// Every pending row of the tab, other included, for a tab that is already mid-turn and sees them as hook context.
+func (s *Store) SurfaceableForTab(tabID string) ([]PendingThread, error) {
+	return s.pendingRows(tabID, ``)
+}
+
+func (s *Store) pendingRows(tabID, filter string) ([]PendingThread, error) {
 	rows, err := s.db.Query(`
-		SELECT n.id, n.thread_id, t.title, m.tab_id
+		SELECT n.id, n.thread_id, t.title, m.tab_id, n.kind, n.message_id
 		FROM lg_notifications n
 		JOIN lg_threads t ON t.id = n.thread_id
 		JOIN lg_messages m ON m.id = n.message_id
-		WHERE n.target_tab_id = ? AND n.state = 'pending'
+		WHERE n.target_tab_id = ? AND n.state = 'pending' `+filter+`
 		ORDER BY n.id
 	`, tabID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	type row struct {
+		id, threadID, messageID int64
+		title, author, kind     string
+	}
+	var found []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.threadID, &r.title, &r.author, &r.kind, &r.messageID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		found = append(found, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	var out []PendingThread
 	index := map[int64]int{}
-	for rows.Next() {
-		var rowID, threadID int64
-		var title, author string
-		if err := rows.Scan(&rowID, &threadID, &title, &author); err != nil {
-			return nil, err
-		}
-		i, ok := index[threadID]
+	for _, r := range found {
+		i, ok := index[r.threadID]
 		if !ok {
 			i = len(out)
-			index[threadID] = i
-			out = append(out, PendingThread{ThreadID: threadID, Title: title})
+			index[r.threadID] = i
+			out = append(out, PendingThread{ThreadID: r.threadID, Title: r.title})
 		}
-		out[i].RowIDs = append(out[i].RowIDs, rowID)
-		if !containsString(out[i].Senders, author) {
-			out[i].Senders = append(out[i].Senders, author)
+		out[i].RowIDs = append(out[i].RowIDs, r.id)
+		switch r.kind {
+		case KindYou:
+			out[i].You.add(r.author)
+		case KindOther:
+			mentioned, err := s.messageMentions(r.messageID)
+			if err != nil {
+				return nil, err
+			}
+			out[i].Other.Count++
+			for _, tab := range mentioned {
+				if !containsString(out[i].Other.Tabs, tab) {
+					out[i].Other.Tabs = append(out[i].Other.Tabs, tab)
+				}
+			}
+		default:
+			out[i].All.add(r.author)
 		}
 	}
-	return out, rows.Err()
+	return out, nil
+}
+
+// The tab's pending other rows are marked sent when a nudge or listener line already told it to read the thread.
+func (s *Store) MarkOtherSent(tabID string) error {
+	_, err := s.db.Exec(`UPDATE lg_notifications SET state = 'sent', sent_at = ? WHERE target_tab_id = ? AND kind = 'other' AND state = 'pending'`, now(), tabID)
+	return err
+}
+
+// The newest message the tab has seen in the thread; false when it never read it.
+func (s *Store) ThreadCursor(tabID string, threadID int64) (int64, bool, error) {
+	var last int64
+	err := s.db.QueryRow(`SELECT last_message_id FROM lg_thread_reads WHERE tab_id = ? AND thread_id = ?`, tabID, threadID).Scan(&last)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	return last, err == nil, err
+}
+
+// Only moves forward.
+func (s *Store) AdvanceThreadCursor(tabID string, threadID, messageID int64) error {
+	_, err := s.db.Exec(`
+		INSERT INTO lg_thread_reads (tab_id, thread_id, last_message_id) VALUES (?, ?, ?)
+		ON CONFLICT (tab_id, thread_id) DO UPDATE SET last_message_id = MAX(last_message_id, excluded.last_message_id)
+	`, tabID, threadID, messageID)
+	return err
 }
 
 func containsString(list []string, v string) bool {
@@ -111,9 +192,9 @@ func (s *Store) MarkMessagesRead(tabID string, messageIDs []int64) error {
 	return err
 }
 
-// Tabs that have pending rows, whatever their vendor.
+// Tabs that have pending rows that may wake them, whatever their vendor.
 func (s *Store) PendingTabs() ([]string, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT target_tab_id FROM lg_notifications WHERE state = 'pending'`)
+	rows, err := s.db.Query(`SELECT DISTINCT target_tab_id FROM lg_notifications WHERE state = 'pending' AND kind != 'other'`)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +212,7 @@ func (s *Store) PendingTabs() ([]string, error) {
 
 // Tabs with a pending row that has attempts left and whose backoff since the last attempt has elapsed.
 func (s *Store) TabsDueForRetry(maxAttempts int, backoff func(attempts int) time.Duration, at time.Time) ([]string, error) {
-	rows, err := s.db.Query(`SELECT target_tab_id, attempts, last_attempt_at FROM lg_notifications WHERE state = 'pending' AND attempts < ?`, maxAttempts)
+	rows, err := s.db.Query(`SELECT target_tab_id, attempts, last_attempt_at FROM lg_notifications WHERE state = 'pending' AND kind != 'other' AND attempts < ?`, maxAttempts)
 	if err != nil {
 		return nil, err
 	}

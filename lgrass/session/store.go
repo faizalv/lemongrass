@@ -24,8 +24,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 	ended_at TEXT,
 	last_activity_at TEXT NOT NULL,
 	nudge_counter INTEGER NOT NULL DEFAULT 0,
-	messaging_socket TEXT,
-	messaging_token TEXT,
 	PRIMARY KEY (project_id, session_id)
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_open ON sessions(project_id, ended_at);
@@ -96,22 +94,20 @@ func now() string {
 }
 
 // Clears this session_id's checklist signatures, so a fresh or reused session starts ungated.
-func (s *Store) Start(sessionID, messagingSocket, messagingToken string) error {
+func (s *Store) Start(sessionID string) error {
 	ts := now()
 	if _, err := s.db.Exec(`DELETE FROM lg_signatures WHERE project_id = ? AND session_id = ?`, s.projectID, sessionID); err != nil {
 		return err
 	}
 	_, err := s.db.Exec(`
-		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter, messaging_socket, messaging_token)
-		VALUES (?, ?, ?, NULL, ?, 0, ?, ?)
+		INSERT INTO sessions (project_id, session_id, started_at, ended_at, last_activity_at, nudge_counter)
+		VALUES (?, ?, ?, NULL, ?, 0)
 		ON CONFLICT (project_id, session_id) DO UPDATE SET
 			started_at = excluded.started_at,
 			ended_at = NULL,
 			last_activity_at = excluded.last_activity_at,
-			nudge_counter = 0,
-			messaging_socket = excluded.messaging_socket,
-			messaging_token = excluded.messaging_token
-	`, s.projectID, sessionID, ts, ts, messagingSocket, messagingToken)
+			nudge_counter = 0
+	`, s.projectID, sessionID, ts, ts)
 	return err
 }
 
@@ -257,34 +253,6 @@ func (s *Store) IncrementNudgeCounter(sessionID string, threshold int) (fire boo
 		return false, err
 	}
 	return fire, tx.Commit()
-}
-
-type MessagingTarget struct {
-	SessionID string
-	Socket    string
-	Token     string
-}
-
-func (s *Store) LiveMessagingTargets(excludeSessionID string) ([]MessagingTarget, error) {
-	rows, err := s.db.Query(`
-		SELECT session_id, messaging_socket, messaging_token FROM sessions
-		WHERE project_id = ? AND ended_at IS NULL AND session_id != ?
-			AND messaging_socket IS NOT NULL AND messaging_socket != ''
-	`, s.projectID, excludeSessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []MessagingTarget
-	for rows.Next() {
-		var t MessagingTarget
-		if err := rows.Scan(&t.SessionID, &t.Socket, &t.Token); err != nil {
-			return nil, err
-		}
-		out = append(out, t)
-	}
-	return out, rows.Err()
 }
 
 type Tip struct {

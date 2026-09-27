@@ -79,5 +79,6 @@ func consumePending(store *session.Store, tab string) (string, bool) {
 		rowIDs = append(rowIDs, p.RowIDs...)
 	}
 	store.MarkNotificationsSent(rowIDs)
+	store.MarkOtherSent(tab)
 	return store.NotificationText(pending), true
 }

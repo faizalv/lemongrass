@@ -100,7 +100,7 @@ func TestDeliverTabTypesOneCoalescedNudgeAndMarksSent(t *testing.T) {
 	if err != nil || !typed {
 		t.Fatalf("DeliverTab = %v, %v, want a typed nudge", typed, err)
 	}
-	if rec.count() != 1 || !strings.Contains(rec.texts[0], "thread 1: 2 new") || strings.Contains(rec.texts[0], "a !>>") {
+	if rec.count() != 1 || !strings.Contains(rec.texts[0], "thread 1: 2 for you") || strings.Contains(rec.texts[0], "a !>>") {
 		t.Errorf("typed %q, want one coalesced nudge without content", rec.texts)
 	}
 	if pending, _ := store.PendingForTab(tabClaude); len(pending) != 0 {
@@ -175,7 +175,7 @@ func TestWakeTypesTheNudgeForAnIdleClaudeTab(t *testing.T) {
 	if err := Wake(path); err != nil {
 		t.Fatalf("Wake: %v", err)
 	}
-	if !waitForCount(rec, 1) || !strings.Contains(rec.texts[0], "thread 1: 1 new") {
+	if !waitForCount(rec, 1) || !strings.Contains(rec.texts[0], "thread 1: 1 for you") {
 		t.Fatalf("typed = %q, want the nudge", rec.texts)
 	}
 }

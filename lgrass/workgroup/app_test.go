@@ -88,7 +88,7 @@ func TestNewTabIDIsAVersion4UUID(t *testing.T) {
 
 func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
 	claude := ComposePrompt("claude", "reviewer", "schema-review", "lead", []string{"lgrass-copilot", "lgrass-connector"}, "Review the diff.")
-	for _, want := range []string{`copilot "reviewer"`, `workgroup "schema-review"`, `pilot "lead"`, "lgrass-copilot, lgrass-connector", "lgrass workgroup thread", "Review the diff."} {
+	for _, want := range []string{`copilot "reviewer"`, `workgroup "schema-review"`, `pilot "lead"`, "lgrass-copilot, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the pilot's go", "Review the diff."} {
 		if !strings.Contains(claude, want) {
 			t.Errorf("claude prompt missing %q", want)
 		}

@@ -80,8 +80,11 @@ func TestGroupThreadAddsMentionedOutsidersToTheBroadcast(t *testing.T) {
 	if pending, _ := store.PendingForTab(outsider); len(pending) != 1 {
 		t.Errorf("mentioned outsider pending = %d, want 1", len(pending))
 	}
-	if pending, _ := store.PendingForTab(tabB); len(pending) != 1 {
-		t.Errorf("member pending = %d, want 1", len(pending))
+	if pending, _ := store.PendingForTab(tabB); len(pending) != 0 {
+		t.Errorf("a member the message is not for would be woken: %+v", pending)
+	}
+	if pending, _ := store.SurfaceableForTab(tabB); len(pending) != 1 || pending[0].Other.Count != 1 {
+		t.Errorf("member surfaceable = %+v, want one other row", pending)
 	}
 }
 
@@ -162,7 +165,7 @@ func TestNotificationAndReadOutputShowGroupLabels(t *testing.T) {
 	msgs, _, _ := store.ReadThread(g.ThreadID, 0, 10)
 	thread, _ := store.ThreadByID(g.ThreadID)
 	labels := store.Labels([]string{thread.CreatedBy, msgs[0].TabID})
-	out := FormatThreadRead(thread, msgs, false, labels)
+	out := FormatThreadRead(thread, msgs, false, false, labels)
 	if !strings.Contains(out, "opened by lead") || !strings.Contains(out, "reviewer:") {
 		t.Errorf("read output missing group labels:\n%s", out)
 	}

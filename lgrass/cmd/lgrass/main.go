@@ -88,15 +88,16 @@ COMMANDS
   thread post <thread-id> "<content>"
                                      Adds a message; !>>tab-id<<! in content mentions a tab by id or by
                                      a unique prefix of at least 8 characters
-  thread read <thread-id> [--before <message-id>] [--limit N]
-                                     Reads a thread newest first, 10 messages a page
+  thread read <thread-id> [--all] [--before <message-id>] [--limit N]
+                                     Reads a thread newest first, 10 messages a page; a lemongrass
+                                     tab sees only what it has not read unless --all is given
   thread list [--limit N]           Threads in this project, most recently active first
 
   workgroup create <path-to-config>
                                      Declares a workgroup from a YAML or JSON config and asks the human to approve it in the
                                      lemongrass app; approved copilots open as tabs next to this one, and this tab is the pilot
   workgroup disband <id>            Ends a workgroup; only its pilot may. Tabs stay open and the thread stays readable
-  workgroup thread [--before <message-id>] [--limit N]
+  workgroup thread [--all] [--before <message-id>] [--limit N]
                                      Reads this tab's workgroup thread, post to it with thread post
   session nudge <tab-id>            Prints the tab's pending thread nudge and marks it sent; the app types that line into the tab
   workgroup list [--json]           Live workgroups in this project with their members and tab ids; needs no tab

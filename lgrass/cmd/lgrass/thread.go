@@ -22,6 +22,7 @@ type threadArgs struct {
 	file       string
 	before     int64
 	limit      int
+	all        bool
 }
 
 func parseThreadArgs(args []string, defaultLimit int) threadArgs {
@@ -33,6 +34,8 @@ func parseThreadArgs(args []string, defaultLimit int) threadArgs {
 			if i < len(args) {
 				parsed.file = args[i]
 			}
+		case "--all":
+			parsed.all = true
 		case "--before":
 			i++
 			if i < len(args) {
@@ -175,7 +178,7 @@ func cmdThreadPost(args []string) {
 func cmdThreadRead(args []string) {
 	parsed := parseThreadArgs(args, defaultThreadReadLimit)
 	if len(parsed.positional) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass thread read <thread-id> [--before <message-id>] [--limit N]")
+		fmt.Fprintln(os.Stderr, "usage: lgrass thread read <thread-id> [--all] [--before <message-id>] [--limit N]")
 		os.Exit(1)
 	}
 	threadID, err := strconv.ParseInt(parsed.positional[0], 10, 64)
@@ -186,30 +189,56 @@ func cmdThreadRead(args []string) {
 
 	store := openStore()
 	defer store.Close()
-	printThread(store, threadID, parsed, "")
+	printThread(store, threadID, parsed, nil)
 }
 
-// The shared read path: prints the page, then settles this tab's notifications for the messages shown.
-func printThread(store *session.Store, threadID int64, parsed threadArgs, header string) {
+// The shared read path. A lemongrass tab that has read the thread before gets only what is new to it, unless it asks for --all or an older page. header gets whether this is the tab's first read of the thread. The tab's notifications for the messages shown are settled afterwards.
+func printThread(store *session.Store, threadID int64, parsed threadArgs, header func(firstRead bool) string) {
 	thread, err := store.ThreadByID(threadID)
 	if err != nil {
 		fail(err)
 	}
-	msgs, more, err := store.ReadThread(threadID, parsed.before, parsed.limit)
+	var cursor int64
+	seen := false
+	if tabID != "" {
+		if cursor, seen, err = store.ThreadCursor(tabID, threadID); err != nil {
+			fail(err)
+		}
+	}
+	unread := seen && !parsed.all && parsed.before == 0
+
+	var msgs []session.Message
+	var more bool
+	if unread {
+		msgs, more, err = store.ReadUnread(threadID, tabID, cursor, parsed.limit)
+	} else {
+		msgs, more, err = store.ReadThread(threadID, parsed.before, parsed.limit)
+	}
 	if err != nil {
 		fail(err)
 	}
 	if tabID != "" {
 		ids := make([]int64, len(msgs))
+		var newest int64
 		for i, m := range msgs {
 			ids[i] = m.ID
 		}
+		if len(msgs) > 0 {
+			newest = msgs[0].ID
+		}
 		store.MarkMessagesRead(tabID, ids)
+		if parsed.before == 0 {
+			store.AdvanceThreadCursor(tabID, threadID, newest)
+		}
 	}
-	if header != "" {
-		fmt.Println(header)
+	if header != nil {
+		fmt.Println(header(!seen || parsed.all))
 	}
-	fmt.Println(session.FormatThreadRead(thread, msgs, more, threadLabels(store, thread, msgs)))
+	if len(msgs) == 0 && unread {
+		fmt.Println(session.FormatNothingNew(thread))
+		return
+	}
+	fmt.Println(session.FormatThreadRead(thread, msgs, more, unread, threadLabels(store, thread, msgs)))
 }
 
 func cmdThreadList(args []string) {

@@ -24,10 +24,10 @@ func openTestStore(t *testing.T) *Store {
 func TestLivenessExcludesSelfAndReportsActiveIdling(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a", "", ""); err != nil {
+	if err := store.Start("session-a"); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b", "", ""); err != nil {
+	if err := store.Start("session-b"); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 
@@ -58,10 +58,10 @@ func TestLivenessExcludesSelfAndReportsActiveIdling(t *testing.T) {
 func TestEndedSessionExcludedFromLiveness(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a", "", ""); err != nil {
+	if err := store.Start("session-a"); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b", "", ""); err != nil {
+	if err := store.Start("session-b"); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 	if err := store.End("session-b"); err != nil {
@@ -80,10 +80,10 @@ func TestEndedSessionExcludedFromLiveness(t *testing.T) {
 func TestRecentActivitySameFileAndSameFolder(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a", "", ""); err != nil {
+	if err := store.Start("session-a"); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b", "", ""); err != nil {
+	if err := store.Start("session-b"); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 	if err := store.LogFileActivity("session-b", "/proj/pkg/foo.go"); err != nil {
@@ -139,10 +139,10 @@ func TestRecentActivitySameFileAndSameFolder(t *testing.T) {
 func TestRecentActivityExcludesStaleAndEndedSessions(t *testing.T) {
 	store := openTestStore(t)
 
-	if err := store.Start("session-a", "", ""); err != nil {
+	if err := store.Start("session-a"); err != nil {
 		t.Fatalf("Start a: %v", err)
 	}
-	if err := store.Start("session-b", "", ""); err != nil {
+	if err := store.Start("session-b"); err != nil {
 		t.Fatalf("Start b: %v", err)
 	}
 	if err := store.LogFileActivity("session-b", "/proj/pkg/foo.go"); err != nil {
@@ -183,7 +183,7 @@ func TestRecentActivityExcludesStaleAndEndedSessions(t *testing.T) {
 
 func TestIncrementNudgeCounterFiresAtThresholdThenResets(t *testing.T) {
 	store := openTestStore(t)
-	if err := store.Start("session-a", "", ""); err != nil {
+	if err := store.Start("session-a"); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
@@ -218,33 +218,6 @@ func TestIncrementNudgeCounterFiresAtThresholdThenResets(t *testing.T) {
 	}
 }
 
-func TestLiveMessagingTargetsExcludesSelfEndedAndSocketless(t *testing.T) {
-	store := openTestStore(t)
-	if err := store.Start("session-a", "/tmp/a.sock", "token-a"); err != nil {
-		t.Fatalf("Start a: %v", err)
-	}
-	if err := store.Start("session-b", "/tmp/b.sock", "token-b"); err != nil {
-		t.Fatalf("Start b: %v", err)
-	}
-	if err := store.Start("session-c", "", ""); err != nil {
-		t.Fatalf("Start c (no socket): %v", err)
-	}
-	if err := store.Start("session-d", "/tmp/d.sock", "token-d"); err != nil {
-		t.Fatalf("Start d: %v", err)
-	}
-	if err := store.End("session-d"); err != nil {
-		t.Fatalf("End d: %v", err)
-	}
-
-	targets, err := store.LiveMessagingTargets("session-a")
-	if err != nil {
-		t.Fatalf("LiveMessagingTargets: %v", err)
-	}
-	if len(targets) != 1 || targets[0].SessionID != "session-b" || targets[0].Socket != "/tmp/b.sock" || targets[0].Token != "token-b" {
-		t.Fatalf("targets = %+v, want exactly session-b (a is self, c has no socket, d has ended)", targets)
-	}
-}
-
 func TestIncrementNudgeCounterWithoutPriorStart(t *testing.T) {
 	store := openTestStore(t)
 	// No Start call. The defensive upsert path should still work.
@@ -259,7 +232,7 @@ func TestIncrementNudgeCounterWithoutPriorStart(t *testing.T) {
 
 func TestEnsureOpenPreservesExistingSignature(t *testing.T) {
 	store := openTestStore(t)
-	if err := store.Start("session-a", "", ""); err != nil {
+	if err := store.Start("session-a"); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Sign("session-a", "checklist-a"); err != nil {
@@ -388,7 +361,7 @@ func TestStartClearsSignaturesForReusedSessionID(t *testing.T) {
 		t.Fatalf("Sign: %v", err)
 	}
 
-	if err := store.Start("session-a", "", ""); err != nil {
+	if err := store.Start("session-a"); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
@@ -584,39 +557,44 @@ func TestOpenDropsLegacyThreadTables(t *testing.T) {
 	}
 }
 
-func TestOpenAddsMessagingColumnsToAnOlderSessionsTable(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	if err := os.MkdirAll(filepath.Dir(DBPath()), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	old, err := sql.Open("sqlite", DBPath())
-	if err != nil {
-		t.Fatalf("sql.Open: %v", err)
-	}
-	if _, err := old.Exec(`CREATE TABLE sessions (
+func TestStartWorksOnOlderSessionsTables(t *testing.T) {
+	for name, extra := range map[string]string{
+		"without the socket columns": "",
+		"with the socket columns":    ",\n\t\tmessaging_socket TEXT,\n\t\tmessaging_token TEXT",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			if err := os.MkdirAll(filepath.Dir(DBPath()), 0o755); err != nil {
+				t.Fatalf("MkdirAll: %v", err)
+			}
+			old, err := sql.Open("sqlite", DBPath())
+			if err != nil {
+				t.Fatalf("sql.Open: %v", err)
+			}
+			if _, err := old.Exec(`CREATE TABLE sessions (
 		project_id TEXT NOT NULL,
 		session_id TEXT NOT NULL,
 		started_at TEXT NOT NULL,
 		ended_at TEXT,
 		last_activity_at TEXT NOT NULL,
-		nudge_counter INTEGER NOT NULL DEFAULT 0,
+		nudge_counter INTEGER NOT NULL DEFAULT 0` + extra + `,
 		PRIMARY KEY (project_id, session_id)
 	)`); err != nil {
-		t.Fatalf("creating the older table: %v", err)
-	}
-	old.Close()
+				t.Fatalf("creating the older table: %v", err)
+			}
+			old.Close()
 
-	store, err := Open(DBPath(), testProjectID)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer store.Close()
-
-	if err := store.Start("session-a", "/run/user/1000/cc-socks/1.sock", "token-a"); err != nil {
-		t.Fatalf("Start on a migrated table: %v", err)
-	}
-	targets, err := store.LiveMessagingTargets("other")
-	if err != nil || len(targets) != 1 || targets[0].Socket != "/run/user/1000/cc-socks/1.sock" || targets[0].Token != "token-a" {
-		t.Errorf("LiveMessagingTargets = %+v, %v, want the captured socket and token", targets, err)
+			store, err := Open(DBPath(), testProjectID)
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			defer store.Close()
+			if err := store.Start("session-a"); err != nil {
+				t.Fatalf("Start on an older table: %v", err)
+			}
+			if err := store.Start("session-a"); err != nil {
+				t.Fatalf("second Start on an older table: %v", err)
+			}
+		})
 	}
 }

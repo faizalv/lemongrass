@@ -28,14 +28,39 @@ func formatTime(ts string) string {
 	if err != nil {
 		return ts
 	}
-	return t.UTC().Format("2006-01-02 15:04:05Z")
+	return t.UTC().Format("2006-01-02 15:04Z")
 }
 
-func FormatThreadRead(t Thread, msgs []Message, more bool, labels map[string]string) string {
+func formatDate(ts string) string {
+	t, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		return ts
+	}
+	return t.UTC().Format("2006-01-02")
+}
+
+// The clock time alone when the message is from the same day as the newest one shown, and the date with it otherwise.
+func formatMessageTime(ts, newestTS string) string {
+	t, err := time.Parse(time.RFC3339Nano, ts)
+	if err != nil {
+		return ts
+	}
+	if formatDate(ts) == formatDate(newestTS) {
+		return t.UTC().Format("15:04")
+	}
+	return t.UTC().Format("2006-01-02 15:04")
+}
+
+// unread says the page holds only what the reader had not seen.
+func FormatThreadRead(t Thread, msgs []Message, more, unread bool, labels map[string]string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s thread %d [%s], opened by %s, %d msgs, newest first\n", Prefix, t.ID, t.Title, labelOf(labels, t.CreatedBy), t.MessageCount)
+	scope := ""
+	if unread {
+		scope = ", unread only"
+	}
+	fmt.Fprintf(&b, "%s thread %d [%s], opened by %s %s, %d msgs%s, newest first, times UTC\n", Prefix, t.ID, t.Title, labelOf(labels, t.CreatedBy), formatDate(t.CreatedAt), t.MessageCount, scope)
 	for _, m := range msgs {
-		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatTime(m.CreatedAt), labelOf(labels, m.TabID))
+		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatMessageTime(m.CreatedAt, msgs[0].CreatedAt), labelOf(labels, m.TabID))
 		if len(m.Mentions) > 0 {
 			names := make([]string, len(m.Mentions))
 			for i, id := range m.Mentions {
@@ -65,23 +90,40 @@ func FormatThreadList(threads []Thread, labels map[string]string) string {
 // Marks text that comes from lemongrass or from other models, never from the human. The session start context and the copilot skill say so once.
 const Prefix = "[lg]"
 
+// One line per thread, one part per kind: what is for the reader, what is for everyone, and what is for someone else.
 func FormatNotification(pending []PendingThread, labels map[string]string) string {
 	lines := make([]string, len(pending))
 	for i, p := range pending {
-		names := make([]string, len(p.Senders))
-		for j, id := range p.Senders {
-			names[j] = labelOf(labels, id)
+		var parts []string
+		if p.You.Count > 0 {
+			parts = append(parts, fmt.Sprintf("%d for you from %s", p.You.Count, labelList(labels, p.You.Tabs)))
 		}
-		lines[i] = fmt.Sprintf("%s thread %d: %d new from %s", Prefix, p.ThreadID, p.Count(), strings.Join(names, ", "))
+		if p.All.Count > 0 {
+			parts = append(parts, fmt.Sprintf("%d new from %s", p.All.Count, labelList(labels, p.All.Tabs)))
+		}
+		if p.Other.Count > 0 {
+			parts = append(parts, fmt.Sprintf("%d for %s, not you", p.Other.Count, labelList(labels, p.Other.Tabs)))
+		}
+		lines[i] = fmt.Sprintf("%s thread %d: %s", Prefix, p.ThreadID, strings.Join(parts, "; "))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func labelList(labels map[string]string, ids []string) string {
+	names := make([]string, len(ids))
+	for i, id := range ids {
+		names[i] = labelOf(labels, id)
+	}
+	return strings.Join(names, ", ")
 }
 
 // Store-aware wrapper: resolves the senders' labels before formatting.
 func (s *Store) NotificationText(pending []PendingThread) string {
 	var ids []string
 	for _, p := range pending {
-		ids = append(ids, p.Senders...)
+		ids = append(ids, p.You.Tabs...)
+		ids = append(ids, p.All.Tabs...)
+		ids = append(ids, p.Other.Tabs...)
 	}
 	return FormatNotification(pending, s.Labels(ids))
 }
@@ -96,6 +138,15 @@ func FormatGroupHeader(g Group, members []Member) string {
 		parts[i] = fmt.Sprintf("%s (%s, %s, tab %s)", m.Label, m.Role, m.Vendor, TabLabel(m.TabID))
 	}
 	return fmt.Sprintf("lgrass workgroup %d [%s], thread %d, %s, members: %s", g.ID, g.Name, g.ThreadID, state, strings.Join(parts, "; "))
+}
+
+// The repeat visit to a group thread: the full header is already in the reader's context.
+func FormatGroupShort(g Group, m Member) string {
+	return fmt.Sprintf("%s workgroup %d [%s], thread %d, you are %s (%s). lgrass workgroup thread --all repeats the members.", Prefix, g.ID, g.Name, g.ThreadID, m.Label, m.Role)
+}
+
+func FormatNothingNew(t Thread) string {
+	return fmt.Sprintf("%s thread %d [%s]: nothing new. lgrass thread read %d --all shows the latest messages.", Prefix, t.ID, t.Title, t.ID)
 }
 
 func FormatCopilotStart(m Member, group Group) string {
@@ -123,7 +174,7 @@ func FormatPrefixNote() string {
 // What the caller is in its group, with its assignment and required skills, so a resumed copilot gets its role back.
 func FormatMemberHeader(m Member) string {
 	if m.Role == RolePilot {
-		return "You are the pilot of this workgroup."
+		return "You are the pilot of this workgroup. Load the lgrass-pilot skill if you have not."
 	}
 	text := fmt.Sprintf("You are the copilot %q. Skills you must load: %s.", m.Label, strings.Join(m.RequiredSkills(), ", "))
 	if m.Prompt != "" {

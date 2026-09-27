@@ -32,8 +32,6 @@ type hookEvent struct {
 	SessionSource        string          `json:"source"`
 	NotificationType     string          `json:"notification_type"`
 	Message              string          `json:"message"`
-	MessagingSocket      string
-	MessagingToken       string
 	TabID                string
 	EnforceBibliothek    bool
 	PreserveSessionState bool
@@ -124,7 +122,7 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	if payload.PreserveSessionState {
 		startErr = store.EnsureOpen(payload.SessionID)
 	} else {
-		startErr = store.Start(payload.SessionID, payload.MessagingSocket, payload.MessagingToken)
+		startErr = store.Start(payload.SessionID)
 	}
 	if startErr != nil {
 		fmt.Fprintf(os.Stderr, "lgrass: recording the session failed: %v\n", startErr)
@@ -391,12 +389,12 @@ func hasBiblio(projectPath string) bool {
 	return err == nil && info.IsDir()
 }
 
-// Surfaces the tab's pending thread notifications once, then marks them sent so the next tool call does not repeat them.
+// Surfaces the tab's pending thread notifications once, other kinds included since the tab is already working, then marks them sent so the next tool call does not repeat them.
 func notificationContext(store *session.Store, tab string) []string {
 	if tab == "" {
 		return nil
 	}
-	pending, err := store.PendingForTab(tab)
+	pending, err := store.SurfaceableForTab(tab)
 	if err != nil || len(pending) == 0 {
 		return nil
 	}

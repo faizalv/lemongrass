@@ -1,5 +1,5 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron'
-import { chmodSync, mkdirSync, rmSync } from 'fs'
+import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import * as net from 'net'
 import { homedir } from 'os'
 import { join } from 'path'
@@ -90,37 +90,59 @@ function validate(p: Proposal): string | null {
   return null
 }
 
-function describe(p: Proposal): { message: string; detail: string } {
-  const detail = p.members
+function proposalText(p: Proposal): string {
+  return p.members
     .map((m) => {
       const model = m.model ? `, model ${m.model}` : ''
       const skills = m.skills.length ? `Must load: ${m.skills.join(', ')}\n` : ''
       return `${m.label} (${m.vendor}${model})\n${skills}${m.prompt}`
     })
     .join('\n\n----\n\n')
+}
+
+function writeProposalFile(p: Proposal): string | null {
+  const dir = join(homedir(), '.lemongrass', 'proposals')
+  const path = join(dir, `${randomUUID()}.txt`)
+  try {
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+    writeFileSync(path, proposalText(p), { mode: 0o600 })
+    return path
+  } catch {
+    return null
+  }
+}
+
+function describe(p: Proposal, file: string | null): { message: string; detail: string } {
   return {
-    message: `The agent in tab "${p.pilot_label}" wants to start the workgroup "${p.group_name}" with ${p.members.length} co-pilot${p.members.length === 1 ? '' : 's'}. Each opens as a new tab next to it and starts with the text below.`,
-    detail
+    message: `The agent in tab "${p.pilot_label}" wants to start the workgroup "${p.group_name}" with ${p.members.length} co-pilot${p.members.length === 1 ? '' : 's'}.`,
+    detail: file ? `Full text: ${file}` : 'The full text could not be written to a file.'
   }
 }
 
 function askHuman(window: BrowserWindow | undefined, p: Proposal): Promise<boolean> {
-  const { message, detail } = describe(p)
-  const options: Electron.MessageBoxOptions = {
-    type: 'question',
-    title: 'Approve workgroup',
-    message,
-    detail,
-    buttons: ['Approve', 'Decline'],
-    defaultId: 1,
-    cancelId: 1,
-    noLink: true
+  const run = (): Promise<boolean> => {
+    const file = writeProposalFile(p)
+    const { message, detail } = describe(p, file)
+    const options: Electron.MessageBoxOptions = {
+      type: 'question',
+      title: 'Approve workgroup',
+      message,
+      detail,
+      buttons: ['Approve', 'Decline'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true
+    }
+    return (
+      window && !window.isDestroyed()
+        ? dialog.showMessageBox(window, options)
+        : dialog.showMessageBox(options)
+    )
+      .then((result) => result.response === 0)
+      .finally(() => {
+        if (file) rmSync(file, { force: true })
+      })
   }
-  const run = (): Promise<boolean> =>
-    (window && !window.isDestroyed()
-      ? dialog.showMessageBox(window, options)
-      : dialog.showMessageBox(options)
-    ).then((result) => result.response === 0)
   const answer = dialogQueue.then(run, run)
   dialogQueue = answer.catch(() => undefined)
   return answer
