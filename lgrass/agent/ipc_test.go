@@ -43,13 +43,13 @@ func TestIPCFullLifecycle(t *testing.T) {
 		t.Fatal("RegisterChannel returned an empty short id")
 	}
 
-	_, err = agentClient.Query(shortID, []string{"employees"}, "SELECT id FROM employees")
+	_, err = agentClient.Query(shortID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 
 	if err := agentClient.Forget(shortID); err != nil {
 		t.Fatalf("Forget: %v", err)
 	}
-	if _, err := agentClient.Query(shortID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
+	if _, err := agentClient.Query(shortID, "SELECT id FROM employees"); err == nil {
 		t.Error("Query after Forget returned nil error")
 	}
 }
@@ -68,7 +68,7 @@ func TestIPCQueryLocksOutAfterRepeatedWrongShortID(t *testing.T) {
 	agentClient := &Client{SocketPath: sockPath}
 
 	for i := 0; i < 3; i++ {
-		if _, err := agentClient.Query("BOGUS1", []string{"employees"}, "SELECT id FROM employees"); err == nil {
+		if _, err := agentClient.Query("BOGUS1", "SELECT id FROM employees"); err == nil {
 			t.Fatalf("Query with a bogus short id (attempt %d) returned nil error", i)
 		}
 	}
@@ -86,7 +86,7 @@ func TestIPCQueryLocksOutAfterRepeatedWrongShortID(t *testing.T) {
 	}
 
 	// The limiter should now be locked out even for a real, correctly-registered short id.
-	if _, err := agentClient.Query(shortID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
+	if _, err := agentClient.Query(shortID, "SELECT id FROM employees"); err == nil {
 		t.Error("Query with a valid id after lockout returned nil error")
 	}
 }

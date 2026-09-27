@@ -120,15 +120,6 @@ func qualifiedTable(engine Engine, qualifier, name string) string {
 	return name
 }
 
-// normalizeDeclaredTable applies qualifiedTable's rule to a --tables entry written as schema.table.
-func normalizeDeclaredTable(engine Engine, ref string) string {
-	qualifier, name, ok := strings.Cut(ref, ".")
-	if !ok {
-		return ref
-	}
-	return qualifiedTable(engine, qualifier, name)
-}
-
 // columnRefs holds every column name a statement mentions and whether it selects with a star.
 type columnRefs struct {
 	names map[string]bool

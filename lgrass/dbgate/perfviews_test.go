@@ -174,19 +174,3 @@ func TestAllowStatementPerformanceGrant(t *testing.T) {
 		})
 	}
 }
-
-func TestCheckDeclaredTablesNormalizesQualifiers(t *testing.T) {
-	stmt, err := ClassifyQuery(EngineMySQL, "SELECT o.id FROM otherdb.orders o JOIN performance_schema.table_io_waits_summary_by_table t ON o.id = t.count_star")
-	if err != nil {
-		t.Fatalf("ClassifyQuery: %v", err)
-	}
-	if err := checkDeclaredTables(stmt, []string{"orders", "Performance_Schema.table_io_waits_summary_by_table"}); err != nil {
-		t.Errorf("checkDeclaredTables: %v", err)
-	}
-	if err := checkDeclaredTables(stmt, []string{"otherdb.orders", "performance_schema.table_io_waits_summary_by_table"}); err != nil {
-		t.Errorf("checkDeclaredTables with stripped qualifier declared: %v", err)
-	}
-	if err := checkDeclaredTables(stmt, []string{"orders", "table_io_waits_summary_by_table"}); err == nil {
-		t.Error("expected mismatch when the system schema qualifier is left off the declaration")
-	}
-}

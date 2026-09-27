@@ -44,7 +44,7 @@ func TestUpdateConnectionRewrapsActiveAndExpiredChannelsAndDropsCachedDB(t *test
 		t.Fatal(err)
 	}
 
-	_, err = g.Query(active.ID, []string{"employees"}, "SELECT id FROM employees")
+	_, err = g.Query(active.ID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 	if !g.cached(active.ID) {
 		t.Fatal("expected the baseline query to cache a database handle")
@@ -67,12 +67,12 @@ func TestUpdateConnectionRewrapsActiveAndExpiredChannelsAndDropsCachedDB(t *test
 		t.Errorf("stored connection = %q, %v, want the edited string", got, err)
 	}
 
-	_, err = g.Query(active.ID, []string{"employees"}, "SELECT id FROM employees")
+	_, err = g.Query(active.ID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 	if _, err := svc.Activate(testRootSecret, inactive.ID, 5*time.Minute); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
-	_, err = g.Query(inactive.ID, []string{"employees"}, "SELECT id FROM employees")
+	_, err = g.Query(inactive.ID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 
 	if c, err := svc.ChannelScope(active.ID); err != nil || c.Port != active.Port || c.Name != "active" {

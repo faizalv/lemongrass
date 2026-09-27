@@ -11,8 +11,8 @@ import (
 	"github.com/faizalv/lemongrass/vault"
 )
 
-// TestServiceQueryAgainstRealMySQL exercises the whole Phase 3 path -- classify, declared-vs-
-// actual, scope, connection caching, execution, row normalization -- against a real server
+// TestServiceQueryAgainstRealMySQL exercises the whole Phase 3 path -- classify, scope,
+// connection caching, execution, row normalization -- against a real server
 // instead of the unreachable-port trick the rest of this package's tests use. It needs
 // LGRASS_TEST_MYSQL_DSN set to a mysql://user:pass@host:port/db connection string reachable
 // from this machine (a local docker mysql works); it's skipped otherwise.
@@ -53,7 +53,7 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 		t.Fatalf("CreateChannel: %v", err)
 	}
 
-	result, err := svc.Query(c.ID, []string{"lg_test_employees"}, "SELECT id, name, manager FROM lg_test_employees ORDER BY id")
+	result, err := svc.Query(c.ID, "SELECT id, name, manager FROM lg_test_employees ORDER BY id")
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 	}
 
 	// Calling Query again should reuse the cached *sql.DB rather than opening a second connection.
-	if _, err := svc.Query(c.ID, []string{"lg_test_employees"}, "SELECT id FROM lg_test_employees"); err != nil {
+	if _, err := svc.Query(c.ID, "SELECT id FROM lg_test_employees"); err != nil {
 		t.Fatalf("second Query: %v", err)
 	}
 	svc.mu.Lock()
@@ -87,7 +87,7 @@ func TestServiceQueryAgainstRealMySQL(t *testing.T) {
 		t.Errorf("len(dbConns) = %d, want 1 cached connection", numConns)
 	}
 
-	showResult, err := svc.Query(c.ID, []string{"*"}, "SHOW TABLES")
+	showResult, err := svc.Query(c.ID, "SHOW TABLES")
 	if err != nil {
 		t.Fatalf("SHOW TABLES: %v", err)
 	}
@@ -170,12 +170,12 @@ func TestServiceExecuteAgainstRealMySQL(t *testing.T) {
 	}
 
 	// A WHERE-less DELETE is rejected before it ever touches the database.
-	if _, err := g.Execute(c.ID, []string{"lg_test_write_employees"}, "DELETE FROM lg_test_write_employees", true, "tester"); err == nil {
+	if _, err := g.Execute(c.ID, "DELETE FROM lg_test_write_employees", true, "tester"); err == nil {
 		t.Error("Execute with a WHERE-less DELETE returned nil error")
 	}
 
 	// A dry run reports the row it would have changed but leaves it untouched.
-	dryResult, err := g.Execute(c.ID, []string{"lg_test_write_employees"}, "UPDATE lg_test_write_employees SET name = 'Zara' WHERE id = 1", false, "tester")
+	dryResult, err := g.Execute(c.ID, "UPDATE lg_test_write_employees SET name = 'Zara' WHERE id = 1", false, "tester")
 	if err != nil {
 		t.Fatalf("dry-run Execute: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestServiceExecuteAgainstRealMySQL(t *testing.T) {
 	}
 
 	// A commit actually changes the row.
-	commitResult, err := g.Execute(c.ID, []string{"lg_test_write_employees"}, "UPDATE lg_test_write_employees SET name = 'Zara' WHERE id = 1", true, "tester")
+	commitResult, err := g.Execute(c.ID, "UPDATE lg_test_write_employees SET name = 'Zara' WHERE id = 1", true, "tester")
 	if err != nil {
 		t.Fatalf("commit Execute: %v", err)
 	}

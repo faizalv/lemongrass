@@ -55,31 +55,31 @@ func TestPerfViewsAgainstRealMySQL(t *testing.T) {
 
 	svc, id := performanceChannel(t, dsn, "select", OperationPerformance)
 	for _, name := range PerfViewNames(EngineMySQL) {
-		if _, err := svc.Query(id, []string{name}, "SELECT COUNT(*) FROM "+quoteMySQLName(name)); err != nil {
+		if _, err := svc.Query(id, "SELECT COUNT(*) FROM "+quoteMySQLName(name)); err != nil {
 			t.Errorf("allowlisted view %s: %v", name, err)
 		}
 	}
 
-	if _, err := svc.Query(id, []string{digestTable}, "SELECT digest_text, count_star FROM "+digestTable+" ORDER BY sum_timer_wait DESC LIMIT 5"); err != nil {
+	if _, err := svc.Query(id, "SELECT digest_text, count_star FROM "+digestTable+" ORDER BY sum_timer_wait DESC LIMIT 5"); err != nil {
 		t.Errorf("digest query with named columns: %v", err)
 	}
 	for _, denied := range []string{
 		"SELECT * FROM " + digestTable,
 		"SELECT query_sample_text FROM " + digestTable,
 	} {
-		if _, err := svc.Query(id, []string{digestTable}, denied); err == nil {
+		if _, err := svc.Query(id, denied); err == nil {
 			t.Errorf("Query(%q): expected rejection", denied)
 		}
 	}
-	if _, err := svc.Query(id, []string{"performance_schema.threads"}, "SELECT * FROM performance_schema.threads"); err == nil {
+	if _, err := svc.Query(id, "SELECT * FROM performance_schema.threads"); err == nil {
 		t.Error("a system table off the allowlist should be denied even with the grant")
 	}
-	if _, err := svc.Query(id, []string{"mysql.user"}, "SELECT user FROM mysql.user"); err == nil {
+	if _, err := svc.Query(id, "SELECT user FROM mysql.user"); err == nil {
 		t.Error("mysql.user should be denied even with the grant")
 	}
 
 	plain, plainID := performanceChannel(t, dsn, "select")
-	if _, err := plain.Query(plainID, []string{digestTable}, "SELECT count_star FROM "+digestTable); err == nil {
+	if _, err := plain.Query(plainID, "SELECT count_star FROM "+digestTable); err == nil {
 		t.Error("a channel without the performance operation should be denied")
 	}
 }
@@ -102,19 +102,19 @@ func TestPerfViewsAgainstRealPostgres(t *testing.T) {
 
 	svc, id := performanceChannel(t, dsn, "select", "explain", OperationPerformance)
 	for _, name := range PerfViewNames(EnginePostgres) {
-		if _, err := svc.Query(id, []string{name}, "SELECT COUNT(*) FROM "+name); err != nil {
+		if _, err := svc.Query(id, "SELECT COUNT(*) FROM "+name); err != nil {
 			t.Errorf("allowlisted view %s: %v", name, err)
 		}
 	}
-	if _, err := svc.Query(id, []string{"pg_catalog.pg_locks"}, "SELECT COUNT(*) FROM pg_catalog.pg_locks"); err != nil {
+	if _, err := svc.Query(id, "SELECT COUNT(*) FROM pg_catalog.pg_locks"); err != nil {
 		t.Errorf("pg_catalog-qualified view: %v", err)
 	}
-	if _, err := svc.Query(id, []string{"pg_catalog.pg_class"}, "SELECT relname FROM pg_catalog.pg_class"); err == nil {
+	if _, err := svc.Query(id, "SELECT relname FROM pg_catalog.pg_class"); err == nil {
 		t.Error("a pg_catalog table off the allowlist should be denied even with the grant")
 	}
 
 	plain, plainID := performanceChannel(t, dsn, "select")
-	if _, err := plain.Query(plainID, []string{"pg_stat_statements"}, "SELECT COUNT(*) FROM pg_stat_statements"); err == nil {
+	if _, err := plain.Query(plainID, "SELECT COUNT(*) FROM pg_stat_statements"); err == nil {
 		t.Error("a channel without the performance operation should be denied")
 	}
 }

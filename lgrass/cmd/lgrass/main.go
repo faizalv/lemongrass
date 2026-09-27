@@ -131,10 +131,12 @@ COMMANDS
                                      under ~/.lemongrass; maps short channel ids to real vault
                                      channels and forwards queries to a running vault daemon
 
-  db <short-id> --tables <t1,t2|*> --sql "<statement>"
-                                     Model-facing: runs a read-only statement (SELECT/SHOW/
-                                     DESCRIBE/EXPLAIN) against the database a channel grants
-                                     access to, through the running agent and vault daemons
+  db <short-id> --sql "<statement>" [--dry-run|--commit]
+                                     Model-facing: runs a statement against the database a channel
+                                     grants access to, through the running agent and vault daemons.
+                                     A read (SELECT/SHOW/DESCRIBE/EXPLAIN) runs immediately; a write
+                                     (INSERT/UPDATE/DELETE) requires exactly one of --dry-run
+                                     (rolled back, reports the row count) or --commit (persists)
 
   rester <short-id> info            Model-facing: prints a channel's base URL, expiry, allowed
                                      methods and users

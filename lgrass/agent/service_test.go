@@ -73,7 +73,7 @@ func TestServiceRegisterThenQuery(t *testing.T) {
 		t.Errorf("RegisterChannel returned id of length %d, want %d", len(shortID), shortIDLength)
 	}
 
-	_, err = svc.Query(shortID, []string{"employees"}, "SELECT id FROM employees")
+	_, err = svc.Query(shortID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 }
 
@@ -109,13 +109,13 @@ func TestServiceRegisterThenExecute(t *testing.T) {
 		t.Fatalf("RegisterChannel: %v", err)
 	}
 
-	_, err = svc.Execute(shortID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+	_, err = svc.Execute(shortID, "DELETE FROM employees WHERE id = 1", true, "tester")
 	wantsTransaction(t, err)
 }
 
 func TestServiceExecuteUnknownShortIDReturnsErrNoSuchChannel(t *testing.T) {
 	svc := NewService(startTestVault(t))
-	if _, err := svc.Execute("BOGUS1", []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester"); !errors.Is(err, ErrNoSuchChannel) {
+	if _, err := svc.Execute("BOGUS1", "DELETE FROM employees WHERE id = 1", true, "tester"); !errors.Is(err, ErrNoSuchChannel) {
 		t.Errorf("Execute with an unregistered short id: got %v, want ErrNoSuchChannel", err)
 	}
 }
@@ -130,7 +130,7 @@ func TestServiceRegisterChannelRejectsUnknownRealID(t *testing.T) {
 
 func TestServiceQueryUnknownShortIDReturnsErrNoSuchChannel(t *testing.T) {
 	svc := NewService(startTestVault(t))
-	if _, err := svc.Query("BOGUS1", []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, ErrNoSuchChannel) {
+	if _, err := svc.Query("BOGUS1", "SELECT id FROM employees"); !errors.Is(err, ErrNoSuchChannel) {
 		t.Errorf("Query with an unregistered short id: got %v, want ErrNoSuchChannel", err)
 	}
 }
@@ -152,7 +152,7 @@ func TestServiceForgetThenQueryReturnsErrNoSuchChannel(t *testing.T) {
 	}
 
 	svc.Forget(shortID)
-	if _, err := svc.Query(shortID, []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, ErrNoSuchChannel) {
+	if _, err := svc.Query(shortID, "SELECT id FROM employees"); !errors.Is(err, ErrNoSuchChannel) {
 		t.Errorf("Query after Forget: got %v, want ErrNoSuchChannel", err)
 	}
 }
@@ -177,7 +177,7 @@ func TestServiceQueryOnOutOfScopeTableFails(t *testing.T) {
 		t.Fatalf("RegisterChannel: %v", err)
 	}
 
-	if _, err := svc.Query(shortID, []string{"salaries"}, "SELECT id FROM salaries"); err == nil {
+	if _, err := svc.Query(shortID, "SELECT id FROM salaries"); err == nil {
 		t.Error("Query on an out-of-scope table returned nil error")
 	}
 }

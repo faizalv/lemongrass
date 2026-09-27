@@ -47,9 +47,8 @@ type shortIDPayload struct {
 }
 
 type queryPayload struct {
-	ShortID        string   `json:"short_id"`
-	DeclaredTables []string `json:"declared_tables"`
-	SQL            string   `json:"sql"`
+	ShortID string `json:"short_id"`
+	SQL     string `json:"sql"`
 }
 
 type queryResultPayload struct {
@@ -57,10 +56,9 @@ type queryResultPayload struct {
 }
 
 type executePayload struct {
-	ShortID        string   `json:"short_id"`
-	DeclaredTables []string `json:"declared_tables"`
-	SQL            string   `json:"sql"`
-	Commit         bool     `json:"commit"`
+	ShortID string `json:"short_id"`
+	SQL     string `json:"sql"`
+	Commit  bool   `json:"commit"`
 	// Actor is the caller-facing identity Execute audits under.
 	Actor string `json:"actor,omitempty"`
 }
@@ -153,7 +151,7 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return queryOp(queryLimiter, func() (response, error) {
-			result, err := svc.Query(p.ShortID, p.DeclaredTables, p.SQL)
+			result, err := svc.Query(p.ShortID, p.SQL)
 			return payloadResponse(queryResultPayload{Result: result}), err
 		})
 
@@ -163,7 +161,7 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return queryOp(queryLimiter, func() (response, error) {
-			result, err := svc.Execute(p.ShortID, p.DeclaredTables, p.SQL, p.Commit, p.Actor)
+			result, err := svc.Execute(p.ShortID, p.SQL, p.Commit, p.Actor)
 			return payloadResponse(executeResultPayload{Result: result}), err
 		})
 
@@ -347,15 +345,15 @@ func (c *Client) RegisterChannel(realID vault.ChannelID) (string, error) {
 	return out.ShortID, err
 }
 
-func (c *Client) Query(shortID string, declaredTables []string, sqlText string) (dbgate.QueryResult, error) {
+func (c *Client) Query(shortID string, sqlText string) (dbgate.QueryResult, error) {
 	var out queryResultPayload
-	err := c.call(opQuery, queryPayload{ShortID: shortID, DeclaredTables: declaredTables, SQL: sqlText}, &out)
+	err := c.call(opQuery, queryPayload{ShortID: shortID, SQL: sqlText}, &out)
 	return out.Result, err
 }
 
-func (c *Client) Execute(shortID string, declaredTables []string, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
+func (c *Client) Execute(shortID string, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
 	var out executeResultPayload
-	err := c.call(opExecute, executePayload{ShortID: shortID, DeclaredTables: declaredTables, SQL: sqlText, Commit: commit, Actor: actor}, &out)
+	err := c.call(opExecute, executePayload{ShortID: shortID, SQL: sqlText, Commit: commit, Actor: actor}, &out)
 	return out.Result, err
 }
 

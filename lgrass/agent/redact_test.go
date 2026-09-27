@@ -80,7 +80,7 @@ func TestQueryErrorsNeverCarryTheRealChannelID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = svc.Query(shortID, []string{"employees"}, "SELECT 1")
+	_, err = svc.Query(shortID, "SELECT 1")
 	if err == nil {
 		t.Fatal("Query on a revoked channel returned no error")
 	}

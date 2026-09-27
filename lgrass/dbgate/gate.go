@@ -98,8 +98,8 @@ func (g *Gate) withConnection(rootSecret, dbName string, fn func(*sql.DB, Engine
 	})
 }
 
-// Query classifies sqlText and checks it against the channel's scope before the caller's declared tables, since scope is the real security boundary. It rejects a write-kind statement outright, mirroring Execute's own rejection of a read-kind one, so a caller can't commit through the read path or silently no-op a write through it.
-func (g *Gate) Query(id vault.ChannelID, declaredTables []string, sqlText string) (QueryResult, error) {
+// Query classifies sqlText and checks it against the channel's scope, since scope is the real security boundary. It rejects a write-kind statement outright, mirroring Execute's own rejection of a read-kind one, so a caller can't commit through the read path or silently no-op a write through it.
+func (g *Gate) Query(id vault.ChannelID, sqlText string) (QueryResult, error) {
 	c, connBytes, err := g.vault.OpenChannel(id)
 	if err != nil {
 		return QueryResult{}, err
@@ -119,9 +119,6 @@ func (g *Gate) Query(id vault.ChannelID, declaredTables []string, sqlText string
 		return QueryResult{}, errors.New("dbgate: use Execute for a write statement")
 	}
 	if err := AllowStatement(c.Scope, stmt); err != nil {
-		return QueryResult{}, err
-	}
-	if err := checkDeclaredTables(stmt, declaredTables); err != nil {
 		return QueryResult{}, err
 	}
 
@@ -150,8 +147,8 @@ type WriteResult struct {
 	DryRun       bool  `json:"dry_run"`
 }
 
-// Execute classifies sqlText and checks it against the channel's scope before the caller's declared tables, same order Query uses, then runs it inside a transaction: committed when commit is true, rolled back otherwise so nothing persists from a dry run. It rejects a read-kind statement outright, the mirror of Query's own rejection above. actor is the caller-facing identity the resulting audit row is stamped under, never verified and never a security boundary.
-func (g *Gate) Execute(id vault.ChannelID, declaredTables []string, sqlText string, commit bool, actor string) (WriteResult, error) {
+// Execute classifies sqlText and checks it against the channel's scope, same order Query uses, then runs it inside a transaction: committed when commit is true, rolled back otherwise so nothing persists from a dry run. It rejects a read-kind statement outright, the mirror of Query's own rejection above. actor is the caller-facing identity the resulting audit row is stamped under, never verified and never a security boundary.
+func (g *Gate) Execute(id vault.ChannelID, sqlText string, commit bool, actor string) (WriteResult, error) {
 	c, connBytes, err := g.vault.OpenChannel(id)
 	if err != nil {
 		return WriteResult{}, err
@@ -173,9 +170,6 @@ func (g *Gate) Execute(id vault.ChannelID, declaredTables []string, sqlText stri
 	if err := AllowStatement(c.Scope, stmt); err != nil {
 		return WriteResult{}, err
 	}
-	if err := checkDeclaredTables(stmt, declaredTables); err != nil {
-		return WriteResult{}, err
-	}
 
 	db, err := g.getDB(id, connString)
 	if err != nil {
@@ -184,7 +178,7 @@ func (g *Gate) Execute(id vault.ChannelID, declaredTables []string, sqlText stri
 	return g.runWrite(id, actor, stmt, db, sqlText, commit)
 }
 
-// runWrite runs sqlText inside a transaction and resolves it, committing when commit is true and rolling back otherwise, or rolling back regardless if the statement itself failed. The audit row is written right after resolution either way, so a rejection earlier in Execute (classify, scope, declared tables) that never opened a transaction never produces one, but an attempt that reached the database and failed there still does.
+// runWrite runs sqlText inside a transaction and resolves it, committing when commit is true and rolling back otherwise, or rolling back regardless if the statement itself failed. The audit row is written right after resolution either way, so a rejection earlier in Execute (classify, scope) that never opened a transaction never produces one, but an attempt that reached the database and failed there still does.
 func (g *Gate) runWrite(id vault.ChannelID, actor string, stmt Statement, db *sql.DB, sqlText string, commit bool) (WriteResult, error) {
 	tx, err := db.Begin()
 	if err != nil {

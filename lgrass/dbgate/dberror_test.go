@@ -98,7 +98,7 @@ func TestServiceQueryErrorDoesNotEchoTheConnectionTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateChannel: %v", err)
 	}
-	_, err = svc.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+	_, err = svc.Query(c.ID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 	for _, leaked := range []string{"127.0.0.1", "root", "secret"} {
 		if strings.Contains(err.Error(), leaked) {

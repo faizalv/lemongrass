@@ -55,24 +55,24 @@ func (s *Service) RegisterChannel(realID vault.ChannelID) (string, error) {
 }
 
 // Query resolves shortID to its real vault channel and forwards the query, returning the same error for an unregistered, forgotten, or mistyped id.
-func (s *Service) Query(shortID string, declaredTables []string, sqlText string) (dbgate.QueryResult, error) {
+func (s *Service) Query(shortID string, sqlText string) (dbgate.QueryResult, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
 		return dbgate.QueryResult{}, ErrNoSuchChannel
 	}
-	result, err := s.vaultClient.Query(realID, declaredTables, sqlText)
+	result, err := s.vaultClient.Query(realID, sqlText)
 	return result, redactID(err, realID, shortID)
 }
 
 // Execute resolves shortID to its real vault channel and forwards the write, returning the same
 // error for an unregistered, forgotten, or mistyped id. actor is the caller-facing identity the
 // call is audited under, forwarded as-is to the vault.
-func (s *Service) Execute(shortID string, declaredTables []string, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
+func (s *Service) Execute(shortID string, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
 	realID, ok := s.lookup(shortID)
 	if !ok {
 		return dbgate.WriteResult{}, ErrNoSuchChannel
 	}
-	result, err := s.vaultClient.Execute(realID, declaredTables, sqlText, commit, actor)
+	result, err := s.vaultClient.Execute(realID, sqlText, commit, actor)
 	return result, redactID(err, realID, shortID)
 }
 

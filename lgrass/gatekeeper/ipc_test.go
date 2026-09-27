@@ -62,12 +62,12 @@ func TestIPCFullChannelLifecycle(t *testing.T) {
 	}
 
 	// Reaches execution and fails only because nothing's listening -- proof the query travelled the whole IPC round trip.
-	_, err = client.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+	_, err = client.Query(c.ID, "SELECT id FROM employees")
 	if err == nil || !strings.Contains(err.Error(), "executing query") {
 		t.Errorf("Query = %v, want it to fail at execution", err)
 	}
 
-	if _, err := client.Query(c.ID, []string{"salaries"}, "SELECT id FROM salaries"); err == nil {
+	if _, err := client.Query(c.ID, "SELECT id FROM salaries"); err == nil {
 		t.Error("Query on an out-of-scope table returned nil error")
 	}
 
@@ -86,7 +86,7 @@ func TestIPCFullChannelLifecycle(t *testing.T) {
 	if err := client.Revoke(c.ID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
-	if _, err := client.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
+	if _, err := client.Query(c.ID, "SELECT id FROM employees"); err == nil {
 		t.Error("Query after Revoke returned nil error")
 	}
 
@@ -162,19 +162,19 @@ func TestIPCExecuteRoundTrip(t *testing.T) {
 	}
 
 	// Reaches transaction open and fails only because nothing's listening -- proof the write travelled the whole IPC round trip.
-	_, err = client.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+	_, err = client.Execute(c.ID, "DELETE FROM employees WHERE id = 1", true, "tester")
 	if err == nil || !strings.Contains(err.Error(), "beginning transaction") {
 		t.Errorf("Execute = %v, want it to fail opening the transaction", err)
 	}
 
-	if _, err := client.Execute(c.ID, []string{"salaries"}, "DELETE FROM salaries WHERE id = 1", true, "tester"); err == nil {
+	if _, err := client.Execute(c.ID, "DELETE FROM salaries WHERE id = 1", true, "tester"); err == nil {
 		t.Error("Execute on an out-of-scope table returned nil error")
 	}
 
 	if err := client.Revoke(c.ID); err != nil {
 		t.Fatalf("Revoke: %v", err)
 	}
-	if _, err := client.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester"); err == nil {
+	if _, err := client.Execute(c.ID, "DELETE FROM employees WHERE id = 1", true, "tester"); err == nil {
 		t.Error("Execute after Revoke returned nil error")
 	}
 }
@@ -191,7 +191,7 @@ func TestIPCExecuteIsNotAdminGated(t *testing.T) {
 
 	// Many Execute calls in a row should never trip the admin limiter -- it only gates root-secret-bearing ops.
 	for i := 0; i < 20; i++ {
-		_, err := client.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+		_, err := client.Execute(c.ID, "DELETE FROM employees WHERE id = 1", true, "tester")
 		if err == nil || !strings.Contains(err.Error(), "beginning transaction") {
 			t.Fatalf("Execute attempt %d = %v, want it to fail opening the transaction, not be admin-gated", i, err)
 		}
@@ -210,7 +210,7 @@ func TestIPCQueryIsNotAdminGated(t *testing.T) {
 
 	// Many Query calls in a row should never trip the admin limiter -- it only gates root-secret-bearing ops.
 	for i := 0; i < 20; i++ {
-		_, err := client.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+		_, err := client.Query(c.ID, "SELECT id FROM employees")
 		if err == nil || !strings.Contains(err.Error(), "executing query") {
 			t.Fatalf("Query attempt %d = %v, want it to fail at execution, not be admin-gated", i, err)
 		}

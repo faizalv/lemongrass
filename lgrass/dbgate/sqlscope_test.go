@@ -344,34 +344,3 @@ func TestClassifyQueryRejectsUnparseableSQL(t *testing.T) {
 		t.Error("expected a parse error for garbage SQL")
 	}
 }
-
-func TestCheckDeclaredTablesAcceptsExactMatch(t *testing.T) {
-	stmt := Statement{Kind: KindSelect, Tables: []string{"employees", "salaries"}}
-	if err := checkDeclaredTables(stmt, []string{"salaries", "employees"}); err != nil {
-		t.Errorf("checkDeclaredTables with the same tables in a different order: %v", err)
-	}
-}
-
-func TestCheckDeclaredTablesRejectsMissingTable(t *testing.T) {
-	stmt := Statement{Kind: KindSelect, Tables: []string{"employees", "salaries"}}
-	if err := checkDeclaredTables(stmt, []string{"employees"}); err == nil {
-		t.Error("checkDeclaredTables under-declaring a joined table returned nil, want ErrTableMismatch")
-	}
-}
-
-func TestCheckDeclaredTablesRejectsExtraTable(t *testing.T) {
-	stmt := Statement{Kind: KindSelect, Tables: []string{"employees"}}
-	if err := checkDeclaredTables(stmt, []string{"employees", "salaries"}); err == nil {
-		t.Error("checkDeclaredTables over-declaring a table the statement doesn't touch returned nil, want ErrTableMismatch")
-	}
-}
-
-func TestCheckDeclaredTablesIntrospectRequiresWildcard(t *testing.T) {
-	stmt := Statement{Kind: KindIntrospect}
-	if err := checkDeclaredTables(stmt, []string{"*"}); err != nil {
-		t.Errorf("checkDeclaredTables(introspect, [*]): %v", err)
-	}
-	if err := checkDeclaredTables(stmt, []string{"employees"}); err == nil {
-		t.Error("checkDeclaredTables(introspect, [employees]) returned nil, want ErrTableMismatch")
-	}
-}

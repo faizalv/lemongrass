@@ -33,16 +33,6 @@ func (e *ErrRestrictedColumn) Error() string {
 	return fmt.Sprintf("dbgate: the %s column of %s is not readable", e.Column, e.Table)
 }
 
-// ErrTableMismatch reports the caller's declared tables not matching what the statement actually references, distinct from a scope denial.
-type ErrTableMismatch struct {
-	Declared []string
-	Actual   []string
-}
-
-func (e *ErrTableMismatch) Error() string {
-	return fmt.Sprintf("dbgate: declared tables %v, statement actually references %v", e.Declared, e.Actual)
-}
-
 // AllowStatement denies by default and checks every table a statement references against scope's Tables or, with the performance operation, the engine's view allowlist, skipping that check only for introspection with no recoverable table. A table in stmt.WriteTables is checked under stmt.Kind's own operation; every other table a write statement references is checked under "select" instead, a separate grant from the write itself.
 func AllowStatement(s vault.Scope, stmt Statement) error {
 	op := string(stmt.Kind)

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 
@@ -28,7 +27,7 @@ const (
 	KindDelete     Kind = "delete"
 )
 
-// Statement holds what a piece of SQL actually does and which real tables it references, the ground truth scope is checked against rather than the caller's declared intent.
+// Statement holds what a piece of SQL actually does and which real tables it references, the ground truth scope is checked against.
 type Statement struct {
 	Kind   Kind
 	Engine Engine
@@ -377,26 +376,6 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// checkDeclaredTables compares the caller's declared tables against what the statement actually references, a clarity check only since AllowStatement is the real security boundary.
-func checkDeclaredTables(stmt Statement, declared []string) error {
-	if len(stmt.Tables) == 0 && stmt.Kind == KindIntrospect {
-		if len(declared) == 1 && declared[0] == "*" {
-			return nil
-		}
-		return &ErrTableMismatch{Declared: declared, Actual: nil}
-	}
-	want := sortedKeys(toSet(stmt.Tables))
-	normalized := make([]string, len(declared))
-	for i, d := range declared {
-		normalized[i] = normalizeDeclaredTable(stmt.Engine, d)
-	}
-	got := sortedKeys(toSet(normalized))
-	if !slices.Equal(want, got) {
-		return &ErrTableMismatch{Declared: declared, Actual: stmt.Tables}
-	}
-	return nil
 }
 
 func toSet(list []string) map[string]bool {

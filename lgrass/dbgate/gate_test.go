@@ -70,7 +70,7 @@ func TestQueryReachesExecutionAfterScopeChecksPass(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
 
-	_, err := g.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+	_, err := g.Query(c.ID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 }
 
@@ -78,23 +78,10 @@ func TestQueryDeniesOutOfScopeTable(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
 
-	_, err := g.Query(c.ID, []string{"salaries"}, "SELECT id FROM salaries")
+	_, err := g.Query(c.ID, "SELECT id FROM salaries")
 	var violation *ErrScopeViolation
 	if !errors.As(err, &violation) {
 		t.Errorf("Query on an out-of-scope table: got %v, want ErrScopeViolation", err)
-	}
-}
-
-func TestQueryDeniesDeclaredTableMismatch(t *testing.T) {
-	svc, g := openTestGate(t)
-	scope := vault.Scope{Tables: []string{"employees", "salaries"}, Operations: []string{"select"}}
-	c := newTestChannel(t, svc, scope, 5*time.Minute)
-
-	// Scope grants both tables, so a declared list missing "salaries" exercises the declared-tables check alone, not a scope denial.
-	_, err := g.Query(c.ID, []string{"employees"}, "SELECT e.id FROM employees e JOIN salaries s ON s.employee_id = e.id")
-	var mismatch *ErrTableMismatch
-	if !errors.As(err, &mismatch) {
-		t.Errorf("Query with a mismatched declared table list: got %v, want ErrTableMismatch", err)
 	}
 }
 
@@ -102,7 +89,7 @@ func TestQueryDeniesIntrospectWithoutShowGranted(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
 
-	_, err := g.Query(c.ID, []string{"*"}, "SHOW TABLES")
+	_, err := g.Query(c.ID, "SHOW TABLES")
 	var violation *ErrScopeViolation
 	if !errors.As(err, &violation) {
 		t.Errorf("Query for SHOW without show granted: got %v, want ErrScopeViolation", err)
@@ -113,7 +100,7 @@ func TestQueryRejectsWriteStatement(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
 
-	if _, err := g.Query(c.ID, []string{"employees"}, "DELETE FROM employees"); err == nil {
+	if _, err := g.Query(c.ID, "DELETE FROM employees"); err == nil {
 		t.Error("Query with a write statement returned nil error")
 	}
 }
@@ -122,7 +109,7 @@ func TestQueryFailsAfterExpiry(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, fullScope(), -1*time.Second)
 
-	if _, err := g.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, vault.ErrChannelExpired) {
+	if _, err := g.Query(c.ID, "SELECT id FROM employees"); !errors.Is(err, vault.ErrChannelExpired) {
 		t.Errorf("Query on an already-expired channel: got %v, want ErrChannelExpired", err)
 	}
 }
@@ -134,7 +121,7 @@ func TestQueryFailsAfterRevoke(t *testing.T) {
 		t.Fatalf("Revoke: %v", err)
 	}
 
-	if _, err := g.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, vault.ErrNotFound) {
+	if _, err := g.Query(c.ID, "SELECT id FROM employees"); !errors.Is(err, vault.ErrNotFound) {
 		t.Errorf("Query after Revoke: got %v, want ErrNotFound", err)
 	}
 }
@@ -142,14 +129,14 @@ func TestQueryFailsAfterRevoke(t *testing.T) {
 func TestQueryAfterActivateReachesExecution(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, fullScope(), -1*time.Second)
-	if _, err := g.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); err == nil {
+	if _, err := g.Query(c.ID, "SELECT id FROM employees"); err == nil {
 		t.Fatal("expected the freshly-created channel to already be expired")
 	}
 
 	if _, err := svc.Activate(testRootSecret, c.ID, 5*time.Minute); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
-	_, err := g.Query(c.ID, []string{"employees"}, "SELECT id FROM employees")
+	_, err := g.Query(c.ID, "SELECT id FROM employees")
 	wantsExecution(t, err)
 }
 
@@ -168,7 +155,7 @@ func TestQueryFailsWhenNeverActivated(t *testing.T) {
 	}
 	g := New(restarted)
 
-	if _, err := g.Query(c.ID, []string{"employees"}, "SELECT id FROM employees"); !errors.Is(err, vault.ErrChannelInactive) {
+	if _, err := g.Query(c.ID, "SELECT id FROM employees"); !errors.Is(err, vault.ErrChannelInactive) {
 		t.Errorf("Query on a channel with no cached key: got %v, want ErrChannelInactive", err)
 	}
 }
@@ -195,7 +182,7 @@ func TestExecuteReachesTransactionAfterScopeChecksPass(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, writeScope(), 5*time.Minute)
 
-	_, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester")
+	_, err := g.Execute(c.ID, "DELETE FROM employees WHERE id = 1", true, "tester")
 	wantsTransaction(t, err)
 }
 
@@ -203,7 +190,7 @@ func TestExecuteDeniesOutOfScopeTable(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, writeScope(), 5*time.Minute)
 
-	_, err := g.Execute(c.ID, []string{"salaries"}, "DELETE FROM salaries WHERE id = 1", true, "tester")
+	_, err := g.Execute(c.ID, "DELETE FROM salaries WHERE id = 1", true, "tester")
 	var violation *ErrScopeViolation
 	if !errors.As(err, &violation) {
 		t.Errorf("Execute on an out-of-scope table: got %v, want ErrScopeViolation", err)
@@ -216,7 +203,7 @@ func TestExecuteRejectsMissingWhereBeforeReachingScope(t *testing.T) {
 	// ErrScopeViolation instead, since the WHERE-less guard runs at classification time.
 	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
 
-	_, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees", true, "tester")
+	_, err := g.Execute(c.ID, "DELETE FROM employees", true, "tester")
 	var violation *ErrScopeViolation
 	if errors.As(err, &violation) {
 		t.Error("Execute on a WHERE-less DELETE returned ErrScopeViolation, want the classification-time rejection")
@@ -230,7 +217,7 @@ func TestExecuteRejectsReadStatement(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, fullScope(), 5*time.Minute)
 
-	if _, err := g.Execute(c.ID, []string{"employees"}, "SELECT id FROM employees", true, "tester"); err == nil {
+	if _, err := g.Execute(c.ID, "SELECT id FROM employees", true, "tester"); err == nil {
 		t.Error("Execute with a read statement returned nil error")
 	}
 }
@@ -239,7 +226,7 @@ func TestQueryRejectsWriteStatementWithWhere(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, writeScope(), 5*time.Minute)
 
-	if _, err := g.Query(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1"); err == nil {
+	if _, err := g.Query(c.ID, "DELETE FROM employees WHERE id = 1"); err == nil {
 		t.Error("Query with a valid write statement returned nil error, want the mirror rejection")
 	}
 }
@@ -248,7 +235,7 @@ func TestExecuteFailsAfterExpiry(t *testing.T) {
 	svc, g := openTestGate(t)
 	c := newTestChannel(t, svc, writeScope(), -1*time.Second)
 
-	if _, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", true, "tester"); !errors.Is(err, vault.ErrChannelExpired) {
+	if _, err := g.Execute(c.ID, "DELETE FROM employees WHERE id = 1", true, "tester"); !errors.Is(err, vault.ErrChannelExpired) {
 		t.Errorf("Execute on an already-expired channel: got %v, want ErrChannelExpired", err)
 	}
 }
@@ -259,7 +246,7 @@ func TestExecuteDryRunDoesNotAuditWithoutAStore(t *testing.T) {
 
 	// g.Audit is nil, as in any Gate a test doesn't wire one for; auditWrite must be a no-op
 	// rather than panicking.
-	_, err := g.Execute(c.ID, []string{"employees"}, "DELETE FROM employees WHERE id = 1", false, "tester")
+	_, err := g.Execute(c.ID, "DELETE FROM employees WHERE id = 1", false, "tester")
 	wantsTransaction(t, err)
 }
 

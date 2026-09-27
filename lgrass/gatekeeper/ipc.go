@@ -85,9 +85,8 @@ type activatePayload struct {
 }
 
 type queryPayload struct {
-	ID             vault.ChannelID `json:"id"`
-	DeclaredTables []string        `json:"declared_tables"`
-	SQL            string          `json:"sql"`
+	ID  vault.ChannelID `json:"id"`
+	SQL string          `json:"sql"`
 }
 
 type queryResultPayload struct {
@@ -95,10 +94,9 @@ type queryResultPayload struct {
 }
 
 type executePayload struct {
-	ID             vault.ChannelID `json:"id"`
-	DeclaredTables []string        `json:"declared_tables"`
-	SQL            string          `json:"sql"`
-	Commit         bool            `json:"commit"`
+	ID     vault.ChannelID `json:"id"`
+	SQL    string          `json:"sql"`
+	Commit bool            `json:"commit"`
 	// Actor is the caller-facing identity Execute audits under.
 	Actor string `json:"actor,omitempty"`
 }
@@ -331,7 +329,7 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 		if err := json.Unmarshal(req.Payload, &p); err != nil {
 			return errResponse(err)
 		}
-		result, err := svc.DB.Query(p.ID, p.DeclaredTables, p.SQL)
+		result, err := svc.DB.Query(p.ID, p.SQL)
 		if err != nil {
 			return errResponse(err)
 		}
@@ -342,7 +340,7 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 		if err := json.Unmarshal(req.Payload, &p); err != nil {
 			return errResponse(err)
 		}
-		result, err := svc.DB.Execute(p.ID, p.DeclaredTables, p.SQL, p.Commit, p.Actor)
+		result, err := svc.DB.Execute(p.ID, p.SQL, p.Commit, p.Actor)
 		if err != nil {
 			return errResponse(err)
 		}
@@ -716,15 +714,15 @@ func (c *Client) Activate(rootSecret string, id vault.ChannelID, ttl time.Durati
 	return out.Channel, err
 }
 
-func (c *Client) Query(id vault.ChannelID, declaredTables []string, sqlText string) (dbgate.QueryResult, error) {
+func (c *Client) Query(id vault.ChannelID, sqlText string) (dbgate.QueryResult, error) {
 	var out queryResultPayload
-	err := c.call(opQuery, queryPayload{ID: id, DeclaredTables: declaredTables, SQL: sqlText}, &out)
+	err := c.call(opQuery, queryPayload{ID: id, SQL: sqlText}, &out)
 	return out.Result, err
 }
 
-func (c *Client) Execute(id vault.ChannelID, declaredTables []string, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
+func (c *Client) Execute(id vault.ChannelID, sqlText string, commit bool, actor string) (dbgate.WriteResult, error) {
 	var out executeResultPayload
-	err := c.call(opExecute, executePayload{ID: id, DeclaredTables: declaredTables, SQL: sqlText, Commit: commit, Actor: actor}, &out)
+	err := c.call(opExecute, executePayload{ID: id, SQL: sqlText, Commit: commit, Actor: actor}, &out)
 	return out.Result, err
 }
 

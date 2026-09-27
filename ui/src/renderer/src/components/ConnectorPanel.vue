@@ -502,9 +502,16 @@ async function copyShortId(id: string): Promise<void> {
 
 // -- Create channel --
 
-// Fixed to the operations Scope.AllowStatement (vault/bouncer.go) actually recognizes -- write
-// kinds are a separate, later PRD, not offered here.
-const operationOptions = ['select', 'explain', 'show', 'performance'] as const
+// Mirrors the operation strings dbgate.AllowStatement recognizes (dbgate/bouncer.go).
+const operationOptions = [
+  'select',
+  'explain',
+  'show',
+  'insert',
+  'update',
+  'delete',
+  'performance'
+] as const
 
 const showCreateForm = ref(false)
 const newChannelName = ref('')
