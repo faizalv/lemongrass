@@ -2,6 +2,7 @@ package vault
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -29,10 +30,30 @@ func NewFailureLimiter(maxFailures int, window, lockout time.Duration) *FailureL
 func (f *FailureLimiter) Check() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if time.Now().Before(f.lockedUntil) {
-		return ErrLockedOut
+	if remaining := time.Until(f.lockedUntil); remaining > 0 {
+		return fmt.Errorf("%w, try again in %s", ErrLockedOut, waitText(remaining))
 	}
 	return nil
+}
+
+func waitText(d time.Duration) string {
+	if d >= time.Minute {
+		minutes := int((d + time.Minute - 1) / time.Minute)
+		if minutes == 1 {
+			return "1 minute"
+		}
+		return fmt.Sprintf("%d minutes", minutes)
+	}
+	seconds := int((d + time.Second - 1) / time.Second)
+	if seconds == 1 {
+		return "1 second"
+	}
+	return fmt.Sprintf("%d seconds", seconds)
+}
+
+// IsAuthFailure reports whether err means the supplied root secret was wrong, the only failure a root-secret limiter should count.
+func IsAuthFailure(err error) bool {
+	return errors.Is(err, ErrWrongPassphrase) || errors.Is(err, ErrWrongKey)
 }
 
 func (f *FailureLimiter) RecordFailure() {

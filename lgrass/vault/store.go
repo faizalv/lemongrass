@@ -24,6 +24,9 @@ func OpenStore(dir string) (*Store, error) {
 
 var ErrNotFound = errors.New("vault: not found")
 
+// ErrWrongKey means a stored entry failed to decrypt under the supplied key.
+var ErrWrongKey = errors.New("vault: wrong key or corrupt data")
+
 func (s *Store) Put(name string, key, value []byte) error {
 	gcm, err := newGCM(key)
 	if err != nil {
@@ -56,7 +59,7 @@ func (s *Store) Get(name string, key []byte) ([]byte, error) {
 	nonce, ciphertext := sealed[:gcm.NonceSize()], sealed[gcm.NonceSize():]
 	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, fmt.Errorf("vault: wrong key or corrupt data for %s: %w", name, err)
+		return nil, fmt.Errorf("%w for %s: %w", ErrWrongKey, name, err)
 	}
 	return plain, nil
 }

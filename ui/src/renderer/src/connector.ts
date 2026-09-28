@@ -17,6 +17,12 @@ const knownErrors: Record<string, string> = {
 export function describeError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err)
   const stripped = raw.replace(/^Error invoking remote method '[^']*': (Error: )?/, '')
+  const lockout = stripped.match(
+    /^vault: too many failed attempts, locked out(?:, try again in (.+))?$/
+  )
+  if (lockout) {
+    return `Too many wrong passphrase attempts. Try again in ${lockout[1] ?? 'a few minutes'}.`
+  }
   return knownErrors[stripped] ?? stripped
 }
 

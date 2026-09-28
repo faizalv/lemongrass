@@ -622,14 +622,16 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 	}
 }
 
-// adminOp checks the limiter before a root-secret-bearing call and records the outcome after, so repeated wrong guesses eventually lock out rather than running unthrottled.
+// adminOp checks the limiter before a root-secret-bearing call and counts only wrong-secret failures, so repeated guesses lock out while an unreachable database or a bad input does not.
 func adminOp(adminLimiter *vault.FailureLimiter, fn func() (response, error)) response {
 	if err := adminLimiter.Check(); err != nil {
 		return errResponse(err)
 	}
 	resp, err := fn()
 	if err != nil {
-		adminLimiter.RecordFailure()
+		if vault.IsAuthFailure(err) {
+			adminLimiter.RecordFailure()
+		}
 		return errResponse(err)
 	}
 	adminLimiter.RecordSuccess()
