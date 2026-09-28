@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/faizalv/lemongrass/guard"
 	"github.com/faizalv/lemongrass/session"
 )
 
@@ -82,7 +83,7 @@ func memoryToolPaths(payload hookEvent) []string {
 
 // isClaudeMemoryPath matches any project's memory directory under ~/.claude/projects, not only this project's, so a slug-algorithm mismatch or a sibling project's directory does not open a gap.
 func isClaudeMemoryPath(p, cwd, home, projectMemDir string) bool {
-	p = resolveToolPath(p, cwd, home)
+	p = guard.ResolvePath(p, cwd, home)
 	if projectMemDir != "" && strings.HasPrefix(p+string(filepath.Separator), projectMemDir) {
 		return true
 	}
@@ -92,24 +93,6 @@ func isClaudeMemoryPath(p, cwd, home, projectMemDir string) bool {
 	}
 	parts := strings.Split(strings.TrimPrefix(p, root), string(filepath.Separator))
 	return len(parts) >= 2 && parts[1] == "memory"
-}
-
-func resolveToolPath(p, cwd, home string) string {
-	p = strings.TrimSpace(p)
-	switch {
-	case p == "~" || strings.HasPrefix(p, "~/"):
-		p = filepath.Join(home, strings.TrimPrefix(p, "~"))
-	case strings.HasPrefix(p, "$HOME"):
-		p = filepath.Join(home, strings.TrimPrefix(p, "$HOME"))
-	case strings.HasPrefix(p, "${HOME}"):
-		p = filepath.Join(home, strings.TrimPrefix(p, "${HOME}"))
-	case !filepath.IsAbs(p) && cwd != "":
-		p = filepath.Join(cwd, p)
-	}
-	if resolved, err := filepath.EvalSymlinks(filepath.Dir(p)); err == nil {
-		p = filepath.Join(resolved, filepath.Base(p))
-	}
-	return filepath.Clean(p)
 }
 
 // A shell command counts when it names a memory directory, or runs from inside one, and contains something that can write. Plain reads (cat, ls, grep, head) pass.

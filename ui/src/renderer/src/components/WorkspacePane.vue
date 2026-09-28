@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import ConnectorPanel from './ConnectorPanel.vue'
+import VaultPanel from './VaultPanel.vue'
 import DiffViewer from './DiffViewer.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import ShellView from './ShellView.vue'
@@ -24,7 +24,7 @@ import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload/types'
 
 type Leaf = Extract<WorkspaceLayoutNode, { type: 'leaf' }>
 type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
-type ConnectorTab = Extract<WorkspaceTab, { kind: 'connector' }>
+type VaultTab = Extract<WorkspaceTab, { kind: 'connector' }>
 
 const props = defineProps<{
   leaf: Leaf
@@ -50,8 +50,8 @@ const activeDoc = computed(() =>
 const shellTabs = computed(() =>
   props.leaf.tabs.filter((tab): tab is ShellTab => tab.kind === 'shell')
 )
-const connectorTabs = computed(() =>
-  props.leaf.tabs.filter((tab): tab is ConnectorTab => tab.kind === 'connector')
+const vaultTabs = computed(() =>
+  props.leaf.tabs.filter((tab): tab is VaultTab => tab.kind === 'connector')
 )
 
 function editActive(value: string): void {
@@ -70,7 +70,7 @@ function baseName(path: string): string {
 
 function tabTitle(tab: WorkspaceTab): string {
   if (tab.kind === 'shell') return shellTitles[tab.id] ?? tab.label
-  if (tab.kind === 'connector') return 'Connector'
+  if (tab.kind === 'connector') return 'Vault'
   return tab.kind === 'diff' ? `Diff: ${tab.path}` : tab.path
 }
 
@@ -319,10 +319,9 @@ onBeforeUnmount(() => {
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <line x1="4.5" y1="3.5" x2="4.5" y2="8.5" />
-            <line x1="7" y1="3.5" x2="7" y2="8.5" />
-            <line x1="9.5" y1="3.5" x2="9.5" y2="8.5" />
-            <rect x="2.5" y="8.5" width="9" height="2.5" rx="0.6" />
+            <rect x="2.5" y="6.5" width="9" height="6" rx="1.2" />
+            <path d="M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2" />
+            <circle cx="7" cy="9.5" r="0.8" />
           </svg>
           <span v-if="tab.kind === 'doc'" class="tab-label">
             <span v-if="labelParts(tab.path).parent" class="tab-parent">
@@ -334,7 +333,7 @@ onBeforeUnmount(() => {
             <span class="tab-parent">diff /</span>
             {{ baseName(tab.path) }}
           </span>
-          <span v-else-if="tab.kind === 'connector'" class="tab-label">Connector</span>
+          <span v-else-if="tab.kind === 'connector'" class="tab-label">Vault</span>
           <span v-else class="tab-label">{{ shellTitles[tab.id] ?? tab.label }}</span>
           <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
         </div>
@@ -465,8 +464,8 @@ onBeforeUnmount(() => {
         :spec="{ id: tab.id, command: tab.command, cwd: tab.cwd }"
       />
 
-      <ConnectorPanel
-        v-for="tab in connectorTabs"
+      <VaultPanel
+        v-for="tab in vaultTabs"
         v-show="tab.id === leaf.activeTabId"
         :key="tab.id"
         :active="tab.id === leaf.activeTabId"

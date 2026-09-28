@@ -371,6 +371,47 @@ async function revokeHTTPChannel(id: string): Promise<void> {
   await vaultCall<void>('revoke_http', { id })
 }
 
+export interface Policy {
+  rules: Record<string, 'allow' | 'deny' | 'approval'>
+  binaries: string[]
+  paths: string[]
+}
+
+export interface PolicyRule {
+  id: string
+  category: string
+  description: string
+  mode: 'deny' | 'approval'
+  locked: boolean
+}
+
+async function policyCatalog(): Promise<PolicyRule[]> {
+  const { rules } = await vaultCall<{ rules: PolicyRule[] }>('policy_catalog')
+  return rules ?? []
+}
+
+// Reads the sealed policy back for the editor. Nothing stored comes back as an empty policy.
+async function getPolicy(passphrase: string): Promise<Policy> {
+  const { policy } = await vaultCall<{ policy?: Partial<Policy> }>('get_policy', {
+    root_secret: passphrase
+  })
+  return {
+    rules: policy?.rules ?? {},
+    binaries: policy?.binaries ?? [],
+    paths: policy?.paths ?? []
+  }
+}
+
+// The vault validates the policy, seals it under the passphrase and makes it the active one.
+async function putPolicy(passphrase: string, policy: Policy): Promise<void> {
+  await vaultCall<void>('put_policy', { root_secret: passphrase, policy })
+}
+
+// Loads the stored policy into the daemon's memory so the hook can enforce it.
+async function activatePolicy(passphrase: string): Promise<void> {
+  await vaultCall<void>('activate_policy', { root_secret: passphrase })
+}
+
 export function registerVaultHandlers(): void {
   ipcMain.handle('vault:list', () => listChannels())
   ipcMain.handle(
@@ -445,4 +486,11 @@ export function registerVaultHandlers(): void {
       activateHTTPChannel(passphrase, id, ttlSeconds)
   )
   ipcMain.handle('vault:revokeHTTPChannel', (_event, id: string) => revokeHTTPChannel(id))
+
+  ipcMain.handle('vault:policyCatalog', () => policyCatalog())
+  ipcMain.handle('vault:getPolicy', (_event, passphrase: string) => getPolicy(passphrase))
+  ipcMain.handle('vault:putPolicy', (_event, passphrase: string, policy: Policy) =>
+    putPolicy(passphrase, policy)
+  )
+  ipcMain.handle('vault:activatePolicy', (_event, passphrase: string) => activatePolicy(passphrase))
 }

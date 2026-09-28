@@ -18,6 +18,7 @@ type Service struct {
 	creds       *Store
 	channels    *Store
 	canary      *Store
+	policies    *Store
 	metaDir     string
 	httpMetaDir string
 	rootSalt    []byte
@@ -25,6 +26,9 @@ type Service struct {
 	mu         sync.Mutex
 	activeKeys map[ChannelID][]byte
 	onInvalid  []func(ChannelID)
+
+	activePolicy []byte
+	policyLoaded bool
 }
 
 func NewService(dir string) (*Service, error) {
@@ -37,6 +41,10 @@ func NewService(dir string) (*Service, error) {
 		return nil, err
 	}
 	canary, err := OpenStore(filepath.Join(dir, "canary"))
+	if err != nil {
+		return nil, err
+	}
+	policies, err := OpenStore(filepath.Join(dir, "policy"))
 	if err != nil {
 		return nil, err
 	}
@@ -56,6 +64,7 @@ func NewService(dir string) (*Service, error) {
 		creds:       creds,
 		channels:    channels,
 		canary:      canary,
+		policies:    policies,
 		metaDir:     metaDir,
 		httpMetaDir: httpMetaDir,
 		rootSalt:    rootSalt,
@@ -183,6 +192,12 @@ func (s *Service) ResetVault() error {
 			return err
 		}
 	}
+	if err := s.policies.Delete(policyEntryName); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.dropActivePolicyLocked()
+	s.mu.Unlock()
 	return s.canary.Delete(canaryEntryName)
 }
 

@@ -113,6 +113,20 @@ export interface VaultHTTPChannelWithShortId {
   shortId: string
 }
 
+export interface VaultPolicy {
+  rules: Record<string, 'allow' | 'deny' | 'approval'>
+  binaries: string[]
+  paths: string[]
+}
+
+export interface VaultPolicyRule {
+  id: string
+  category: string
+  description: string
+  mode: 'deny' | 'approval'
+  locked: boolean
+}
+
 export type GitFileKind =
   | 'modified'
   | 'added'

@@ -1,28 +1,29 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRef } from 'vue'
-import '../connector.css'
+import '../vault.css'
 import {
   clearShortIds,
-  connectorSession,
+  vaultSession,
   describeError,
-  lockConnector,
-  noteConnectorActivity,
-  unlockConnector
-} from '../connector'
+  lockVaultSession,
+  noteVaultActivity,
+  unlockVaultSession
+} from '../vaultSession'
 import ConnectionsSection from './connector/ConnectionsSection.vue'
 import DbChannelsSection from './connector/DbChannelsSection.vue'
 import DomainsSection from './connector/DomainsSection.vue'
 import HttpChannelsSection from './connector/HttpChannelsSection.vue'
+import PolicySection from './safety/PolicySection.vue'
 
 const props = defineProps<{
   active: boolean
 }>()
 
-const activeKind = ref<'database' | 'http'>('database')
+const activeKind = ref<'database' | 'http' | 'safety'>('database')
 const activeDbTab = ref<'connections' | 'channels'>('connections')
 const activeHttpTab = ref<'domains' | 'httpChannels'>('domains')
 
-const vaultUnlocked = toRef(connectorSession, 'unlocked')
+const vaultUnlocked = toRef(vaultSession, 'unlocked')
 const unlockInput = ref('')
 const unlockError = ref('')
 const unlocking = ref(false)
@@ -57,7 +58,8 @@ async function unlockVault(): Promise<void> {
       await window.api.vault.verifyPassphrase(passphrase)
     }
     unlockInput.value = ''
-    unlockConnector(passphrase)
+    unlockVaultSession(passphrase)
+    window.api.vault.activatePolicy(passphrase).catch(() => undefined)
   } catch (err) {
     unlockError.value = describeError(err)
   } finally {
@@ -103,13 +105,9 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
 </script>
 
 <template>
-  <div
-    class="connector-tab"
-    @click.capture="noteConnectorActivity"
-    @keydown.capture="noteConnectorActivity"
-  >
-    <div class="connector-frame" :class="{ 'connector-frame--gate': !vaultUnlocked }">
-      <div v-if="!vaultUnlocked" class="connector-gate lg-scroll">
+  <div class="vault-tab" @click.capture="noteVaultActivity" @keydown.capture="noteVaultActivity">
+    <div class="vault-frame" :class="{ 'vault-frame--gate': !vaultUnlocked }">
+      <div v-if="!vaultUnlocked" class="vault-gate lg-scroll">
         <div v-if="!hasPassphraseLoading" class="unlock-panel">
           <template v-if="!showResetConfirm">
             <h4 class="inline-section-title">
@@ -169,12 +167,28 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
       </div>
 
       <template v-else>
-        <nav class="connector-nav">
+        <nav class="vault-nav">
+          <span class="nav-group-label">Connector</span>
           <button
             class="nav-item"
             :class="{ active: activeKind === 'database' }"
             @click="activeKind = 'database'"
           >
+            <svg
+              class="nav-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <ellipse cx="7" cy="3.5" rx="4.5" ry="1.8" />
+              <path d="M2.5 3.5v7c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8v-7" />
+              <path d="M2.5 7c0 1 2 1.8 4.5 1.8S11.5 8 11.5 7" />
+            </svg>
             Database
           </button>
           <button
@@ -182,16 +196,55 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
             :class="{ active: activeKind === 'http' }"
             @click="activeKind = 'http'"
           >
+            <svg
+              class="nav-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="7" cy="7" r="5.5" />
+              <path d="M1.5 7h11" />
+              <path
+                d="M7 1.5c1.7 1.6 2.5 3.4 2.5 5.5S8.7 10.9 7 12.5C5.3 10.9 4.5 9.1 4.5 7S5.3 3.1 7 1.5z"
+              />
+            </svg>
             HTTP
+          </button>
+          <div class="nav-divider"></div>
+          <button
+            class="nav-item"
+            :class="{ active: activeKind === 'safety' }"
+            @click="activeKind = 'safety'"
+          >
+            <svg
+              class="nav-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M7 1.5l4.8 1.8v3.6c0 3-2 5-4.8 5.9C4.2 11.9 2.2 9.9 2.2 6.9V3.3L7 1.5z" />
+              <path d="M5 7l1.4 1.4L9 5.8" />
+            </svg>
+            Safety
           </button>
           <div class="nav-lock">
             <span class="unlock-status">Vault unlocked</span>
-            <button class="ghost-button" @click="lockConnector">Lock</button>
+            <button class="ghost-button" @click="lockVaultSession">Lock</button>
           </div>
         </nav>
 
-        <div class="connector-main lg-scroll">
-          <div class="connector-content">
+        <div class="vault-main lg-scroll">
+          <div class="vault-content">
             <div v-show="activeKind === 'database'" class="kind-pane">
               <div class="tab-row">
                 <button
@@ -244,6 +297,10 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
                 v-show="activeHttpTab === 'httpChannels'"
                 :visible="shown('http', 'httpChannels')"
               />
+            </div>
+
+            <div v-show="activeKind === 'safety'" class="kind-pane">
+              <PolicySection :visible="props.active && activeKind === 'safety'" />
             </div>
           </div>
         </div>

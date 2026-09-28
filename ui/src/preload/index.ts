@@ -19,6 +19,8 @@ import type {
   VaultHTTPScope,
   VaultHTTPChannel,
   VaultHTTPChannelWithShortId,
+  VaultPolicy,
+  VaultPolicyRule,
   WorkspaceLayoutState,
   WorkgroupDisbandResult,
   WorkgroupInfo,
@@ -178,7 +180,14 @@ const vault = {
   ): Promise<VaultHTTPChannelWithShortId> =>
     ipcRenderer.invoke('vault:activateHTTPChannel', passphrase, id, ttlSeconds),
   revokeHTTPChannel: (id: string): Promise<void> =>
-    ipcRenderer.invoke('vault:revokeHTTPChannel', id)
+    ipcRenderer.invoke('vault:revokeHTTPChannel', id),
+  policyCatalog: (): Promise<VaultPolicyRule[]> => ipcRenderer.invoke('vault:policyCatalog'),
+  getPolicy: (passphrase: string): Promise<VaultPolicy> =>
+    ipcRenderer.invoke('vault:getPolicy', passphrase),
+  putPolicy: (passphrase: string, policy: VaultPolicy): Promise<void> =>
+    ipcRenderer.invoke('vault:putPolicy', passphrase, policy),
+  activatePolicy: (passphrase: string): Promise<void> =>
+    ipcRenderer.invoke('vault:activatePolicy', passphrase)
 }
 
 const windowControls = {

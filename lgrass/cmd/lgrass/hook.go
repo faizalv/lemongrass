@@ -176,6 +176,12 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 		return newHookResult("PreToolUse", "deny", []string{deny})
 	}
 
+	if payload.TabID != "" {
+		if verdict := dangerDecision(payload); verdict != nil {
+			return newHookResult("PreToolUse", "deny", []string{verdict.Message()})
+		}
+	}
+
 	if payload.EnforceBibliothek && hasBiblio(projectPath) {
 		// A copilot skips only the bibliothek gate, and only unless its pilot required the bibliothek skill for it.
 		bibliothekOptional := isCopilot && !member.Requires(bibliothekChecklistID)

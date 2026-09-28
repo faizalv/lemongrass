@@ -2,7 +2,7 @@ import { reactive } from 'vue'
 
 const AUTO_LOCK_MS = 5 * 60 * 1000
 
-export const connectorSession = reactive({
+export const vaultSession = reactive({
   unlocked: false,
   passphrase: '',
   shortIdByChannel: {} as Record<string, string>,
@@ -36,24 +36,24 @@ function clearIdleTimer(): void {
 }
 
 export function clearShortIds(): void {
-  connectorSession.shortIdByChannel = {}
-  connectorSession.shortIdByHTTPChannel = {}
+  vaultSession.shortIdByChannel = {}
+  vaultSession.shortIdByHTTPChannel = {}
 }
 
-export function lockConnector(): void {
-  connectorSession.unlocked = false
-  connectorSession.passphrase = ''
+export function lockVaultSession(): void {
+  vaultSession.unlocked = false
+  vaultSession.passphrase = ''
   clearIdleTimer()
 }
 
-export function unlockConnector(passphrase: string): void {
-  connectorSession.passphrase = passphrase
-  connectorSession.unlocked = true
-  noteConnectorActivity()
+export function unlockVaultSession(passphrase: string): void {
+  vaultSession.passphrase = passphrase
+  vaultSession.unlocked = true
+  noteVaultActivity()
 }
 
-export function noteConnectorActivity(): void {
-  if (!connectorSession.unlocked) return
+export function noteVaultActivity(): void {
+  if (!vaultSession.unlocked) return
   clearIdleTimer()
-  idleTimer = setTimeout(lockConnector, AUTO_LOCK_MS)
+  idleTimer = setTimeout(lockVaultSession, AUTO_LOCK_MS)
 }

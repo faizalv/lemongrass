@@ -13,7 +13,7 @@ import {
   workspaceOf,
   type ProjectRef
 } from '../workspace'
-import { SHELL_AGENTS } from '../shellAgents'
+import { SHELL_AGENTS, shellAgentById } from '../shellAgents'
 
 const props = defineProps<{
   project: ProjectRef
@@ -22,6 +22,7 @@ const props = defineProps<{
 const workspace = computed(() => workspaceOf(props.project.id))
 const shellCount = computed(() => liveShellCount(props.project.id))
 const documentCount = computed(() => docTabCount(props.project.id))
+const selectedAgentWarning = computed(() => shellAgentById(shellPicker.selectedId).warning)
 
 const closeAllSummary = computed((): string => {
   const shells = `${shellCount.value} running ${shellCount.value === 1 ? 'shell' : 'shells'}`
@@ -95,6 +96,7 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
             <span class="agent-hint">{{ agent.hint }}</span>
           </button>
         </div>
+        <p v-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
         <div class="card-actions">
           <button class="ghost-button" @click="cancelShellPicker">Cancel</button>
           <button class="primary-button" @click="confirmShellPicker()">Open</button>
@@ -247,6 +249,13 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
+}
+
+.agent-warning {
+  margin: 0;
+  color: var(--color-amber);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
 }
 
 .card-actions {

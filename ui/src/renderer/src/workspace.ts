@@ -40,7 +40,7 @@ interface Workspace {
 
 type DocTab = Extract<WorkspaceTab, { kind: 'doc' }>
 type DiffTab = Extract<WorkspaceTab, { kind: 'diff' }>
-type ConnectorTab = Extract<WorkspaceTab, { kind: 'connector' }>
+type VaultTab = Extract<WorkspaceTab, { kind: 'connector' }>
 type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
 
 const AUTOSAVE_MS = 600
@@ -87,7 +87,8 @@ function newDiffTab(path: string): DiffTab {
   return { id: crypto.randomUUID(), kind: 'diff', path }
 }
 
-function newConnectorTab(): ConnectorTab {
+// The persisted tab kind stays 'connector' so saved layouts keep loading.
+function newVaultTab(): VaultTab {
   return { id: crypto.randomUUID(), kind: 'connector' }
 }
 
@@ -394,12 +395,12 @@ export function openDiff(project: ProjectRef, path: string): void {
   commit(project, tree.addTab(root, focused.id, newDiffTab(path)), focused.id)
 }
 
-// One connector tab per project: opening it again focuses the existing tab wherever it lives.
-export function openConnector(project: ProjectRef): void {
+// One vault tab per project: opening it again focuses the existing tab wherever it lives.
+export function openVault(project: ProjectRef): void {
   const layout = workspaces[project.id].layout
   const root = layout.root
   if (!root) {
-    const leaf = tree.createLeaf<WorkspaceTab>([newConnectorTab()])
+    const leaf = tree.createLeaf<WorkspaceTab>([newVaultTab()])
     commit(project, leaf, leaf.id)
     return
   }
@@ -411,7 +412,7 @@ export function openConnector(project: ProjectRef): void {
     return
   }
   const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
-  commit(project, tree.addTab(root, focused.id, newConnectorTab()), focused.id)
+  commit(project, tree.addTab(root, focused.id, newVaultTab()), focused.id)
 }
 
 export function addShell(project: ProjectRef, paneId?: string): void {

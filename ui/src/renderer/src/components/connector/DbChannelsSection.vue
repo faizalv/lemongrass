@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
-import { connectorSession, describeError } from '../../connector'
+import { vaultSession, describeError } from '../../vaultSession'
 import type { VaultChannel } from '../../../../preload/types'
 
 const props = defineProps<{
   visible: boolean
 }>()
 
-const vaultUnlocked = toRef(connectorSession, 'unlocked')
-const sessionPassphrase = toRef(connectorSession, 'passphrase')
+const vaultUnlocked = toRef(vaultSession, 'unlocked')
+const sessionPassphrase = toRef(vaultSession, 'passphrase')
 
 const connections = ref<string[]>([])
 
@@ -23,7 +23,7 @@ async function refreshConnections(): Promise<void> {
 const channels = ref<VaultChannel[]>([])
 const loading = ref(false)
 const listError = ref('')
-const shortIdByChannel = toRef(connectorSession, 'shortIdByChannel')
+const shortIdByChannel = toRef(vaultSession, 'shortIdByChannel')
 
 async function refresh(): Promise<void> {
   loading.value = true
@@ -172,7 +172,7 @@ function openCopyForm(channel: VaultChannel): void {
   newDbName.value = dbName
   showCreateForm.value = true
   if (!connectionChanged) loadTablesFor(dbName)
-  nextTick(() => rootEl.value?.closest('.connector-main')?.scrollTo({ top: 0, behavior: 'smooth' }))
+  nextTick(() => rootEl.value?.closest('.vault-main')?.scrollTo({ top: 0, behavior: 'smooth' }))
 }
 
 function cancelCreate(): void {

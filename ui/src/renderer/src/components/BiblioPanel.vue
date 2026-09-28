@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import GitPanel from './GitPanel.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
+import VaultEntry from './VaultEntry.vue'
 import WorkgroupPanel from './WorkgroupPanel.vue'
 import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
 import type { BiblioTree } from '../../../preload/types'
@@ -14,6 +15,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   refresh: []
+  openVault: []
 }>()
 
 const selectedPath = computed((): string | null => activePath(props.project.id))
@@ -169,6 +171,7 @@ function onGutterUp(): void {
 
       <WorkgroupPanel :project="project" />
       <GitPanel :project="project" />
+      <VaultEntry @open="emit('openVault')" />
     </div>
 
     <div class="biblio-gutter" @pointerdown="onGutterDown" />

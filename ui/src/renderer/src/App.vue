@@ -7,7 +7,7 @@ import WorkspaceView from './components/WorkspaceView.vue'
 import {
   cancelShellPicker,
   ensureLoaded,
-  openConnector,
+  openVault,
   refreshReadOnlyDocs,
   shellPicker,
   type ProjectRef
@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
         :collapsed="sidebarCollapsed"
         :project="activeRef"
         :tree="biblioTree"
-        @open-connector="activeRef && openConnector(activeRef)"
+        @open-vault="activeRef && openVault(activeRef)"
         @refresh-biblio="refreshBiblio"
       />
 

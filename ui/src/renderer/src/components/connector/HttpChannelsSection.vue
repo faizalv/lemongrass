@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
-import { connectorSession, describeError } from '../../connector'
+import { vaultSession, describeError } from '../../vaultSession'
 import type { VaultHTTPChannel, VaultHTTPScope } from '../../../../preload/types'
 
 const props = defineProps<{
   visible: boolean
 }>()
 
-const vaultUnlocked = toRef(connectorSession, 'unlocked')
-const sessionPassphrase = toRef(connectorSession, 'passphrase')
+const vaultUnlocked = toRef(vaultSession, 'unlocked')
+const sessionPassphrase = toRef(vaultSession, 'passphrase')
 
 const domains = ref<string[]>([])
 
@@ -23,7 +23,7 @@ async function refreshDomains(): Promise<void> {
 const httpChannels = ref<VaultHTTPChannel[]>([])
 const httpChannelsLoading = ref(false)
 const httpChannelsListError = ref('')
-const shortIdByHTTPChannel = toRef(connectorSession, 'shortIdByHTTPChannel')
+const shortIdByHTTPChannel = toRef(vaultSession, 'shortIdByHTTPChannel')
 
 async function refreshHTTPChannels(): Promise<void> {
   httpChannelsLoading.value = true
@@ -79,7 +79,7 @@ function openHTTPCopyForm(channel: VaultHTTPChannel): void {
   newHTTPTtlMinutes.value = 10
   createHTTPError.value = ''
   showHTTPCreateForm.value = true
-  nextTick(() => rootEl.value?.closest('.connector-main')?.scrollTo({ top: 0, behavior: 'smooth' }))
+  nextTick(() => rootEl.value?.closest('.vault-main')?.scrollTo({ top: 0, behavior: 'smooth' }))
 }
 
 function cancelHTTPCreate(): void {

@@ -19,3 +19,4 @@ biblio/
 /Lemongrass.app/
 
 /ui/*.tsbuildinfo
+/ui/bin/*

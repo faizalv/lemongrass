@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRef, watch } from 'vue'
-import { connectorSession, describeError } from '../../connector'
+import { vaultSession, describeError } from '../../vaultSession'
 
 const props = defineProps<{
   visible: boolean
 }>()
 
-const vaultUnlocked = toRef(connectorSession, 'unlocked')
-const sessionPassphrase = toRef(connectorSession, 'passphrase')
+const vaultUnlocked = toRef(vaultSession, 'unlocked')
+const sessionPassphrase = toRef(vaultSession, 'passphrase')
 
 const connections = ref<string[]>([])
 const connectionsLoading = ref(false)

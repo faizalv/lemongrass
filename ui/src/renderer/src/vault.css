@@ -1,4 +1,4 @@
-.connector-tab {
+.vault-tab {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -6,18 +6,18 @@
   overflow-y: hidden;
 }
 
-.connector-frame {
+.vault-frame {
   flex: 1;
   min-width: 720px;
   min-height: 0;
   display: flex;
 }
 
-.connector-frame--gate {
+.vault-frame--gate {
   min-width: 320px;
 }
 
-.connector-gate {
+.vault-gate {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -27,12 +27,12 @@
   overflow-y: auto;
 }
 
-.connector-gate .unlock-panel {
+.vault-gate .unlock-panel {
   width: 100%;
   max-width: 480px;
 }
 
-.connector-nav {
+.vault-nav {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -42,7 +42,10 @@
   border-right: 1px solid var(--color-border-default);
 }
 
-.connector-nav .nav-item {
+.vault-nav .nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   background: transparent;
   border: none;
@@ -57,17 +60,36 @@
     color var(--duration-fast) var(--ease-out);
 }
 
-.connector-nav .nav-item:hover {
+.vault-nav .nav-icon {
+  flex-shrink: 0;
+}
+
+.vault-nav .nav-group-label {
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-fg-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vault-nav .nav-divider {
+  height: 1px;
+  margin: var(--space-2) var(--space-3);
+  background: var(--color-border-default);
+}
+
+.vault-nav .nav-item:hover {
   background: var(--color-surface-2);
   color: var(--color-fg-primary);
 }
 
-.connector-nav .nav-item.active {
+.vault-nav .nav-item.active {
   background: var(--color-surface-2);
   color: var(--color-fg-accent);
 }
 
-.connector-nav .nav-lock {
+.vault-nav .nav-lock {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -76,14 +98,14 @@
   padding: var(--space-3);
 }
 
-.connector-main {
+.vault-main {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
   padding: var(--space-6);
 }
 
-.connector-content {
+.vault-content {
   width: 100%;
   max-width: 1040px;
   margin: 0 auto;
@@ -91,55 +113,55 @@
 }
 
 @container (max-width: 640px) {
-  .connector-tab .form-columns {
+  .vault-tab .form-columns {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-.connector-content .kind-pane {
+.vault-content .kind-pane {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.connector-tab .section {
+.vault-tab .section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.connector-tab .section-toolbar {
+.vault-tab .section-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.connector-tab .section-toolbar .hint {
+.vault-tab .section-toolbar .hint {
   flex: 1;
 }
 
-.connector-tab .form-columns {
+.vault-tab .form-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: start;
 }
 
-.connector-tab .form-column {
+.vault-tab .form-column {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
 }
 
-.connector-tab .tab-row {
+.vault-tab .tab-row {
   display: flex;
   gap: var(--space-1);
   border-bottom: 1px solid var(--color-border-default);
 }
 
-.connector-tab .tab {
+.vault-tab .tab {
   padding: var(--space-2) var(--space-3);
   background: transparent;
   border: none;
@@ -153,16 +175,16 @@
     border-color var(--duration-fast) var(--ease-out);
 }
 
-.connector-tab .tab:hover {
+.vault-tab .tab:hover {
   color: var(--color-fg-primary);
 }
 
-.connector-tab .tab.active {
+.vault-tab .tab.active {
   color: var(--color-fg-accent);
   border-bottom-color: var(--color-amber);
 }
 
-.connector-tab .channel-code {
+.vault-tab .channel-code {
   flex-shrink: 0;
   cursor: pointer;
   padding: 1px var(--space-3);
@@ -175,13 +197,13 @@
   letter-spacing: 0.05em;
 }
 
-.connector-tab .channel-list {
+.vault-tab .channel-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.connector-tab .channel-row {
+.vault-tab .channel-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -193,19 +215,19 @@
 }
 
 /* Channels tab only: actions sit on their own line, right-justified, below the info panel. */
-.connector-tab .channel-row--stacked {
+.vault-tab .channel-row--stacked {
   flex-direction: column;
   align-items: stretch;
 }
 
-.connector-tab .channel-top {
+.vault-tab .channel-top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.connector-tab .channel-info {
+.vault-tab .channel-info {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -213,36 +235,36 @@
   font-size: var(--text-sm);
 }
 
-.connector-tab .channel-name {
+.vault-tab .channel-name {
   color: var(--color-fg-primary);
   font-weight: var(--weight-medium);
   font-size: var(--text-base);
 }
 
-.connector-tab .channel-db {
+.vault-tab .channel-db {
   color: var(--color-fg-secondary);
   font-size: var(--text-sm);
 }
 
-.connector-tab .capsule-group {
+.vault-tab .capsule-group {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.connector-tab .capsule-group-label {
+.vault-tab .capsule-group-label {
   min-width: 64px;
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
 }
 
-.connector-tab .capsule-row {
+.vault-tab .capsule-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
 
-.connector-tab .value-capsule {
+.vault-tab .value-capsule {
   padding: 1px var(--space-2);
   border-radius: var(--radius-pill);
   background: var(--color-surface-3);
@@ -251,7 +273,7 @@
   font-size: var(--text-xs);
 }
 
-.connector-tab .status-capsule {
+.vault-tab .status-capsule {
   padding: 1px var(--space-2);
   border-radius: var(--radius-pill);
   font-size: var(--text-xs);
@@ -259,42 +281,42 @@
   color: var(--color-fg-muted);
 }
 
-.connector-tab .status-ok,
-.connector-tab .status-open {
+.vault-tab .status-ok,
+.vault-tab .status-open {
   background: color-mix(in srgb, var(--color-success) 18%, transparent);
   color: var(--color-success);
 }
 
-.connector-tab .status-error {
+.vault-tab .status-error {
   background: color-mix(in srgb, var(--color-danger, #e5484d) 18%, transparent);
   color: var(--color-danger, #e5484d);
 }
 
-.connector-tab .status-verifying,
-.connector-tab .status-expired {
+.vault-tab .status-verifying,
+.vault-tab .status-expired {
   color: var(--color-fg-muted);
 }
 
 /* Connections tab: the capsule sits in a column flex, so it needs its own shrink-to-content
    alignment instead of stretching full width. */
-.connector-tab .channel-info > .status-capsule {
+.vault-tab .channel-info > .status-capsule {
   align-self: flex-start;
 }
 
-.connector-tab .channel-bottom {
+.vault-tab .channel-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 
-.connector-tab .channel-actions {
+.vault-tab .channel-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
 }
 
-.connector-tab .inline-form {
+.vault-tab .inline-form {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -303,16 +325,16 @@
   margin-top: var(--space-2);
 }
 
-.connector-tab .inline-form input {
+.vault-tab .inline-form input {
   flex: 1;
   min-width: 120px;
 }
 
-.connector-tab .new-channel-button {
+.vault-tab .new-channel-button {
   align-self: flex-start;
 }
 
-.connector-tab .inline-section {
+.vault-tab .inline-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -322,14 +344,14 @@
   border-radius: var(--radius-lg);
 }
 
-.connector-tab .inline-section-title {
+.vault-tab .inline-section-title {
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--color-fg-primary);
 }
 
-.connector-tab .field-label {
+.vault-tab .field-label {
   display: block;
   margin-bottom: var(--space-1);
   color: var(--color-fg-muted);
@@ -337,28 +359,28 @@
   font-weight: var(--weight-medium);
 }
 
-.connector-tab .field-grid {
+.vault-tab .field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
 
-.connector-tab .field-grid input,
-.connector-tab .field-grid select {
+.vault-tab .field-grid input,
+.vault-tab .field-grid select {
   width: 100%;
 }
 
-.connector-tab .field-block {
+.vault-tab .field-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.connector-tab .field-block select {
+.vault-tab .field-block select {
   width: 100%;
 }
 
-.connector-tab .checkbox-grid {
+.vault-tab .checkbox-grid {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
@@ -366,7 +388,7 @@
   overflow-y: auto;
 }
 
-.connector-tab .checkbox-option {
+.vault-tab .checkbox-option {
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -376,13 +398,13 @@
   cursor: pointer;
 }
 
-.connector-tab .combobox {
+.vault-tab .combobox {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.connector-tab .combobox-trigger {
+.vault-tab .combobox-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -398,12 +420,12 @@
   cursor: pointer;
 }
 
-.connector-tab .combobox-trigger:disabled {
+.vault-tab .combobox-trigger:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.connector-tab .combobox-popover {
+.vault-tab .combobox-popover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -413,23 +435,23 @@
   border-radius: var(--radius-md);
 }
 
-.connector-tab .combobox-filter {
+.vault-tab .combobox-filter {
   width: 100%;
 }
 
-.connector-tab .combobox-list {
+.vault-tab .combobox-list {
   flex-wrap: nowrap;
   flex-direction: column;
   max-height: 200px;
 }
 
-.connector-tab .chip-row {
+.vault-tab .chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
 
-.connector-tab .chip {
+.vault-tab .chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -440,7 +462,7 @@
   font-size: var(--text-xs);
 }
 
-.connector-tab .chip-remove {
+.vault-tab .chip-remove {
   background: transparent;
   border: none;
   color: var(--color-fg-muted);
@@ -450,31 +472,31 @@
   padding: 0;
 }
 
-.connector-tab .chip-remove:hover {
+.vault-tab .chip-remove:hover {
   color: var(--color-fg-primary);
 }
 
-.connector-tab .test-row {
+.vault-tab .test-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
 }
 
-.connector-tab .test-status {
+.vault-tab .test-status {
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
 }
 
-.connector-tab .test-status-ok {
+.vault-tab .test-status-ok {
   color: var(--color-success);
 }
 
-.connector-tab .test-status-error {
+.vault-tab .test-status-error {
   color: var(--color-danger, #e5484d);
 }
 
-.connector-tab .unlock-panel {
+.vault-tab .unlock-panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -484,35 +506,35 @@
   border-radius: var(--radius-lg);
 }
 
-.connector-tab .unlock-row {
+.vault-tab .unlock-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
 
-.connector-tab .unlock-row input {
+.vault-tab .unlock-row input {
   flex: 1;
 }
 
-.connector-tab .unlock-status {
+.vault-tab .unlock-status {
   color: var(--color-success);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
 
-.connector-tab .reset-link {
+.vault-tab .reset-link {
   align-self: flex-start;
 }
 
-.connector-tab .hint {
+.vault-tab .hint {
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
   line-height: 1.4;
 }
 
-.connector-tab input,
-.connector-tab select {
+.vault-tab input,
+.vault-tab select {
   padding: var(--space-2) var(--space-3);
   background: var(--color-surface-2);
   border: 1px solid var(--color-border-default);
@@ -522,41 +544,41 @@
   font-size: var(--text-sm);
 }
 
-.connector-tab select {
+.vault-tab select {
   /* The native chevron sits in a fixed inset that padding does not reliably move, so it is dropped. */
   appearance: none;
 }
 
-.connector-tab .inline-section input,
-.connector-tab .inline-section select {
+.vault-tab .inline-section input,
+.vault-tab .inline-section select {
   background: var(--color-surface-1);
 }
 
-.connector-tab input:focus,
-.connector-tab select:focus {
+.vault-tab input:focus,
+.vault-tab select:focus {
   outline: none;
   border-color: var(--color-amber);
 }
 
-.connector-tab .error-text {
+.vault-tab .error-text {
   color: var(--color-danger, #e5484d);
   font-size: var(--text-xs);
 }
 
-.connector-tab .empty {
+.vault-tab .empty {
   color: var(--color-fg-muted);
   font-size: var(--text-sm);
   padding: var(--space-4);
 }
 
-.connector-tab .create-actions {
+.vault-tab .create-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
 }
 
-.connector-tab .ghost-button,
-.connector-tab .primary-button {
+.vault-tab .ghost-button,
+.vault-tab .primary-button {
   padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-pill);
   font-family: var(--font-body);
@@ -569,45 +591,45 @@
     color var(--duration-fast) var(--ease-out);
 }
 
-.connector-tab .ghost-button {
+.vault-tab .ghost-button {
   background: transparent;
   border: 1px solid var(--color-border-default);
   color: var(--color-fg-secondary);
 }
 
-.connector-tab .ghost-button:hover {
+.vault-tab .ghost-button:hover {
   color: var(--color-fg-primary);
   background: var(--color-surface-2);
 }
 
-.connector-tab .ghost-button.danger {
+.vault-tab .ghost-button.danger {
   color: var(--color-danger, #e5484d);
   border-color: var(--color-danger, #e5484d);
 }
 
-.connector-tab .primary-button {
+.vault-tab .primary-button {
   background: var(--color-amber);
   color: var(--color-black);
 }
 
-.connector-tab .primary-button:hover:not(:disabled) {
+.vault-tab .primary-button:hover:not(:disabled) {
   background: var(--color-amber-dim);
 }
 
-.connector-tab .ghost-button:disabled,
-.connector-tab .primary-button:disabled {
+.vault-tab .ghost-button:disabled,
+.vault-tab .primary-button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.connector-tab .radio-row {
+.vault-tab .radio-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
   margin-bottom: var(--space-2);
 }
 
-.connector-tab .radio-option {
+.vault-tab .radio-option {
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -619,18 +641,18 @@
   cursor: pointer;
 }
 
-.connector-tab .user-name-row {
+.vault-tab .user-name-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.connector-tab .user-name-row input[type='text'] {
+.vault-tab .user-name-row input[type='text'] {
   flex: 1;
   min-width: 0;
 }
 
-.connector-tab .user-draft {
+.vault-tab .user-draft {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -641,21 +663,21 @@
   border-radius: var(--radius-md);
 }
 
-.connector-tab .kv-list {
+.vault-tab .kv-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 
-.connector-tab .kv-row,
-.connector-tab .exclusion-row {
+.vault-tab .kv-row,
+.vault-tab .exclusion-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-1);
 }
 
-.connector-tab .kv-row input,
-.connector-tab .exclusion-row input {
+.vault-tab .kv-row input,
+.vault-tab .exclusion-row input {
   flex: 1;
 }

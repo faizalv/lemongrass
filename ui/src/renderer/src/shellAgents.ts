@@ -3,6 +3,7 @@ export interface ShellAgent {
   command: string
   label: string
   hint: string
+  warning?: string
 }
 
 export const SHELL_AGENTS: readonly ShellAgent[] = [
@@ -22,7 +23,8 @@ export const SHELL_AGENTS: readonly ShellAgent[] = [
     id: 'cursor',
     command: 'agent',
     label: 'Cursor Agent',
-    hint: 'agent'
+    hint: 'agent',
+    warning: 'Cursor support is still under development. Use Claude Code or Codex.'
   },
   {
     id: 'shell',
@@ -37,12 +39,17 @@ const RESUME_ARGV: Record<string, (sessionId: string) => string[]> = {
   codex: (sessionId) => ['resume', sessionId]
 }
 
+// The lgrass PreToolUse hook is the permission gate for these agents, so their own prompts are switched off.
+const BYPASS_ARGV: Record<string, string[]> = {
+  claude: ['--dangerously-skip-permissions']
+}
+
 export function spawnArgs(command: string, tabId: string, args?: string[]): string[] | undefined {
   const marker =
     command === 'codex'
       ? ['--no-daemon', '-c', `shell_environment_policy.set.LGRASS_TAB_ID=${JSON.stringify(tabId)}`]
       : []
-  const result = [...marker, ...(args ?? [])]
+  const result = [...marker, ...(BYPASS_ARGV[command] ?? []), ...(args ?? [])]
   return result.length > 0 ? result : undefined
 }
 

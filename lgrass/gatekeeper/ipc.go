@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/dbgate"
+	"github.com/faizalv/lemongrass/guard"
 	"github.com/faizalv/lemongrass/restergate"
 	"github.com/faizalv/lemongrass/vault"
 )
@@ -290,7 +291,7 @@ func handleConn(svc *Backend, adminLimiter *vault.FailureLimiter, conn net.Conn)
 // issues, as opposed to Electron's admin ops -- Electron's own binary path isn't fixed yet,
 // so those ops stay at UID-only verification.
 func requiresPeerBinaryCheck(op string) bool {
-	return op == opQuery || op == opExecute || op == opChannelScope || op == opRequestHTTP || op == opRequestHTTPDownload || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers || op == opFlushHTTPTokens
+	return op == opCurrentPolicy || op == opQuery || op == opExecute || op == opChannelScope || op == opRequestHTTP || op == opRequestHTTPDownload || op == opHTTPChannelScope || op == opHTTPChannelInfo || op == opHTTPChannelUsers || op == opFlushHTTPTokens
 }
 
 func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) response {
@@ -616,6 +617,41 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return payloadResponse(httpChannelListPayload{Channels: channels})
+
+	case opPutPolicy:
+		var p putPolicyPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.PutPolicy(p.RootSecret, p.Policy)
+		})
+
+	case opGetPolicy:
+		var p rootSecretPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			policy, err := svc.GetPolicy(p.RootSecret)
+			return payloadResponse(policyPayload{Policy: policy}), err
+		})
+
+	case opActivatePolicy:
+		var p rootSecretPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			return response{OK: true}, svc.ActivatePolicy(p.RootSecret)
+		})
+
+	case opCurrentPolicy:
+		policy, active := svc.ActivePolicy()
+		return payloadResponse(policyPayload{Policy: policy, Active: active})
+
+	case opPolicyCatalog:
+		return payloadResponse(policyCatalogPayload{Rules: guard.Catalog()})
 
 	default:
 		return errResponse(fmt.Errorf("gatekeeper: unknown op %q", req.Op))
