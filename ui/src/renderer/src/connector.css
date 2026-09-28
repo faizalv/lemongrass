@@ -1,0 +1,661 @@
+.connector-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.connector-frame {
+  flex: 1;
+  min-width: 720px;
+  min-height: 0;
+  display: flex;
+}
+
+.connector-frame--gate {
+  min-width: 320px;
+}
+
+.connector-gate {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-8) var(--space-6);
+  overflow-y: auto;
+}
+
+.connector-gate .unlock-panel {
+  width: 100%;
+  max-width: 480px;
+}
+
+.connector-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  width: 190px;
+  padding: var(--space-4) var(--space-3);
+  border-right: 1px solid var(--color-border-default);
+}
+
+.connector-nav .nav-item {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.connector-nav .nav-item:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg-primary);
+}
+
+.connector-nav .nav-item.active {
+  background: var(--color-surface-2);
+  color: var(--color-fg-accent);
+}
+
+.connector-nav .nav-lock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding: var(--space-3);
+}
+
+.connector-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-6);
+}
+
+.connector-content {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  container-type: inline-size;
+}
+
+@container (max-width: 640px) {
+  .connector-tab .form-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.connector-content .kind-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.connector-tab .section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.connector-tab .section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.connector-tab .section-toolbar .hint {
+  flex: 1;
+}
+
+.connector-tab .form-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.connector-tab .form-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.connector-tab .tab-row {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.connector-tab .tab {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  color: var(--color-fg-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.connector-tab .tab:hover {
+  color: var(--color-fg-primary);
+}
+
+.connector-tab .tab.active {
+  color: var(--color-fg-accent);
+  border-bottom-color: var(--color-amber);
+}
+
+.connector-tab .channel-code {
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 1px var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-amber);
+  color: var(--color-black);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-md);
+  letter-spacing: 0.05em;
+}
+
+.connector-tab .channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.connector-tab .channel-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-md);
+}
+
+/* Channels tab only: actions sit on their own line, right-justified, below the info panel. */
+.connector-tab .channel-row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.connector-tab .channel-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.connector-tab .channel-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.connector-tab .channel-name {
+  color: var(--color-fg-primary);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-base);
+}
+
+.connector-tab .channel-db {
+  color: var(--color-fg-secondary);
+  font-size: var(--text-sm);
+}
+
+.connector-tab .capsule-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.connector-tab .capsule-group-label {
+  min-width: 64px;
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+}
+
+.connector-tab .capsule-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.connector-tab .value-capsule {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.connector-tab .status-capsule {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  background: var(--color-surface-1);
+  color: var(--color-fg-muted);
+}
+
+.connector-tab .status-ok,
+.connector-tab .status-open {
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.connector-tab .status-error {
+  background: color-mix(in srgb, var(--color-danger, #e5484d) 18%, transparent);
+  color: var(--color-danger, #e5484d);
+}
+
+.connector-tab .status-verifying,
+.connector-tab .status-expired {
+  color: var(--color-fg-muted);
+}
+
+/* Connections tab: the capsule sits in a column flex, so it needs its own shrink-to-content
+   alignment instead of stretching full width. */
+.connector-tab .channel-info > .status-capsule {
+  align-self: flex-start;
+}
+
+.connector-tab .channel-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.connector-tab .channel-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.connector-tab .inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.connector-tab .inline-form input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.connector-tab .new-channel-button {
+  align-self: flex-start;
+}
+
+.connector-tab .inline-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+}
+
+.connector-tab .inline-section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+.connector-tab .field-label {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.connector-tab .field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.connector-tab .field-grid input,
+.connector-tab .field-grid select {
+  width: 100%;
+}
+
+.connector-tab .field-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.connector-tab .field-block select {
+  width: 100%;
+}
+
+.connector-tab .checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.connector-tab .checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.connector-tab .combobox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.connector-tab .combobox-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.connector-tab .combobox-trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.connector-tab .combobox-popover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.connector-tab .combobox-filter {
+  width: 100%;
+}
+
+.connector-tab .combobox-list {
+  flex-wrap: nowrap;
+  flex-direction: column;
+  max-height: 200px;
+}
+
+.connector-tab .chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.connector-tab .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px var(--space-2);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-pill);
+  color: var(--color-fg-primary);
+  font-size: var(--text-xs);
+}
+
+.connector-tab .chip-remove {
+  background: transparent;
+  border: none;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  line-height: 1;
+  padding: 0;
+}
+
+.connector-tab .chip-remove:hover {
+  color: var(--color-fg-primary);
+}
+
+.connector-tab .test-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.connector-tab .test-status {
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.connector-tab .test-status-ok {
+  color: var(--color-success);
+}
+
+.connector-tab .test-status-error {
+  color: var(--color-danger, #e5484d);
+}
+
+.connector-tab .unlock-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+}
+
+.connector-tab .unlock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.connector-tab .unlock-row input {
+  flex: 1;
+}
+
+.connector-tab .unlock-status {
+  color: var(--color-success);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.connector-tab .reset-link {
+  align-self: flex-start;
+}
+
+.connector-tab .hint {
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.connector-tab input,
+.connector-tab select {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.connector-tab select {
+  /* The native chevron sits in a fixed inset that padding does not reliably move, so it is dropped. */
+  appearance: none;
+}
+
+.connector-tab .inline-section input,
+.connector-tab .inline-section select {
+  background: var(--color-surface-1);
+}
+
+.connector-tab input:focus,
+.connector-tab select:focus {
+  outline: none;
+  border-color: var(--color-amber);
+}
+
+.connector-tab .error-text {
+  color: var(--color-danger, #e5484d);
+  font-size: var(--text-xs);
+}
+
+.connector-tab .empty {
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  padding: var(--space-4);
+}
+
+.connector-tab .create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.connector-tab .ghost-button,
+.connector-tab .primary-button {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  border: none;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.connector-tab .ghost-button {
+  background: transparent;
+  border: 1px solid var(--color-border-default);
+  color: var(--color-fg-secondary);
+}
+
+.connector-tab .ghost-button:hover {
+  color: var(--color-fg-primary);
+  background: var(--color-surface-2);
+}
+
+.connector-tab .ghost-button.danger {
+  color: var(--color-danger, #e5484d);
+  border-color: var(--color-danger, #e5484d);
+}
+
+.connector-tab .primary-button {
+  background: var(--color-amber);
+  color: var(--color-black);
+}
+
+.connector-tab .primary-button:hover:not(:disabled) {
+  background: var(--color-amber-dim);
+}
+
+.connector-tab .ghost-button:disabled,
+.connector-tab .primary-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.connector-tab .radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.connector-tab .radio-option {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.connector-tab .user-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.connector-tab .user-name-row input[type='text'] {
+  flex: 1;
+  min-width: 0;
+}
+
+.connector-tab .user-draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.connector-tab .kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.connector-tab .kv-row,
+.connector-tab .exclusion-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.connector-tab .kv-row input,
+.connector-tab .exclusion-row input {
+  flex: 1;
+}

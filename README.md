@@ -4,7 +4,7 @@ An agent orchestrator: an Electron shell for running coding-agent CLIs (Claude C
 
 ## Layout
 
-- `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome, a `biblio/` browser/editor, and the Connector panel for database and HTTP access.
+- `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome, a `biblio/` browser/editor, and the Connector tab for database and HTTP access.
 - `lgrassconf/` -- a tiny Go daemon (systemd user service) that owns Lemongrass agent configuration. It registers Claude Code and Codex hooks plus each agent's `lgrass-connector`, `lgrass-staleness` and `lgrass-closing` skills, kept as one embedded folder per vendor and skill.
 - `lgrass/` -- the Go CLI:
   - Session/thread coordination between panes.
@@ -50,7 +50,7 @@ An HTTP counterpart to `lgrass db`, sharing the same vault, agent, and channel s
 
 - A domain holds a base URL, a login endpoint, and per-user credentials or a pre-supplied token. The vault logs in, caches the token with its expiry, and injects it into each request. A stale token triggers one re-login and retry.
 - A channel scopes an agent to a method allow-list plus an exclusion list of method and path pairs, and the agent calls `lgrass rester <short-id> <get|post|put|patch|delete|head|options> <path> [--user <name>]`, with a JSON body inline (`--body`) or from a file (`--body-file`), a raw file with `--content-type`, or `--file` and `--form` for a multipart upload such as a spreadsheet import. A path is resolved onto the domain's base URL and can never address another host. `lgrass rester <short-id> info` prints the base URL, expiry, allowed methods and users, and `lgrass rester <short-id> flush [--user <name>]` drops cached login tokens so the next request logs in again. `--out <file-or-directory>` saves a successful response to disk with no size limit instead of printing it, replacing an existing file only with `--confirm`.
-- Managed from the same Connector panel as database access, under a Database/HTTP switch.
+- Managed from the same Connector tab as database access, under a Database/HTTP sidebar.
 - Planned: a shared audit log for connector calls, covering `lgrass db` writes as well.
 
 ## Build

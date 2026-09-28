@@ -1,11 +1,13 @@
 package vault
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -316,7 +318,7 @@ func (s *Service) ChannelScope(id ChannelID) (Channel, error) {
 	return s.loadMeta(id)
 }
 
-// ListChannels reads every channel's metadata off disk, since metaDir is the source of truth rather than an in-memory index.
+// ListChannels reads every channel's metadata off disk, since metaDir is the source of truth rather than an in-memory index, newest first.
 func (s *Service) ListChannels() ([]Channel, error) {
 	entries, err := os.ReadDir(s.metaDir)
 	if err != nil {
@@ -334,6 +336,9 @@ func (s *Service) ListChannels() ([]Channel, error) {
 		}
 		channels = append(channels, c)
 	}
+	slices.SortFunc(channels, func(a, b Channel) int {
+		return cmp.Or(b.CreatedAt.Compare(a.CreatedAt), cmp.Compare(a.ID, b.ID))
+	})
 	return channels, nil
 }
 

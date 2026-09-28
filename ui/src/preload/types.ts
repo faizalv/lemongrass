@@ -169,6 +169,7 @@ export type GitActionResult = { ok: true } | { ok: false; error: string }
 export type WorkspaceTab =
   | { id: string; kind: 'doc'; path: string }
   | { id: string; kind: 'diff'; path: string }
+  | { id: string; kind: 'connector' }
   | { id: string; kind: 'shell'; label: string; command: string; cwd?: string }
 
 export type WorkspaceLayoutNode =

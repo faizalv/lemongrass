@@ -28,7 +28,8 @@ const closeAllSummary = computed((): string => {
   const documents = `${documentCount.value} ${documentCount.value === 1 ? 'document' : 'documents'}`
   if (shellCount.value && documentCount.value) return `This ends ${shells} and closes ${documents}.`
   if (shellCount.value) return `This ends ${shells}.`
-  return `This closes ${documents}.`
+  if (documentCount.value) return `This closes ${documents}.`
+  return 'This closes every open tab.'
 })
 
 const confirmingDocuments = ref(false)

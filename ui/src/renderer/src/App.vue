@@ -4,10 +4,10 @@ import ProjectSidebar from './components/ProjectSidebar.vue'
 import ProjectSwitcher from './components/ProjectSwitcher.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
-import ConnectorPanel from './components/ConnectorPanel.vue'
 import {
   cancelShellPicker,
   ensureLoaded,
+  openConnector,
   refreshReadOnlyDocs,
   shellPicker,
   type ProjectRef
@@ -24,7 +24,6 @@ const activeProjectId = ref<string | null>(null)
 const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const loadedProjects = reactive<Record<string, boolean>>({})
 const sidebarCollapsed = ref(false)
-const showConnector = ref(false)
 const closing = ref(false)
 
 const activeProject = computed((): Project | undefined =>
@@ -163,7 +162,7 @@ onBeforeUnmount(() => {
         :collapsed="sidebarCollapsed"
         :project="activeRef"
         :tree="biblioTree"
-        @open-connector="showConnector = true"
+        @open-connector="activeRef && openConnector(activeRef)"
         @refresh-biblio="refreshBiblio"
       />
 
@@ -175,12 +174,6 @@ onBeforeUnmount(() => {
         <p class="empty">Add a project to get started.</p>
       </div>
     </div>
-
-    <ConnectorPanel
-      v-show="showConnector"
-      :visible="showConnector"
-      @close="showConnector = false"
-    />
 
     <div v-if="closing" class="closing-overlay">
       <div class="closing-card">

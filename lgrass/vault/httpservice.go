@@ -1,11 +1,13 @@
 package vault
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -121,7 +123,7 @@ func (s *Service) HTTPChannelScope(id ChannelID) (HTTPChannel, error) {
 }
 
 // ListHTTPChannels reads every HTTP channel's metadata off disk, since httpMetaDir is the
-// source of truth rather than an in-memory index.
+// source of truth rather than an in-memory index, newest first.
 func (s *Service) ListHTTPChannels() ([]HTTPChannel, error) {
 	entries, err := os.ReadDir(s.httpMetaDir)
 	if err != nil {
@@ -139,6 +141,9 @@ func (s *Service) ListHTTPChannels() ([]HTTPChannel, error) {
 		}
 		channels = append(channels, c)
 	}
+	slices.SortFunc(channels, func(a, b HTTPChannel) int {
+		return cmp.Or(b.CreatedAt.Compare(a.CreatedAt), cmp.Compare(a.ID, b.ID))
+	})
 	return channels, nil
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import ConnectorPanel from './ConnectorPanel.vue'
 import DiffViewer from './DiffViewer.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import ShellView from './ShellView.vue'
@@ -23,6 +24,7 @@ import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload/types'
 
 type Leaf = Extract<WorkspaceLayoutNode, { type: 'leaf' }>
 type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
+type ConnectorTab = Extract<WorkspaceTab, { kind: 'connector' }>
 
 const props = defineProps<{
   leaf: Leaf
@@ -48,6 +50,9 @@ const activeDoc = computed(() =>
 const shellTabs = computed(() =>
   props.leaf.tabs.filter((tab): tab is ShellTab => tab.kind === 'shell')
 )
+const connectorTabs = computed(() =>
+  props.leaf.tabs.filter((tab): tab is ConnectorTab => tab.kind === 'connector')
+)
 
 function editActive(value: string): void {
   const tab = activeTab.value
@@ -65,6 +70,7 @@ function baseName(path: string): string {
 
 function tabTitle(tab: WorkspaceTab): string {
   if (tab.kind === 'shell') return shellTitles[tab.id] ?? tab.label
+  if (tab.kind === 'connector') return 'Connector'
   return tab.kind === 'diff' ? `Diff: ${tab.path}` : tab.path
 }
 
@@ -301,6 +307,23 @@ onBeforeUnmount(() => {
             <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
             <path d="M7 2v10M3.5 5.5h2M9 8.5h2" />
           </svg>
+          <svg
+            v-else-if="tab.kind === 'connector'"
+            class="tab-icon"
+            width="13"
+            height="13"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="4.5" y1="3.5" x2="4.5" y2="8.5" />
+            <line x1="7" y1="3.5" x2="7" y2="8.5" />
+            <line x1="9.5" y1="3.5" x2="9.5" y2="8.5" />
+            <rect x="2.5" y="8.5" width="9" height="2.5" rx="0.6" />
+          </svg>
           <span v-if="tab.kind === 'doc'" class="tab-label">
             <span v-if="labelParts(tab.path).parent" class="tab-parent">
               {{ labelParts(tab.path).parent }} /
@@ -311,6 +334,7 @@ onBeforeUnmount(() => {
             <span class="tab-parent">diff /</span>
             {{ baseName(tab.path) }}
           </span>
+          <span v-else-if="tab.kind === 'connector'" class="tab-label">Connector</span>
           <span v-else class="tab-label">{{ shellTitles[tab.id] ?? tab.label }}</span>
           <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
         </div>
@@ -439,6 +463,13 @@ onBeforeUnmount(() => {
         v-show="tab.id === leaf.activeTabId"
         :key="tab.id"
         :spec="{ id: tab.id, command: tab.command, cwd: tab.cwd }"
+      />
+
+      <ConnectorPanel
+        v-for="tab in connectorTabs"
+        v-show="tab.id === leaf.activeTabId"
+        :key="tab.id"
+        :active="tab.id === leaf.activeTabId"
       />
 
       <template v-if="activeTab?.kind === 'doc'">
