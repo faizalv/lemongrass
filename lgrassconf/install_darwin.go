@@ -71,3 +71,13 @@ func installService(home string) error {
 	}
 	return nil
 }
+
+func uninstallService(home string) error {
+	plistPath := filepath.Join(home, "Library", "LaunchAgents", launchAgentLabel+".plist")
+	uid := fmt.Sprintf("gui/%d", os.Getuid())
+	_ = exec.Command("launchctl", "bootout", uid, plistPath).Run()
+	if err := os.Remove(plistPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}

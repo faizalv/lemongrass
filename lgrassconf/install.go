@@ -16,6 +16,10 @@ func installUnit(home string) error {
 	return installService(home)
 }
 
+func uninstallUnit(home string) error {
+	return uninstallService(home)
+}
+
 func resolveBinary() (string, error) {
 	binary, err := os.Executable()
 	if err != nil {

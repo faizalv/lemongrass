@@ -58,3 +58,23 @@ func installService(home string) error {
 	}
 	return nil
 }
+
+func uninstallService(home string) error {
+	disable := exec.Command("systemctl", "--user", "disable", "--now", unitName)
+	disable.Stdout, disable.Stderr = os.Stdout, os.Stderr
+	if err := disable.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); !ok {
+			return fmt.Errorf("systemctl --user disable %s: %w", unitName, err)
+		}
+	}
+	unitPath := filepath.Join(home, ".config", "systemd", "user", unitName)
+	if err := os.Remove(unitPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	reload := exec.Command("systemctl", "--user", "daemon-reload")
+	reload.Stdout, reload.Stderr = os.Stdout, os.Stderr
+	if err := reload.Run(); err != nil {
+		return fmt.Errorf("systemctl --user daemon-reload: %w", err)
+	}
+	return nil
+}

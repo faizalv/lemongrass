@@ -59,7 +59,13 @@ An HTTP counterpart to `lgrass db`, sharing the same vault, agent, and channel s
 make build-linux
 ```
 
-Cross-compiles `lgrass` and `lgrassconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains -- `ui/`'s own `npm run build:linux` only builds the Electron half and expects `lgrass/dist/` to already exist, so use the root `make` target rather than running it directly.
+Cross-compiles `lgrass` and `lgrassconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains -- `ui/`'s own `npm run build:linux` only builds the Electron half and expects `lgrass/dist/` to already exist, so use the root `make` target rather than running it directly. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
+
+```
+make build-rpm
+```
+
+Same cross-compile, then builds only the rpm (needs `rpmbuild`), for Fedora and other rpm distributions. The package registers the `lgrassconf` keeper as a systemd user unit on install and removes it on uninstall, not on upgrade. The app also writes a per-user copy of `lgrass` and `lgrassconf` into `~/.local/bin` and its own user unit on launch; `lgrassconf uninstall` stops and removes that unit and leaves the binaries in place.
 
 ```
 make build-mac

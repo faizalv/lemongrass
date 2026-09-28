@@ -14,6 +14,7 @@ func usage() {
   run      Watches the config and repairs drift until stopped
   check    Runs one repair pass and exits
   install  Installs the background keeper (systemd user unit on Linux, LaunchAgent on macOS)
+  uninstall  Stops and removes the background keeper installed by install
 `)
 	os.Exit(2)
 }
@@ -43,6 +44,11 @@ func main() {
 		}
 	case "install":
 		if err := installUnit(home); err != nil {
+			fmt.Fprintf(os.Stderr, "lgrassconf: %v\n", err)
+			os.Exit(1)
+		}
+	case "uninstall":
+		if err := uninstallUnit(home); err != nil {
 			fmt.Fprintf(os.Stderr, "lgrassconf: %v\n", err)
 			os.Exit(1)
 		}

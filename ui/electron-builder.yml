@@ -44,7 +44,8 @@ linux:
     - AppImage
     - snap
     - deb
-  maintainer: electronjs.org
+    - rpm
+  maintainer: Faizal Alviansyah <faizal.alviansyah@gmail.com>
   category: Utility
   extraResources:
     # Both arches bundled unconditionally rather than relying on
@@ -62,6 +63,9 @@ linux:
 deb:
   afterInstall: build/deb-after-install.sh
   afterRemove: build/deb-after-remove.sh
+rpm:
+  afterInstall: build/rpm-after-install.sh
+  afterRemove: build/rpm-after-remove.sh
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
