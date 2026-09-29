@@ -1,57 +1,88 @@
 # Lemongrass
 
-An agent orchestrator: an Electron shell for running coding-agent CLIs (Claude Code today) in managed terminal panes, paired with `lgrass`, a Go CLI those agents invoke directly for project knowledge and session awareness.
+Lemongrass runs coding agents in real terminals and gives them what a raw terminal does not: credentials they can use but never see, teammates they can message, a safety guard that holds with permission prompts off, and project rules that arrive at the start of every session.
 
-## Layout
+It is an Electron app plus `lgrass`, a Go CLI that the agents call themselves. Claude Code and Codex are supported, and a pane can also open Cursor Agent or a plain shell.
 
-- `ui/` -- the Electron app. Terminal panes, project/layout management, window chrome, a `biblio/` browser/editor, and the Connector tab for database and HTTP access.
-- `lgrassconf/` -- a tiny Go daemon (systemd user service) that owns Lemongrass agent configuration. It registers Claude Code and Codex hooks plus each agent's `lgrass-connector`, `lgrass-staleness` and `lgrass-closing` skills, kept as one embedded folder per vendor and skill.
-- `lgrass/` -- the Go CLI:
-  - Session/thread coordination between panes.
-  - A `SessionStart` hook that delivers `biblio/laws/summary.md` and gates tool calls behind required skills. It never writes Claude config itself.
-  - Identity/signing for inter-session messages.
-  - `lgrass db` -- a local credential vault scoping agent access to a project's databases.
-  - `lgrass rester` -- the same vault applied to HTTP APIs, handling login and token injection for a chosen user.
+## What it does
 
-The three are deliberately siblings, not nested inside each other -- neither toolchain's file tree (`node_modules`/`tsconfig*` vs. `go.mod`/`go.sum`) sits inside the other's, and neither side's own scripts reach across that boundary. `lgrass` is bundled inside the Electron app at build time and self-installs onto `PATH` when the app launches, so the two stay in permanent version lockstep without a separate release pipeline.
+### Agents use your databases and APIs without holding the credential
 
-## Bibliothek integration
+`lgrass db` and `lgrass rester` send queries and HTTP calls through a vault daemon. The vault is the only process that decrypts anything. The agent holds a six-character channel id that means nothing without the vault's own mapping.
 
-[bibliothek](https://github.com/faizalv/bibliothek) is the knowledge layer Lemongrass builds on: a skill plus a `biblio/{scratchpad,laws,handover,books}/` folder convention, developed in its own repository and usable without Lemongrass. Lemongrass's own `biblio/` is an instance of it, and `lgrass` delivers a project's `biblio/laws/summary.md` at session start.
+- **Databases (MySQL, MariaDB, Postgres).** The vault parses each statement and checks the tables it actually touches against the channel's scope, so a query that joins a table outside the scope is refused. DDL and multi-statement calls are refused. A write runs as a dry run first and commits in a separate call, and an `UPDATE` or `DELETE` without a `WHERE` clause is refused. Database errors are redacted before the agent sees them.
+- **HTTP APIs.** A domain holds a base URL, a login endpoint and many users, each with credentials or a pasted token. The vault logs in, keeps the token in locked memory and never on disk, injects it into each request, and logs in again once when a token has gone stale. A channel grants a list of methods and excludes method and path pairs. A request path is resolved onto the domain's base URL and cannot address another host.
+- **Lifetime.** Channels expire, and a revoke takes effect at the vault. Database writes are recorded in an audit table with a 7-day retention.
+- **Managed from one place.** The Connector tab creates, tests and revokes connections and channels behind a single vault passphrase unlock with auto-lock.
 
-The Electron shell surfaces bibliothek's `biblio/` convention as a UI, not just files an agent reads on disk.
+### Agents work as a team, across vendors
 
-- A workspace/biblio toggle in the header switches the main view between terminal panes and a tree-and-reader split -- shown only when the project has a `biblio/` directory.
-- The tree lists `books/`, `handover/`, `laws/`, `scratchpad/`, each with its own icon; `books/toc.md` gets a pinned "Table of Content" button.
-- Only `scratchpad/` is editable, enforced server-side, through a Tiptap-based WYSIWYG editor that autosaves.
+A pilot agent declares a workgroup of one to five co-pilots, each running Claude Code or Codex, with `lgrass workgroup create`.
+
+- **The human approves what starts.** Every co-pilot's complete starting text is shown before anything spawns. Approval issues a one-time token, and that token is the only path that opens the members' tabs.
+- **Plan first.** A co-pilot posts its plan to the group thread and waits for the pilot's go before it changes anything. A gate denies every tool except `lgrass` commands until the skills the co-pilot was configured with are loaded.
+- **Real conversation.** Members share a thread with mentions, unread-only reads, and notices delivered through each agent's own hooks. Any member can address any other directly.
+- **Persistent.** Membership survives a tab closing and an app restart. A sidebar panel shows each group's members and whether their tabs are online. A disbanded group's thread stays readable.
+
+### Bypass mode with a guard that stays on
+
+Claude Code tabs start with `--dangerously-skip-permissions`, so an agent does not stall on prompts. A `PreToolUse` hook enforces a catalog of dangerous operations instead, in the categories Git, Deletion, System, Network, Infrastructure, Database clients and Lemongrass itself. A refused call returns an approval message to the agent and is not silently dropped. A user policy edited in the Vault tab's Safety pane is sealed in the vault, and the hook reads it from there.
+
+### Project rules arrive at the start of every session
+
+A `SessionStart` hook delivers the project's laws summary and gates tool calls behind required skills. Sessions in the same project know about each other, and the hook warns when two tabs touch the same file.
+
+The convention behind this is [bibliothek](https://github.com/faizalv/bibliothek): a skill plus a `biblio/{scratchpad,laws,handover,books}/` folder layout, developed in its own repository and usable without Lemongrass. The app shows that folder as a tree and reader beside the terminal panes. The scratchpad is editable in a WYSIWYG editor that autosaves, enforced on the server side. The other folders are read-only.
+
+### Real terminals, controlled by structured events
+
+Panes are `xterm.js` in the renderer over `node-pty` in the main process, the stack behind VS Code's integrated terminal, not a chat UI. Control decisions such as nudges come from each agent's own hook events and never from parsing rendered terminal text. The app also provides tabs, split layouts that persist across restarts, session restore, and a Git panel with diff, commit and push.
+
+## Status and limits
+
+Built:
+
+- The vault, `lgrass db` reads and writes, `lgrass rester`, and the Connector tab.
+- Workgroups with Claude Code members, the thread layer, and the workgroup panel.
+- The guard for Claude Code, unit tested and denying live in a tab. The sealed-policy round trip through the Safety pane has not been run live.
+- The bibliothek browser and editor, and the Git panel.
+
+In progress:
+
+- A wire-protocol proxy so a whole app can point its own database driver at a local port. Port allocation and the MySQL handshake listener are done. Query execution and the Postgres listener are not.
+- A Decisions section in the Vault tab that replaces the native dialog for workgroup approvals.
+- Codex as a workgroup member. Its gate depends on a listener heartbeat that is unverified under Codex's default sandbox.
+
+Planned:
+
+- An audit of `lgrass rester` calls and of `lgrass db` reads.
+- An investigator role for cheap, read-only workgroup members, and leader and thinker names for pilot and co-pilot.
+
+Limits:
+
+- Linux is the primary platform. The macOS build exists and Windows packaging is not wired.
+- An HTTP channel's scope is declared and checked against the request. The database scope is checked against what the parsed statement touches, which is a stronger guarantee.
+- The guard does not inspect an interpreter one-liner such as `python -c` or `node -e`, and a path built from an unknown variable can pass.
+
+## How it fits together
+
+- `ui/` is the Electron app: terminal panes, project and layout management, the bibliothek tree and reader, and the Connector tab.
+- `lgrass/` is the Go CLI: session and thread coordination, the hooks and their gates, the vault, `lgrass db`, `lgrass rester`, and `lgrass workgroup`.
+- `lgrassconf/` is a small Go daemon, a systemd user service on Linux and a LaunchAgent on macOS. It registers the Claude Code and Codex hooks and installs each agent's skills.
+
+The three are siblings, not nested. Neither toolchain's file tree (`node_modules` and `tsconfig*` against `go.mod` and `go.sum`) sits inside the other's, and neither side's scripts reach across that boundary. `lgrass` is bundled inside the Electron app at build time and installs itself onto `PATH` when the app launches, so the two stay on the same version without a separate release pipeline.
 
 ## Skills
 
-`lgrassconf` installs three skills for each supported agent (Claude Code and Codex) and keeps them current.
+`lgrassconf` installs these for Claude Code and Codex and keeps them current. Bibliothek is installed separately from its own repository.
 
-- `lgrass-connector` -- teaches an agent to run a database query or an HTTP call through an existing `lgrass db` or `lgrass rester` channel, so the real credential never enters the session.
-- `lgrass-staleness` -- teaches an agent to act on stale structure without being asked. When a document, book chapter, handover, PRD, `toc.md` line, README, or code comment contradicts the code or the bibliothek convention, the agent verifies the fact against its source and corrects the document in the same turn. Code wins over any document that describes it, dated records such as activity logs stay as written, and it asks only when the current state can't be determined or the fix is a design decision. It also checks structure: `toc.md` tags against the union of chapter tags, handovers pointing only at a `prd.md`, one whiteboard row per active handover, and finished handovers archived together with their scratchpad directory.
-- `lgrass-closing` -- teaches an agent to close a finished task and its sub-tasks: verify the work is done, write or update the book chapter and its `toc.md` line, promote standing rules to laws, archive the handover with its scratchpad directory, drop the whiteboard row, retire the memory pointer, and sweep stale references. Open issues are offered back to the user as new scratchpad tasks, with a choice to activate each one or leave it as a scratchpad only.
-
-Bibliothek itself is installed separately from its own repository.
-
-## lgrass db
-
-A local credential vault for a project's databases.
-
-- Passphrase-derived root key, envelope-encrypted per-connection credentials, short-lived "channels" scoping an agent to specific tables/operations -- the agent never sees a real connection string.
-- Two processes: a vault that's the only thing that ever decrypts, and an agent holding only opaque channel keys.
-- A Connections/Channels panel in the UI: create/test/delete connections, create/activate/rotate/revoke channels, behind a vault-wide passphrase unlock with auto-lock.
-- In progress: a wire-protocol proxy so a whole app can point its own db driver at a local port instead of going through the CLI. Port allocation and the MySQL handshake listener are done; query execution and the Postgres listener aren't yet.
-
-## lgrass rester
-
-An HTTP counterpart to `lgrass db`, sharing the same vault, agent, and channel shape.
-
-- A domain holds a base URL, a login endpoint, and per-user credentials or a pre-supplied token. The vault logs in, caches the token with its expiry, and injects it into each request. A stale token triggers one re-login and retry.
-- A channel scopes an agent to a method allow-list plus an exclusion list of method and path pairs, and the agent calls `lgrass rester <short-id> <get|post|put|patch|delete|head|options> <path> [--user <name>]`, with a JSON body inline (`--body`) or from a file (`--body-file`), a raw file with `--content-type`, or `--file` and `--form` for a multipart upload such as a spreadsheet import. A path is resolved onto the domain's base URL and can never address another host. `lgrass rester <short-id> info` prints the base URL, expiry, allowed methods and users, and `lgrass rester <short-id> flush [--user <name>]` drops cached login tokens so the next request logs in again. `--out <file-or-directory>` saves a successful response to disk with no size limit instead of printing it, replacing an existing file only with `--confirm`.
-- Managed from the same Connector tab as database access, under a Database/HTTP sidebar.
-- Planned: a shared audit log for connector calls, covering `lgrass db` writes as well.
+| Skill | What it teaches an agent |
+|---|---|
+| `lgrass-connector` | Run a database query or an HTTP call through an existing channel, so the real credential never enters the session. |
+| `lgrass-pilot` | Lead a workgroup: declare it, brief each co-pilot, ask each for a plan, and stay responsible for the result. |
+| `lgrass-copilot` | Work inside a workgroup: post a plan, wait for the pilot's go, and talk with the pilot and the other members. |
+| `lgrass-staleness` | Correct a document that contradicts the code or the convention in the same turn, and ask only when the fix is a design decision. |
+| `lgrass-closing` | Close a finished task: write the book chapter and its `toc.md` line, promote standing rules to laws, archive the handover, and sweep stale references. |
 
 ## Build
 
@@ -59,21 +90,21 @@ An HTTP counterpart to `lgrass db`, sharing the same vault, agent, and channel s
 make build-linux
 ```
 
-Cross-compiles `lgrass` and `lgrassconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains -- `ui/`'s own `npm run build:linux` only builds the Electron half and expects `lgrass/dist/` to already exist, so use the root `make` target rather than running it directly. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
+Cross-compiles `lgrass` and `lgrassconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `lgrass/dist/` to exist already, so use the root `make` target. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
 
 ```
 make build-rpm
 ```
 
-Same cross-compile, then builds only the rpm (needs `rpmbuild`), for Fedora and other rpm distributions. The package registers the `lgrassconf` keeper as a systemd user unit on install and removes it on uninstall, not on upgrade. The app also writes a per-user copy of `lgrass` and `lgrassconf` into `~/.local/bin` and its own user unit on launch; `lgrassconf uninstall` stops and removes that unit and leaves the binaries in place.
+Same cross-compile, then builds only the rpm (needs `rpmbuild`), for Fedora and other rpm distributions. The package registers the `lgrassconf` keeper as a systemd user unit on install and removes it on uninstall, not on upgrade. The app also writes a per-user copy of `lgrass` and `lgrassconf` into `~/.local/bin` and its own user unit on launch. `lgrassconf uninstall` stops and removes that unit and leaves the binaries in place.
 
 ```
 make build-mac
 ```
 
-Cross-compiles `lgrass` and `lgrassconf` for `darwin/amd64` and `darwin/arm64`, then packages a macOS `.app` / `.dmg` / `.zip` via electron-builder. On first launch the app copies the matching arch binaries into `~/.local/bin` and runs `lgrassconf install` (LaunchAgent). Notarization is off by default.
+Cross-compiles `lgrass` and `lgrassconf` for `darwin/amd64` and `darwin/arm64`, then packages a macOS `.app`, `.dmg` and `.zip` via electron-builder. On first launch the app copies the matching arch binaries into `~/.local/bin` and runs `lgrassconf install` (LaunchAgent). Notarization is off by default.
 
-Windows packaging isn't wired up yet.
+Windows packaging is not wired up yet.
 
 ## Develop
 
@@ -81,7 +112,7 @@ Windows packaging isn't wired up yet.
 cd ui && npm run dev
 ```
 
-`make dev` from the repo root installs the `lgrassconf` keeper (systemd user unit on Linux, LaunchAgent on macOS) and builds `lgrass` into `~/.local/bin` first, so Claude Code and Codex configuration are kept correct before a session starts. Codex hook definitions still require review and trust through `/hooks`. `lgrass` isn't required for the Electron shell itself to run -- it's invoked by the agent CLI running inside a terminal pane, not by the app directly. New shell panes prompt for which CLI to spawn (Claude Code, Codex, Cursor Agent, or a plain shell). For work on `lgrass` alone:
+`make dev` from the repo root installs the `lgrassconf` keeper (systemd user unit on Linux, LaunchAgent on macOS) and builds `lgrass` into `~/.local/bin` first, so Claude Code and Codex configuration are correct before a session starts. Codex hook definitions still require review and trust through `/hooks`. `lgrass` is not required for the Electron shell itself to run. The agent CLI running inside a terminal pane invokes it, not the app directly. New shell panes prompt for which CLI to spawn (Claude Code, Codex, Cursor Agent, or a plain shell). For work on `lgrass` alone:
 
 ```
 cd lgrass && go build ./... && go test ./...
