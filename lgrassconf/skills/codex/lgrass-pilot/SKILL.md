@@ -32,6 +32,7 @@ copilots:
 - Every co-pilot already receives the project's laws summary at session start. Do not copy or paraphrase it into a brief or a post.
 - A co-pilot whose tab is open is reachable at any time. A message wakes an idle co-pilot and reaches a busy one at its next tool call, so message a co-pilot whenever you need something and do not wait for it to speak first. A member whose tab is closed shows as offline and cannot act until the human reopens its tab.
 - The human approved this group and delegated trust for code changes to you. A co-pilot needs your go and never the human's approval, so never send a co-pilot to the human for one.
+- Co-pilots talk to each other directly, and they expect answers from one another as well as from you. Tell each who owns what so they can ask the right member, and do not relay their exchanges. Step in to settle a disagreement or to change an assignment.
 - Every co-pilot posts its plan to the group thread and waits for your go before it changes anything. Read each plan and answer with a mention: go, or what to change. Do not let a co-pilot start without your go.
 
 ## Reviews
