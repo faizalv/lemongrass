@@ -3,11 +3,19 @@ name: lgrass-closing
 description: How to close a finished task and its sub-tasks under the bibliothek convention. Use when work is done and needs its book chapter, archive, whiteboard and memory cleanup, or when the user says close, finish or archive a task. Not for "wrap it up", which means saving an undecided idea as a scratchpad note.
 ---
 
-Invoking this skill is the go-ahead for every step below except the ones marked ask. Run the steps in order. Never run git commands.
+Invoking this skill is the go-ahead for every step below except the ones marked ask. Run the steps in order.
+
+Closing means every in-scope objective is finished with full confidence. Once step 1 passes, the closing carries no hedges: no "what's not covered", "not re-run yet", "not verified", "should work" or caveat section. Anything outside the PRD's Objective is out of scope and is not mentioned.
+
+The other side of that rule: if at any step you find the task is not actually closable, stop and refuse to close. Say it plainly, as "I can't close this because <the specific in-scope objective and the concrete evidence>". A blocker on an in-scope objective is never a caveat, and refusing is always better than closing with doubt. Do not archive, retire memory or edit the whiteboard once you have refused.
 
 ## 1. Verify it is done
 
-Compare the handover Status and the PRD Plans against the code. If a phase is not done, stop and tell the user what remains. Never close unfinished work.
+Compare the handover Status and the PRD Plans against the code, and check each in-scope objective in the PRD's Objective one by one. Every one must be confirmed finished with 100% confidence.
+
+- A doubt you can settle yourself (re-run the tests, rebuild, read the code) gets settled now, before anything else. It never travels into the report.
+- If a phase is not done, or a doubt cannot be settled, refuse to close: name the unconfirmed objective and the evidence, then stop. Never close unfinished work, and never close with a caveat.
+- The same holds for a stale or contradictory handover Status, a failing build or test, or code that does not match what the PRD says was built. Each one is a reason to refuse, not to note.
 
 ## 2. Scope
 
@@ -56,7 +64,7 @@ Search the remaining documents, READMEs and toc for the task slug. Fix any refer
 
 ## 10. Open issues (ask)
 
-Collect what is still open from the PRD, the handover Status and the activity log: deferred work, known gaps, unanswered decisions.
+Collect only what is already written down as deferred, out of scope or undecided in the PRD, the handover Status and the activity log. Never invent concerns, unrelated issues or speculation. If nothing is recorded, skip this step and say nothing about it.
 
 For each issue, ask the user:
 
@@ -67,4 +75,4 @@ Create nothing until the user answers. Never open a handover for an issue the us
 
 ## 11. Report
 
-One line per action taken: the chapter written or updated, the toc line, laws added, what was archived, the whiteboard rows dropped, the memory pointers deleted, the references fixed, and the open issues raised with the user's answers.
+Facts only, no closing commentary and no remaining-risks section. One line per action taken: the chapter written or updated, the toc line, laws added, what was archived, the whiteboard rows dropped, the memory pointers deleted, the references fixed, and the open issues raised with the user's answers.
