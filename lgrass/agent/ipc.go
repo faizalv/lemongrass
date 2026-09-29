@@ -218,18 +218,20 @@ func dispatch(svc *Service, queryLimiter *vault.FailureLimiter, req request) res
 	}
 }
 
-// queryOp checks the limiter before a short-id lookup and records the outcome after, so
-// repeated wrong guesses eventually lock out rather than running unthrottled.
+// queryOp checks the limiter before a short-id lookup and counts only unknown short ids as failures, so repeated wrong guesses lock out while rejected or failing queries do not.
 func queryOp(queryLimiter *vault.FailureLimiter, fn func() (response, error)) response {
 	if err := queryLimiter.Check(); err != nil {
 		return errResponse(err)
 	}
 	resp, err := fn()
-	if err != nil {
+	if errors.Is(err, ErrNoSuchChannel) {
 		queryLimiter.RecordFailure()
 		return errResponse(err)
 	}
 	queryLimiter.RecordSuccess()
+	if err != nil {
+		return errResponse(err)
+	}
 	return resp
 }
 
