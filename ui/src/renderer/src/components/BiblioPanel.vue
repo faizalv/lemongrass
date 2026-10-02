@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import AppModal from './AppModal.vue'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import GitPanel from './GitPanel.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
@@ -176,33 +177,36 @@ function onGutterUp(): void {
 
     <div class="biblio-gutter" @pointerdown="onGutterDown" />
 
-    <div v-if="showCreateForm" class="create-overlay">
-      <div class="create-card">
-        <h3 class="create-title">{{ createTargetFolder ? 'New file' : 'New scratchpad' }}</h3>
-        <input
-          v-model="newTitle"
-          class="title-input"
-          type="text"
-          placeholder="Title"
-          autofocus
-          @keydown.enter="submitCreate"
-        />
-        <MarkdownEditor
-          v-model="newContent"
-          @image-pending="(url, file) => pendingImages.set(url, file)"
-        />
-        <div class="create-actions">
-          <button class="ghost-button" @click="cancelCreate">Cancel</button>
-          <button
-            class="primary-button"
-            :disabled="!newTitle.trim() || creating"
-            @click="submitCreate"
-          >
-            {{ creating ? 'Creating...' : 'Create' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <AppModal
+      v-if="showCreateForm"
+      scope="app"
+      size="md"
+      :title="createTargetFolder ? 'New file' : 'New scratchpad'"
+      @close="cancelCreate"
+    >
+      <input
+        v-model="newTitle"
+        class="title-input"
+        type="text"
+        placeholder="Title"
+        autofocus
+        @keydown.enter="submitCreate"
+      />
+      <MarkdownEditor
+        v-model="newContent"
+        @image-pending="(url, file) => pendingImages.set(url, file)"
+      />
+      <template #footer>
+        <button class="ghost-button" @click="cancelCreate">Cancel</button>
+        <button
+          class="primary-button"
+          :disabled="!newTitle.trim() || creating"
+          @click="submitCreate"
+        >
+          {{ creating ? 'Creating...' : 'Create' }}
+        </button>
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -211,38 +215,6 @@ function onGutterUp(): void {
   flex-shrink: 0;
   min-height: 0;
   display: flex;
-}
-
-.create-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-8);
-  background: var(--color-bg-overlay);
-}
-
-.create-card {
-  width: 100%;
-  max-width: 640px;
-  max-height: 100%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-6);
-  background: var(--color-surface-1);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-}
-
-.create-title {
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  color: var(--color-fg-primary);
 }
 
 .title-input {
@@ -258,12 +230,6 @@ function onGutterUp(): void {
 .title-input:focus {
   outline: none;
   border-color: var(--color-amber);
-}
-
-.create-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
 }
 
 .ghost-button,

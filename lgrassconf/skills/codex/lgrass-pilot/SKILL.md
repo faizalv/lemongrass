@@ -22,9 +22,10 @@ copilots:
     prompt: The assignment, or use prompt_file: with a path relative to the config.
 ```
 
-- 1 to 5 co-pilots. A label is letters, digits, `-` and `_`, up to 30 characters. The vendor is `claude` or `codex`. Every skill must be installed for that vendor. A prompt is up to 3000 characters.
+- `name` is required and names the group in the app. It must differ from every other workgroup's name, disbanded ones included. 1 to 5 co-pilots. A label is letters, digits, `-` and `_`, up to 30 characters. The vendor is `claude` or `codex`. Every skill must be installed for that vendor. A prompt is up to 3000 characters.
 - A tab belongs to one live group at a time. The co-pilot skill is added for every co-pilot, so do not list it.
 - The human sees each assignment in full before approving, so write it for them too.
+- If the human declines, the command prints their reason when they gave one. Read it and change the proposal, and do not resend the same one. A withdrawn proposal means nobody answered, so ask the human before trying again.
 
 ## Brief each co-pilot
 

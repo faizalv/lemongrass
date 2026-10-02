@@ -24,7 +24,6 @@ const (
 	CopilotSkill     = session.CopilotSkill
 	MaxPromptRunes   = 3000
 	MaxNameRunes     = 120
-	defaultName      = "workgroup"
 	defaultPilotName = "pilot"
 )
 
@@ -69,7 +68,7 @@ func Parse(data []byte, baseDir string) (Config, error) {
 
 	cfg.Name = strings.TrimSpace(cfg.Name)
 	if cfg.Name == "" {
-		cfg.Name = defaultName
+		return Config{}, errors.New("workgroup: the config needs a name that identifies this group, and it must differ from every other workgroup's name")
 	}
 	if utf8.RuneCountInString(cfg.Name) > MaxNameRunes {
 		return Config{}, fmt.Errorf("workgroup: name is longer than %d characters", MaxNameRunes)

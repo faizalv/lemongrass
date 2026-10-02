@@ -6,8 +6,13 @@ import { join } from 'path'
 import { randomUUID } from 'crypto'
 import type { WorkgroupSpawnMember, WorkgroupSpawnResult } from '../preload/types'
 import { handleNudge } from './tabNudge'
+import {
+  registerApprovalHandlers,
+  requestApproval,
+  type ApprovalAnswer
+} from './workgroupApprovals'
 
-// The socket `lgrass workgroup create` talks to. A proposal shows the human a confirmation dialog and,
+// The socket `lgrass workgroup create` talks to. A proposal waits in the app for the human and,
 // once approved, returns a one-time token. Only that token spawns tabs, and it spawns exactly what was shown.
 
 const MAX_COPILOTS = 5
@@ -53,6 +58,7 @@ interface Reply {
   error?: string
   typed?: boolean
   reason?: string
+  withdrawn?: boolean
 }
 
 const approvals = new Map<string, Approved>()
@@ -119,7 +125,7 @@ function describe(p: Proposal, file: string | null): { message: string; detail: 
   }
 }
 
-function askHuman(window: BrowserWindow | undefined, p: Proposal): Promise<boolean> {
+function askNative(p: Proposal): Promise<boolean> {
   const run = (): Promise<boolean> => {
     const file = writeProposalFile(p)
     const { message, detail } = describe(p, file)
@@ -133,11 +139,8 @@ function askHuman(window: BrowserWindow | undefined, p: Proposal): Promise<boole
       cancelId: 1,
       noLink: true
     }
-    return (
-      window && !window.isDestroyed()
-        ? dialog.showMessageBox(window, options)
-        : dialog.showMessageBox(options)
-    )
+    return dialog
+      .showMessageBox(options)
       .then((result) => result.response === 0)
       .finally(() => {
         if (file) rmSync(file, { force: true })
@@ -153,14 +156,42 @@ function pruneApprovals(): void {
   for (const [token, approved] of approvals) if (approved.expires < now) approvals.delete(token)
 }
 
+async function askHuman(
+  p: Proposal,
+  getWindow: () => BrowserWindow | undefined,
+  signal: AbortSignal
+): Promise<ApprovalAnswer> {
+  const window = getWindow()
+  if (!window || window.isDestroyed()) return { approved: await askNative(p) }
+  return requestApproval(
+    window,
+    {
+      projectPath: p.project_path,
+      groupName: p.group_name,
+      pilotLabel: p.pilot_label,
+      members: p.members.map((m) => ({
+        label: m.label,
+        vendor: m.vendor,
+        model: m.model || undefined,
+        skills: m.skills,
+        prompt: m.prompt
+      }))
+    },
+    signal
+  )
+}
+
 async function handlePropose(
   p: Proposal,
-  getWindow: () => BrowserWindow | undefined
+  getWindow: () => BrowserWindow | undefined,
+  signal: AbortSignal
 ): Promise<Reply> {
   const problem = validate(p)
   if (problem) return { ok: false, error: problem }
-  const approved = await askHuman(getWindow(), p)
-  if (!approved) return { ok: true, approved: false }
+  const answer = await askHuman(p, getWindow, signal)
+  if (!answer.approved) {
+    return { ok: true, approved: false, reason: answer.reason, withdrawn: answer.withdrawn }
+  }
   pruneApprovals()
   const token = randomUUID()
   approvals.set(token, {
@@ -212,9 +243,11 @@ async function handleSpawn(
 
 function serveConnection(conn: net.Socket, getWindow: () => BrowserWindow | undefined): void {
   let buffer = ''
+  const gone = new AbortController()
   conn.setEncoding('utf8')
   conn.setTimeout(11 * 60_000, () => conn.destroy())
   conn.on('error', () => conn.destroy())
+  conn.on('close', () => gone.abort())
   conn.on('data', (chunk: string) => {
     buffer += chunk
     if (buffer.length > 200_000) return void conn.destroy()
@@ -222,11 +255,17 @@ function serveConnection(conn: net.Socket, getWindow: () => BrowserWindow | unde
     if (end === -1) return
     const line = buffer.slice(0, end)
     buffer = ''
-    void respond(line, getWindow).then((reply) => conn.end(JSON.stringify(reply) + '\n'))
+    void respond(line, getWindow, gone.signal).then((reply) =>
+      conn.end(JSON.stringify(reply) + '\n')
+    )
   })
 }
 
-async function respond(line: string, getWindow: () => BrowserWindow | undefined): Promise<Reply> {
+async function respond(
+  line: string,
+  getWindow: () => BrowserWindow | undefined,
+  signal: AbortSignal
+): Promise<Reply> {
   let request: Proposal
   try {
     request = JSON.parse(line)
@@ -234,7 +273,7 @@ async function respond(line: string, getWindow: () => BrowserWindow | undefined)
     return { ok: false, error: 'the request is not valid JSON' }
   }
   try {
-    if (request.op === 'propose') return await handlePropose(request, getWindow)
+    if (request.op === 'propose') return await handlePropose(request, getWindow, signal)
     if (request.op === 'spawn') return await handleSpawn(String(request.token ?? ''), getWindow)
     if (request.op === 'nudge')
       return await handleNudge(nudgeLgrassPath, String(request.tab_id ?? ''))
@@ -252,6 +291,7 @@ export function startWorkgroupBridge(
   lgrassPath: string | null
 ): void {
   nudgeLgrassPath = lgrassPath
+  registerApprovalHandlers(getWindow)
   ipcMain.on(
     'workgroup:spawn-result',
     (_event, payload: WorkgroupSpawnResult & { requestId: string }) => {

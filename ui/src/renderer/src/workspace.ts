@@ -3,6 +3,7 @@ import { marked } from 'marked'
 import * as tree from './layoutTree'
 import type { DropZone, EdgeZone } from './layoutTree'
 import { disposeShell, onShellExit, setShellArgs, setShellResume } from './shellRegistry'
+import { isWorkgroupMember } from './workgroups'
 import {
   preferredShellAgentId,
   resumeArgs,
@@ -42,6 +43,7 @@ type DocTab = Extract<WorkspaceTab, { kind: 'doc' }>
 type DiffTab = Extract<WorkspaceTab, { kind: 'diff' }>
 type VaultTab = Extract<WorkspaceTab, { kind: 'connector' }>
 type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
+type WorkgroupTab = Extract<WorkspaceTab, { kind: 'workgroup' }>
 
 const AUTOSAVE_MS = 600
 const LAYOUT_SAVE_MS = 400
@@ -90,6 +92,10 @@ function newDiffTab(path: string): DiffTab {
 // The persisted tab kind stays 'connector' so saved layouts keep loading.
 function newVaultTab(): VaultTab {
   return { id: crypto.randomUUID(), kind: 'connector' }
+}
+
+function newWorkgroupTab(groupId: number): WorkgroupTab {
+  return { id: crypto.randomUUID(), kind: 'workgroup', groupId }
 }
 
 function tabsOf(projectId: string): WorkspaceTab[] {
@@ -153,6 +159,11 @@ export function focusTab(project: ProjectRef, tabId: string): void {
   const root = workspaces[project.id]?.layout.root ?? null
   const leaf = tree.findLeafByTab(root, tabId)
   if (root && leaf) commit(project, tree.setActiveTab(root, leaf.id, tabId), leaf.id)
+}
+
+export function openWorkgroupIds(projectId: string): number[] {
+  if (!workspaces[projectId]) return []
+  return tabsOf(projectId).flatMap((tab) => (tab.kind === 'workgroup' ? [tab.groupId] : []))
 }
 
 export function liveShellCount(projectId: string): number {
@@ -415,6 +426,26 @@ export function openVault(project: ProjectRef): void {
   commit(project, tree.addTab(root, focused.id, newVaultTab()), focused.id)
 }
 
+// One tab per workgroup: opening it again focuses the existing tab wherever it lives.
+export function openWorkgroup(project: ProjectRef, groupId: number): void {
+  const layout = workspaces[project.id].layout
+  const root = layout.root
+  if (!root) {
+    const leaf = tree.createLeaf<WorkspaceTab>([newWorkgroupTab(groupId)])
+    commit(project, leaf, leaf.id)
+    return
+  }
+  const leaves = tree.allLeaves(root)
+  for (const leaf of leaves) {
+    const existing = leaf.tabs.find((tab) => tab.kind === 'workgroup' && tab.groupId === groupId)
+    if (!existing) continue
+    commit(project, tree.setActiveTab(root, leaf.id, existing.id), leaf.id)
+    return
+  }
+  const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
+  commit(project, tree.addTab(root, focused.id, newWorkgroupTab(groupId)), focused.id)
+}
+
 export function addShell(project: ProjectRef, paneId?: string): void {
   openShellPicker({ kind: 'tab', project, paneId })
 }
@@ -486,9 +517,10 @@ export function activateTab(project: ProjectRef, paneId: string, tabId: string):
   if (root) commit(project, tree.setActiveTab(root, paneId, tabId), paneId)
 }
 
+// A workgroup member keeps its saved session so its tab can be reopened with the same identity.
 function discardShell(project: ProjectRef, tabId: string): void {
   disposeShell(tabId)
-  void window.api.tabSessions.forget(project.path, tabId)
+  if (!isWorkgroupMember(project.id, tabId)) void window.api.tabSessions.forget(project.path, tabId)
 }
 
 export function closeTab(project: ProjectRef, paneId: string, tabId: string): void {
@@ -561,6 +593,43 @@ onShellExit((tabId) => {
 })
 
 // A positional prompt starts the session with it as the first message, which extra system prompt text does not.
+// Reopens a closed member in the pilot's pane under its original tab id, resuming the saved session when there is one.
+export async function reopenWorkgroupMember(
+  project: ProjectRef,
+  member: { tabId: string; label: string; vendor: string },
+  pilotTabId: string
+): Promise<void> {
+  if (isTabOpen(project.id, member.tabId)) return focusTab(project, member.tabId)
+  const agent = shellAgentById(member.vendor)
+  const sessionId = (await window.api.tabSessions.list(project.path))[member.tabId]
+  const args = sessionId ? resumeArgs(agent.command, sessionId) : null
+  if (args) setShellResume(member.tabId, args)
+
+  const tab: ShellTab = {
+    id: member.tabId,
+    kind: 'shell',
+    label: member.label,
+    command: agent.command,
+    cwd: project.path
+  }
+  const root = workspaces[project.id].layout.root
+  if (!root) {
+    const leaf = tree.createLeaf<WorkspaceTab>([tab])
+    commit(project, leaf, leaf.id)
+    return
+  }
+  const leaves = tree.allLeaves(root)
+  const target =
+    tree.findLeafByTab(root, pilotTabId) ??
+    leaves.find((leaf) => leaf.id === workspaces[project.id].layout.focusedPaneId) ??
+    leaves[0]
+  commit(
+    project,
+    tree.setActiveTab(tree.addTab(root, target.id, tab), target.id, tab.id),
+    target.id
+  )
+}
+
 function workgroupArgs(member: WorkgroupSpawnMember): string[] {
   const modelFlag = member.vendor === 'claude' ? '--model' : '-m'
   return [...(member.model ? [modelFlag, member.model] : []), member.prompt]

@@ -203,3 +203,26 @@ func TestLiveGroupsListsOnlyLiveOnesWithTheirThread(t *testing.T) {
 		t.Errorf("LiveGroups after disband = %+v, %v, want none", groups, err)
 	}
 }
+
+func TestGroupNamesAreUniqueEvenAfterADisband(t *testing.T) {
+	store := openTestStore(t)
+	g := newTestGroup(t, store)
+	other := "dddddddd-4444-4444-8444-444444444444"
+	another := "eeeeeeee-5555-4555-8555-555555555555"
+
+	if err := store.CheckGroupName("  schema REVIEW "); !errors.Is(err, ErrNameTaken) {
+		t.Errorf("CheckGroupName = %v, want ErrNameTaken ignoring case and spaces", err)
+	}
+	if err := store.CheckGroupName("release audit"); err != nil {
+		t.Errorf("CheckGroupName(unused) = %v", err)
+	}
+	if _, err := store.CreateGroup("SCHEMA review", Member{TabID: other, Label: "x", Vendor: "claude"}, []Member{{TabID: another, Label: "y", Vendor: "codex"}}); !errors.Is(err, ErrNameTaken) {
+		t.Errorf("CreateGroup with a taken name = %v, want ErrNameTaken", err)
+	}
+	if err := store.DisbandGroup(g.ID); err != nil {
+		t.Fatalf("DisbandGroup: %v", err)
+	}
+	if err := store.CheckGroupName("Schema review"); !errors.Is(err, ErrNameTaken) {
+		t.Errorf("CheckGroupName after disband = %v, want the name to stay reserved", err)
+	}
+}

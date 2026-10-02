@@ -24,8 +24,10 @@ import type {
   WorkspaceLayoutState,
   WorkgroupDisbandResult,
   WorkgroupInfo,
+  WorkgroupPending,
   WorkgroupSpawnRequest,
-  WorkgroupSpawnResult
+  WorkgroupSpawnResult,
+  WorkgroupThreadResult
 } from './types'
 
 // Custom APIs for renderer -- raw PTY bytes only, never a control-signal
@@ -217,8 +219,29 @@ const workgroup = {
   },
   reportSpawn: (requestId: string, result: WorkgroupSpawnResult): void =>
     ipcRenderer.send('workgroup:spawn-result', { requestId, ...result }),
+  pending: (): Promise<WorkgroupPending[]> => ipcRenderer.invoke('workgroup:pending'),
+  decide: (requestId: string, approved: boolean, reason?: string): Promise<boolean> =>
+    ipcRenderer.invoke('workgroup:decide', { requestId, approved, reason }),
+  onPendingChange: (callback: (pending: WorkgroupPending[]) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, pending: WorkgroupPending[]): void =>
+      callback(pending)
+    ipcRenderer.on('workgroup:pending-changed', listener)
+    return () => ipcRenderer.removeListener('workgroup:pending-changed', listener)
+  },
+  onOpenApprovals: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on('workgroup:open-approvals', listener)
+    return () => ipcRenderer.removeListener('workgroup:open-approvals', listener)
+  },
   list: (projectPath: string): Promise<WorkgroupInfo[]> =>
     ipcRenderer.invoke('workgroups:list', projectPath),
+  thread: (
+    projectPath: string,
+    threadId: number,
+    before?: number,
+    limit?: number
+  ): Promise<WorkgroupThreadResult> =>
+    ipcRenderer.invoke('workgroups:thread', { projectPath, threadId, before, limit }),
   disband: (projectPath: string, groupId: number): Promise<WorkgroupDisbandResult> =>
     ipcRenderer.invoke('workgroups:disband', { projectPath, groupId })
 }

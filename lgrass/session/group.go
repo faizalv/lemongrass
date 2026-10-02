@@ -38,7 +38,43 @@ type Member struct {
 var (
 	ErrNoSuchGroup   = errors.New("session: no such workgroup in this project")
 	ErrAlreadyInside = errors.New("session: a tab can belong to only one live workgroup")
+	ErrNameTaken     = errors.New("session: a workgroup already has this name")
 )
+
+type rowQuerier interface {
+	Query(query string, args ...any) (*sql.Rows, error)
+}
+
+func groupNameTaken(q rowQuerier, name string) (bool, error) {
+	rows, err := q.Query(`SELECT title FROM lg_threads WHERE group_id IS NOT NULL`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	want := strings.TrimSpace(name)
+	for rows.Next() {
+		var title string
+		if err := rows.Scan(&title); err != nil {
+			return false, err
+		}
+		if strings.EqualFold(strings.TrimSpace(title), want) {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
+}
+
+// Names are unique across every project's workgroups, live or disbanded, ignoring case and surrounding spaces.
+func (s *Store) CheckGroupName(name string) error {
+	taken, err := groupNameTaken(s.db, name)
+	if err != nil {
+		return err
+	}
+	if taken {
+		return fmt.Errorf("%w (%q)", ErrNameTaken, strings.TrimSpace(name))
+	}
+	return nil
+}
 
 // Creates the group, its members, and its one thread in a single transaction. The pilot is added as a member.
 func (s *Store) CreateGroup(name string, pilot Member, copilots []Member) (Group, error) {
@@ -54,6 +90,14 @@ func (s *Store) CreateGroup(name string, pilot Member, copilots []Member) (Group
 		return Group{}, err
 	}
 	defer tx.Rollback()
+
+	taken, err := groupNameTaken(tx, name)
+	if err != nil {
+		return Group{}, err
+	}
+	if taken {
+		return Group{}, fmt.Errorf("%w (%q)", ErrNameTaken, strings.TrimSpace(name))
+	}
 
 	for _, m := range members {
 		var one int

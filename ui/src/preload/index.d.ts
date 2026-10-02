@@ -23,15 +23,27 @@ import type {
   VaultPolicyRule,
   WorkgroupDisbandResult,
   WorkgroupInfo,
+  WorkgroupPending,
   WorkgroupSpawnRequest,
-  WorkgroupSpawnResult
+  WorkgroupSpawnResult,
+  WorkgroupThreadResult
 } from './types'
 
 interface Api {
   workgroup: {
     onSpawn: (callback: (request: WorkgroupSpawnRequest) => void) => () => void
     reportSpawn: (requestId: string, result: WorkgroupSpawnResult) => void
+    pending: () => Promise<WorkgroupPending[]>
+    decide: (requestId: string, approved: boolean, reason?: string) => Promise<boolean>
+    onPendingChange: (callback: (pending: WorkgroupPending[]) => void) => () => void
+    onOpenApprovals: (callback: () => void) => () => void
     list: (projectPath: string) => Promise<WorkgroupInfo[]>
+    thread: (
+      projectPath: string,
+      threadId: number,
+      before?: number,
+      limit?: number
+    ) => Promise<WorkgroupThreadResult>
     disband: (projectPath: string, groupId: number) => Promise<WorkgroupDisbandResult>
   }
   pty: {

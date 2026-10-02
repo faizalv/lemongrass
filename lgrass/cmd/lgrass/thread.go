@@ -23,6 +23,7 @@ type threadArgs struct {
 	before     int64
 	limit      int
 	all        bool
+	json       bool
 }
 
 func parseThreadArgs(args []string, defaultLimit int) threadArgs {
@@ -36,6 +37,8 @@ func parseThreadArgs(args []string, defaultLimit int) threadArgs {
 			}
 		case "--all":
 			parsed.all = true
+		case "--json":
+			parsed.json = true
 		case "--before":
 			i++
 			if i < len(args) {
@@ -178,7 +181,7 @@ func cmdThreadPost(args []string) {
 func cmdThreadRead(args []string) {
 	parsed := parseThreadArgs(args, defaultThreadReadLimit)
 	if len(parsed.positional) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass thread read <thread-id> [--all] [--before <message-id>] [--limit N]")
+		fmt.Fprintln(os.Stderr, "usage: lgrass thread read <thread-id> [--all] [--before <message-id>] [--limit N] [--json]")
 		os.Exit(1)
 	}
 	threadID, err := strconv.ParseInt(parsed.positional[0], 10, 64)
@@ -189,6 +192,10 @@ func cmdThreadRead(args []string) {
 
 	store := openStore()
 	defer store.Close()
+	if parsed.json {
+		printThreadJSON(store, threadID, parsed)
+		return
+	}
 	printThread(store, threadID, parsed, nil)
 }
 

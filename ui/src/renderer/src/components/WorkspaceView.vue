@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import AppModal from './AppModal.vue'
 import WorkspaceLayout from './WorkspaceLayout.vue'
 import {
   addShell,
@@ -76,44 +77,38 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
       <button class="pill-button" @click="addShell(project)">+ New shell</button>
     </div>
 
-    <div v-if="shellPicker.open" class="overlay">
-      <div class="card">
-        <h3 class="card-title">New shell</h3>
-        <p class="card-text">Which agent should this pane run?</p>
-        <div class="agent-list" role="listbox" aria-label="Shell agent">
-          <button
-            v-for="agent in SHELL_AGENTS"
-            :key="agent.id"
-            type="button"
-            class="agent-option"
-            :class="{ selected: shellPicker.selectedId === agent.id }"
-            role="option"
-            :aria-selected="shellPicker.selectedId === agent.id"
-            @click="shellPicker.selectedId = agent.id"
-            @dblclick="confirmShellPicker(agent.id)"
-          >
-            <span class="agent-label">{{ agent.label }}</span>
-            <span class="agent-hint">{{ agent.hint }}</span>
-          </button>
-        </div>
-        <p v-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
-        <div class="card-actions">
-          <button class="ghost-button" @click="cancelShellPicker">Cancel</button>
-          <button class="primary-button" @click="confirmShellPicker()">Open</button>
-        </div>
+    <AppModal v-if="shellPicker.open" title="New shell" @close="cancelShellPicker">
+      <p class="card-text">Which agent should this pane run?</p>
+      <div class="agent-list" role="listbox" aria-label="Shell agent">
+        <button
+          v-for="agent in SHELL_AGENTS"
+          :key="agent.id"
+          type="button"
+          class="agent-option"
+          :class="{ selected: shellPicker.selectedId === agent.id }"
+          role="option"
+          :aria-selected="shellPicker.selectedId === agent.id"
+          @click="shellPicker.selectedId = agent.id"
+          @dblclick="confirmShellPicker(agent.id)"
+        >
+          <span class="agent-label">{{ agent.label }}</span>
+          <span class="agent-hint">{{ agent.hint }}</span>
+        </button>
       </div>
-    </div>
+      <p v-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
+      <template #footer>
+        <button class="ghost-button" @click="cancelShellPicker">Cancel</button>
+        <button class="primary-button" @click="confirmShellPicker()">Open</button>
+      </template>
+    </AppModal>
 
-    <div v-if="confirmingAll" class="overlay">
-      <div class="card">
-        <h3 class="card-title">Close all tabs?</h3>
-        <p class="card-text">{{ closeAllSummary }}</p>
-        <div class="card-actions">
-          <button class="ghost-button" @click="confirmingAll = false">Cancel</button>
-          <button class="primary-button" @click="onCloseAllTabs">Close all tabs</button>
-        </div>
-      </div>
-    </div>
+    <AppModal v-if="confirmingAll" title="Close all tabs?" @close="confirmingAll = false">
+      <p class="card-text">{{ closeAllSummary }}</p>
+      <template #footer>
+        <button class="ghost-button" @click="confirmingAll = false">Cancel</button>
+        <button class="primary-button" @click="onCloseAllTabs">Close all tabs</button>
+      </template>
+    </AppModal>
   </div>
 </template>
 
@@ -164,36 +159,6 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
 }
 
 .pill-button:hover {
-  color: var(--color-fg-primary);
-}
-
-.overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-8);
-  background: var(--color-bg-overlay);
-}
-
-.card {
-  width: 100%;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-6);
-  background: var(--color-surface-1);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
-}
-
-.card-title {
-  font-family: var(--font-display);
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
   color: var(--color-fg-primary);
 }
 
@@ -256,12 +221,6 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
   color: var(--color-amber);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
-}
-
-.card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
 }
 
 .ghost-button,

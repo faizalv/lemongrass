@@ -55,6 +55,9 @@ func cmdWorkgroupCreate(args []string) {
 	if _, err := store.LiveGroupForTab(tabID); err == nil {
 		fail(session.ErrAlreadyInside)
 	}
+	if err := store.CheckGroupName(cfg.Name); err != nil {
+		fail(err)
+	}
 	pilotVendor, _ := store.VendorForTab(tabID)
 	proj := currentProject()
 
@@ -72,14 +75,15 @@ func cmdWorkgroupCreate(args []string) {
 	req := workgroup.Request{ProjectPath: proj.Path, PilotTabID: tabID, PilotLabel: cfg.PilotLabel, GroupName: cfg.Name, Members: members}
 
 	fmt.Println("lgrass: waiting for the human to approve this workgroup in the lemongrass app.")
-	token, approved, err := workgroup.Propose(workgroup.AppSocketPath(), req)
+	answer, err := workgroup.Propose(workgroup.AppSocketPath(), req)
 	if err != nil {
 		fail(err)
 	}
-	if !approved {
-		fmt.Fprintln(os.Stderr, "lgrass workgroup: the human declined, nothing was created")
+	if !answer.Approved {
+		fmt.Fprintln(os.Stderr, declinedMessage(answer))
 		os.Exit(1)
 	}
+	token := answer.Token
 
 	group, err := store.CreateGroup(cfg.Name, session.Member{TabID: tabID, Label: cfg.PilotLabel, Vendor: pilotVendor}, toMembers(members, cfg.Copilots))
 	if err != nil {
@@ -218,5 +222,16 @@ func cmdWorkgroupList(args []string) {
 		for _, m := range g.Members {
 			fmt.Printf("  %s (%s, %s) tab %s\n", m.Label, m.Role, m.Vendor, m.TabID)
 		}
+	}
+}
+
+func declinedMessage(answer workgroup.Answer) string {
+	switch {
+	case answer.Withdrawn:
+		return "lgrass workgroup: the proposal was withdrawn before the human answered, nothing was created"
+	case answer.Reason != "":
+		return fmt.Sprintf("lgrass workgroup: the human declined, nothing was created. Their reason: %s", answer.Reason)
+	default:
+		return "lgrass workgroup: the human declined without a reason, nothing was created"
 	}
 }

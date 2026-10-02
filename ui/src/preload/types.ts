@@ -184,6 +184,7 @@ export type WorkspaceTab =
   | { id: string; kind: 'doc'; path: string }
   | { id: string; kind: 'diff'; path: string }
   | { id: string; kind: 'connector' }
+  | { id: string; kind: 'workgroup'; groupId: number }
   | { id: string; kind: 'shell'; label: string; command: string; cwd?: string }
 
 export type WorkspaceLayoutNode =
@@ -234,6 +235,45 @@ export interface WorkgroupInfo {
   threadId: number
   pilotTabId: string
   members: WorkgroupMemberInfo[]
+}
+
+export interface WorkgroupPendingMember {
+  label: string
+  vendor: string
+  model?: string
+  skills: string[]
+  prompt: string
+}
+
+export interface WorkgroupPending {
+  requestId: string
+  projectPath: string
+  groupName: string
+  pilotLabel: string
+  members: WorkgroupPendingMember[]
+  createdAt: number
+}
+
+export interface WorkgroupThreadMessage {
+  id: number
+  tabId: string
+  label: string
+  body: string
+  createdAt: string
+}
+
+export interface WorkgroupThread {
+  id: number
+  title: string
+  groupId: number
+  messages: WorkgroupThreadMessage[]
+  more: boolean
+}
+
+export interface WorkgroupThreadResult {
+  ok: boolean
+  thread?: WorkgroupThread
+  error?: string
 }
 
 export interface WorkgroupDisbandResult {

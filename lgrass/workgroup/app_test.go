@@ -40,9 +40,10 @@ func TestProposeReturnsATokenAndSpawnPresentsOnlyIt(t *testing.T) {
 	})
 	req := Request{ProjectPath: "/p", PilotTabID: "pilot-tab", PilotLabel: "lead", GroupName: "g", Members: []SpawnMember{{TabID: "t1", Label: "a", Vendor: "claude", Prompt: "go"}}}
 
-	token, approved, err := Propose(path, req)
-	if err != nil || !approved || token != "tok-1" {
-		t.Fatalf("Propose = %q, %v, %v, want an approval with a token", token, approved, err)
+	answer, err := Propose(path, req)
+	token := answer.Token
+	if err != nil || !answer.Approved || token != "tok-1" {
+		t.Fatalf("Propose = %+v, %v, want an approval with a token", answer, err)
 	}
 	if got := <-seen; got.Op != "propose" || got.PilotTabID != "pilot-tab" || len(got.Members) != 1 || got.Members[0].Prompt != "go" {
 		t.Errorf("propose request = %+v", got)
@@ -57,9 +58,22 @@ func TestProposeReturnsATokenAndSpawnPresentsOnlyIt(t *testing.T) {
 
 func TestProposeDeclinedIsNotAnError(t *testing.T) {
 	path, _ := fakeApp(t, func(Request) Response { return Response{OK: true, Approved: false} })
-	token, approved, err := Propose(path, Request{})
-	if err != nil || approved || token != "" {
-		t.Errorf("Propose = %q, %v, %v, want a plain decline", token, approved, err)
+	answer, err := Propose(path, Request{})
+	if err != nil || answer != (Answer{}) {
+		t.Errorf("Propose = %+v, %v, want a plain decline", answer, err)
+	}
+}
+
+func TestProposeCarriesTheDeclineReasonAndWithdrawal(t *testing.T) {
+	path, _ := fakeApp(t, func(Request) Response { return Response{OK: true, Reason: "use haiku"} })
+	answer, err := Propose(path, Request{})
+	if err != nil || answer.Approved || answer.Reason != "use haiku" || answer.Withdrawn || answer.Token != "" {
+		t.Errorf("Propose = %+v, %v, want a decline with its reason", answer, err)
+	}
+	path, _ = fakeApp(t, func(Request) Response { return Response{OK: true, Withdrawn: true} })
+	answer, err = Propose(path, Request{})
+	if err != nil || answer.Approved || !answer.Withdrawn {
+		t.Errorf("Propose = %+v, %v, want a withdrawal", answer, err)
 	}
 }
 
@@ -69,7 +83,7 @@ func TestAppErrorsAndAnUnreachableAppCarryThePackagePrefix(t *testing.T) {
 	if err == nil || err.Error() != "workgroup: pilot tab not found" {
 		t.Errorf("Spawn error = %v", err)
 	}
-	if _, _, err := Propose(filepath.Join(t.TempDir(), "none.sock"), Request{}); err == nil || !strings.HasPrefix(err.Error(), "workgroup: the lemongrass app is not reachable") {
+	if _, err := Propose(filepath.Join(t.TempDir(), "none.sock"), Request{}); err == nil || !strings.HasPrefix(err.Error(), "workgroup: the lemongrass app is not reachable") {
 		t.Errorf("unreachable error = %v", err)
 	}
 }

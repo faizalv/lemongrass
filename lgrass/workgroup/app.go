@@ -51,6 +51,8 @@ type Response struct {
 	Error    string `json:"error,omitempty"`
 	Typed    bool   `json:"typed,omitempty"`
 	Reason   string `json:"reason,omitempty"`
+	// Withdrawn is true when the request ended without the human answering, such as the app window closing.
+	Withdrawn bool `json:"withdrawn,omitempty"`
 }
 
 // The socket the lemongrass app listens on for group requests.
@@ -58,14 +60,22 @@ func AppSocketPath() string {
 	return filepath.Join(config.Dir(), "app.sock")
 }
 
-// Blocks until the human answers the app's confirmation dialog. Nothing has been spawned when it returns, and an approval returns the one-time token that spawns exactly what was shown.
-func Propose(socketPath string, req Request) (token string, approved bool, err error) {
+// The human's answer to a proposal. Token is set only on approval. Reason is the optional text the human gave when declining, and Withdrawn means no human answered.
+type Answer struct {
+	Approved  bool
+	Token     string
+	Reason    string
+	Withdrawn bool
+}
+
+// Blocks until the human answers in the app. Nothing has been spawned when it returns, and an approval carries the one-time token that spawns exactly what was shown.
+func Propose(socketPath string, req Request) (Answer, error) {
 	req.Op = opPropose
 	resp, err := call(socketPath, req, proposeTimeout)
 	if err != nil {
-		return "", false, err
+		return Answer{}, err
 	}
-	return resp.Token, resp.Approved, nil
+	return Answer{Approved: resp.Approved, Token: resp.Token, Reason: resp.Reason, Withdrawn: resp.Withdrawn}, nil
 }
 
 // Asks the app to open the approved members' tabs next to the pilot's.

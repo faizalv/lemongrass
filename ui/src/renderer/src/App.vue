@@ -4,6 +4,7 @@ import ProjectSidebar from './components/ProjectSidebar.vue'
 import ProjectSwitcher from './components/ProjectSwitcher.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
+import WorkgroupApprovalModal from './components/WorkgroupApprovalModal.vue'
 import {
   cancelShellPicker,
   ensureLoaded,
@@ -174,6 +175,8 @@ onBeforeUnmount(() => {
         <p class="empty">Add a project to get started.</p>
       </div>
     </div>
+
+    <WorkgroupApprovalModal />
 
     <div v-if="closing" class="closing-overlay">
       <div class="closing-card">

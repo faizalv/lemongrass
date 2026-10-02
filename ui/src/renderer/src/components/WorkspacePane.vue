@@ -1,30 +1,22 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import VaultPanel from './VaultPanel.vue'
-import DiffViewer from './DiffViewer.vue'
-import MarkdownEditor from './MarkdownEditor.vue'
-import ShellView from './ShellView.vue'
-import TocViewer from './TocViewer.vue'
+import TabIcon from './TabIcon.vue'
 import {
   activateTab,
   addShell,
   addShellInNewPane,
   closeTab,
-  editDoc,
   focusPane,
   openInNewShell,
   placeTab,
   projectRelativePath,
-  workspaceOf,
   type ProjectRef
 } from '../workspace'
-import { shellTitles } from '../shellRegistry'
+import { tabKindOf, type TabContext } from '../tabKinds'
 import type { DropZone, EdgeZone } from '../layoutTree'
 import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload/types'
 
 type Leaf = Extract<WorkspaceLayoutNode, { type: 'leaf' }>
-type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
-type VaultTab = Extract<WorkspaceTab, { kind: 'connector' }>
 
 const props = defineProps<{
   leaf: Leaf
@@ -42,36 +34,10 @@ const emit = defineEmits<{
 const TAB_MIME = 'application/x-lemongrass-doc-tab'
 const EDGE_RATIO = 0.25
 
-const docs = computed(() => workspaceOf(props.project.id)?.docs ?? {})
 const activeTab = computed(() => props.leaf.tabs.find((t) => t.id === props.leaf.activeTabId))
-const activeDoc = computed(() =>
-  activeTab.value?.kind === 'doc' ? docs.value[activeTab.value.path] : undefined
-)
-const shellTabs = computed(() =>
-  props.leaf.tabs.filter((tab): tab is ShellTab => tab.kind === 'shell')
-)
-const vaultTabs = computed(() =>
-  props.leaf.tabs.filter((tab): tab is VaultTab => tab.kind === 'connector')
-)
 
-function editActive(value: string): void {
-  const tab = activeTab.value
-  if (tab?.kind === 'doc') editDoc(props.project, tab.path, value)
-}
-
-function labelParts(path: string): { name: string; parent: string } {
-  const segments = path.replace(/\.md$/, '').split('/')
-  return { name: segments[segments.length - 1], parent: segments[segments.length - 2] ?? '' }
-}
-
-function baseName(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1)
-}
-
-function tabTitle(tab: WorkspaceTab): string {
-  if (tab.kind === 'shell') return shellTitles[tab.id] ?? tab.label
-  if (tab.kind === 'connector') return 'Vault'
-  return tab.kind === 'diff' ? `Diff: ${tab.path}` : tab.path
+function tabContext(tab: WorkspaceTab): TabContext {
+  return { project: props.project, active: tab.id === props.leaf.activeTabId }
 }
 
 const tabBar = ref<HTMLDivElement>()
@@ -272,69 +238,19 @@ onBeforeUnmount(() => {
           class="tab"
           :class="{ active: tab.id === leaf.activeTabId }"
           :data-tab-id="tab.id"
-          :title="tabTitle(tab)"
+          :title="tabKindOf(tab).title(tab, tabContext(tab))"
           draggable="true"
           @click="activateTab(project, leaf.id, tab.id)"
           @contextmenu.prevent="openMenu($event, tab.id)"
           @dragstart="onTabDragStart($event, tab.id)"
         >
-          <svg
-            v-if="tab.kind === 'shell'"
-            class="tab-icon"
-            width="13"
-            height="13"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M2.5 4.5l3 2.5-3 2.5M7 10h4.5" />
-          </svg>
-          <svg
-            v-else-if="tab.kind === 'diff'"
-            class="tab-icon"
-            width="13"
-            height="13"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
-            <path d="M7 2v10M3.5 5.5h2M9 8.5h2" />
-          </svg>
-          <svg
-            v-else-if="tab.kind === 'connector'"
-            class="tab-icon"
-            width="13"
-            height="13"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="2.5" y="6.5" width="9" height="6" rx="1.2" />
-            <path d="M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2" />
-            <circle cx="7" cy="9.5" r="0.8" />
-          </svg>
-          <span v-if="tab.kind === 'doc'" class="tab-label">
-            <span v-if="labelParts(tab.path).parent" class="tab-parent">
-              {{ labelParts(tab.path).parent }} /
+          <TabIcon v-if="tabKindOf(tab).icon.length" :shapes="tabKindOf(tab).icon" />
+          <span class="tab-label">
+            <span v-if="tabKindOf(tab).label(tab, tabContext(tab)).prefix" class="tab-parent">
+              {{ tabKindOf(tab).label(tab, tabContext(tab)).prefix }} /
             </span>
-            {{ labelParts(tab.path).name }}
+            {{ tabKindOf(tab).label(tab, tabContext(tab)).text }}
           </span>
-          <span v-else-if="tab.kind === 'diff'" class="tab-label">
-            <span class="tab-parent">diff /</span>
-            {{ baseName(tab.path) }}
-          </span>
-          <span v-else-if="tab.kind === 'connector'" class="tab-label">Vault</span>
-          <span v-else class="tab-label">{{ shellTitles[tab.id] ?? tab.label }}</span>
           <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
         </div>
       </div>
@@ -457,47 +373,14 @@ onBeforeUnmount(() => {
       @dragleave="onBodyDragLeave"
       @drop.capture="onBodyDrop"
     >
-      <ShellView
-        v-for="tab in shellTabs"
-        v-show="tab.id === leaf.activeTabId"
-        :key="tab.id"
-        :spec="{ id: tab.id, command: tab.command, cwd: tab.cwd }"
-      />
-
-      <VaultPanel
-        v-for="tab in vaultTabs"
-        v-show="tab.id === leaf.activeTabId"
-        :key="tab.id"
-        :active="tab.id === leaf.activeTabId"
-      />
-
-      <template v-if="activeTab?.kind === 'doc'">
-        <p v-if="!activeDoc || activeDoc.status === 'loading'" class="empty">Loading...</p>
-        <p v-else-if="activeDoc.status === 'missing'" class="empty">
-          This file no longer exists. Close the tab to remove it.
-        </p>
-        <div v-else-if="activeDoc.editable" class="editor-wrap">
-          <MarkdownEditor
-            :key="activeTab.id"
-            :model-value="activeDoc.content"
-            :project-path="project.path"
-            :note-path="activeTab.path"
-            @update:model-value="editActive"
-          />
-        </div>
-        <TocViewer v-else-if="activeTab.path === 'books/toc.md'" :project="project" />
-        <div v-else class="reader lg-scroll">
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div class="markdown-body" v-html="activeDoc.html" />
-        </div>
+      <template v-for="tab in leaf.tabs" :key="tab.id">
+        <component
+          :is="tabKindOf(tab).body"
+          v-if="tabKindOf(tab).keepAlive || tab.id === leaf.activeTabId"
+          v-show="tab.id === leaf.activeTabId"
+          v-bind="tabKindOf(tab).bodyProps(tab, tabContext(tab))"
+        />
       </template>
-
-      <DiffViewer
-        v-else-if="activeTab?.kind === 'diff'"
-        :key="activeTab.id"
-        :project="project"
-        :path="activeTab.path"
-      />
 
       <div v-if="dropZone" class="drop-overlay" :class="dropZone">
         <span v-if="dropDuplicate" class="drop-copy">Copy</span>
@@ -772,10 +655,6 @@ onBeforeUnmount(() => {
   color: var(--color-amber-dim);
 }
 
-.tab-icon {
-  flex-shrink: 0;
-}
-
 .tab-label {
   min-width: 3ch;
   overflow: hidden;
@@ -814,32 +693,6 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.empty {
-  color: var(--color-fg-muted);
-  font-size: var(--text-sm);
-  padding: var(--space-4) var(--space-6);
-}
-
-.editor-wrap {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-3) var(--space-4) var(--space-4);
-}
-
-.editor-wrap :deep(.markdown-editor) {
-  flex: 1;
-  max-width: none;
-}
-
-.reader {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--space-4) var(--space-6);
 }
 
 .drop-overlay {
@@ -938,95 +791,5 @@ onBeforeUnmount(() => {
   height: 1px;
   margin: var(--space-2) 0;
   background: var(--color-border-subtle);
-}
-
-.markdown-body {
-  width: 100%;
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-}
-
-.markdown-body :deep(h1),
-.markdown-body :deep(h2),
-.markdown-body :deep(h3) {
-  font-family: var(--font-display);
-  font-weight: var(--weight-bold);
-  line-height: var(--leading-tight);
-  margin-top: var(--space-6);
-  margin-bottom: var(--space-3);
-}
-
-.markdown-body :deep(h1:first-child),
-.markdown-body :deep(h2:first-child),
-.markdown-body :deep(h3:first-child) {
-  margin-top: 0;
-}
-
-.markdown-body :deep(h1) {
-  font-size: var(--text-xl);
-}
-.markdown-body :deep(h2) {
-  font-size: var(--text-lg);
-}
-.markdown-body :deep(h3) {
-  font-size: var(--text-md);
-}
-
-.markdown-body :deep(p) {
-  margin-bottom: var(--space-4);
-}
-
-.markdown-body :deep(ul),
-.markdown-body :deep(ol) {
-  margin-bottom: var(--space-4);
-  padding-left: var(--space-6);
-}
-
-.markdown-body :deep(li) {
-  margin-bottom: var(--space-1);
-}
-
-.markdown-body :deep(a) {
-  color: var(--color-fg-accent);
-}
-
-.markdown-body :deep(strong) {
-  font-weight: var(--weight-semibold);
-}
-
-.markdown-body :deep(code) {
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  background: var(--color-surface-2);
-  padding: 0.15em 0.4em;
-  border-radius: var(--radius-sm);
-}
-
-.markdown-body :deep(pre) {
-  background: var(--color-surface-2);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  overflow-x: auto;
-  margin-bottom: var(--space-4);
-}
-
-.markdown-body :deep(pre code) {
-  background: none;
-  padding: 0;
-}
-
-.markdown-body :deep(blockquote) {
-  border-left: 2px solid var(--color-border-default);
-  padding-left: var(--space-4);
-  color: var(--color-fg-secondary);
-  margin-bottom: var(--space-4);
-}
-
-.markdown-body :deep(hr) {
-  border: none;
-  border-top: 1px solid var(--color-border-subtle);
-  margin: var(--space-6) 0;
 }
 </style>

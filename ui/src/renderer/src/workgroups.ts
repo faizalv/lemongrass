@@ -1,9 +1,10 @@
 import { reactive } from 'vue'
-import type { WorkgroupInfo } from '../../preload/types'
+import type { WorkgroupInfo, WorkgroupPending } from '../../preload/types'
 import type { ProjectRef } from './workspace'
 
 export interface WorkgroupState {
   groups: WorkgroupInfo[]
+  names: Record<number, string>
   folded: boolean
   confirming: number | null
   busy: boolean
@@ -15,7 +16,14 @@ const refreshing = new Set<string>()
 
 export function workgroupStateOf(projectId: string): WorkgroupState {
   if (!states[projectId]) {
-    states[projectId] = { groups: [], folded: true, confirming: null, busy: false, error: null }
+    states[projectId] = {
+      groups: [],
+      names: {},
+      folded: true,
+      confirming: null,
+      busy: false,
+      error: null
+    }
   }
   return states[projectId]
 }
@@ -27,6 +35,7 @@ export async function refreshWorkgroups(project: ProjectRef): Promise<void> {
     const next = await window.api.workgroup.list(project.path)
     const state = workgroupStateOf(project.id)
     if (JSON.stringify(state.groups) !== JSON.stringify(next)) state.groups = next
+    for (const group of next) state.names[group.id] = group.name
     if (state.confirming !== null && !next.some((group) => group.id === state.confirming)) {
       state.confirming = null
     }
@@ -48,3 +57,62 @@ export async function disbandWorkgroup(project: ProjectRef, groupId: number): Pr
     state.busy = false
   }
 }
+
+export const approvals = reactive<{
+  pending: WorkgroupPending[]
+  open: boolean
+  selectedId: string | null
+  busy: boolean
+  reasons: Record<string, string>
+  declining: Record<string, boolean>
+}>({ pending: [], open: false, selectedId: null, busy: false, reasons: {}, declining: {} })
+
+export function isWorkgroupMember(projectId: string, tabId: string): boolean {
+  return (states[projectId]?.groups ?? []).some((group) =>
+    group.members.some((member) => member.tabId === tabId)
+  )
+}
+
+export function pendingFor(projectPath: string): WorkgroupPending[] {
+  return approvals.pending.filter((request) => request.projectPath === projectPath)
+}
+
+function setPending(next: WorkgroupPending[]): void {
+  approvals.pending = next
+  for (const requestId of Object.keys(approvals.reasons)) {
+    if (!next.some((request) => request.requestId === requestId))
+      delete approvals.reasons[requestId]
+  }
+  for (const requestId of Object.keys(approvals.declining)) {
+    if (!next.some((request) => request.requestId === requestId))
+      delete approvals.declining[requestId]
+  }
+  if (next.length === 0) approvals.open = false
+  if (!next.some((request) => request.requestId === approvals.selectedId)) {
+    approvals.selectedId = next[0]?.requestId ?? null
+  }
+}
+
+export function openApprovals(requestId?: string): void {
+  if (approvals.pending.length === 0) return
+  if (requestId) approvals.selectedId = requestId
+  approvals.open = true
+}
+
+export function closeApprovals(): void {
+  approvals.open = false
+}
+
+export async function decideApproval(requestId: string, approved: boolean): Promise<void> {
+  approvals.busy = true
+  try {
+    const reason = approved ? undefined : approvals.reasons[requestId]
+    await window.api.workgroup.decide(requestId, approved, reason)
+  } finally {
+    approvals.busy = false
+  }
+}
+
+window.api.workgroup.onPendingChange(setPending)
+window.api.workgroup.onOpenApprovals(() => openApprovals())
+void window.api.workgroup.pending().then(setPending)
