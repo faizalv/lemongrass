@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import { existsSync, copyFileSync, chmodSync, renameSync, unlinkSync } from 'fs'
+import { existsSync, copyFileSync, chmodSync, mkdirSync, renameSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
 import { spawn } from 'child_process'
@@ -32,7 +32,9 @@ function resourceDir(): string | null {
   return `${osName}-${arch}`
 }
 
-function resolveBundledBin(name: 'lgrass' | 'lgrassconf'): string | null {
+type BinName = 'lgrass' | 'lgrassd' | 'lgrassconf'
+
+function resolveBundledBin(name: BinName): string | null {
   const dir = resourceDir()
   if (!dir) return null
   return join(process.resourcesPath, 'bin', dir, name)
@@ -43,14 +45,19 @@ function resolveInstallDir(): string {
   return existsSync(localBin) ? localBin : '/usr/local/bin'
 }
 
-function copyBundled(name: 'lgrass' | 'lgrassconf'): string | null {
+// lgrassd lives under ~/.lemongrass/bin, off PATH, so a model cannot call it by name.
+function lgrassdInstallDir(): string {
+  return join(homedir(), '.lemongrass', 'bin')
+}
+
+function copyBundled(name: BinName, installDir: string = resolveInstallDir()): string | null {
   try {
     const bundled = resolveBundledBin(name)
     if (!bundled || !existsSync(bundled)) {
       console.error(`${name}: no bundled binary for this platform/arch, skipping self-install`)
       return null
     }
-    const installDir = resolveInstallDir()
+    mkdirSync(installDir, { recursive: true })
     const dest = join(installDir, name)
     // dest may be the running lgrassconf service binary, which cannot be overwritten in place while open.
     const tmp = `${dest}.tmp-${process.pid}`
@@ -93,6 +100,24 @@ export function installLgrass(): string | null {
     return dest
   }
   return copyBundled('lgrass')
+}
+
+// Same pattern for lgrassd, installed into ~/.lemongrass/bin. Unpackaged,
+// `make dev` builds it there instead.
+export function installLgrassd(): string | null {
+  if (!app.isPackaged) {
+    const dest = join(lgrassdInstallDir(), 'lgrassd')
+    if (!existsSync(dest)) {
+      console.error(
+        'lgrassd: not found at',
+        dest,
+        '. Run `make dev` from the repo root instead of `npm run dev` directly.'
+      )
+      return null
+    }
+    return dest
+  }
+  return copyBundled('lgrassd', lgrassdInstallDir())
 }
 
 // Same pattern for lgrassconf. On packaged launches, also runs

@@ -221,7 +221,7 @@ func cmdRester(args []string) {
 		os.Exit(1)
 	}
 
-	result, err := execRester(&agent.Client{SocketPath: agentSocketPath()}, cmd)
+	result, err := execRester(&agent.Client{SocketPath: agent.SocketPath()}, cmd)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

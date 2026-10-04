@@ -65,20 +65,5 @@ func cmdListen(args []string) {
 // One pass of the listener loop: writes the heartbeat, then consumes the tab's pending notifications.
 func listenOnce(store *session.Store, tab string) (string, bool) {
 	store.Heartbeat(tab)
-	return consumePending(store, tab)
-}
-
-// The tab's pending nudge text with its rows marked sent; false when nothing is pending.
-func consumePending(store *session.Store, tab string) (string, bool) {
-	pending, err := store.PendingForTab(tab)
-	if err != nil || len(pending) == 0 {
-		return "", false
-	}
-	var rowIDs []int64
-	for _, p := range pending {
-		rowIDs = append(rowIDs, p.RowIDs...)
-	}
-	store.MarkNotificationsSent(rowIDs)
-	store.MarkOtherSent(tab)
-	return store.NotificationText(pending), true
+	return store.ConsumePending(tab)
 }

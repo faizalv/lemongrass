@@ -276,7 +276,7 @@ async function respond(
     if (request.op === 'propose') return await handlePropose(request, getWindow, signal)
     if (request.op === 'spawn') return await handleSpawn(String(request.token ?? ''), getWindow)
     if (request.op === 'nudge')
-      return await handleNudge(nudgeLgrassPath, String(request.tab_id ?? ''))
+      return await handleNudge(nudgeLgrassdPath, String(request.tab_id ?? ''))
     return { ok: false, error: `unknown op ${String(request.op)}` }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -284,13 +284,13 @@ async function respond(
 }
 
 let server: net.Server | undefined
-let nudgeLgrassPath: string | null = null
+let nudgeLgrassdPath: string | null = null
 
 export function startWorkgroupBridge(
   getWindow: () => BrowserWindow | undefined,
-  lgrassPath: string | null
+  lgrassdPath: string | null
 ): void {
-  nudgeLgrassPath = lgrassPath
+  nudgeLgrassdPath = lgrassdPath
   registerApprovalHandlers(getWindow)
   ipcMain.on(
     'workgroup:spawn-result',

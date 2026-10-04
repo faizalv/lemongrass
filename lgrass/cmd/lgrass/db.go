@@ -79,7 +79,7 @@ func cmdDb(args []string) {
 		os.Exit(1)
 	}
 
-	client := &agent.Client{SocketPath: agentSocketPath()}
+	client := &agent.Client{SocketPath: agent.SocketPath()}
 
 	var out []byte
 	var err error

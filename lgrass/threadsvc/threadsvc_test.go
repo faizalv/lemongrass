@@ -33,7 +33,7 @@ func openStore(t *testing.T) *session.Store {
 	return store
 }
 
-// Stands in for the app: types the tab's pending nudge, marking the rows sent the way `lgrass session nudge` does.
+// Stands in for the app: types the tab's pending nudge, marking the rows sent the way `lgrassd nudge` does.
 type recorder struct {
 	mu    sync.Mutex
 	store *session.Store

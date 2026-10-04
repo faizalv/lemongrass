@@ -14,7 +14,7 @@ const idleThresholdForList = 5 * time.Minute
 
 func cmdSession(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass session <list|tabs|nudge> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass session <list|tabs> ...")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -22,8 +22,6 @@ func cmdSession(args []string) {
 		cmdSessionList(args[1:])
 	case "tabs":
 		cmdSessionTabs(args[1:])
-	case "nudge":
-		cmdSessionNudge(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown session command: %s\n", args[0])
 		os.Exit(1)
@@ -69,18 +67,5 @@ func cmdSessionList(args []string) {
 			}
 		}
 		fmt.Println(line)
-	}
-}
-
-// Prints the tab's pending nudge and marks its rows sent, or prints nothing when none is pending. The app runs it to get the line it types into the tab.
-func cmdSessionNudge(args []string) {
-	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass session nudge <tab-id>")
-		os.Exit(1)
-	}
-	store := openStore()
-	defer store.Close()
-	if text, ok := consumePending(store, args[0]); ok {
-		fmt.Println(text)
 	}
 }

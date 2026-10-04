@@ -281,3 +281,18 @@ func (s *Store) VendorForTab(tabID string) (string, error) {
 	}
 	return vendor, err
 }
+
+// The tab's pending nudge text with its rows marked sent; false when nothing is pending.
+func (s *Store) ConsumePending(tab string) (string, bool) {
+	pending, err := s.PendingForTab(tab)
+	if err != nil || len(pending) == 0 {
+		return "", false
+	}
+	var rowIDs []int64
+	for _, p := range pending {
+		rowIDs = append(rowIDs, p.RowIDs...)
+	}
+	s.MarkNotificationsSent(rowIDs)
+	s.MarkOtherSent(tab)
+	return s.NotificationText(pending), true
+}

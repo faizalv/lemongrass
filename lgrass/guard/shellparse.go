@@ -12,6 +12,7 @@ const maxShellDepth = 6
 
 type shellCall struct {
 	Name    string
+	Path    string
 	Dynamic bool
 	Args    []string
 }
@@ -110,7 +111,7 @@ func (s *shellScript) addCallExpr(call *syntax.CallExpr, depth int) error {
 
 func (s *shellScript) addCall(name string, dynamic bool, args []string, depth int) error {
 	base := filepath.Base(name)
-	s.Calls = append(s.Calls, shellCall{Name: base, Dynamic: dynamic, Args: args})
+	s.Calls = append(s.Calls, shellCall{Name: base, Path: name, Dynamic: dynamic, Args: args})
 	if dynamic {
 		return nil
 	}

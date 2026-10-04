@@ -16,7 +16,7 @@ import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers 
 import { registerGitHandlers } from './git'
 import { registerVaultHandlers } from './vault'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
-import { installLgrass, installLgrassconf } from './lgrassInstall'
+import { installLgrass, installLgrassd, installLgrassconf } from './lgrassInstall'
 import { ensureVaultAndAgentRunning, killDaemons } from './daemons'
 import { startWorkgroupBridge, stopWorkgroupBridge } from './workgroupBridge'
 import { registerWorkgroupHandlers } from './workgroups'
@@ -83,20 +83,21 @@ app.whenReady().then(() => {
   })
 
   const lgrassPath = installLgrass()
+  const lgrassdPath = installLgrassd()
   installLgrassconf()
-  if (lgrassPath) {
-    void ensureVaultAndAgentRunning(lgrassPath)
+  if (lgrassdPath) {
+    void ensureVaultAndAgentRunning(lgrassdPath)
   }
 
   registerPtyHandlers(() => mainWindow?.webContents)
   registerProjectHandlers(() => mainWindow)
   registerWorkspaceLayoutHandlers()
-  registerTabSessionHandlers(lgrassPath)
+  registerTabSessionHandlers(lgrassdPath)
   registerBiblioHandlers(() => mainWindow?.webContents)
   registerGitHandlers()
   registerVaultHandlers()
   registerWindowControlHandlers(() => mainWindow)
-  startWorkgroupBridge(() => mainWindow, lgrassPath)
+  startWorkgroupBridge(() => mainWindow, lgrassdPath)
   registerWorkgroupHandlers(lgrassPath)
 
   createWindow()

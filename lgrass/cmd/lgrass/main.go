@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/faizalv/lemongrass/cmd/lgrass/version"
-	"github.com/faizalv/lemongrass/project"
 )
 
 func main() {
@@ -21,8 +20,6 @@ func main() {
 		fmt.Println(version.Version)
 	case "--help", "-h", "help":
 		usage()
-	case "init":
-		cmdInit()
 	case "hook":
 		cmdHook(os.Args[2:])
 	case "thread":
@@ -33,10 +30,6 @@ func main() {
 		cmdListen(os.Args[2:])
 	case "session":
 		cmdSession(os.Args[2:])
-	case "vault":
-		cmdVault(os.Args[2:])
-	case "agent":
-		cmdAgent(os.Args[2:])
 	case "db":
 		cmdDb(os.Args[2:])
 	case "rester":
@@ -45,8 +38,6 @@ func main() {
 		cmdTips(os.Args[2:])
 	case "sign":
 		cmdSign(os.Args[2:])
-	case "rules":
-		notBuiltYet(os.Args[1])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
@@ -54,32 +45,10 @@ func main() {
 	}
 }
 
-// Identical to the Electron UI's own "add project" flow, so a bare terminal session can register without it.
-func cmdInit() {
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-	p, err := project.Register(cwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("lgrass: %s registered as project %q (%s)\n", p.Path, p.Name, p.ID)
-}
-
-func notBuiltYet(cmd string) {
-	fmt.Fprintf(os.Stderr, "lgrass %s: not built yet\n", cmd)
-	os.Exit(1)
-}
-
 func usage() {
 	fmt.Print(`lgrass -- lemongrass's agent-invoked CLI
 
 COMMANDS
-  init                               Register the current directory as a lemongrass project
-
   hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
 
   thread create "<title>" "<content>"
@@ -99,7 +68,6 @@ COMMANDS
   workgroup disband <id>            Ends a workgroup; only its leader may. Tabs stay open and the thread stays readable
   workgroup thread [--all] [--before <message-id>] [--limit N]
                                      Reads this tab's workgroup thread, post to it with thread post
-  session nudge <tab-id>            Prints the tab's pending thread nudge and marks it sent; the app types that line into the tab
   workgroup list [--json]           Live workgroups in this project with their members and tab ids; needs no tab
 
   listen [--timeout 10m] [--block] Blocks until a thread notification for this tab is pending, then prints it and
@@ -115,21 +83,8 @@ COMMANDS
                                      Satisfies a .lgrass/checklists.json prerequisite gate for the
                                      current session, until that checklist's TTL expires
 
-  rules list
-  rules add ...                     Human/UI-driven, not a model-facing write path
-
   session list                      Other live sessions in this project, with active/idling state, tab id and vendor
   session tabs list                 Tab id to session id map for this project, as JSON
-  session tabs register <tab-id> <vendor>
-                                     Electron-driven, records the agent vendor a tab runs
-  session tabs forget <tab-id>      Electron-driven, drops a closed tab's records
-
-  vault run                         Starts the credential-vault daemon, listening on a unix socket
-                                     under ~/.lemongrass; not model-facing, has no admin CLI yet
-
-  agent run                         Starts the gatekeeper agent daemon, listening on a unix socket
-                                     under ~/.lemongrass; maps short channel ids to real vault
-                                     channels and forwards queries to a running vault daemon
 
   db <short-id> --sql "<statement>" [--dry-run|--commit]
                                      Model-facing: runs a statement against the database a channel
@@ -146,7 +101,5 @@ COMMANDS
                                      domain as user, through the running agent and vault daemons
 
   version                           Print version
-
-rules is not built yet.
 `)
 }

@@ -31,25 +31,25 @@ function probe(sockPath: string): Promise<boolean> {
 
 const spawned: ChildProcess[] = []
 
-function spawnDaemon(lgrassPath: string, subcommand: 'vault' | 'agent'): void {
+function spawnDaemon(lgrassdPath: string, subcommand: 'vault' | 'agent'): void {
   const logDir = join(homedir(), '.lemongrass', 'logs')
   mkdirSync(logDir, { recursive: true })
   const logFd = openSync(join(logDir, `${subcommand}.log`), 'a')
-  const proc = spawn(lgrassPath, [subcommand, 'run'], { stdio: ['ignore', logFd, logFd] })
+  const proc = spawn(lgrassdPath, [subcommand, 'run'], { stdio: ['ignore', logFd, logFd] })
   proc.on('error', (err) => {
-    console.error(`lgrass ${subcommand}: failed to start:`, err)
+    console.error(`lgrassd ${subcommand}: failed to start:`, err)
   })
   spawned.push(proc)
 }
 
 // Starts the vault and agent daemons if nothing is listening on their
 // sockets yet. Never throws -- a launch never fails over this, matching
-// installLgrass's own "never fails a launch" stance; a failure to start
+// installLgrassd's own "never fails a launch" stance; a failure to start
 // just leaves the sockets missing, which the vault IPC calls already
 // surface as their own error.
-export async function ensureVaultAndAgentRunning(lgrassPath: string): Promise<void> {
-  if (!(await probe(vaultSocketPath()))) spawnDaemon(lgrassPath, 'vault')
-  if (!(await probe(agentSocketPath()))) spawnDaemon(lgrassPath, 'agent')
+export async function ensureVaultAndAgentRunning(lgrassdPath: string): Promise<void> {
+  if (!(await probe(vaultSocketPath()))) spawnDaemon(lgrassdPath, 'vault')
+  if (!(await probe(agentSocketPath()))) spawnDaemon(lgrassdPath, 'agent')
 }
 
 // Kills only the daemons this session itself spawned -- one that was

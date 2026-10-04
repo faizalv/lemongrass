@@ -3,42 +3,42 @@ import { execFile } from 'child_process'
 
 const LGRASS_TIMEOUT_MS = 5_000
 
-function runLgrass(lgrassPath: string, projectPath: string, args: string[]): Promise<string> {
+function runLgrassd(lgrassdPath: string, projectPath: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
-      lgrassPath,
-      ['session', 'tabs', ...args],
+      lgrassdPath,
+      ['tabs', ...args],
       { cwd: projectPath, encoding: 'utf8', timeout: LGRASS_TIMEOUT_MS },
       (failure, stdout) => (failure ? reject(failure) : resolve(stdout))
     )
   })
 }
 
-let registeredLgrassPath: string | null = null
+let registeredLgrassdPath: string | null = null
 
 export async function registerTab(
   projectPath: string,
   tabId: string,
   vendor: string
 ): Promise<void> {
-  if (!registeredLgrassPath) return
+  if (!registeredLgrassdPath) return
   try {
-    await runLgrass(registeredLgrassPath, projectPath, ['register', tabId, vendor])
+    await runLgrassd(registeredLgrassdPath, projectPath, ['register', tabId, vendor])
   } catch (err) {
-    console.error('lgrass session tabs register failed:', err)
+    console.error('lgrassd tabs register failed:', err)
   }
 }
 
-export function registerTabSessionHandlers(lgrassPath: string | null): void {
-  registeredLgrassPath = lgrassPath
+export function registerTabSessionHandlers(lgrassdPath: string | null): void {
+  registeredLgrassdPath = lgrassdPath
   ipcMain.handle(
     'tabSessions:list',
     async (_event, projectPath: string): Promise<Record<string, string>> => {
-      if (!lgrassPath) return {}
+      if (!lgrassdPath) return {}
       try {
-        return JSON.parse(await runLgrass(lgrassPath, projectPath, ['list']))
+        return JSON.parse(await runLgrassd(lgrassdPath, projectPath, ['list']))
       } catch (err) {
-        console.error('lgrass session tabs list failed:', err)
+        console.error('lgrassd tabs list failed:', err)
         return {}
       }
     }
@@ -47,11 +47,11 @@ export function registerTabSessionHandlers(lgrassPath: string | null): void {
   ipcMain.handle(
     'tabSessions:forget',
     async (_event, { projectPath, tabId }: { projectPath: string; tabId: string }) => {
-      if (!lgrassPath) return
+      if (!lgrassdPath) return
       try {
-        await runLgrass(lgrassPath, projectPath, ['forget', tabId])
+        await runLgrassd(lgrassdPath, projectPath, ['forget', tabId])
       } catch (err) {
-        console.error('lgrass session tabs forget failed:', err)
+        console.error('lgrassd tabs forget failed:', err)
       }
     }
   )

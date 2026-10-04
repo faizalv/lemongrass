@@ -86,6 +86,7 @@ func (c checker) bash() *Verdict {
 		if c.policy.blocksBinary(call.Name) {
 			found = append(found, Verdict{RuleID: "custom-binary", Description: "a binary the user blocked", Mode: ModeDeny})
 		}
+		found = append(found, c.pathChecks(call.Path, false)...)
 		found = append(found, c.callPathVerdicts(call)...)
 	}
 	found = append(found, c.redirectVerdicts(script)...)

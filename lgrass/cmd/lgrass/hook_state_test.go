@@ -68,11 +68,11 @@ func TestTabStateIgnoresSessionsWithoutATab(t *testing.T) {
 
 func TestConsumePendingReturnsTheNudgeOnceAndMarksItSent(t *testing.T) {
 	store := storeWithPendingMention(t)
-	text, ok := consumePending(store, notifyTabTarget)
+	text, ok := store.ConsumePending(notifyTabTarget)
 	if !ok || !strings.HasPrefix(text, "[lg] thread ") || !strings.Contains(text, ": 1 for you from aaaaaaaa") || strings.Contains(text, "Review") {
-		t.Fatalf("consumePending = %q, %v, want a title-free nudge", text, ok)
+		t.Fatalf("ConsumePending = %q, %v, want a title-free nudge", text, ok)
 	}
-	if again, ok := consumePending(store, notifyTabTarget); ok {
+	if again, ok := store.ConsumePending(notifyTabTarget); ok {
 		t.Errorf("a second call returned %q, want nothing pending", again)
 	}
 }
