@@ -5,7 +5,7 @@ description: How to close a finished task under the bibliothek convention. Use w
 
 Invoking this skill is the go-ahead for every step below except the ones marked ask. Run them in order. Git is read-only here: `status`, `diff`, `log` and `show` only, never `add`, `commit` or anything that changes the index or history.
 
-Closing means every in-scope objective is finished with full confidence, and the closing then carries no hedges: no "not verified", "should work" or caveat section. Anything outside the PRD's Objective is out of scope and is not mentioned, except as step 4 directs.
+Closing means every in-scope objective is finished with full confidence, and the closing then carries no hedges: no "not verified", "should work" or caveat section. Only what the PRD's Objective excludes, or what was clearly decided to leave for later, is out of scope and is not mentioned, except as step 4 directs. A passing idea or a drift is not out of scope: it is ignored, never raised.
 
 If at any step the task is not closable, stop and say so plainly: "I can't close this because <the objective and the concrete evidence>". Refusing is always better than closing with doubt. After refusing, archive nothing and change no whiteboard row or memory pointer.
 
@@ -26,9 +26,9 @@ List the task and every sub-task: split PRDs, child scratchpad directories, and 
 
 ## 4. Problems outside the scope (ask)
 
-Collect what the work found that lies outside the Objective: problems met along the way, and anything already written down as deferred or undecided. A Plans item that needs its own task is split out: it moves into a child scratchpad task, and the parent PRD's Plans point at the child and no longer carry it. Never invent concerns.
+Collect only what is clearly decided as out of scope: what the PRD's Objective excludes, and anything already written down as deferred or undecided. A passing idea or a drift is not collected. A Plans item that needs its own task is split out: it moves into a child scratchpad task, and the parent PRD's Plans point at the child and no longer carry it. Never invent concerns.
 
-For each one, ask the user whether to create a scratchpad task for it (`notes.md` if undecided, `prd.md` if decided), and if so whether to start it now. Create nothing until the user answers. If there is nothing, skip this step and say nothing about it.
+For each one, ask the user a clarifying question first: whether it should be tracked at all. Never offer a PRD or a task before that is answered. Create nothing until the user answers. If there is nothing, skip this step and say nothing about it.
 
 ## 5. Books
 
