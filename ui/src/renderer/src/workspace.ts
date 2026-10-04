@@ -532,7 +532,11 @@ export function focusPane(project: ProjectRef, paneId: string): void {
 
 export function activateTab(project: ProjectRef, paneId: string, tabId: string): void {
   const root = workspaces[project.id].layout.root
-  if (root) commit(project, tree.setActiveTab(root, paneId, tabId), paneId)
+  if (!root) return
+  commit(project, tree.setActiveTab(root, paneId, tabId), paneId)
+  if (tabsOf(project.id).some((tab) => tab.id === tabId && tab.kind === 'shell')) {
+    focusShellAfterMount(tabId)
+  }
 }
 
 // A workgroup member keeps its saved session so its tab can be reopened with the same identity.
