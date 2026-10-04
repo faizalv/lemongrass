@@ -82,7 +82,8 @@ The three are siblings, not nested. Neither toolchain's file tree (`node_modules
 | `lgrass-howtobe-leader` | Lead a workgroup: declare it, brief each thinker, ask each for a plan, and stay responsible for the result. |
 | `lgrass-howtobe-thinker` | Work inside a workgroup: post a plan, wait for the leader's go, and talk with the leader and the other members. |
 | `lgrass-howtobe-keeper` | Keep `biblio/` and the code in agreement: clean the whiteboard, dangling handovers and tasks, correct books against the code, and tidy `toc.md`. |
-| `lgrass-closing` | Close a finished task: write the book chapter and its `toc.md` line, promote standing rules to laws, archive the handover, and sweep stale references. |
+| `lgrass-howtodo-work` | Work a task end to end: read the related books, plan first, keep the PRD marked as work happens, wait for the user only before code, then close. |
+| `lgrass-howtodo-taskclosing` | Close a finished task: verify it is done and the checks pass, compare git with the stated facts, update the books and `toc.md`, archive, and sweep stale references. |
 
 ## Build
 
