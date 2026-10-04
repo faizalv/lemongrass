@@ -1,8 +1,14 @@
-import { reactive, watch } from 'vue'
+import { nextTick, reactive, watch } from 'vue'
 import { marked } from 'marked'
 import * as tree from './layoutTree'
 import type { DropZone, EdgeZone } from './layoutTree'
-import { disposeShell, onShellExit, setShellArgs, setShellResume } from './shellRegistry'
+import {
+  disposeShell,
+  focusShell,
+  onShellExit,
+  setShellArgs,
+  setShellResume
+} from './shellRegistry'
 import { isWorkgroupMember } from './workgroups'
 import {
   preferredShellAgentId,
@@ -113,6 +119,10 @@ function newShellTab(project: ProjectRef, agent: ShellAgent): ShellTab {
     command: agent.command,
     cwd: project.path
   }
+}
+
+function focusShellAfterMount(tabId: string): void {
+  void nextTick(() => focusShell(tabId))
 }
 
 export function openShellPicker(placement: ShellPlacement): void {
@@ -460,6 +470,7 @@ function addShellWithAgent(project: ProjectRef, agent: ShellAgent, paneId?: stri
   if (!root) {
     const leaf = tree.createLeaf<WorkspaceTab>([tab])
     commit(project, leaf, leaf.id)
+    focusShellAfterMount(tab.id)
     return
   }
   const leaves = tree.allLeaves(root)
@@ -468,6 +479,7 @@ function addShellWithAgent(project: ProjectRef, agent: ShellAgent, paneId?: stri
     leaves.find((leaf) => leaf.id === layout.focusedPaneId) ??
     leaves[0]
   commit(project, tree.addTab(root, target.id, tab), target.id)
+  focusShellAfterMount(tab.id)
 }
 
 export function addShellInNewPane(project: ProjectRef, paneId: string, zone: EdgeZone): void {
@@ -485,6 +497,7 @@ function addShellInNewPaneWithAgent(
   const tab = newShellTab(project, agent)
   const next = tree.splitWithTab(root, paneId, zone, tab)
   commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
+  focusShellAfterMount(tab.id)
 }
 
 export function openInNewShell(project: ProjectRef, paneId: string, tabId: string): void {
@@ -509,6 +522,7 @@ function openInNewShellWithAgent(
   }
   const next = tree.splitWithTab(root, paneId, 'right', tab)
   commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
+  focusShellAfterMount(tab.id)
 }
 
 export function focusPane(project: ProjectRef, paneId: string): void {

@@ -200,6 +200,10 @@ export function fitShell(tabId: string): void {
   if (session.shellId) window.api.pty.resize(session.shellId, session.term.cols, session.term.rows)
 }
 
+export function focusShell(tabId: string): void {
+  sessions.get(tabId)?.term.focus()
+}
+
 export function attachShell(spec: ShellSpec, container: HTMLElement): void {
   listen()
   let session = sessions.get(spec.id)
