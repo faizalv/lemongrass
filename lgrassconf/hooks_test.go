@@ -79,6 +79,42 @@ func TestReconcileCodexHooksRegistersAllEvents(t *testing.T) {
 	}
 }
 
+func TestReconcileCodexLifecycleHooksPreservesForeignHandlers(t *testing.T) {
+	in := []byte(`{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"other-tool stop"}]}],"PermissionRequest":[{"matcher":"Bash","hooks":[{"type":"command","command":"other-tool approval"}]}]}}`)
+	out, changed, err := reconcileCodexHooks(in, testLgrass)
+	if err != nil || !changed {
+		t.Fatalf("changed=%v err=%v", changed, err)
+	}
+	for _, event := range []string{"UserPromptSubmit", "Stop", "PermissionRequest", "Interrupt"} {
+		groups := groupsFor(t, out, event)
+		owned := 0
+		for _, group := range groups {
+			handlers, _ := group["hooks"].([]any)
+			for _, raw := range handlers {
+				handler, _ := raw.(map[string]any)
+				if handler["command"] != "LGRASS_HOOK_VENDOR=codex "+testLgrass+" hook "+event {
+					continue
+				}
+				owned++
+				if _, matched := group["matcher"]; matched {
+					t.Errorf("%s owned group is narrowed by a matcher", event)
+				}
+				if event == "Interrupt" && handler["timeout"] != float64(3) {
+					t.Errorf("Interrupt timeout = %v, want 3", handler["timeout"])
+				}
+			}
+		}
+		if owned != 1 {
+			t.Errorf("%s has %d owned handlers, want one", event, owned)
+		}
+	}
+	for _, command := range []string{"other-tool stop", "other-tool approval"} {
+		if !strings.Contains(string(out), command) {
+			t.Errorf("foreign handler %q was lost", command)
+		}
+	}
+}
+
 func TestReconcileIsIdempotent(t *testing.T) {
 	first, _, err := reconcileClaudeSettings(nil, testLgrass)
 	if err != nil {

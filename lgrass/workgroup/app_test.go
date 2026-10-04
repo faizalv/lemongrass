@@ -101,16 +101,13 @@ func TestNewTabIDIsAVersion4UUID(t *testing.T) {
 }
 
 func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
-	claude := ComposePrompt("claude", "reviewer", "schema-review", "lead", []string{"lgrass-howtobe-thinker", "lgrass-connector"}, "Review the diff.")
+	prompt := ComposePrompt("reviewer", "schema-review", "lead", []string{"lgrass-howtobe-thinker", "lgrass-connector"}, "Review the diff.")
 	for _, want := range []string{`thinker "reviewer"`, `workgroup "schema-review"`, `leader "lead"`, "lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the leader's go", "Review the diff."} {
-		if !strings.Contains(claude, want) {
-			t.Errorf("claude prompt missing %q", want)
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt missing %q", want)
 		}
 	}
-	if strings.Contains(claude, "lgrass listen") {
-		t.Error("a claude prompt asks for a listener")
-	}
-	if !strings.Contains(ComposePrompt("codex", "t", "g", "p", []string{"lgrass-howtobe-thinker"}, "x"), "lgrass listen") {
-		t.Error("a codex prompt does not ask for a listener")
+	if strings.Contains(prompt, "lgrass listen") {
+		t.Error("the thinker prompt asks for a listener")
 	}
 }

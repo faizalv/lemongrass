@@ -188,6 +188,10 @@ async function handlePropose(
 ): Promise<Reply> {
   const problem = validate(p)
   if (problem) return { ok: false, error: problem }
+  console.info(
+    'workgroup: diagnostic proposal',
+    JSON.stringify({ projectPath: p.project_path, leaderTabId: p.leader_tab_id })
+  )
   const answer = await askHuman(p, getWindow, signal)
   if (!answer.approved) {
     return { ok: true, approved: false, reason: answer.reason, withdrawn: answer.withdrawn }
@@ -222,9 +226,18 @@ async function handleSpawn(
     return { ok: false, error: 'the lemongrass window is not open' }
 
   const requestId = randomUUID()
+  console.info(
+    'workgroup: diagnostic spawn request',
+    JSON.stringify({
+      requestId,
+      projectPath: approved.projectPath,
+      leaderTabId: approved.leaderTabId
+    })
+  )
   const result = await new Promise<WorkgroupSpawnResult>((resolve) => {
     const timer = setTimeout(() => {
       spawnWaiters.delete(requestId)
+      console.info('workgroup: diagnostic spawn timeout', JSON.stringify({ requestId }))
       resolve({ ok: false, error: 'the window did not answer in time' })
     }, SPAWN_ACK_TIMEOUT_MS)
     spawnWaiters.set(requestId, (r) => {
@@ -296,6 +309,10 @@ export function startWorkgroupBridge(
     'workgroup:spawn-result',
     (_event, payload: WorkgroupSpawnResult & { requestId: string }) => {
       const waiter = spawnWaiters.get(payload.requestId)
+      console.info(
+        'workgroup: diagnostic spawn acknowledgement',
+        JSON.stringify({ requestId: payload.requestId, waiting: !!waiter, ok: payload.ok })
+      )
       if (!waiter) return
       spawnWaiters.delete(payload.requestId)
       waiter({ ok: payload.ok, error: payload.error })

@@ -152,18 +152,11 @@ func FormatNothingNew(t Thread) string {
 func FormatThinkerStart(m Member, group Group) string {
 	text := fmt.Sprintf("%s you are thinker %q in workgroup %q. Load these skills first: %s. Then run lgrass workgroup thread.",
 		Prefix, m.Label, group.Name, strings.Join(m.RequiredSkills(), ", "))
-	if m.Vendor != "claude" {
-		text += " Keep lgrass listen [--timeout 10m] running in the background."
-	}
 	return text
 }
 
 func FormatThinkerSkillsDeny(missing []string) string {
 	return fmt.Sprintf("%s load these skills first: %s. Claude Code: the Skill tool. Others: read the skill's SKILL.md. Until then only lgrass commands and those loads are allowed.", Prefix, strings.Join(missing, ", "))
-}
-
-func FormatThinkerListenDeny() string {
-	return Prefix + " no listener is running. Start lgrass listen [--timeout 10m] in the background. Until then only lgrass commands are allowed."
 }
 
 // The one line that teaches what the prefix means, added to the start context of every lemongrass tab.

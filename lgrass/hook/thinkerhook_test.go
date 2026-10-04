@@ -89,22 +89,21 @@ func TestAThinkerWithARequiredSkillListMustLoadThemAll(t *testing.T) {
 	}
 }
 
-func TestCodexThinkerNeedsALiveListenerAfterItsSkills(t *testing.T) {
+func TestCodexThinkerNeedsSkillsButNoListener(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
 	dir := t.TempDir()
+	ls := map[string]any{"command": []string{"bash", "-lc", "ls"}}
+	result := hookPreToolUse(store, preTool(gateTabCodex, "shell", ls), dir)
+	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-howtobe-thinker") {
+		t.Fatalf("required skill did not hold the gate: %+v", result)
+	}
 	read := map[string]any{"command": []string{"bash", "-lc", "cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md"}}
 
 	if load := hookPreToolUse(store, preTool(gateTabCodex, "shell", read), dir); load.PermissionDecision == "deny" {
 		t.Fatalf("the skill read was denied: %s", load.PermissionDecisionReason)
 	}
-	ls := map[string]any{"command": []string{"bash", "-lc", "ls"}}
-	result := hookPreToolUse(store, preTool(gateTabCodex, "shell", ls), dir)
-	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "no listener") {
-		t.Fatalf("gate two did not hold: %+v", result)
-	}
-	store.Heartbeat(gateTabCodex)
 	if result := hookPreToolUse(store, preTool(gateTabCodex, "shell", ls), dir); result.PermissionDecision == "deny" {
-		t.Errorf("denied with a live listener: %s", result.PermissionDecisionReason)
+		t.Errorf("denied after the skill loaded without a listener: %s", result.PermissionDecisionReason)
 	}
 }
 
@@ -132,7 +131,6 @@ func TestBibliothekGateIsOptionalForAThinkerUnlessRequired(t *testing.T) {
 
 	// The tester requires no bibliothek, so the same call passes the bibliothek gate.
 	store.MarkReady(gateTabCodex, session.SkillMark("lgrass-howtobe-thinker"))
-	store.Heartbeat(gateTabCodex)
 	event := preTool(gateTabCodex, "Bash", map[string]string{"command": "ls"})
 	event.EnforceBibliothek = true
 	if result := hookPreToolUse(store, event, dir); result.PermissionDecision == "deny" {
@@ -176,8 +174,13 @@ func TestSessionStartSendsLawsAndTheStartLineAndResetsMarks(t *testing.T) {
 	}
 
 	codex := hookSessionStart(store, hookEvent{SessionID: "s2", TabID: gateTabCodex}, dir)
-	if !strings.Contains(codex.AdditionalContext, "lgrass listen") {
-		t.Error("a Codex thinker was not told to keep a listener running")
+	if strings.Contains(codex.AdditionalContext, "lgrass listen") {
+		t.Error("a Codex thinker was told to keep a listener running")
+	}
+	for _, want := range []string{`thinker "tester"`, "lgrass-howtobe-thinker", "lgrass workgroup thread"} {
+		if !strings.Contains(codex.AdditionalContext, want) {
+			t.Errorf("Codex start context missing %q", want)
+		}
 	}
 	leader := hookSessionStart(store, hookEvent{SessionID: "s3", TabID: gateTabLeader}, dir)
 	if strings.Contains(leader.AdditionalContext, "thinker") || !strings.Contains(leader.AdditionalContext, "a law") {

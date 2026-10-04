@@ -9,8 +9,6 @@ import (
 )
 
 const (
-	vendorClaude = "claude"
-
 	// Five attempts within roughly ten minutes with the backoff below, then the row stays pending for a hook or listener.
 	MaxAttempts = 5
 
@@ -40,10 +38,10 @@ func NewDeliverer(store *session.Store) *Deliverer {
 	}}
 }
 
-// Types one coalesced nudge into a Claude tab's terminal when the agent is between turns. Other vendors are left pending for their listener or a hook, and it reports whether a nudge was typed.
+// Types a coalesced nudge into a supported agent's terminal when it is between turns.
 func (d *Deliverer) DeliverTab(tabID string) (bool, error) {
 	vendor, err := d.Store.VendorForTab(tabID)
-	if err != nil || vendor != vendorClaude {
+	if err != nil || (vendor != "claude" && vendor != "codex") {
 		return false, err
 	}
 	pending, err := d.Store.PendingForTab(tabID)

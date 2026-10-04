@@ -20,13 +20,15 @@ func recordTabState(store *session.Store, event string, payload hookEvent) {
 		store.ClearTabState(tab)
 	case "PreToolUse", "PostToolUse", "UserPromptSubmit":
 		store.SetTabState(tab, session.StateWorking)
+	case "PermissionRequest":
+		store.SetTabState(tab, session.StatePrompting)
 	case "Notification":
 		if isPermissionPrompt(payload) {
 			store.SetTabState(tab, session.StatePrompting)
 		} else if payload.NotificationType == "idle_prompt" {
 			store.SetTabState(tab, session.StateIdle)
 		}
-	case "Stop":
+	case "Stop", "Interrupt":
 		store.SetTabState(tab, session.StateIdle)
 		if pending, err := store.PendingForTab(tab); err == nil && len(pending) > 0 {
 			threadsvc.Wake(threadsvc.SocketPath())

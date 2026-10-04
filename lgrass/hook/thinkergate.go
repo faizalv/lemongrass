@@ -20,10 +20,8 @@ var skillReaders = map[string]bool{"cat": true, "sed": true, "head": true, "tail
 type thinkerGateInput struct {
 	ToolName  string
 	ToolInput json.RawMessage
-	Vendor    string
 	Required  []string
 	Marks     map[string]bool
-	Listening bool
 }
 
 // Returns the deny message, "" to allow, and the required skill this call loads, "" if none. The caller records that skill's mark.
@@ -36,17 +34,13 @@ func thinkerGate(in thinkerGateInput) (deny, loaded string) {
 			missing = append(missing, name)
 		}
 	}
-	needListener := in.Vendor != "claude" && !in.Listening
-	if len(missing) == 0 && !needListener {
+	if len(missing) == 0 {
 		return "", loaded
 	}
 	if loaded != "" || isLgrassCommand(shellCommand(in.ToolName, in.ToolInput)) {
 		return "", loaded
 	}
-	if len(missing) > 0 {
-		return session.FormatThinkerSkillsDeny(missing), ""
-	}
-	return session.FormatThinkerListenDeny(), ""
+	return session.FormatThinkerSkillsDeny(missing), ""
 }
 
 // The command string of a shell tool call, "" for any other tool. Codex passes an argv array, whose last element is the script after a -c style flag.

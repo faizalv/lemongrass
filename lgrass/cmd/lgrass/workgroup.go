@@ -68,7 +68,7 @@ func cmdWorkgroupCreate(args []string) {
 			Label:  c.Label,
 			Vendor: c.Vendor,
 			Model:  c.Model,
-			Prompt: workgroup.ComposePrompt(c.Vendor, c.Label, cfg.Name, cfg.LeaderLabel, c.RequiredSkills(), c.Prompt),
+			Prompt: workgroup.ComposePrompt(c.Label, cfg.Name, cfg.LeaderLabel, c.RequiredSkills(), c.Prompt),
 			Skills: c.RequiredSkills(),
 		}
 	}

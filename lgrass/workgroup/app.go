@@ -128,14 +128,11 @@ func NewTabID() string {
 }
 
 // The text a thinker starts with: its role, the skills it must load, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
-func ComposePrompt(vendor, label, groupName, leaderLabel string, skills []string, assignment string) string {
+func ComposePrompt(label, groupName, leaderLabel string, skills []string, assignment string) string {
 	text := fmt.Sprintf("You are the thinker \"%s\" in the lemongrass workgroup \"%s\", led by the leader \"%s\". "+
 		"Before any other tool call, load these skills: %s. Until you have, every tool except `lgrass` commands is denied. "+
 		"Then run `lgrass workgroup thread` to see your group and the group thread. "+
 		"Before you change anything, post your plan to the group thread and wait for the leader's go.",
 		label, groupName, leaderLabel, strings.Join(skills, ", "))
-	if vendor != "claude" {
-		text += " Keep `lgrass listen` running in the background so you are woken when someone posts."
-	}
 	return text + "\n\nYour assignment:\n\n" + assignment
 }

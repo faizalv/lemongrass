@@ -3,6 +3,7 @@ import { findShellByTab } from './pty'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const LGRASS_TIMEOUT_MS = 5_000
+const CODEX_SUBMIT_DELAY_MS = 250
 
 export interface NudgeReply {
   ok: boolean
@@ -39,6 +40,12 @@ export async function handleNudge(lgrassdPath: string | null, tabId: string): Pr
 
   const text = printable(await composeNudge(lgrassdPath, shell.cwd, tabId))
   if (!text) return { ok: true, typed: false, reason: 'nothing pending' }
-  shell.type(text + '\r')
+  if (shell.command === 'codex') {
+    shell.type(text)
+    await new Promise((resolve) => setTimeout(resolve, CODEX_SUBMIT_DELAY_MS))
+    shell.type('\r')
+  } else {
+    shell.type(text + '\r')
+  }
   return { ok: true, typed: true }
 }

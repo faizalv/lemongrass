@@ -57,7 +57,7 @@ const bibliothekSignatureTTL = 7 * 24 * time.Hour
 // Every failure here fails soft so a hook-side problem never breaks the agent's own hook chain.
 func Run(args []string, tabID string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrassd hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop>")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop|PermissionRequest|Interrupt>")
 		os.Exit(1)
 	}
 	event := args[0]
@@ -240,14 +240,11 @@ func thinkerGateDecision(store *session.Store, payload hookEvent) (session.Membe
 	if err != nil {
 		return member, true, ""
 	}
-	listening, _ := store.ListenerLive(payload.TabID, time.Now())
 	deny, loaded := thinkerGate(thinkerGateInput{
 		ToolName:  payload.ToolName,
 		ToolInput: payload.ToolInput,
-		Vendor:    member.Vendor,
 		Required:  member.RequiredSkills(),
 		Marks:     marks,
-		Listening: listening,
 	})
 	if loaded != "" {
 		store.MarkReady(payload.TabID, session.SkillMark(loaded))

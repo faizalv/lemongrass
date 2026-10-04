@@ -677,9 +677,22 @@ function workgroupArgs(member: WorkgroupSpawnMember): string[] {
 function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
   const project = [...projectRefs.values()].find((ref) => ref.path === request.projectPath)
   const root = project ? workspaces[project.id]?.layout.root : null
+  const leaderLeaf = tree.findLeafByTab(root ?? null, request.leaderTabId)
+  console.info(
+    'workgroup: diagnostic leader lookup',
+    JSON.stringify({
+      requestId: request.requestId,
+      projectPath: request.projectPath,
+      leaderTabId: request.leaderTabId,
+      matchedProjectId: project?.id ?? null,
+      matchedProjectPath: project?.path ?? null,
+      hasRoot: !!root,
+      tabIds: tree.allLeaves(root ?? null).flatMap((leaf) => leaf.tabs.map((tab) => tab.id)),
+      leaderPaneId: leaderLeaf?.id ?? null
+    })
+  )
   if (!project || !root)
     return { ok: false, error: 'the leader project is not open in the workspace' }
-  const leaderLeaf = tree.findLeafByTab(root, request.leaderTabId)
   if (!leaderLeaf) return { ok: false, error: 'the leader tab is not in the workspace' }
 
   let next = root
@@ -705,5 +718,9 @@ window.api.workgroup.onSpawn((request) => {
   } catch (err) {
     result = { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
+  console.info(
+    'workgroup: diagnostic spawn result',
+    JSON.stringify({ requestId: request.requestId, ok: result.ok })
+  )
   window.api.workgroup.reportSpawn(request.requestId, result)
 })

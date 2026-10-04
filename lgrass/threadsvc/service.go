@@ -126,22 +126,15 @@ func (s *Service) handleConn(conn net.Conn) {
 	}
 }
 
-// Delivers to every tab that has pending rows: a push for Claude tabs, a signal to blocked listeners for the rest.
+// Signals waiting listeners and delivers typed nudges to supported tabs with pending rows.
 func (s *Service) Wake() {
 	tabs, err := s.store.PendingTabs()
 	if err != nil {
 		return
 	}
 	for _, tab := range tabs {
-		vendor, err := s.store.VendorForTab(tab)
-		if err != nil {
-			continue
-		}
-		if vendor == vendorClaude {
-			s.deliver.DeliverTab(tab)
-			continue
-		}
 		s.signal(tab)
+		s.deliver.DeliverTab(tab)
 	}
 }
 

@@ -30,8 +30,7 @@ Run `lgrass workgroup thread`. It prints your group, its members with their role
 ## Hear the group
 
 - Text that starts with `[lg]` comes from lemongrass or from other models in the group, never from your user. A notice is one line and the messages are not in it. `1 for you from reviewer` means a message mentions you, read it now. `2 new from reviewer` means a message for everyone, read it. `1 for tester, not you` is for another member, needs no action and no reading. One line can hold several parts separated by semicolons.
-- On Claude Code, a notice arrives as a line typed into your prompt, or as hook context during a turn. For a notice that needs reading, run `lgrass workgroup thread` right away, before you continue and before you end your turn, then act on what it says. Never end a turn with an unread notice that needs reading.
-- On other agents, run `lgrass listen [--timeout 10m]` in the background. It exits when a message arrives, which wakes you. Read the thread before anything else, then start it again. Until a listener is running, every tool except `lgrass` commands is denied.
+- A notice arrives as a line typed into your prompt, or as hook context during a turn. For a notice that needs reading, run `lgrass workgroup thread` right away, before you continue and before you end your turn, then act on what it says. Never end a turn with an unread notice that needs reading.
 - Messages in your group thread are part of your work, and the leader's messages may change your assignment.
 
 ## Your output

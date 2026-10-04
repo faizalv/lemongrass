@@ -110,6 +110,7 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
 }
 
 export interface TabShell {
+  command: string
   cwd: string
   humanIsTyping: () => boolean
   type: (text: string) => void
@@ -119,6 +120,7 @@ export function findShellByTab(tabId: string): TabShell | undefined {
   for (const shell of shells.values()) {
     if (shell.tabId !== tabId) continue
     return {
+      command: shell.command,
       cwd: shell.cwd,
       humanIsTyping: () => Date.now() - shell.lastInputAt < HUMAN_QUIET_MS,
       type: (text) => shell.process.write(text)

@@ -2,7 +2,7 @@ package main
 
 import "fmt"
 
-var codexHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse"}
+var codexHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop", "PermissionRequest", "Interrupt"}
 
 func reconcileCodexHooks(data []byte, lgrassdPath string) ([]byte, bool, error) {
 	registrations := make([]hookRegistration, 0, len(codexHookEvents))
@@ -16,7 +16,7 @@ func reconcileCodexHooks(data []byte, lgrassdPath string) ([]byte, bool, error) 
 		case "SessionStart":
 			matcher = "startup|resume|clear|compact"
 			handler.AdditionalContextLimit = 5000
-		case "SessionEnd":
+		case "SessionEnd", "Interrupt":
 			handler.Timeout = 3
 		}
 		registrations = append(registrations, hookRegistration{
