@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -596,5 +597,29 @@ func TestStartWorksOnOlderSessionsTables(t *testing.T) {
 				t.Fatalf("second Start on an older table: %v", err)
 			}
 		})
+	}
+}
+
+func TestTabTitleIsCleanedCappedAndSurvivesReRegister(t *testing.T) {
+	store := openTestStore(t)
+	store.RegisterTab(tabA, "claude")
+
+	if err := store.SetTabTitle(tabA, "  fix\nthe\x1b[31m  bug "+strings.Repeat("x", 200)); err != nil {
+		t.Fatalf("SetTabTitle: %v", err)
+	}
+	store.RegisterTab(tabA, "claude")
+	titles, err := store.TabTitles()
+	if err != nil {
+		t.Fatalf("TabTitles: %v", err)
+	}
+	got := titles[tabA]
+	if !strings.HasPrefix(got, "fix the [31m bug x") || len([]rune(got)) != MaxTabTitleRunes {
+		t.Errorf("title = %q, want cleaned and capped at %d runes", got, MaxTabTitleRunes)
+	}
+	if err := store.SetTabTitle(tabB, "unregistered"); err != nil {
+		t.Fatalf("SetTabTitle: %v", err)
+	}
+	if titles, _ := store.TabTitles(); titles[tabB] != "" {
+		t.Errorf("an unregistered tab got a record: %q", titles[tabB])
 	}
 }

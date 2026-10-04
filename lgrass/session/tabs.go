@@ -2,8 +2,28 @@ package session
 
 import (
 	"database/sql"
+	"strings"
 	"time"
+	"unicode"
 )
+
+// The longest tab title kept, in runes.
+const MaxTabTitleRunes = 80
+
+// Control characters become spaces, runs of whitespace collapse, and the result is cut to MaxTabTitleRunes.
+func CleanTabTitle(title string) string {
+	title = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, title)
+	title = strings.Join(strings.Fields(title), " ")
+	if r := []rune(title); len(r) > MaxTabTitleRunes {
+		title = string(r[:MaxTabTitleRunes])
+	}
+	return title
+}
 
 // A tab record is refreshed on spawn and on hook activity, so one untouched for this long belongs to a tab that no longer exists.
 const tabRecordTTL = 30 * 24 * time.Hour
@@ -71,6 +91,31 @@ func (s *Store) RegisterTab(tabID, vendor string) error {
 	}
 	_, err := s.db.Exec(`DELETE FROM lg_ready_marks WHERE marked_at < ? AND tab_id NOT IN (SELECT tab_id FROM lg_tabs)`, cutoff)
 	return err
+}
+
+// Updates only, so a tab that was never registered stays unrecorded. The title is the shell's own, which an agent may have written, so it is cleaned and capped on the way in.
+func (s *Store) SetTabTitle(tabID, title string) error {
+	_, err := s.db.Exec(`UPDATE lg_tabs SET title = ? WHERE project_id = ? AND tab_id = ?`, CleanTabTitle(title), s.projectID, tabID)
+	return err
+}
+
+// Maps tab id to the tab's stored title for every registered tab in this project.
+func (s *Store) TabTitles() (map[string]string, error) {
+	rows, err := s.db.Query(`SELECT tab_id, title FROM lg_tabs WHERE project_id = ?`, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]string{}
+	for rows.Next() {
+		var tabID, title string
+		if err := rows.Scan(&tabID, &title); err != nil {
+			return nil, err
+		}
+		out[tabID] = title
+	}
+	return out, rows.Err()
 }
 
 // Updates only, so a tab that was never registered stays unrecorded.

@@ -54,6 +54,7 @@ func cmdSessionList(args []string) {
 		}
 	}
 	vendors, _ := store.TabVendors()
+	titles, _ := store.TabTitles()
 	for _, s := range liveness {
 		status := "idling"
 		if s.Active {
@@ -64,6 +65,9 @@ func cmdSessionList(args []string) {
 			line += fmt.Sprintf("  tab %s", tab)
 			if vendor := vendors[tab]; vendor != "" {
 				line += "  " + vendor
+			}
+			if title := titles[tab]; title != "" {
+				line += fmt.Sprintf("  %q", title)
 			}
 		}
 		fmt.Println(line)

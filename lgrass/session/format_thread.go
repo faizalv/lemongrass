@@ -168,7 +168,7 @@ func FormatThinkerListenDeny() string {
 
 // The one line that teaches what the prefix means, added to the start context of every lemongrass tab.
 func FormatPrefixNote() string {
-	return Prefix + " marks text from lemongrass or other models, never your user. lgrass thread read <id> reads a thread."
+	return Prefix + " marks text from lemongrass or other models, never your user. lgrass thread read <id> reads a thread. lgrass session list shows tabs."
 }
 
 // What the caller is in its group, with its assignment and required skills, so a resumed thinker gets its role back.

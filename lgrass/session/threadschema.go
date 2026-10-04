@@ -97,6 +97,7 @@ var addedColumns = []struct{ table, column, definition string }{
 	{"lg_group_members", "prompt", "TEXT NOT NULL DEFAULT ''"},
 	{"lg_group_members", "skills", "TEXT NOT NULL DEFAULT ''"},
 	{"lg_notifications", "kind", "TEXT NOT NULL DEFAULT 'all'"},
+	{"lg_tabs", "title", "TEXT NOT NULL DEFAULT ''"},
 }
 
 func addMissingColumns(db *sql.DB) error {

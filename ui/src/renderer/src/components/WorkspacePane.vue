@@ -219,6 +219,23 @@ function menuCloseAction(key: string): void {
 const copiedTabId = ref<string | null>(null)
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
+async function copyTabId(tabId: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(tabId)
+  } catch {
+    return
+  }
+  copiedTabId.value = tabId
+  clearTimeout(copiedTimer)
+  copiedTimer = setTimeout(() => (copiedTabId.value = null), 1500)
+}
+
+function menuCopyTabId(): void {
+  if (!menu.value) return
+  void copyTabId(menu.value.tabId)
+  menu.value = null
+}
+
 async function copyPath(tabId: string): Promise<void> {
   const tab = props.leaf.tabs.find((t) => t.id === tabId)
   if (tab?.kind !== 'doc') return
@@ -535,6 +552,25 @@ onBeforeUnmount(() => {
           Copy path
         </button>
       </template>
+      <button v-else-if="menuTab.kind === 'shell'" class="menu-item" @click="menuCopyTabId">
+        <svg
+          class="menu-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="4.5" y="4.5" width="7" height="8" rx="1.2" />
+          <path
+            d="M9.5 4.5V3.2A1.2 1.2 0 0 0 8.3 2H3.2A1.2 1.2 0 0 0 2 3.2v5.1a1.2 1.2 0 0 0 1.2 1.2h1.3"
+          />
+        </svg>
+        Copy tab id
+      </button>
       <div class="menu-divider" />
       <button
         v-for="action in closeActions"

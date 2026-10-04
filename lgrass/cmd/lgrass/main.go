@@ -79,7 +79,7 @@ COMMANDS
                                      Satisfies a .lgrass/checklists.json prerequisite gate for the
                                      current session, until that checklist's TTL expires
 
-  session list                      Other live sessions in this project, with active/idling state, tab id and vendor
+  session list                      Other live sessions in this project, with active/idling state, tab id, vendor and shell title
   session tabs list                 Tab id to session id map for this project, as JSON
 
   db <short-id> --sql "<statement>" [--dry-run|--commit]

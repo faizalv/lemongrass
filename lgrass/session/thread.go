@@ -100,11 +100,14 @@ func (s *Store) PostMessage(tabID string, threadID string, content string) (Mess
 	if err != nil {
 		return Message{}, err
 	}
-	notify := mentions
+	var notify []string
 	if thread.GroupID != 0 {
-		if notify, err = s.groupRecipients(thread.GroupID, tabID, mentions); err != nil {
-			return Message{}, err
-		}
+		notify, err = s.groupRecipients(thread.GroupID, tabID, mentions)
+	} else {
+		notify, err = s.adHocRecipients(threadID, mentions)
+	}
+	if err != nil {
+		return Message{}, err
 	}
 
 	tx, err := s.db.Begin()
@@ -159,6 +162,42 @@ func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body st
 		}
 	}
 	return Message{ID: id, ThreadID: threadID, TabID: tabID, Body: body, CreatedAt: ts, Mentions: mentions}, nil
+}
+
+// An ad hoc thread notifies the mentioned tabs plus every registered tab that has posted to it or been mentioned in it, so a reply reaches the tab it answers without a mention.
+func (s *Store) adHocRecipients(threadID string, mentions []string) ([]string, error) {
+	rows, err := s.db.Query(`
+		SELECT tab_id FROM lg_messages WHERE thread_id = ?
+		UNION
+		SELECT mm.tab_id FROM lg_message_mentions mm JOIN lg_messages m ON m.id = mm.message_id WHERE m.thread_id = ?
+	`, threadID, threadID)
+	if err != nil {
+		return nil, err
+	}
+	var participants []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		participants = append(participants, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	vendors, err := s.TabVendors()
+	if err != nil {
+		return nil, err
+	}
+	out := append([]string(nil), mentions...)
+	for _, id := range participants {
+		if _, live := vendors[id]; live && !containsString(out, id) {
+			out = append(out, id)
+		}
+	}
+	return out, nil
 }
 
 // A group thread accepts posts from live members only, and notifies every member plus the mentioned tabs.

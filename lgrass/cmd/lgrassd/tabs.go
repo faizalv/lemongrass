@@ -28,7 +28,7 @@ func openStore() *session.Store {
 
 func cmdTabs(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrassd tabs <list|register|forget> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd tabs <list|register|title|forget> ...")
 		os.Exit(1)
 	}
 	store := openStore()
@@ -47,6 +47,14 @@ func cmdTabs(args []string) {
 			os.Exit(1)
 		}
 		if err := store.RegisterTab(args[1], args[2]); err != nil {
+			fail(err)
+		}
+	case "title":
+		if len(args) != 3 {
+			fmt.Fprintln(os.Stderr, "usage: lgrassd tabs title <tab-id> <title>")
+			os.Exit(1)
+		}
+		if err := store.SetTabTitle(args[1], args[2]); err != nil {
 			fail(err)
 		}
 	case "forget":

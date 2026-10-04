@@ -202,3 +202,49 @@ func TestFormatThreadReadShowsFramingMentionsAndNextPage(t *testing.T) {
 		t.Error("next-page hint shown with no older messages")
 	}
 }
+
+func TestAdHocReplyReachesParticipantsWithoutAMention(t *testing.T) {
+	store := openTestStore(t)
+	store.RegisterTab(tabA, "claude")
+	store.RegisterTab(tabB, "codex")
+	store.RegisterTab(tabC, "claude")
+
+	id, err := store.CreateThread(tabA, "title", "hey !>>"+tabB+"<<!")
+	if err != nil {
+		t.Fatalf("CreateThread: %v", err)
+	}
+	if _, err := store.PostMessage(tabB, id, "reply"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if pending, _ := store.PendingForTab(tabA); len(pending) != 1 || pending[0].Count() != 1 {
+		t.Errorf("tabA pending = %+v, want the reply", pending)
+	}
+	if pending, _ := store.PendingForTab(tabC); len(pending) != 0 {
+		t.Errorf("tabC pending = %+v, want none, it never joined", pending)
+	}
+
+	if _, err := store.PostMessage(tabA, id, "pulling in !>>"+tabC+"<<!"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, err := store.PostMessage(tabB, id, "both of you"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if pending, _ := store.PendingForTab(tabC); len(pending) != 1 || pending[0].Count() != 2 {
+		t.Errorf("tabC pending = %+v, want the mention and the later message", pending)
+	}
+}
+
+func TestAdHocThreadSkipsClosedTabs(t *testing.T) {
+	store := openTestStore(t)
+	store.RegisterTab(tabA, "claude")
+	store.RegisterTab(tabB, "codex")
+
+	id, _ := store.CreateThread(tabA, "title", "hey !>>"+tabB+"<<!")
+	store.ForgetTab(tabB)
+	if _, err := store.PostMessage(tabA, id, "anyone"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if pending, _ := store.PendingForTab(tabB); len(pending) != 1 || pending[0].Count() != 1 {
+		t.Errorf("closed tab pending = %+v, want only the notification from before it closed", pending)
+	}
+}

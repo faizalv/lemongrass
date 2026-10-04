@@ -45,6 +45,21 @@ export function registerTabSessionHandlers(lgrassdPath: string | null): void {
   )
 
   ipcMain.handle(
+    'tabSessions:title',
+    async (
+      _event,
+      { projectPath, tabId, title }: { projectPath: string; tabId: string; title: string }
+    ) => {
+      if (!lgrassdPath) return
+      try {
+        await runLgrassd(lgrassdPath, projectPath, ['title', tabId, title])
+      } catch (err) {
+        console.error('lgrassd tabs title failed:', err)
+      }
+    }
+  )
+
+  ipcMain.handle(
     'tabSessions:forget',
     async (_event, { projectPath, tabId }: { projectPath: string; tabId: string }) => {
       if (!lgrassdPath) return

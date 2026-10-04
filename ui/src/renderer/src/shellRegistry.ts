@@ -8,6 +8,22 @@ import '@xterm/xterm/css/xterm.css'
 // while its tab is hidden, moved to another pane, or its project is not shown.
 // Raw bytes only in both directions. PTY is display-only, never a control-signal source.
 
+const TITLE_PUSH_DELAY_MS = 500
+const titlePushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function pushTitle(spec: ShellSpec, title: string): void {
+  if (!spec.cwd) return
+  const cwd = spec.cwd
+  clearTimeout(titlePushTimers.get(spec.id))
+  titlePushTimers.set(
+    spec.id,
+    setTimeout(() => {
+      titlePushTimers.delete(spec.id)
+      void window.api.tabSessions.title(cwd, spec.id, title)
+    }, TITLE_PUSH_DELAY_MS)
+  )
+}
+
 export interface ShellSpec {
   id: string
   command: string
@@ -134,7 +150,9 @@ function createSession(spec: ShellSpec): ShellSession {
   const session: ShellSession = { spec, term, fit, host, opened: false, disposed: false }
 
   term.onTitleChange((title) => {
-    if (title) shellTitles[spec.id] = title
+    if (!title) return
+    shellTitles[spec.id] = title
+    pushTitle(spec, title)
   })
   term.onData((data) => {
     if (session.shellId) window.api.pty.write(session.shellId, data)
@@ -227,6 +245,8 @@ export function disposeShell(tabId: string): void {
   const session = sessions.get(tabId)
   if (!session) return
   sessions.delete(tabId)
+  clearTimeout(titlePushTimers.get(tabId))
+  titlePushTimers.delete(tabId)
   delete shellTitles[tabId]
   delete shellRestoreFailures[tabId]
   session.disposed = true

@@ -49,6 +49,7 @@ COMMANDS
                                      channels and forwards queries to a running vault daemon
   tabs list                         Tab id to session id map for the project at the working directory, as JSON
   tabs register <tab-id> <vendor>   Records the agent vendor a tab runs
+  tabs title <tab-id> <title>       Records the shell title a tab currently shows
   tabs forget <tab-id>              Drops a closed tab's records
   nudge <tab-id>                    Prints the tab's pending thread nudge and marks it sent
   hook <event>                      Invoked by Claude Code's and Codex's own hook systems, reads hook JSON off stdin
