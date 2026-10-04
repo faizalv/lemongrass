@@ -122,7 +122,7 @@ func TestEveryVendorInstallsEverySkill(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range vendors {
-		for _, name := range []string{"lgrass-connector", "lgrass-staleness", "lgrass-closing", "lgrass-howtobe-thinker"} {
+		for _, name := range []string{"lgrass-connector", "lgrass-howtobe-keeper", "lgrass-closing", "lgrass-howtobe-thinker"} {
 			if _, err := os.Stat(filepath.Join(k.skillsRoot(v), name, "SKILL.md")); err != nil {
 				t.Errorf("%s skill %s missing: %v", v.configDir, name, err)
 			}
@@ -133,15 +133,17 @@ func TestEveryVendorInstallsEverySkill(t *testing.T) {
 func TestLegacySkillIsRemoved(t *testing.T) {
 	k, _ := fakeHome(t)
 	for _, v := range vendors {
-		dir := k.legacySkillDir(v)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("old"), 0o644); err != nil {
-			t.Fatal(err)
+		for _, name := range legacySkillNames {
+			dir := k.legacySkillDir(v, name)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("old"), 0o644); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
-	extra := filepath.Join(k.legacySkillDir(codex), "notes.txt")
+	extra := filepath.Join(k.legacySkillDir(codex, "lemongrass"), "notes.txt")
 	if err := os.WriteFile(extra, []byte("user file"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -149,15 +151,19 @@ func TestLegacySkillIsRemoved(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range vendors {
-		if _, err := os.Stat(filepath.Join(k.legacySkillDir(v), "SKILL.md")); err == nil {
-			t.Errorf("%s legacy SKILL.md still present", v.configDir)
+		for _, name := range legacySkillNames {
+			if _, err := os.Stat(filepath.Join(k.legacySkillDir(v, name), "SKILL.md")); err == nil {
+				t.Errorf("%s legacy %s SKILL.md still present", v.configDir, name)
+			}
 		}
 		if _, err := os.Stat(connectorSkillPath(k, v)); err != nil {
 			t.Errorf("%s connector skill missing: %v", v.configDir, err)
 		}
 	}
-	if _, err := os.Stat(k.legacySkillDir(claude)); err == nil {
-		t.Error("empty legacy Claude directory still present")
+	for _, name := range legacySkillNames {
+		if _, err := os.Stat(k.legacySkillDir(claude, name)); err == nil {
+			t.Errorf("empty legacy Claude directory %s still present", name)
+		}
 	}
 	if _, err := os.Stat(extra); err != nil {
 		t.Errorf("unrelated file in the legacy directory was removed: %v", err)

@@ -35,7 +35,7 @@ Decide: new chapter, update to an existing chapter, or none (a recon that ended 
 Rewrite the book's line in place, never append.
 
 - The bracketed tags equal the union of the tags on the book's chapters.
-- The description names scope, not chapters.
+- The line is the folder name and nothing else, with no description.
 - An unfinished book carries a bare `[WIP]` at the end of the line and nothing else.
 
 ## 5. Laws

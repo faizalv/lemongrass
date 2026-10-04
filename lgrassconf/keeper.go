@@ -12,7 +12,7 @@ import (
 //go:embed skills
 var skillsFS embed.FS
 
-const legacySkillName = "lemongrass"
+var legacySkillNames = []string{"lemongrass", "lgrass-staleness"}
 
 type vendor struct {
 	embedRoot string
@@ -75,8 +75,8 @@ func (k *keeper) skillsRoot(v vendor) string {
 	return filepath.Join(k.home, v.configDir, "skills")
 }
 
-func (k *keeper) legacySkillDir(v vendor) string {
-	return filepath.Join(k.skillsRoot(v), legacySkillName)
+func (k *keeper) legacySkillDir(v vendor, name string) string {
+	return filepath.Join(k.skillsRoot(v), name)
 }
 
 func (k *keeper) claudeSettingsPath() string {
@@ -121,8 +121,10 @@ func (k *keeper) reconcile() error {
 		}
 	}
 	for _, v := range vendors {
-		if err := removeLegacySkill(k.legacySkillDir(v)); err != nil {
-			errs = append(errs, err)
+		for _, name := range legacySkillNames {
+			if err := removeLegacySkill(k.legacySkillDir(v, name)); err != nil {
+				errs = append(errs, err)
+			}
 		}
 	}
 	if path := k.lgrassdPath(); path != "" {

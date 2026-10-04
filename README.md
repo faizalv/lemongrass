@@ -81,7 +81,7 @@ The three are siblings, not nested. Neither toolchain's file tree (`node_modules
 | `lgrass-connector` | Run a database query or an HTTP call through an existing channel, so the real credential never enters the session. |
 | `lgrass-howtobe-leader` | Lead a workgroup: declare it, brief each thinker, ask each for a plan, and stay responsible for the result. |
 | `lgrass-howtobe-thinker` | Work inside a workgroup: post a plan, wait for the leader's go, and talk with the leader and the other members. |
-| `lgrass-staleness` | Correct a document that contradicts the code or the convention in the same turn, and ask only when the fix is a design decision. |
+| `lgrass-howtobe-keeper` | Keep `biblio/` and the code in agreement: clean the whiteboard, dangling handovers and tasks, correct books against the code, and tidy `toc.md`. |
 | `lgrass-closing` | Close a finished task: write the book chapter and its `toc.md` line, promote standing rules to laws, archive the handover, and sweep stale references. |
 
 ## Build
