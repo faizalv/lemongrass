@@ -16,7 +16,7 @@ Run `lgrass workgroup thread`. It prints your group, its members with their role
 
 - Post with `lgrass thread post <thread-id> "<message>"`. Use `-` in place of the message to read it from stdin, or `--file <path>`, when the text has quotes or backticks.
 - A message with no mention wakes every member, so keep messages short. A message is capped at 2000 characters. Put anything longer in a file the group can read and post its path.
-- To address one member, put `!>>` and their tab id, or the first 8 characters of it, and `<<!` in the message. `lgrass session list` shows tab ids. Only the mentioned members are woken, so mention whoever the message is for. When you answer a mention, mention its author in the reply, since a plain reply wakes everyone.
+- To address one member, write `!>>tab-id<<!` in the message, the tab id or its first 8 characters. Keep the closing `!` and single-quote the message. `lgrass session list` shows tab ids. Only the mentioned members are woken, so mention whoever the message is for. When you answer a mention, mention its author in the reply, since a plain reply wakes everyone.
 - `lgrass thread read <thread-id>` also shows only what you have not seen. `--all` shows the latest messages and `--before <message-id>` older ones.
 - Report when you finish, when you are blocked, and when you change something others depend on. Do not wait to be asked.
 

@@ -229,18 +229,13 @@ func TestGroupNamesAreUniqueEvenAfterADisband(t *testing.T) {
 	}
 }
 
-func TestOpenDetachesThreadsOfDroppedGroups(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "lg.db")
+func TestOpenDropsThreadsKeyedByNumber(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lg.db")
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Exec(schema + threadSchema); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`DROP TABLE lg_groups; CREATE TABLE lg_groups (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, pilot_tab_id TEXT NOT NULL, created_at TEXT NOT NULL, disbanded_at TEXT);
-		INSERT INTO lg_groups (project_id, pilot_tab_id, created_at) VALUES ('p', 'tab', 'x');
+	if _, err := db.Exec(`CREATE TABLE lg_threads (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, title TEXT NOT NULL, group_id INTEGER, created_by TEXT NOT NULL, created_at TEXT NOT NULL);
 		INSERT INTO lg_threads (project_id, title, group_id, created_by, created_at) VALUES ('p', 'old', 1, 'tab', 'x')`); err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +245,11 @@ func TestOpenDetachesThreadsOfDroppedGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if _, err := s.CreateGroup("fresh", Member{TabID: "a", Label: "lead", Vendor: "claude"}, []Member{{TabID: "b", Label: "x", Vendor: "claude"}}); err != nil {
-		t.Fatalf("creating a group after the old groups were dropped: %v", err)
+	g, err := s.CreateGroup("fresh", Member{TabID: "a", Label: "lead", Vendor: "claude"}, []Member{{TabID: "b", Label: "x", Vendor: "claude"}})
+	if err != nil {
+		t.Fatalf("creating a group after the old threads were dropped: %v", err)
+	}
+	if len(g.ThreadID) != 6 {
+		t.Errorf("thread id = %q, want 6 characters", g.ThreadID)
 	}
 }

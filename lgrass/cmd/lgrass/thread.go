@@ -148,7 +148,7 @@ func cmdThreadCreate(args []string) {
 		fail(err)
 	}
 	notifyTargets(store)
-	fmt.Printf("thread %d created.\n", id)
+	fmt.Printf("thread %s created.\n", id)
 }
 
 func cmdThreadPost(args []string) {
@@ -157,11 +157,7 @@ func cmdThreadPost(args []string) {
 		fmt.Fprintln(os.Stderr, `usage: lgrass thread post <thread-id> "<content>" (content may be - for stdin or --file <path>)`)
 		os.Exit(1)
 	}
-	threadID, err := strconv.ParseInt(parsed.positional[0], 10, 64)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "lgrass thread: %q is not a thread id\n", parsed.positional[0])
-		os.Exit(1)
-	}
+	threadID := parsed.positional[0]
 	requireTab()
 	content, err := threadContent(parsed, 1)
 	if err != nil {
@@ -184,11 +180,7 @@ func cmdThreadRead(args []string) {
 		fmt.Fprintln(os.Stderr, "usage: lgrass thread read <thread-id> [--all] [--before <message-id>] [--limit N] [--json]")
 		os.Exit(1)
 	}
-	threadID, err := strconv.ParseInt(parsed.positional[0], 10, 64)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "lgrass thread: %q is not a thread id\n", parsed.positional[0])
-		os.Exit(1)
-	}
+	threadID := parsed.positional[0]
 
 	store := openStore()
 	defer store.Close()
@@ -200,7 +192,7 @@ func cmdThreadRead(args []string) {
 }
 
 // The shared read path. A lemongrass tab that has read the thread before gets only what is new to it, unless it asks for --all or an older page. header gets whether this is the tab's first read of the thread. The tab's notifications for the messages shown are settled afterwards.
-func printThread(store *session.Store, threadID int64, parsed threadArgs, header func(firstRead bool) string) {
+func printThread(store *session.Store, threadID string, parsed threadArgs, header func(firstRead bool) string) {
 	thread, err := store.ThreadByID(threadID)
 	if err != nil {
 		fail(err)

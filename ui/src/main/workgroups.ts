@@ -43,10 +43,10 @@ export function registerWorkgroupHandlers(lgrassPath: string | null): void {
         threadId,
         before,
         limit
-      }: { projectPath: string; threadId: number; before?: number; limit?: number }
+      }: { projectPath: string; threadId: string; before?: number; limit?: number }
     ): Promise<WorkgroupThreadResult> => {
       if (!lgrassPath) return { ok: false, error: 'lgrass is not installed' }
-      const args = ['thread', 'read', String(Math.trunc(threadId)), '--json']
+      const args = ['thread', 'read', threadId, '--json']
       args.push('--limit', String(Math.min(Math.max(Math.trunc(limit ?? 50), 1), 200)))
       if (before && before > 0) args.push('--before', String(Math.trunc(before)))
       try {

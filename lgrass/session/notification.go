@@ -39,7 +39,7 @@ func (k *KindPart) add(tab string) {
 
 // The pending notifications of one tab for one thread.
 type PendingThread struct {
-	ThreadID int64
+	ThreadID string
 	Title    string
 	You      KindPart
 	All      KindPart
@@ -72,8 +72,9 @@ func (s *Store) pendingRows(tabID, filter string) ([]PendingThread, error) {
 		return nil, err
 	}
 	type row struct {
-		id, threadID, messageID int64
-		title, author, kind     string
+		id, messageID       int64
+		threadID            string
+		title, author, kind string
 	}
 	var found []row
 	for rows.Next() {
@@ -90,7 +91,7 @@ func (s *Store) pendingRows(tabID, filter string) ([]PendingThread, error) {
 	}
 
 	var out []PendingThread
-	index := map[int64]int{}
+	index := map[string]int{}
 	for _, r := range found {
 		i, ok := index[r.threadID]
 		if !ok {
@@ -127,7 +128,7 @@ func (s *Store) MarkOtherSent(tabID string) error {
 }
 
 // The newest message the tab has seen in the thread; false when it never read it.
-func (s *Store) ThreadCursor(tabID string, threadID int64) (int64, bool, error) {
+func (s *Store) ThreadCursor(tabID string, threadID string) (int64, bool, error) {
 	var last int64
 	err := s.db.QueryRow(`SELECT last_message_id FROM lg_thread_reads WHERE tab_id = ? AND thread_id = ?`, tabID, threadID).Scan(&last)
 	if err == sql.ErrNoRows {
@@ -137,7 +138,7 @@ func (s *Store) ThreadCursor(tabID string, threadID int64) (int64, bool, error) 
 }
 
 // Only moves forward.
-func (s *Store) AdvanceThreadCursor(tabID string, threadID, messageID int64) error {
+func (s *Store) AdvanceThreadCursor(tabID, threadID string, messageID int64) error {
 	_, err := s.db.Exec(`
 		INSERT INTO lg_thread_reads (tab_id, thread_id, last_message_id) VALUES (?, ?, ?)
 		ON CONFLICT (tab_id, thread_id) DO UPDATE SET last_message_id = MAX(last_message_id, excluded.last_message_id)

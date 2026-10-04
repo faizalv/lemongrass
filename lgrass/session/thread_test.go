@@ -55,7 +55,7 @@ func TestThreadRejectsEmptyAndOversizedInput(t *testing.T) {
 func TestPostMessageToMissingOrOtherProjectThread(t *testing.T) {
 	store := openTestStore(t)
 
-	if _, err := store.PostMessage(tabA, 999, "hello"); err != ErrNoSuchThread {
+	if _, err := store.PostMessage(tabA, "nosuch", "hello"); err != ErrNoSuchThread {
 		t.Errorf("post to missing thread error = %v, want ErrNoSuchThread", err)
 	}
 
@@ -105,7 +105,7 @@ func TestListThreadsMostRecentlyActiveFirst(t *testing.T) {
 		t.Fatalf("ListThreads = %+v, %v, want 2 threads", threads, err)
 	}
 	if threads[0].ID != first || threads[0].MessageCount != 2 || threads[1].ID != second {
-		t.Errorf("order = %d then %d, want the replied-to thread %d first", threads[0].ID, threads[1].ID, first)
+		t.Errorf("order = %s then %s, want the replied-to thread %s first", threads[0].ID, threads[1].ID, first)
 	}
 	if limited, _ := store.ListThreads(1); len(limited) != 1 {
 		t.Errorf("limit 1 returned %d threads", len(limited))
@@ -187,13 +187,13 @@ func TestMentionResolvesAGroupMemberWithoutATabRecord(t *testing.T) {
 }
 
 func TestFormatThreadReadShowsFramingMentionsAndNextPage(t *testing.T) {
-	thread := Thread{ID: 7, Title: "Review", CreatedBy: tabA, CreatedAt: "2026-09-26T10:00:00Z", MessageCount: 3}
+	thread := Thread{ID: "t7", Title: "Review", CreatedBy: tabA, CreatedAt: "2026-09-26T10:00:00Z", MessageCount: 3}
 	msgs := []Message{
 		{ID: 9, TabID: tabB, Body: "second", CreatedAt: "2026-09-26T10:05:00Z", Mentions: []string{tabA}},
 		{ID: 8, TabID: tabA, Body: "first", CreatedAt: "2026-09-26T10:01:00Z"},
 	}
 	out := FormatThreadRead(thread, msgs, true, false, nil)
-	for _, want := range []string{"[lg] thread 7 [Review]", "#9", "bbbbbbbb", "(mentions aaaaaaaa)", "lgrass thread read 7 --before 8"} {
+	for _, want := range []string{"[lg] thread t7 [Review]", "#9", "bbbbbbbb", "(mentions aaaaaaaa)", "lgrass thread read t7 --before 8"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}

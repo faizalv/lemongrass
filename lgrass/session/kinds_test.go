@@ -80,7 +80,7 @@ func TestOpenAddsKindToAnOlderNotificationsTable(t *testing.T) {
 		`CREATE TABLE lg_notifications (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			project_id TEXT NOT NULL,
-			thread_id INTEGER NOT NULL,
+			thread_id TEXT NOT NULL,
 			message_id INTEGER NOT NULL,
 			target_tab_id TEXT NOT NULL,
 			state TEXT NOT NULL DEFAULT 'pending',
@@ -90,11 +90,11 @@ func TestOpenAddsKindToAnOlderNotificationsTable(t *testing.T) {
 			sent_at TEXT,
 			read_at TEXT
 		)`,
-		`CREATE TABLE lg_threads (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, title TEXT NOT NULL, group_id INTEGER, created_by TEXT NOT NULL, created_at TEXT NOT NULL)`,
-		`CREATE TABLE lg_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id INTEGER NOT NULL, tab_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL)`,
-		`INSERT INTO lg_threads (project_id, title, created_by, created_at) VALUES ('p', 'Old', 'x', '2026-01-01T00:00:00Z')`,
-		`INSERT INTO lg_messages (thread_id, tab_id, body, created_at) VALUES (1, 'x', 'hi', '2026-01-01T00:00:00Z')`,
-		`INSERT INTO lg_notifications (project_id, thread_id, message_id, target_tab_id, created_at) VALUES ('p', 1, 1, '` + tabB + `', '2026-01-01T00:00:00Z')`,
+		`CREATE TABLE lg_threads (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL, group_id INTEGER, created_by TEXT NOT NULL, created_at TEXT NOT NULL)`,
+		`CREATE TABLE lg_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, thread_id TEXT NOT NULL, tab_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL)`,
+		`INSERT INTO lg_threads (id, project_id, title, created_by, created_at) VALUES ('old001', 'p', 'Old', 'x', '2026-01-01T00:00:00Z')`,
+		`INSERT INTO lg_messages (thread_id, tab_id, body, created_at) VALUES ('old001', 'x', 'hi', '2026-01-01T00:00:00Z')`,
+		`INSERT INTO lg_notifications (project_id, thread_id, message_id, target_tab_id, created_at) VALUES ('p', 'old001', 1, '` + tabB + `', '2026-01-01T00:00:00Z')`,
 	} {
 		if _, err := old.Exec(stmt); err != nil {
 			t.Fatalf("seeding the older database: %v", err)
@@ -142,20 +142,20 @@ func TestThreadCursorOnlyMovesForwardAndUnreadSkipsOwnMessages(t *testing.T) {
 
 func TestFormatNotificationCarriesKindsOnOneLine(t *testing.T) {
 	out := FormatNotification([]PendingThread{{
-		ThreadID: 5,
+		ThreadID: "t5",
 		You:      KindPart{Count: 1, Tabs: []string{tabA}},
 		All:      KindPart{Count: 2, Tabs: []string{tabA, tabC}},
 		Other:    KindPart{Count: 1, Tabs: []string{tabB}},
 		RowIDs:   []int64{1, 2, 3, 4},
 	}}, map[string]string{tabA: "lead", tabB: "reviewer", tabC: "tester"})
-	want := "[lg] thread 5: 1 for you from lead; 2 new from lead, tester; 1 for reviewer, not you"
+	want := "[lg] thread t5: 1 for you from lead; 2 new from lead, tester; 1 for reviewer, not you"
 	if out != want {
 		t.Errorf("notification = %q, want %q", out, want)
 	}
 }
 
 func TestFormatThreadReadUsesClockTimesAndDatesOnlyAcrossDays(t *testing.T) {
-	thread := Thread{ID: 7, Title: "Review", CreatedBy: tabA, CreatedAt: "2026-09-25T10:00:00Z", MessageCount: 3}
+	thread := Thread{ID: "t7", Title: "Review", CreatedBy: tabA, CreatedAt: "2026-09-25T10:00:00Z", MessageCount: 3}
 	msgs := []Message{
 		{ID: 9, TabID: tabB, Body: "newest", CreatedAt: "2026-09-26T10:05:09Z"},
 		{ID: 8, TabID: tabA, Body: "same day", CreatedAt: "2026-09-26T09:01:00Z"},
@@ -173,12 +173,12 @@ func TestFormatThreadReadUsesClockTimesAndDatesOnlyAcrossDays(t *testing.T) {
 }
 
 func TestShortGroupAndNothingNewLines(t *testing.T) {
-	g := Group{ID: 3, Name: "toy", ThreadID: 5}
+	g := Group{ID: 3, Name: "toy", ThreadID: "t5"}
 	short := FormatGroupShort(g, Member{Label: "reviewer", Role: RoleThinker})
 	if !strings.HasPrefix(short, Prefix) || strings.Count(short, "\n") != 0 || !strings.Contains(short, "reviewer") {
 		t.Errorf("short group line = %q", short)
 	}
-	if text := FormatNothingNew(Thread{ID: 5, Title: "toy"}); !strings.Contains(text, "nothing new") || !strings.Contains(text, "--all") {
+	if text := FormatNothingNew(Thread{ID: "t5", Title: "toy"}); !strings.Contains(text, "nothing new") || !strings.Contains(text, "--all") {
 		t.Errorf("nothing new line = %q", text)
 	}
 }

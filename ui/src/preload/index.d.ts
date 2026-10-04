@@ -40,7 +40,7 @@ interface Api {
     list: (projectPath: string) => Promise<WorkgroupInfo[]>
     thread: (
       projectPath: string,
-      threadId: number,
+      threadId: string,
       before?: number,
       limit?: number
     ) => Promise<WorkgroupThreadResult>

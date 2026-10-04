@@ -26,7 +26,7 @@ func TestMentionCreatesPendingRowForTargetOnly(t *testing.T) {
 	}
 	p := pending[0]
 	if p.ThreadID != id || p.Title != "Review" || p.Count() != 1 || p.You.Count != 1 || len(p.You.Tabs) != 1 || p.You.Tabs[0] != tabA {
-		t.Errorf("pending = %+v, want thread %d, one row, sender tabA", p, id)
+		t.Errorf("pending = %+v, want thread %s, one row, sender tabA", p, id)
 	}
 	if own, _ := store.PendingForTab(tabA); len(own) != 0 {
 		t.Errorf("the author was notified of their own mention: %+v", own)
@@ -45,7 +45,7 @@ func TestPendingCoalescesPerThreadWithDistinctSenders(t *testing.T) {
 
 	pending, _ := store.PendingForTab(tabB)
 	if len(pending) != 2 || pending[0].ThreadID != id || pending[1].ThreadID != other {
-		t.Fatalf("pending = %+v, want threads %d then %d", pending, id, other)
+		t.Fatalf("pending = %+v, want threads %s then %s", pending, id, other)
 	}
 	if pending[0].Count() != 3 || len(pending[0].You.Tabs) != 2 {
 		t.Errorf("first thread: %d rows, %d senders, want 3 rows and 2 distinct senders", pending[0].Count(), len(pending[0].You.Tabs))
@@ -175,10 +175,10 @@ func TestVendorForTabFallsBackToGroupMembership(t *testing.T) {
 
 func TestFormatNotificationCoalescesAndCarriesNoContent(t *testing.T) {
 	out := FormatNotification([]PendingThread{
-		{ThreadID: 4, Title: "Review", All: KindPart{Count: 2, Tabs: []string{tabA, tabB}}, RowIDs: []int64{1, 2}},
-		{ThreadID: 5, Title: "Other", All: KindPart{Count: 1, Tabs: []string{tabB}}, RowIDs: []int64{3}},
+		{ThreadID: "t4", Title: "Review", All: KindPart{Count: 2, Tabs: []string{tabA, tabB}}, RowIDs: []int64{1, 2}},
+		{ThreadID: "t5", Title: "Other", All: KindPart{Count: 1, Tabs: []string{tabB}}, RowIDs: []int64{3}},
 	}, nil)
-	for _, want := range []string{"[lg] thread 4: 2 new from aaaaaaaa, bbbbbbbb", "[lg] thread 5: 1 new from bbbbbbbb"} {
+	for _, want := range []string{"[lg] thread t4: 2 new from aaaaaaaa, bbbbbbbb", "[lg] thread t5: 1 new from bbbbbbbb"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}

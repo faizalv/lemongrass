@@ -18,7 +18,7 @@ const (
 type Group struct {
 	ID          int64
 	LeaderTabID string
-	ThreadID    int64
+	ThreadID    string
 	Name        string
 	CreatedAt   string
 	DisbandedAt string // empty while the group is live
@@ -127,12 +127,11 @@ func (s *Store) CreateGroup(name string, leader Member, thinkers []Member) (Grou
 			return Group{}, err
 		}
 	}
-	res, err = tx.Exec(`INSERT INTO lg_threads (project_id, title, group_id, created_by, created_at) VALUES (?, ?, ?, ?, ?)`, s.projectID, name, groupID, leader.TabID, ts)
+	threadID, err := newThreadID(tx)
 	if err != nil {
 		return Group{}, err
 	}
-	threadID, err := res.LastInsertId()
-	if err != nil {
+	if _, err := tx.Exec(`INSERT INTO lg_threads (id, project_id, title, group_id, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)`, threadID, s.projectID, name, groupID, leader.TabID, ts); err != nil {
 		return Group{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -142,7 +141,7 @@ func (s *Store) CreateGroup(name string, leader Member, thinkers []Member) (Grou
 }
 
 const groupSelect = `
-	SELECT g.id, g.leader_tab_id, COALESCE(t.id, 0), COALESCE(t.title, ''), g.created_at, COALESCE(g.disbanded_at, '')
+	SELECT g.id, g.leader_tab_id, COALESCE(t.id, ''), COALESCE(t.title, ''), g.created_at, COALESCE(g.disbanded_at, '')
 	FROM lg_groups g LEFT JOIN lg_threads t ON t.group_id = g.id
 `
 

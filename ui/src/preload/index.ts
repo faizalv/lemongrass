@@ -237,7 +237,7 @@ const workgroup = {
     ipcRenderer.invoke('workgroups:list', projectPath),
   thread: (
     projectPath: string,
-    threadId: number,
+    threadId: string,
     before?: number,
     limit?: number
   ): Promise<WorkgroupThreadResult> =>

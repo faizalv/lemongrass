@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppModal from './AppModal.vue'
+import { bodyParts, type BodyPart } from '../mentions'
 import { disbandWorkgroup, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import { focusTab, isTabOpen, reopenWorkgroupMember, type ProjectRef } from '../workspace'
 import type {
@@ -54,27 +55,8 @@ function onMember(member: WorkgroupMemberInfo): void {
   else if (group.value) void reopenWorkgroupMember(props.project, member, group.value.leaderTabId)
 }
 
-interface BodyPart {
-  text: string
-  mention: boolean
-}
-
-const MENTION = /!>>([0-9a-f-]{8,36})<<!/gi
-
-// Mentions in a message body are tab ids or their first 8 characters, shown as the member's label.
-function bodyParts(body: string): BodyPart[] {
-  const members = group.value?.members ?? []
-  const parts: BodyPart[] = []
-  let last = 0
-  for (const match of body.matchAll(MENTION)) {
-    const id = match[1].toLowerCase()
-    const member = members.find((m) => m.tabId.toLowerCase().startsWith(id))
-    if (match.index > last) parts.push({ text: body.slice(last, match.index), mention: false })
-    parts.push({ text: member ? `@${member.label}` : match[0], mention: !!member })
-    last = match.index + match[0].length
-  }
-  if (last < body.length) parts.push({ text: body.slice(last), mention: false })
-  return parts
+function messageParts(body: string): BodyPart[] {
+  return bodyParts(body, group.value?.members ?? [])
 }
 
 function formatTime(value: string): string {
@@ -231,7 +213,7 @@ onBeforeUnmount(() => clearInterval(timer))
             </header>
             <p class="message-body">
               <span
-                v-for="(part, index) in bodyParts(message.body)"
+                v-for="(part, index) in messageParts(message.body)"
                 :key="index"
                 :class="{ mention: part.mention }"
                 >{{ part.text }}</span

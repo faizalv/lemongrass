@@ -16,7 +16,7 @@ const (
 var ErrNoSuchThread = errors.New("session: no such thread in this project")
 
 type Thread struct {
-	ID             int64
+	ID             string
 	Title          string
 	GroupID        int64 // 0 for an ad hoc thread
 	CreatedBy      string
@@ -27,7 +27,7 @@ type Thread struct {
 
 type Message struct {
 	ID        int64
-	ThreadID  int64
+	ThreadID  string
 	TabID     string
 	Body      string
 	CreatedAt string
@@ -55,41 +55,40 @@ func validateTitle(title string) error {
 }
 
 // Opens an ad hoc thread, whose first message is content.
-func (s *Store) CreateThread(tabID, title, content string) (int64, error) {
+func (s *Store) CreateThread(tabID, title, content string) (string, error) {
 	title = strings.TrimSpace(title)
 	if err := validateTitle(title); err != nil {
-		return 0, err
+		return "", err
 	}
 	if err := validateMessage(content); err != nil {
-		return 0, err
+		return "", err
 	}
 	mentions, err := s.ResolveMentions(ParseMentions(content))
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	defer tx.Rollback()
 
 	ts := now()
-	res, err := tx.Exec(`INSERT INTO lg_threads (project_id, title, created_by, created_at) VALUES (?, ?, ?, ?)`, s.projectID, title, tabID, ts)
+	threadID, err := newThreadID(tx)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	threadID, err := res.LastInsertId()
-	if err != nil {
-		return 0, err
+	if _, err := tx.Exec(`INSERT INTO lg_threads (id, project_id, title, created_by, created_at) VALUES (?, ?, ?, ?, ?)`, threadID, s.projectID, title, tabID, ts); err != nil {
+		return "", err
 	}
 	if _, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, mentions, ts); err != nil {
-		return 0, err
+		return "", err
 	}
 	return threadID, tx.Commit()
 }
 
-func (s *Store) PostMessage(tabID string, threadID int64, content string) (Message, error) {
+func (s *Store) PostMessage(tabID string, threadID string, content string) (Message, error) {
 	if err := validateMessage(content); err != nil {
 		return Message{}, err
 	}
@@ -134,7 +133,7 @@ func notificationKind(target string, mentions []string) string {
 }
 
 // Every tab in notify except the author gets a pending notification, and mentions are recorded on the message.
-func insertMessage(tx *sql.Tx, projectID string, threadID int64, tabID, body string, mentions, notify []string, ts string) (Message, error) {
+func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body string, mentions, notify []string, ts string) (Message, error) {
 	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at) VALUES (?, ?, ?, ?)`, threadID, tabID, body, ts)
 	if err != nil {
 		return Message{}, err
@@ -191,7 +190,7 @@ func (s *Store) groupRecipients(groupID int64, author string, mentions []string)
 	return out, nil
 }
 
-func (s *Store) ThreadByID(id int64) (Thread, error) {
+func (s *Store) ThreadByID(id string) (Thread, error) {
 	var t Thread
 	var group sql.NullInt64
 	err := s.db.QueryRow(`
@@ -211,16 +210,16 @@ func (s *Store) ThreadByID(id int64) (Thread, error) {
 }
 
 // Newest first, at most limit messages older than beforeID (0 for the newest page); more reports whether older ones remain.
-func (s *Store) ReadThread(threadID, beforeID int64, limit int) (msgs []Message, more bool, err error) {
+func (s *Store) ReadThread(threadID string, beforeID int64, limit int) (msgs []Message, more bool, err error) {
 	return s.readMessages(threadID, beforeID, 0, "", limit)
 }
 
 // Newest first, at most limit messages newer than afterID that tabID did not write; more reports whether older ones remain, read or not.
-func (s *Store) ReadUnread(threadID int64, tabID string, afterID int64, limit int) (msgs []Message, more bool, err error) {
+func (s *Store) ReadUnread(threadID string, tabID string, afterID int64, limit int) (msgs []Message, more bool, err error) {
 	return s.readMessages(threadID, 0, afterID, tabID, limit)
 }
 
-func (s *Store) readMessages(threadID, beforeID, afterID int64, excludeTab string, limit int) (msgs []Message, more bool, err error) {
+func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTab string, limit int) (msgs []Message, more bool, err error) {
 	if limit < 1 {
 		limit = 1
 	}

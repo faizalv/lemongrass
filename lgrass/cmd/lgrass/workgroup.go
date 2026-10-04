@@ -94,7 +94,7 @@ func cmdWorkgroupCreate(args []string) {
 		fail(err)
 	}
 
-	fmt.Printf("workgroup %d created, group thread %d.\n", group.ID, group.ThreadID)
+	fmt.Printf("workgroup %d created, group thread %s.\n", group.ID, group.ThreadID)
 	for _, m := range members {
 		fmt.Printf("  %s (%s) tab %s\n", m.Label, m.Vendor, m.TabID)
 	}
@@ -178,7 +178,7 @@ type listedMember struct {
 type listedGroup struct {
 	ID          int64          `json:"id"`
 	Name        string         `json:"name"`
-	ThreadID    int64          `json:"threadId"`
+	ThreadID    string         `json:"threadId"`
 	LeaderTabID string         `json:"leaderTabId"`
 	Members     []listedMember `json:"members"`
 }
@@ -218,7 +218,7 @@ func cmdWorkgroupList(args []string) {
 		return
 	}
 	for _, g := range listed {
-		fmt.Printf("workgroup %d [%s], thread %d\n", g.ID, g.Name, g.ThreadID)
+		fmt.Printf("workgroup %d [%s], thread %s\n", g.ID, g.Name, g.ThreadID)
 		for _, m := range g.Members {
 			fmt.Printf("  %s (%s, %s) tab %s\n", m.Label, m.Role, m.Vendor, m.TabID)
 		}

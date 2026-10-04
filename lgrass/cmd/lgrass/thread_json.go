@@ -16,7 +16,7 @@ type jsonMessage struct {
 }
 
 type jsonThread struct {
-	ID       int64         `json:"id"`
+	ID       string        `json:"id"`
 	Title    string        `json:"title"`
 	GroupID  int64         `json:"groupId"`
 	Messages []jsonMessage `json:"messages"`
@@ -24,7 +24,7 @@ type jsonThread struct {
 }
 
 // A read for the app: oldest message first, no read marks and no cursor moves, and sender labels resolved from the group's members.
-func printThreadJSON(store *session.Store, threadID int64, parsed threadArgs) {
+func printThreadJSON(store *session.Store, threadID string, parsed threadArgs) {
 	thread, err := store.ThreadByID(threadID)
 	if err != nil {
 		fail(err)

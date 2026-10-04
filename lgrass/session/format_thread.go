@@ -58,7 +58,7 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool, labels map[st
 	if unread {
 		scope = ", unread only"
 	}
-	fmt.Fprintf(&b, "%s thread %d [%s], opened by %s %s, %d msgs%s, newest first, times UTC\n", Prefix, t.ID, t.Title, labelOf(labels, t.CreatedBy), formatDate(t.CreatedAt), t.MessageCount, scope)
+	fmt.Fprintf(&b, "%s thread %s [%s], opened by %s %s, %d msgs%s, newest first, times UTC\n", Prefix, t.ID, t.Title, labelOf(labels, t.CreatedBy), formatDate(t.CreatedAt), t.MessageCount, scope)
 	for _, m := range msgs {
 		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatMessageTime(m.CreatedAt, msgs[0].CreatedAt), labelOf(labels, m.TabID))
 		if len(m.Mentions) > 0 {
@@ -71,7 +71,7 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool, labels map[st
 		fmt.Fprintf(&b, ":\n%s\n", m.Body)
 	}
 	if more && len(msgs) > 0 {
-		fmt.Fprintf(&b, "\nolder messages: lgrass thread read %d --before %d\n", t.ID, msgs[len(msgs)-1].ID)
+		fmt.Fprintf(&b, "\nolder messages: lgrass thread read %s --before %d\n", t.ID, msgs[len(msgs)-1].ID)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -82,7 +82,7 @@ func FormatThreadList(threads []Thread, labels map[string]string) string {
 	}
 	var b strings.Builder
 	for _, t := range threads {
-		fmt.Fprintf(&b, "%d [%s] %d message(s), last activity %s, opened by %s\n", t.ID, t.Title, t.MessageCount, formatTime(t.LastActivityAt), labelOf(labels, t.CreatedBy))
+		fmt.Fprintf(&b, "%s [%s] %d message(s), last activity %s, opened by %s\n", t.ID, t.Title, t.MessageCount, formatTime(t.LastActivityAt), labelOf(labels, t.CreatedBy))
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -104,7 +104,7 @@ func FormatNotification(pending []PendingThread, labels map[string]string) strin
 		if p.Other.Count > 0 {
 			parts = append(parts, fmt.Sprintf("%d for %s, not you", p.Other.Count, labelList(labels, p.Other.Tabs)))
 		}
-		lines[i] = fmt.Sprintf("%s thread %d: %s", Prefix, p.ThreadID, strings.Join(parts, "; "))
+		lines[i] = fmt.Sprintf("%s thread %s: %s", Prefix, p.ThreadID, strings.Join(parts, "; "))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -137,16 +137,16 @@ func FormatGroupHeader(g Group, members []Member) string {
 	for i, m := range members {
 		parts[i] = fmt.Sprintf("%s (%s, %s, tab %s)", m.Label, m.Role, m.Vendor, TabLabel(m.TabID))
 	}
-	return fmt.Sprintf("lgrass workgroup %d [%s], thread %d, %s, members: %s", g.ID, g.Name, g.ThreadID, state, strings.Join(parts, "; "))
+	return fmt.Sprintf("lgrass workgroup %d [%s], thread %s, %s, members: %s", g.ID, g.Name, g.ThreadID, state, strings.Join(parts, "; "))
 }
 
 // The repeat visit to a group thread: the full header is already in the reader's context.
 func FormatGroupShort(g Group, m Member) string {
-	return fmt.Sprintf("%s workgroup %d [%s], thread %d, you are %s (%s). lgrass workgroup thread --all repeats the members.", Prefix, g.ID, g.Name, g.ThreadID, m.Label, m.Role)
+	return fmt.Sprintf("%s workgroup %d [%s], thread %s, you are %s (%s). lgrass workgroup thread --all repeats the members.", Prefix, g.ID, g.Name, g.ThreadID, m.Label, m.Role)
 }
 
 func FormatNothingNew(t Thread) string {
-	return fmt.Sprintf("%s thread %d [%s]: nothing new. lgrass thread read %d --all shows the latest messages.", Prefix, t.ID, t.Title, t.ID)
+	return fmt.Sprintf("%s thread %s [%s]: nothing new. lgrass thread read %s --all shows the latest messages.", Prefix, t.ID, t.Title, t.ID)
 }
 
 func FormatThinkerStart(m Member, group Group) string {

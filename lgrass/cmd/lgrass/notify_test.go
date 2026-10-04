@@ -27,7 +27,7 @@ func TestNotificationContextSurfacesOnceThenMarksSent(t *testing.T) {
 	store := storeWithPendingMention(t)
 
 	first := notificationContext(store, notifyTabTarget)
-	if len(first) != 1 || !strings.Contains(first[0], "thread 1: 1 for you") || strings.Contains(first[0], "hi !>>") {
+	if len(first) != 1 || !strings.Contains(first[0], ": 1 for you") || strings.Contains(first[0], "hi !>>") {
 		t.Fatalf("first = %q, want one content-free nudge", first)
 	}
 	if again := notificationContext(store, notifyTabTarget); len(again) != 0 {
@@ -50,13 +50,13 @@ func TestPostToolUseAndSessionStartCarryTheNudge(t *testing.T) {
 	store := storeWithPendingMention(t)
 
 	result := hookPostToolUse(store, hookEvent{SessionID: "s", ToolName: "Bash", TabID: notifyTabTarget}, t.TempDir())
-	if !strings.Contains(result.AdditionalContext, "thread 1: 1 for you") {
+	if !strings.Contains(result.AdditionalContext, ": 1 for you") {
 		t.Errorf("PostToolUse context = %q, want the nudge", result.AdditionalContext)
 	}
 
 	store.CreateThread(notifyTabAuthor, "Second", "again !>>"+notifyTabTarget+"<<!")
 	start := hookSessionStart(store, hookEvent{SessionID: "s2", TabID: notifyTabTarget}, t.TempDir())
-	if !strings.Contains(start.AdditionalContext, "thread 2: 1 for you") {
+	if !strings.Contains(start.AdditionalContext, ": 1 for you") {
 		t.Errorf("SessionStart context = %q, want the pending nudge", start.AdditionalContext)
 	}
 }
@@ -68,7 +68,7 @@ func TestListenOnceWritesHeartbeatAndConsumesPending(t *testing.T) {
 		t.Errorf("listenOnce for a tab with nothing pending = %q, %v", text, ok)
 	}
 	text, ok := listenOnce(store, notifyTabTarget)
-	if !ok || !strings.Contains(text, "thread 1: 1 for you") {
+	if !ok || !strings.Contains(text, ": 1 for you") {
 		t.Fatalf("listenOnce = %q, %v, want the nudge", text, ok)
 	}
 	if _, ok := listenOnce(store, notifyTabTarget); ok {

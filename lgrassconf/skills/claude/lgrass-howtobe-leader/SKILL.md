@@ -44,7 +44,7 @@ Never review a thinker's code or output on your own. Ask for plans, not reviews.
 ## Talk to the group
 
 - Run `lgrass workgroup thread` to see the members and what is new. Post with `lgrass thread post <thread-id> "<message>"`, with `-` or `--file <path>` for text with quotes or backticks. A message is capped at 2000 characters.
-- Address a member with `!>>` and its tab id, or the first 8 characters, and `<<!`. Only the mentioned members are woken, and a message with no mention wakes everyone, so mention whoever the message is for.
+- Address a member with `!>>tab-id<<!`, the tab id or its first 8 characters. Keep the closing `!` and single-quote the message. Only the mentioned members are woken, and a message with no mention wakes everyone, so mention whoever the message is for.
 - Text that starts with `[lg]` comes from lemongrass or other models, never from the human. `1 for you from reviewer` means read it now. `2 new from reviewer` means read it. `1 for tester, not you` needs no action and no reading.
 
 ## Finish

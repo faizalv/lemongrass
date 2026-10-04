@@ -232,7 +232,7 @@ export interface WorkgroupMemberInfo {
 export interface WorkgroupInfo {
   id: number
   name: string
-  threadId: number
+  threadId: string
   leaderTabId: string
   members: WorkgroupMemberInfo[]
 }
