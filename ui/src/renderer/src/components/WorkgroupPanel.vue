@@ -2,10 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { openApprovals, pendingFor, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import {
+  focusedWorkgroupId,
   isTabOpen,
   liveShellCount,
   openWorkgroup,
-  openWorkgroupIds,
   type ProjectRef
 } from '../workspace'
 import type { WorkgroupInfo } from '../../../preload/types'
@@ -19,7 +19,7 @@ const props = defineProps<{
 const state = computed(() => workgroupStateOf(props.project.id))
 const groups = computed(() => state.value.groups)
 const waiting = computed(() => pendingFor(props.project.path))
-const shown = computed(() => new Set(openWorkgroupIds(props.project.id)))
+const focusedId = computed(() => focusedWorkgroupId(props.project.id))
 
 function orphaned(group: WorkgroupInfo): boolean {
   return !isTabOpen(props.project.id, group.pilotTabId)
@@ -111,7 +111,7 @@ watch(() => liveShellCount(props.project.id), refresh)
         v-for="group in groups"
         :key="group.id"
         class="wg-row"
-        :class="{ shown: shown.has(group.id) }"
+        :class="{ shown: focusedId === group.id }"
         :title="group.name"
         @click="openWorkgroup(project, group.id)"
       >
@@ -222,7 +222,7 @@ watch(() => liveShellCount(props.project.id), refresh)
   gap: 6px;
   width: 100%;
   padding: var(--space-1) var(--space-3);
-  background: transparent;
+  background: var(--color-surface-2);
   border: none;
   border-radius: var(--radius-sm);
   color: var(--color-fg-secondary);
@@ -233,7 +233,7 @@ watch(() => liveShellCount(props.project.id), refresh)
 }
 
 .wg-row:hover {
-  background: var(--color-surface-2);
+  background: var(--color-surface-3);
   color: var(--color-fg-primary);
 }
 

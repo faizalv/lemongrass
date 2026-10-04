@@ -94,7 +94,7 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
       { tag: 'circle', attrs: { cx: 11, cy: 10.5, r: 1.7 } },
       { tag: 'path', attrs: { d: 'M6 5l-2 4M8 5l2 4M4.7 10.5h4.6' } }
     ],
-    label: (tab, ctx) => ({ text: workgroupName(tab, ctx) }),
+    label: (tab, ctx) => ({ prefix: 'workgroup', text: workgroupName(tab, ctx) }),
     title: (tab, ctx) => workgroupName(tab, ctx),
     body: WorkgroupPane,
     keepAlive: true,

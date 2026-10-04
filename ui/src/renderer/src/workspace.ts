@@ -161,9 +161,12 @@ export function focusTab(project: ProjectRef, tabId: string): void {
   if (root && leaf) commit(project, tree.setActiveTab(root, leaf.id, tabId), leaf.id)
 }
 
-export function openWorkgroupIds(projectId: string): number[] {
-  if (!workspaces[projectId]) return []
-  return tabsOf(projectId).flatMap((tab) => (tab.kind === 'workgroup' ? [tab.groupId] : []))
+export function focusedWorkgroupId(projectId: string): number | null {
+  const layout = workspaces[projectId]?.layout
+  if (!layout) return null
+  const leaf = tree.findLeaf(layout.root, layout.focusedPaneId)
+  const tab = leaf?.tabs.find((t) => t.id === leaf.activeTabId)
+  return tab?.kind === 'workgroup' ? tab.groupId : null
 }
 
 export function liveShellCount(projectId: string): number {
