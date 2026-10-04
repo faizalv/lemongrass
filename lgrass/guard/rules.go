@@ -256,9 +256,6 @@ func dangerCatalog(home string) []dangerRule {
 
 		nameRule("keyring", "reading the OS keyring", "secret-tool", "keyctl"),
 		nameRule("db-client", "a direct database client, use lgrass db instead", "mysql", "mariadb", "psql", "mongosh", "mongo", "redis-cli", "sqlcmd", "pg_dump", "pg_dumpall", "pg_restore", "mysqldump", "mysqladmin", "mariadb-dump", "cockroach", "clickhouse-client"),
-		{ID: "lgrass-admin", Description: "lgrass vault and agent administration, a human action", Mode: ModeDeny, Match: func(call shellCall) bool {
-			return call.Name == "lgrass" && len(call.Args) > 0 && (call.Args[0] == "vault" || call.Args[0] == "agent")
-		}},
 
 		{ID: "docker-destroy", Description: "removing docker containers, images, volumes or networks", Mode: ModeDeny, Match: func(call shellCall) bool {
 			if call.Name != "docker" && call.Name != "podman" {

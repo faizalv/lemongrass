@@ -103,8 +103,6 @@ func TestDangerDecisionBash(t *testing.T) {
 
 		{"mysql -h prod -e 'select 1'", "db-client"},
 		{"psql postgres://x", "db-client"},
-		{"lgrass vault unlock", "lgrass-admin"},
-		{"lgrass agent run", "lgrass-admin"},
 
 		{"docker rm -f web", "docker-destroy"},
 		{"docker system prune -a", "docker-destroy"},

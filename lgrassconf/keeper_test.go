@@ -12,7 +12,7 @@ import (
 func fakeHome(t *testing.T) (*keeper, string) {
 	t.Helper()
 	home := t.TempDir()
-	lgrass := filepath.Join(home, ".local", "bin", "lgrass")
+	lgrass := filepath.Join(home, ".lemongrass", "bin", "lgrassd")
 	if err := os.MkdirAll(filepath.Dir(lgrass), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestNoLgrassBinaryRegistersNoHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(k.claudeSettingsPath()); err == nil {
-		t.Error("settings written although no lgrass binary exists")
+		t.Error("settings written although no lgrassd binary exists")
 	}
 	for _, v := range vendors {
 		if _, err := os.Stat(connectorSkillPath(k, v)); err != nil {
@@ -90,7 +90,7 @@ func TestNoLgrassBinaryRegistersNoHooks(t *testing.T) {
 		}
 	}
 	if _, err := os.Stat(k.codexHooksPath()); err == nil {
-		t.Error("Codex hooks written although no lgrass binary exists")
+		t.Error("Codex hooks written although no lgrassd binary exists")
 	}
 }
 

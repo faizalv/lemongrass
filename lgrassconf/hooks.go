@@ -54,12 +54,12 @@ func sameJSON(a, b []byte) bool {
 	return bytes.Equal(ca.Bytes(), cb.Bytes())
 }
 
-func reconcileClaudeSettings(data []byte, lgrassPath string) ([]byte, bool, error) {
+func reconcileClaudeSettings(data []byte, lgrassdPath string) ([]byte, bool, error) {
 	registrations := make([]hookRegistration, 0, len(claudeHookEvents))
 	for _, event := range claudeHookEvents {
 		registrations = append(registrations, hookRegistration{
 			Event:   event,
-			Handler: hookHandler{Type: "command", Command: lgrassPath + " hook " + event},
+			Handler: hookHandler{Type: "command", Command: lgrassdPath + " hook " + event},
 		})
 	}
 	return reconcileHookGroups(data, registrations)

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-const testLgrass = "/home/u/.local/bin/lgrass"
+const testLgrass = "/home/u/.lemongrass/bin/lgrassd"
 
 func groupsFor(t *testing.T, data []byte, event string) []map[string]any {
 	t.Helper()

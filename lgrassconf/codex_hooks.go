@@ -4,12 +4,12 @@ import "fmt"
 
 var codexHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse"}
 
-func reconcileCodexHooks(data []byte, lgrassPath string) ([]byte, bool, error) {
+func reconcileCodexHooks(data []byte, lgrassdPath string) ([]byte, bool, error) {
 	registrations := make([]hookRegistration, 0, len(codexHookEvents))
 	for _, event := range codexHookEvents {
 		handler := hookHandler{
 			Type:    "command",
-			Command: fmt.Sprintf("LGRASS_HOOK_VENDOR=codex %s hook %s", lgrassPath, event),
+			Command: fmt.Sprintf("LGRASS_HOOK_VENDOR=codex %s hook %s", lgrassdPath, event),
 		}
 		matcher := ""
 		switch event {

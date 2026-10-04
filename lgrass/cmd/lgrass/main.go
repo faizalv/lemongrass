@@ -20,8 +20,6 @@ func main() {
 		fmt.Println(version.Version)
 	case "--help", "-h", "help":
 		usage()
-	case "hook":
-		cmdHook(os.Args[2:])
 	case "thread":
 		cmdThread(os.Args[2:])
 	case "workgroup":
@@ -49,8 +47,6 @@ func usage() {
 	fmt.Print(`lgrass -- lemongrass's agent-invoked CLI
 
 COMMANDS
-  hook <event>                      Invoked by Claude Code's own hook system, reads hook JSON off stdin.
-
   thread create "<title>" "<content>"
                                      Opens a thread with content as its first message and prints its id;
                                      content may be - for stdin or --file <path>, capped at 2000 characters

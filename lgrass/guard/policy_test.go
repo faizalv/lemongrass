@@ -15,7 +15,7 @@ func TestPolicyValidate(t *testing.T) {
 		{"allow a catalog rule", Policy{Rules: map[string]string{"rm-plain": "allow"}}, true},
 		{"deny an approval rule", Policy{Rules: map[string]string{"git-add": "deny"}}, true},
 		{"unknown rule", Policy{Rules: map[string]string{"nope": "allow"}}, false},
-		{"locked catalog rule", Policy{Rules: map[string]string{"lgrass-admin": "allow"}}, false},
+		{"locked catalog rule", Policy{Rules: map[string]string{"keyring": "allow"}}, false},
 		{"locked engine rule", Policy{Rules: map[string]string{"secret-path": "allow"}}, false},
 		{"bad mode", Policy{Rules: map[string]string{"rm-plain": "maybe"}}, false},
 		{"binary", Policy{Binaries: []string{"make"}}, true},
@@ -86,8 +86,8 @@ func TestPolicyOverrides(t *testing.T) {
 }
 
 func TestLockedRulesIgnoreOverrides(t *testing.T) {
-	forced := Policy{Rules: map[string]string{"secret-path": "allow", "guard-config": "allow", "lgrass-admin": "allow", "dynamic-command": "allow"}}
-	for _, command := range []string{"cat ~/.ssh/id_rsa", "echo x > ~/.claude/settings.json", "lgrass vault unlock", "$CMD x"} {
+	forced := Policy{Rules: map[string]string{"secret-path": "allow", "guard-config": "allow", "keyring": "allow", "dynamic-command": "allow"}}
+	for _, command := range []string{"cat ~/.ssh/id_rsa", "echo x > ~/.claude/settings.json", "secret-tool lookup a b", "$CMD x"} {
 		if verdict := Decide(bashInput(t, command), forced); verdict == nil {
 			t.Errorf("%q was allowed by an override of a locked rule", command)
 		}
@@ -141,7 +141,7 @@ func TestCatalogListing(t *testing.T) {
 			t.Errorf("rule %q has mode %q", info.ID, info.Mode)
 		}
 	}
-	for _, id := range []string{"rm-force", "rm-plain", "git-add", "secret-path", "lgrass-admin"} {
+	for _, id := range []string{"rm-force", "rm-plain", "git-add", "secret-path", "keyring"} {
 		if !seen[id] {
 			t.Errorf("rule %q missing from the catalog listing", id)
 		}

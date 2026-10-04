@@ -1,4 +1,4 @@
-package main
+package hook
 
 import (
 	"bufio"
@@ -55,9 +55,9 @@ const bibliothekChecklistID = "bibliothek"
 const bibliothekSignatureTTL = 7 * 24 * time.Hour
 
 // Every failure here fails soft so a hook-side problem never breaks the agent's own hook chain.
-func cmdHook(args []string) {
+func Run(args []string, tabID string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop>")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop>")
 		os.Exit(1)
 	}
 	event := args[0]

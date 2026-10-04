@@ -5,7 +5,11 @@ import (
 	"os"
 
 	"github.com/faizalv/lemongrass/cmd/lgrass/version"
+	"github.com/faizalv/lemongrass/hook"
 )
+
+// Set by the Electron app on each agent tab it spawns, so the id is inherited by everything the tab runs.
+const tabIDEnv = "LGRASS_TAB_ID"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -25,6 +29,8 @@ func main() {
 		cmdTabs(os.Args[2:])
 	case "nudge":
 		cmdNudge(os.Args[2:])
+	case "hook":
+		hook.Run(os.Args[2:], os.Getenv(tabIDEnv))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
@@ -45,6 +51,7 @@ COMMANDS
   tabs register <tab-id> <vendor>   Records the agent vendor a tab runs
   tabs forget <tab-id>              Drops a closed tab's records
   nudge <tab-id>                    Prints the tab's pending thread nudge and marks it sent
+  hook <event>                      Invoked by Claude Code's and Codex's own hook systems, reads hook JSON off stdin
 
   version                           Print version
 `)

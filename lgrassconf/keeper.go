@@ -41,8 +41,7 @@ func newKeeper(home string) *keeper {
 	k := &keeper{
 		home: home,
 		candidates: []string{
-			filepath.Join(home, ".local", "bin", "lgrass"),
-			"/usr/local/bin/lgrass",
+			filepath.Join(home, ".lemongrass", "bin", "lgrassd"),
 		},
 	}
 	k.skills = k.loadSkills()
@@ -88,7 +87,7 @@ func (k *keeper) codexHooksPath() string {
 	return filepath.Join(k.home, ".codex", "hooks.json")
 }
 
-func (k *keeper) lgrassPath() string {
+func (k *keeper) lgrassdPath() string {
 	for _, c := range k.candidates {
 		if info, err := os.Stat(c); err == nil && !info.IsDir() {
 			return c
@@ -126,7 +125,7 @@ func (k *keeper) reconcile() error {
 			errs = append(errs, err)
 		}
 	}
-	if path := k.lgrassPath(); path != "" {
+	if path := k.lgrassdPath(); path != "" {
 		if err := syncHookConfig(k.claudeSettingsPath(), path, reconcileClaudeSettings); err != nil {
 			errs = append(errs, err)
 		}

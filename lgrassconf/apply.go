@@ -46,7 +46,7 @@ func statKey(path string) (time.Time, int64) {
 
 type hookReconciler func([]byte, string) ([]byte, bool, error)
 
-func syncHookConfig(path, lgrassPath string, reconcile hookReconciler) error {
+func syncHookConfig(path, lgrassdPath string, reconcile hookReconciler) error {
 	for attempt := 0; attempt < 3; attempt++ {
 		data, err := os.ReadFile(path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -58,7 +58,7 @@ func syncHookConfig(path, lgrassPath string, reconcile hookReconciler) error {
 		}
 		beforeTime, beforeSize := statKey(path)
 
-		out, changed, err := reconcile(data, lgrassPath)
+		out, changed, err := reconcile(data, lgrassdPath)
 		if err != nil {
 			return err
 		}

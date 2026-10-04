@@ -4,8 +4,7 @@ import "strings"
 
 // Catalog rules that protect lemongrass itself and cannot be changed by a policy.
 var lockedRules = map[string]bool{
-	"lgrass-admin": true,
-	"keyring":      true,
+	"keyring": true,
 }
 
 // Verdicts the engine produces outside the catalog. The locked ones cannot be changed by a policy.
@@ -38,7 +37,7 @@ func categoryOf(id string) string {
 		return "System"
 	case "curl-upload", "wget-upload", "raw-network", "remote-shell", "rsync-remote":
 		return "Network"
-	case "keyring", "lgrass-admin":
+	case "keyring":
 		return "Lemongrass"
 	case "db-client":
 		return "Database"
