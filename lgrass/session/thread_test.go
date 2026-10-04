@@ -248,3 +248,20 @@ func TestAdHocThreadSkipsClosedTabs(t *testing.T) {
 		t.Errorf("closed tab pending = %+v, want only the notification from before it closed", pending)
 	}
 }
+
+func TestShortIDIsAValidMentionPrefix(t *testing.T) {
+	store := openTestStore(t)
+	store.RegisterTab(tabA, "claude")
+
+	short := ShortID(tabA)
+	if len(short) != minMentionPrefix {
+		t.Fatalf("ShortID = %q, want %d characters", short, minMentionPrefix)
+	}
+	got, err := store.ResolveMentions([]string{short})
+	if err != nil || len(got) != 1 || got[0] != tabA {
+		t.Errorf("ResolveMentions(%q) = %v, %v, want tabA", short, got, err)
+	}
+	if ShortID("abc") != "abc" {
+		t.Errorf("a short id must be returned unchanged")
+	}
+}

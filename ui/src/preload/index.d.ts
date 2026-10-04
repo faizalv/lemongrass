@@ -61,6 +61,7 @@ interface Api {
   }
   tabSessions: {
     list: (projectPath: string) => Promise<Record<string, string>>
+    clear: (projectPath: string) => Promise<void>
     title: (projectPath: string, tabId: string, title: string) => Promise<void>
     forget: (projectPath: string, tabId: string) => Promise<void>
   }

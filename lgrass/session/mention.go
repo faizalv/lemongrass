@@ -9,6 +9,14 @@ import (
 // The shortest tab id prefix a mention may use.
 const minMentionPrefix = 8
 
+// A tab or session id cut to the shortest tab id prefix a mention accepts.
+func ShortID(id string) string {
+	if len(id) > minMentionPrefix {
+		return id[:minMentionPrefix]
+	}
+	return id
+}
+
 var (
 	mentionMarker = regexp.MustCompile(`!>>([^<]*)<<!`)
 	tabIDPrefix   = regexp.MustCompile(`^[0-9a-fA-F-]+$`)

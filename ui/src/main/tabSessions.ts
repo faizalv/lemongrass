@@ -44,6 +44,15 @@ export function registerTabSessionHandlers(lgrassdPath: string | null): void {
     }
   )
 
+  ipcMain.handle('tabSessions:clear', async (_event, projectPath: string) => {
+    if (!lgrassdPath) return
+    try {
+      await runLgrassd(lgrassdPath, projectPath, ['clear'])
+    } catch (err) {
+      console.error('lgrassd tabs clear failed:', err)
+    }
+  })
+
   ipcMain.handle(
     'tabSessions:title',
     async (

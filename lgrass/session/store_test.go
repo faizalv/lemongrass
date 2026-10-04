@@ -623,3 +623,40 @@ func TestTabTitleIsCleanedCappedAndSurvivesReRegister(t *testing.T) {
 		t.Errorf("an unregistered tab got a record: %q", titles[tabB])
 	}
 }
+
+func TestListTabsIsOrderedAndShowsVendorAndTitle(t *testing.T) {
+	store := openTestStore(t)
+	store.RegisterTab(tabB, "codex")
+	store.RegisterTab(tabA, "claude")
+	store.SetTabTitle(tabA, "fix the bug")
+
+	for i := 0; i < 20; i++ {
+		tabs, err := store.ListTabs()
+		if err != nil || len(tabs) != 2 {
+			t.Fatalf("ListTabs = %+v, %v, want two tabs", tabs, err)
+		}
+		if tabs[0] != (TabInfo{ID: tabA, Vendor: "claude", Title: "fix the bug"}) || tabs[1].ID != tabB || tabs[1].Title != "" {
+			t.Fatalf("ListTabs = %+v, want tabA with its title, then tabB untitled", tabs)
+		}
+	}
+}
+
+func TestClearTabsKeepsSavedSessionsAndClearsTabState(t *testing.T) {
+	store := openTestStore(t)
+	store.RegisterTab(tabA, "claude")
+	store.RecordTabSession(tabA, "sess-1")
+	store.SetTabState(tabA, StatePrompting)
+
+	if err := store.ClearTabs(); err != nil {
+		t.Fatalf("ClearTabs: %v", err)
+	}
+	if tabs, _ := store.ListTabs(); len(tabs) != 0 {
+		t.Errorf("tabs after clear = %+v, want none", tabs)
+	}
+	if id, _ := store.SessionForTab(tabA); id != "sess-1" {
+		t.Errorf("saved session = %q, want it kept for resume", id)
+	}
+	if ready, _ := store.TabReadyForNudge(tabA, time.Now()); !ready {
+		t.Errorf("the cleared tab's stale prompting state still blocks a nudge")
+	}
+}

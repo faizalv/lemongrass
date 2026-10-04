@@ -326,6 +326,7 @@ async function restoreShellSessions(
 
 async function init(project: ProjectRef): Promise<void> {
   const saved = await window.api.workspaceLayouts.load(project.id)
+  await window.api.tabSessions.clear(project.path)
   await restoreShellSessions(project, saved?.root ?? null)
   workspaces[project.id] = {
     layout: { root: saved?.root ?? null, focusedPaneId: saved?.focusedPaneId ?? null },

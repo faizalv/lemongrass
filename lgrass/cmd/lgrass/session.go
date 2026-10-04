@@ -3,14 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/faizalv/lemongrass/session"
 )
-
-// idleThresholdForList matches hook.go's idleThreshold, the same
-// active/idling definition either way.
-const idleThresholdForList = 5 * time.Minute
 
 func cmdSession(args []string) {
 	if len(args) == 0 {
@@ -37,39 +32,24 @@ func cmdSessionList(args []string) {
 	}
 	defer store.Close()
 
-	exclude := currentSessionExclusion(store)
-	liveness, err := store.Liveness(exclude, idleThresholdForList)
+	tabs, err := store.ListTabs()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	if len(liveness) == 0 {
-		fmt.Println("lgrass: no other sessions open in this project.")
-		return
-	}
-	tabBySession := map[string]string{}
-	if tabs, err := store.TabSessions(); err == nil {
-		for tab, sessionID := range tabs {
-			tabBySession[sessionID] = tab
+	printed := 0
+	for _, t := range tabs {
+		if t.ID == tabID {
+			continue
 		}
-	}
-	vendors, _ := store.TabVendors()
-	titles, _ := store.TabTitles()
-	for _, s := range liveness {
-		status := "idling"
-		if s.Active {
-			status = "active"
-		}
-		line := fmt.Sprintf("%s  %s", s.SessionID, status)
-		if tab := tabBySession[s.SessionID]; tab != "" {
-			line += fmt.Sprintf("  tab %s", tab)
-			if vendor := vendors[tab]; vendor != "" {
-				line += "  " + vendor
-			}
-			if title := titles[tab]; title != "" {
-				line += fmt.Sprintf("  %q", title)
-			}
+		line := session.ShortID(t.ID) + "  " + t.Vendor
+		if t.Title != "" {
+			line += fmt.Sprintf("  %q", t.Title)
 		}
 		fmt.Println(line)
+		printed++
+	}
+	if printed == 0 {
+		fmt.Println("lgrass: no other tabs open in this project.")
 	}
 }

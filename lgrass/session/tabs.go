@@ -145,6 +145,43 @@ func (s *Store) ForgetTab(tabID string) error {
 	return err
 }
 
+type TabInfo struct {
+	ID     string
+	Vendor string
+	Title  string
+}
+
+// Every registered tab in this project, ordered by tab id so two calls never differ.
+func (s *Store) ListTabs() ([]TabInfo, error) {
+	rows, err := s.db.Query(`SELECT tab_id, vendor, title FROM lg_tabs WHERE project_id = ? ORDER BY tab_id`, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []TabInfo
+	for rows.Next() {
+		var t TabInfo
+		if err := rows.Scan(&t.ID, &t.Vendor, &t.Title); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// Drops every registered tab of this project and the state tied to them, but keeps each tab's saved session, which is what a restored tab resumes from.
+func (s *Store) ClearTabs() error {
+	if _, err := s.db.Exec(`DELETE FROM lg_tab_state WHERE tab_id IN (SELECT tab_id FROM lg_tabs WHERE project_id = ?)`, s.projectID); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(`DELETE FROM lg_ready_marks WHERE project_id = ? AND tab_id IN (SELECT tab_id FROM lg_tabs WHERE project_id = ?)`, s.projectID, s.projectID); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM lg_tabs WHERE project_id = ?`, s.projectID)
+	return err
+}
+
 // Maps tab id to vendor for every registered tab in this project.
 func (s *Store) TabVendors() (map[string]string, error) {
 	rows, err := s.db.Query(`SELECT tab_id, vendor FROM lg_tabs WHERE project_id = ?`, s.projectID)

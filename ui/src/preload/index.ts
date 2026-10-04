@@ -56,6 +56,8 @@ const pty = {
 const tabSessions = {
   list: (projectPath: string): Promise<Record<string, string>> =>
     ipcRenderer.invoke('tabSessions:list', projectPath),
+  clear: (projectPath: string): Promise<void> =>
+    ipcRenderer.invoke('tabSessions:clear', projectPath),
   title: (projectPath: string, tabId: string, title: string): Promise<void> =>
     ipcRenderer.invoke('tabSessions:title', { projectPath, tabId, title }),
   forget: (projectPath: string, tabId: string): Promise<void> =>

@@ -219,9 +219,11 @@ function menuCloseAction(key: string): void {
 const copiedTabId = ref<string | null>(null)
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
+const SHORT_TAB_ID_LENGTH = 8
+
 async function copyTabId(tabId: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(tabId)
+    await navigator.clipboard.writeText(tabId.slice(0, SHORT_TAB_ID_LENGTH))
   } catch {
     return
   }
