@@ -12,7 +12,7 @@ import (
 //go:embed skills
 var skillsFS embed.FS
 
-var legacySkillNames = []string{"lemongrass", "lgrass-staleness", "lgrass-closing"}
+var legacySkillNames = []string{"lemongrass", "lgrass-staleness", "lgrass-closing", "lgrass-copilot", "lgrass-pilot"}
 
 type vendor struct {
 	embedRoot string
