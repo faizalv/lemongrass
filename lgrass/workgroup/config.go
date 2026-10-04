@@ -17,14 +17,14 @@ import (
 )
 
 const (
-	MaxCopilots = 5
+	MaxThinkers = 5
 	MaxSkills   = 8
 
-	// Every copilot loads this skill, so a config never has to list it.
-	CopilotSkill     = session.CopilotSkill
-	MaxPromptRunes   = 3000
-	MaxNameRunes     = 120
-	defaultPilotName = "pilot"
+	// Every thinker loads this skill, so a config never has to list it.
+	ThinkerSkill      = session.ThinkerSkill
+	MaxPromptRunes    = 3000
+	MaxNameRunes      = 120
+	defaultLeaderName = "leader"
 )
 
 var (
@@ -34,7 +34,7 @@ var (
 	vendors      = map[string]bool{"claude": true, "codex": true}
 )
 
-type Copilot struct {
+type Thinker struct {
 	Label      string   `yaml:"label"`
 	Vendor     string   `yaml:"vendor"`
 	Model      string   `yaml:"model"`
@@ -44,9 +44,9 @@ type Copilot struct {
 }
 
 type Config struct {
-	Name       string    `yaml:"name"`
-	PilotLabel string    `yaml:"pilot_label"`
-	Copilots   []Copilot `yaml:"copilots"`
+	Name        string    `yaml:"name"`
+	LeaderLabel string    `yaml:"leader_label"`
+	Thinkers    []Thinker `yaml:"thinkers"`
 }
 
 // JSON is accepted because it is valid YAML. Unknown keys are an error, and each prompt_file is read relative to the config's directory into Prompt.
@@ -73,50 +73,50 @@ func Parse(data []byte, baseDir string) (Config, error) {
 	if utf8.RuneCountInString(cfg.Name) > MaxNameRunes {
 		return Config{}, fmt.Errorf("workgroup: name is longer than %d characters", MaxNameRunes)
 	}
-	if cfg.PilotLabel == "" {
-		cfg.PilotLabel = defaultPilotName
+	if cfg.LeaderLabel == "" {
+		cfg.LeaderLabel = defaultLeaderName
 	}
-	if !labelPattern.MatchString(cfg.PilotLabel) {
-		return Config{}, fmt.Errorf("workgroup: pilot_label %q must be 1 to 30 letters, digits, dashes or underscores", cfg.PilotLabel)
+	if !labelPattern.MatchString(cfg.LeaderLabel) {
+		return Config{}, fmt.Errorf("workgroup: leader_label %q must be 1 to 30 letters, digits, dashes or underscores", cfg.LeaderLabel)
 	}
-	if len(cfg.Copilots) == 0 {
-		return Config{}, errors.New("workgroup: the config lists no copilots")
+	if len(cfg.Thinkers) == 0 {
+		return Config{}, errors.New("workgroup: the config lists no thinkers")
 	}
-	if len(cfg.Copilots) > MaxCopilots {
-		return Config{}, fmt.Errorf("workgroup: %d copilots listed and the limit is %d", len(cfg.Copilots), MaxCopilots)
+	if len(cfg.Thinkers) > MaxThinkers {
+		return Config{}, fmt.Errorf("workgroup: %d thinkers listed and the limit is %d", len(cfg.Thinkers), MaxThinkers)
 	}
 
-	seen := map[string]bool{strings.ToLower(cfg.PilotLabel): true}
-	for i := range cfg.Copilots {
-		c := &cfg.Copilots[i]
+	seen := map[string]bool{strings.ToLower(cfg.LeaderLabel): true}
+	for i := range cfg.Thinkers {
+		c := &cfg.Thinkers[i]
 		if !labelPattern.MatchString(c.Label) {
-			return Config{}, fmt.Errorf("workgroup: copilot %d label %q must be 1 to 30 letters, digits, dashes or underscores", i+1, c.Label)
+			return Config{}, fmt.Errorf("workgroup: thinker %d label %q must be 1 to 30 letters, digits, dashes or underscores", i+1, c.Label)
 		}
 		if seen[strings.ToLower(c.Label)] {
 			return Config{}, fmt.Errorf("workgroup: label %q is used more than once", c.Label)
 		}
 		seen[strings.ToLower(c.Label)] = true
 		if !vendors[c.Vendor] {
-			return Config{}, fmt.Errorf("workgroup: copilot %q vendor %q must be claude or codex", c.Label, c.Vendor)
+			return Config{}, fmt.Errorf("workgroup: thinker %q vendor %q must be claude or codex", c.Label, c.Vendor)
 		}
 		if c.Model != "" && !modelPattern.MatchString(c.Model) {
-			return Config{}, fmt.Errorf("workgroup: copilot %q model %q is not a valid model name", c.Label, c.Model)
+			return Config{}, fmt.Errorf("workgroup: thinker %q model %q is not a valid model name", c.Label, c.Model)
 		}
 		if len(c.Skills) > MaxSkills {
-			return Config{}, fmt.Errorf("workgroup: copilot %q lists %d skills and the limit is %d", c.Label, len(c.Skills), MaxSkills)
+			return Config{}, fmt.Errorf("workgroup: thinker %q lists %d skills and the limit is %d", c.Label, len(c.Skills), MaxSkills)
 		}
 		var skills []string
 		for _, name := range c.Skills {
 			if !skillPattern.MatchString(name) {
-				return Config{}, fmt.Errorf("workgroup: copilot %q skill %q is not a valid skill name", c.Label, name)
+				return Config{}, fmt.Errorf("workgroup: thinker %q skill %q is not a valid skill name", c.Label, name)
 			}
-			if name != CopilotSkill && !containsString(skills, name) {
+			if name != ThinkerSkill && !containsString(skills, name) {
 				skills = append(skills, name)
 			}
 		}
 		c.Skills = skills
 		if (c.Prompt == "") == (c.PromptFile == "") {
-			return Config{}, fmt.Errorf("workgroup: copilot %q needs exactly one of prompt and prompt_file", c.Label)
+			return Config{}, fmt.Errorf("workgroup: thinker %q needs exactly one of prompt and prompt_file", c.Label)
 		}
 		if c.PromptFile != "" {
 			file := c.PromptFile
@@ -125,16 +125,16 @@ func Parse(data []byte, baseDir string) (Config, error) {
 			}
 			text, err := os.ReadFile(file)
 			if err != nil {
-				return Config{}, fmt.Errorf("workgroup: copilot %q prompt_file: %w", c.Label, err)
+				return Config{}, fmt.Errorf("workgroup: thinker %q prompt_file: %w", c.Label, err)
 			}
 			c.Prompt, c.PromptFile = string(text), ""
 		}
 		c.Prompt = strings.TrimSpace(c.Prompt)
 		if c.Prompt == "" {
-			return Config{}, fmt.Errorf("workgroup: copilot %q prompt is empty", c.Label)
+			return Config{}, fmt.Errorf("workgroup: thinker %q prompt is empty", c.Label)
 		}
 		if n := utf8.RuneCountInString(c.Prompt); n > MaxPromptRunes {
-			return Config{}, fmt.Errorf("workgroup: copilot %q prompt is %d characters and the limit is %d", c.Label, n, MaxPromptRunes)
+			return Config{}, fmt.Errorf("workgroup: thinker %q prompt is %d characters and the limit is %d", c.Label, n, MaxPromptRunes)
 		}
 	}
 	return cfg, nil
@@ -149,20 +149,20 @@ func containsString(list []string, v string) bool {
 	return false
 }
 
-// Every skill a copilot must load: the copilot skill first, then the ones the pilot listed.
-func (c Copilot) RequiredSkills() []string {
-	return append([]string{CopilotSkill}, c.Skills...)
+// Every skill a thinker must load: the thinker skill first, then the ones the leader listed.
+func (c Thinker) RequiredSkills() []string {
+	return append([]string{ThinkerSkill}, c.Skills...)
 }
 
 var skillDirs = map[string]string{"claude": ".claude", "codex": ".codex"}
 
-// Checks that each copilot's required skills are installed for its vendor, so a group is never approved with a skill nobody can load.
+// Checks that each thinker's required skills are installed for its vendor, so a group is never approved with a skill nobody can load.
 func (cfg Config) CheckSkillsInstalled(home string) error {
-	for _, c := range cfg.Copilots {
+	for _, c := range cfg.Thinkers {
 		root := filepath.Join(home, skillDirs[c.Vendor], "skills")
 		for _, name := range c.RequiredSkills() {
 			if _, err := os.Stat(filepath.Join(root, name, "SKILL.md")); err != nil {
-				return fmt.Errorf("workgroup: copilot %q needs the skill %q, which is not installed for %s at %s. Installed: %s", c.Label, name, c.Vendor, root, installedSkills(root))
+				return fmt.Errorf("workgroup: thinker %q needs the skill %q, which is not installed for %s at %s. Installed: %s", c.Label, name, c.Vendor, root, installedSkills(root))
 			}
 		}
 	}

@@ -17,10 +17,10 @@ It is an Electron app plus `lgrass`, a Go CLI that the agents call themselves. C
 
 ### Agents work as a team, across vendors
 
-A pilot agent declares a workgroup of one to five co-pilots, each running Claude Code or Codex, with `lgrass workgroup create`.
+A leader agent declares a workgroup of one to five thinkers, each running Claude Code or Codex, with `lgrass workgroup create`.
 
-- **The human approves what starts.** Every co-pilot's complete starting text is shown before anything spawns. Approval issues a one-time token, and that token is the only path that opens the members' tabs.
-- **Plan first.** A co-pilot posts its plan to the group thread and waits for the pilot's go before it changes anything. A gate denies every tool except `lgrass` commands until the skills the co-pilot was configured with are loaded.
+- **The human approves what starts.** Every thinker's complete starting text is shown before anything spawns. Approval issues a one-time token, and that token is the only path that opens the members' tabs.
+- **Plan first.** A thinker posts its plan to the group thread and waits for the leader's go before it changes anything. A gate denies every tool except `lgrass` commands until the skills the thinker was configured with are loaded.
 - **Real conversation.** Members share a thread with mentions, unread-only reads, and notices delivered through each agent's own hooks. Any member can address any other directly.
 - **Persistent.** Membership survives a tab closing and an app restart. A sidebar panel shows each group's members and whether their tabs are online. A disbanded group's thread stays readable.
 
@@ -56,7 +56,7 @@ In progress:
 Planned:
 
 - An audit of `lgrass rester` calls and of `lgrass db` reads.
-- An investigator role for cheap, read-only workgroup members, and leader and thinker names for pilot and co-pilot.
+- An investigator role for cheap, read-only workgroup members.
 
 Limits:
 
@@ -79,8 +79,8 @@ The three are siblings, not nested. Neither toolchain's file tree (`node_modules
 | Skill | What it teaches an agent |
 |---|---|
 | `lgrass-connector` | Run a database query or an HTTP call through an existing channel, so the real credential never enters the session. |
-| `lgrass-pilot` | Lead a workgroup: declare it, brief each co-pilot, ask each for a plan, and stay responsible for the result. |
-| `lgrass-copilot` | Work inside a workgroup: post a plan, wait for the pilot's go, and talk with the pilot and the other members. |
+| `lgrass-howtobe-leader` | Lead a workgroup: declare it, brief each thinker, ask each for a plan, and stay responsible for the result. |
+| `lgrass-howtobe-thinker` | Work inside a workgroup: post a plan, wait for the leader's go, and talk with the leader and the other members. |
 | `lgrass-staleness` | Correct a document that contradicts the code or the convention in the same turn, and ask only when the fix is a design decision. |
 | `lgrass-closing` | Close a finished task: write the book chapter and its `toc.md` line, promote standing rules to laws, archive the handover, and sweep stale references. |
 

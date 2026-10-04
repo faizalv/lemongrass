@@ -8,9 +8,9 @@ import (
 func TestPrintThreadJSONIsOldestFirstWithLabelsAndNoReadMarks(t *testing.T) {
 	store, g := storeWithKindsGroup(t)
 	tabID = kindsTwo
-	store.PostMessage(kindsPilot, g.ThreadID, "first")
+	store.PostMessage(kindsLeader, g.ThreadID, "first")
 	store.PostMessage(kindsOne, g.ThreadID, "second")
-	store.PostMessage(kindsPilot, g.ThreadID, "third")
+	store.PostMessage(kindsLeader, g.ThreadID, "third")
 
 	for i := 0; i < 2; i++ {
 		out := captureStdout(t, func() { printThreadJSON(store, g.ThreadID, threadArgs{limit: 2}) })

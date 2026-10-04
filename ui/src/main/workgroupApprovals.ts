@@ -7,7 +7,7 @@ import { notifyApprovalWaiting } from './workgroupNotify'
 export interface ApprovalRequest {
   projectPath: string
   groupName: string
-  pilotLabel: string
+  leaderLabel: string
   members: WorkgroupPendingMember[]
 }
 

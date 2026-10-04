@@ -29,15 +29,15 @@ type SpawnMember struct {
 	Vendor string `json:"vendor"`
 	Model  string `json:"model,omitempty"`
 	Prompt string `json:"prompt"`
-	// Every skill the tab must load, the copilot skill first.
+	// Every skill the tab must load, the thinker skill first.
 	Skills []string `json:"skills"`
 }
 
 type Request struct {
 	Op          string        `json:"op"`
 	ProjectPath string        `json:"project_path,omitempty"`
-	PilotTabID  string        `json:"pilot_tab_id,omitempty"`
-	PilotLabel  string        `json:"pilot_label,omitempty"`
+	LeaderTabID string        `json:"leader_tab_id,omitempty"`
+	LeaderLabel string        `json:"leader_label,omitempty"`
 	GroupName   string        `json:"group_name,omitempty"`
 	Members     []SpawnMember `json:"members,omitempty"`
 	Token       string        `json:"token,omitempty"`
@@ -78,7 +78,7 @@ func Propose(socketPath string, req Request) (Answer, error) {
 	return Answer{Approved: resp.Approved, Token: resp.Token, Reason: resp.Reason, Withdrawn: resp.Withdrawn}, nil
 }
 
-// Asks the app to open the approved members' tabs next to the pilot's.
+// Asks the app to open the approved members' tabs next to the leader's.
 func Spawn(socketPath, token string) error {
 	_, err := call(socketPath, Request{Op: opSpawn, Token: token}, spawnTimeout)
 	return err
@@ -127,13 +127,13 @@ func NewTabID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
-// The text a copilot starts with: its role, the skills it must load, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
-func ComposePrompt(vendor, label, groupName, pilotLabel string, skills []string, assignment string) string {
-	text := fmt.Sprintf("You are the copilot \"%s\" in the lemongrass workgroup \"%s\", led by the pilot \"%s\". "+
+// The text a thinker starts with: its role, the skills it must load, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
+func ComposePrompt(vendor, label, groupName, leaderLabel string, skills []string, assignment string) string {
+	text := fmt.Sprintf("You are the thinker \"%s\" in the lemongrass workgroup \"%s\", led by the leader \"%s\". "+
 		"Before any other tool call, load these skills: %s. Until you have, every tool except `lgrass` commands is denied. "+
 		"Then run `lgrass workgroup thread` to see your group and the group thread. "+
-		"Before you change anything, post your plan to the group thread and wait for the pilot's go.",
-		label, groupName, pilotLabel, strings.Join(skills, ", "))
+		"Before you change anything, post your plan to the group thread and wait for the leader's go.",
+		label, groupName, leaderLabel, strings.Join(skills, ", "))
 	if vendor != "claude" {
 		text += " Keep `lgrass listen` running in the background so you are woken when someone posts."
 	}

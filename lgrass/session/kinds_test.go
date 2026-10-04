@@ -174,7 +174,7 @@ func TestFormatThreadReadUsesClockTimesAndDatesOnlyAcrossDays(t *testing.T) {
 
 func TestShortGroupAndNothingNewLines(t *testing.T) {
 	g := Group{ID: 3, Name: "toy", ThreadID: 5}
-	short := FormatGroupShort(g, Member{Label: "reviewer", Role: RoleCopilot})
+	short := FormatGroupShort(g, Member{Label: "reviewer", Role: RoleThinker})
 	if !strings.HasPrefix(short, Prefix) || strings.Count(short, "\n") != 0 || !strings.Contains(short, "reviewer") {
 		t.Errorf("short group line = %q", short)
 	}

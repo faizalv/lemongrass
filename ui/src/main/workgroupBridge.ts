@@ -15,7 +15,7 @@ import {
 // The socket `lgrass workgroup create` talks to. A proposal waits in the app for the human and,
 // once approved, returns a one-time token. Only that token spawns tabs, and it spawns exactly what was shown.
 
-const MAX_COPILOTS = 5
+const MAX_COLEADERS = 5
 const MAX_PROMPT_CHARS = 4000
 const TOKEN_TTL_MS = 5 * 60_000
 const SPAWN_ACK_TIMEOUT_MS = 15_000
@@ -29,8 +29,8 @@ const VENDORS = new Set(['claude', 'codex'])
 interface Proposal {
   op: string
   project_path: string
-  pilot_tab_id: string
-  pilot_label: string
+  leader_tab_id: string
+  leader_label: string
   group_name: string
   members: {
     tab_id: string
@@ -46,7 +46,7 @@ interface Proposal {
 
 interface Approved {
   projectPath: string
-  pilotTabId: string
+  leaderTabId: string
   members: WorkgroupSpawnMember[]
   expires: number
 }
@@ -71,26 +71,26 @@ export function workgroupSocketPath(): string {
 
 function validate(p: Proposal): string | null {
   if (typeof p.project_path !== 'string' || !p.project_path) return 'no project path'
-  if (!UUID.test(p.pilot_tab_id ?? '')) return 'the pilot tab id is not valid'
-  if (!LABEL.test(p.pilot_label ?? '')) return 'the pilot label is not valid'
+  if (!UUID.test(p.leader_tab_id ?? '')) return 'the leader tab id is not valid'
+  if (!LABEL.test(p.leader_label ?? '')) return 'the leader label is not valid'
   if (typeof p.group_name !== 'string' || !p.group_name) return 'no group name'
-  if (!Array.isArray(p.members) || p.members.length < 1 || p.members.length > MAX_COPILOTS) {
-    return `a group needs 1 to ${MAX_COPILOTS} copilots`
+  if (!Array.isArray(p.members) || p.members.length < 1 || p.members.length > MAX_COLEADERS) {
+    return `a group needs 1 to ${MAX_COLEADERS} thinkers`
   }
   for (const m of p.members) {
-    if (!UUID.test(m.tab_id ?? '')) return 'a copilot tab id is not valid'
-    if (!LABEL.test(m.label ?? '')) return 'a copilot label is not valid'
-    if (!VENDORS.has(m.vendor)) return 'a copilot vendor is not supported'
-    if (m.model && !MODEL.test(m.model)) return 'a copilot model is not valid'
+    if (!UUID.test(m.tab_id ?? '')) return 'a thinker tab id is not valid'
+    if (!LABEL.test(m.label ?? '')) return 'a thinker label is not valid'
+    if (!VENDORS.has(m.vendor)) return 'a thinker vendor is not supported'
+    if (m.model && !MODEL.test(m.model)) return 'a thinker model is not valid'
     if (
       !Array.isArray(m.skills) ||
       m.skills.length > MAX_SKILLS ||
       !m.skills.every((name) => typeof name === 'string' && SKILL.test(name))
     ) {
-      return 'a copilot skill list is not valid'
+      return 'a thinker skill list is not valid'
     }
     if (typeof m.prompt !== 'string' || !m.prompt || m.prompt.length > MAX_PROMPT_CHARS) {
-      return `a copilot prompt must be 1 to ${MAX_PROMPT_CHARS} characters`
+      return `a thinker prompt must be 1 to ${MAX_PROMPT_CHARS} characters`
     }
   }
   return null
@@ -120,7 +120,7 @@ function writeProposalFile(p: Proposal): string | null {
 
 function describe(p: Proposal, file: string | null): { message: string; detail: string } {
   return {
-    message: `The agent in tab "${p.pilot_label}" wants to start the workgroup "${p.group_name}" with ${p.members.length} co-pilot${p.members.length === 1 ? '' : 's'}.`,
+    message: `The agent in tab "${p.leader_label}" wants to start the workgroup "${p.group_name}" with ${p.members.length} thinker${p.members.length === 1 ? '' : 's'}.`,
     detail: file ? `Full text: ${file}` : 'The full text could not be written to a file.'
   }
 }
@@ -168,7 +168,7 @@ async function askHuman(
     {
       projectPath: p.project_path,
       groupName: p.group_name,
-      pilotLabel: p.pilot_label,
+      leaderLabel: p.leader_label,
       members: p.members.map((m) => ({
         label: m.label,
         vendor: m.vendor,
@@ -196,7 +196,7 @@ async function handlePropose(
   const token = randomUUID()
   approvals.set(token, {
     projectPath: p.project_path,
-    pilotTabId: p.pilot_tab_id,
+    leaderTabId: p.leader_tab_id,
     members: p.members.map((m) => ({
       tabId: m.tab_id,
       label: m.label,
@@ -234,7 +234,7 @@ async function handleSpawn(
     window.webContents.send('workgroup:spawn', {
       requestId,
       projectPath: approved.projectPath,
-      pilotTabId: approved.pilotTabId,
+      leaderTabId: approved.leaderTabId,
       members: approved.members
     })
   })

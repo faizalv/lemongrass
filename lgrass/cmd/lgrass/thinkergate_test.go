@@ -20,9 +20,9 @@ func skillCall(name string) (string, json.RawMessage) {
 
 func gateFor(vendor string, toolName string, input json.RawMessage, marks map[string]bool, listening bool, required ...string) (string, string) {
 	if len(required) == 0 {
-		required = []string{"lgrass-copilot"}
+		required = []string{"lgrass-howtobe-thinker"}
 	}
-	return copilotGate(copilotGateInput{ToolName: toolName, ToolInput: input, Vendor: vendor, Required: required, Marks: marks, Listening: listening})
+	return thinkerGate(thinkerGateInput{ToolName: toolName, ToolInput: input, Vendor: vendor, Required: required, Marks: marks, Listening: listening})
 }
 
 func TestIsLgrassCommand(t *testing.T) {
@@ -70,16 +70,16 @@ func TestShellCommandReadsClaudeStringsAndCodexArrays(t *testing.T) {
 }
 
 func TestGateOneDeniesUntilEveryRequiredSkillIsLoaded(t *testing.T) {
-	required := []string{"lgrass-copilot", "lgrass-connector"}
+	required := []string{"lgrass-howtobe-thinker", "lgrass-connector"}
 	tool, input := bash("ls")
 	deny, _ := gateFor("claude", tool, input, nil, true, required...)
-	if !strings.Contains(deny, "lgrass-copilot, lgrass-connector") {
+	if !strings.Contains(deny, "lgrass-howtobe-thinker, lgrass-connector") {
 		t.Errorf("deny = %q, want both missing skills named", deny)
 	}
 
-	marks := map[string]bool{session.SkillMark("lgrass-copilot"): true}
+	marks := map[string]bool{session.SkillMark("lgrass-howtobe-thinker"): true}
 	deny, _ = gateFor("claude", tool, input, marks, true, required...)
-	if !strings.Contains(deny, "lgrass-connector") || strings.Contains(deny, "lgrass-copilot,") {
+	if !strings.Contains(deny, "lgrass-connector") || strings.Contains(deny, "lgrass-howtobe-thinker,") {
 		t.Errorf("deny = %q, want only the remaining skill named", deny)
 	}
 
@@ -94,9 +94,9 @@ func TestGateOneAllowsLgrassCommandsAndSkillLoads(t *testing.T) {
 	if deny, loaded := gateFor("claude", tool, input, nil, true); deny != "" || loaded != "" {
 		t.Errorf("lgrass command: deny %q loaded %q, want allowed and not a skill load", deny, loaded)
 	}
-	tool, input = skillCall("lgrass-copilot")
-	if deny, loaded := gateFor("claude", tool, input, nil, true); deny != "" || loaded != "lgrass-copilot" {
-		t.Errorf("skill call: deny %q loaded %q, want an allowed load of the copilot skill", deny, loaded)
+	tool, input = skillCall("lgrass-howtobe-thinker")
+	if deny, loaded := gateFor("claude", tool, input, nil, true); deny != "" || loaded != "lgrass-howtobe-thinker" {
+		t.Errorf("skill call: deny %q loaded %q, want an allowed load of the thinker skill", deny, loaded)
 	}
 	tool, input = skillCall("some-other-skill")
 	if deny, _ := gateFor("claude", tool, input, nil, true); deny == "" {
@@ -106,21 +106,21 @@ func TestGateOneAllowsLgrassCommandsAndSkillLoads(t *testing.T) {
 
 func TestGateOneRecognizesAPlainSkillFileReadOnOtherVendors(t *testing.T) {
 	for _, command := range []string{
-		"cat ~/.codex/skills/lgrass-copilot/SKILL.md",
-		"sed -n 1,200p /home/u/.codex/skills/lgrass-copilot/SKILL.md",
-		`cat "/home/u/.codex/skills/lgrass-copilot/SKILL.md"`,
+		"cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md",
+		"sed -n 1,200p /home/u/.codex/skills/lgrass-howtobe-thinker/SKILL.md",
+		`cat "/home/u/.codex/skills/lgrass-howtobe-thinker/SKILL.md"`,
 	} {
 		tool, input := bash(command)
-		if deny, loaded := gateFor("codex", tool, input, nil, true); deny != "" || loaded != "lgrass-copilot" {
+		if deny, loaded := gateFor("codex", tool, input, nil, true); deny != "" || loaded != "lgrass-howtobe-thinker" {
 			t.Errorf("%q: deny %q loaded %q, want a recognized load", command, deny, loaded)
 		}
 	}
 	for _, command := range []string{
-		"rm ~/.codex/skills/lgrass-copilot/SKILL.md",
-		"cat ~/.codex/skills/lgrass-copilot/SKILL.md; rm -rf ~",
-		"cat ~/.codex/skills/lgrass-copilot/SKILL.md > /tmp/x",
+		"rm ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md",
+		"cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md; rm -rf ~",
+		"cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md > /tmp/x",
 		"cat ~/.codex/skills/other/SKILL.md",
-		"cat ~/.codex/skills/lgrass-copilot/notes.md",
+		"cat ~/.codex/skills/lgrass-howtobe-thinker/notes.md",
 	} {
 		tool, input := bash(command)
 		if deny, loaded := gateFor("codex", tool, input, nil, true); deny == "" || loaded != "" {
@@ -130,7 +130,7 @@ func TestGateOneRecognizesAPlainSkillFileReadOnOtherVendors(t *testing.T) {
 }
 
 func TestGateTwoNeedsALiveListenerOnNonClaudeVendorsOnly(t *testing.T) {
-	marks := map[string]bool{session.SkillMark("lgrass-copilot"): true}
+	marks := map[string]bool{session.SkillMark("lgrass-howtobe-thinker"): true}
 	tool, input := bash("ls")
 
 	if deny, _ := gateFor("claude", tool, input, marks, false); deny != "" {

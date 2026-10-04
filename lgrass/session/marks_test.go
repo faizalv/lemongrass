@@ -11,13 +11,13 @@ func TestMarksRecordListAndClear(t *testing.T) {
 	if marks, _ := store.Marks(tabA); len(marks) != 0 {
 		t.Fatalf("fresh tab has marks: %v", marks)
 	}
-	store.MarkReady(tabA, SkillMark("lgrass-copilot"))
-	store.MarkReady(tabA, SkillMark("lgrass-copilot"))
+	store.MarkReady(tabA, SkillMark("lgrass-howtobe-thinker"))
+	store.MarkReady(tabA, SkillMark("lgrass-howtobe-thinker"))
 	store.MarkReady(tabA, MarkListening)
-	store.MarkReady(tabB, SkillMark("lgrass-copilot"))
+	store.MarkReady(tabB, SkillMark("lgrass-howtobe-thinker"))
 
 	marks, _ := store.Marks(tabA)
-	if len(marks) != 2 || !marks["skill:lgrass-copilot"] || !marks["listen"] {
+	if len(marks) != 2 || !marks["skill:lgrass-howtobe-thinker"] || !marks["listen"] {
 		t.Errorf("marks = %v, want the skill and listen marks once each", marks)
 	}
 	store.ClearMarks(tabA)
@@ -78,7 +78,7 @@ func TestMemberKeepsItsAssignmentAndSkills(t *testing.T) {
 	}
 
 	group, member, err := store.LiveMembership(tabB)
-	if err != nil || group.ID != g.ID || member.Role != RoleCopilot || member.Prompt != "Review the diff." {
+	if err != nil || group.ID != g.ID || member.Role != RoleThinker || member.Prompt != "Review the diff." {
 		t.Fatalf("LiveMembership = %+v %+v %v", group, member, err)
 	}
 	if len(member.Skills) != 2 || member.Skills[0] != "lgrass-connector" || member.Skills[1] != "bibliothek" {
@@ -87,8 +87,8 @@ func TestMemberKeepsItsAssignmentAndSkills(t *testing.T) {
 	if _, m, _ := store.LiveMembership(tabC); len(m.Skills) != 0 || m.Prompt != "Write tests." {
 		t.Errorf("tester member = %+v, want no skills", m)
 	}
-	if _, m, _ := store.LiveMembership(tabA); m.Role != RolePilot {
-		t.Errorf("pilot role = %q", m.Role)
+	if _, m, _ := store.LiveMembership(tabA); m.Role != RoleLeader {
+		t.Errorf("leader role = %q", m.Role)
 	}
 	store.DisbandGroup(g.ID)
 	if _, _, err := store.LiveMembership(tabB); err != ErrNoSuchGroup {
@@ -101,7 +101,7 @@ func TestMigrationAddsMemberColumnsToAnOlderTable(t *testing.T) {
 	dbPath := DBPath()
 	store.db.Exec(`DROP TABLE lg_group_members`)
 	store.db.Exec(`CREATE TABLE lg_group_members (group_id INTEGER NOT NULL, tab_id TEXT NOT NULL, role TEXT NOT NULL, label TEXT NOT NULL, vendor TEXT NOT NULL, PRIMARY KEY (group_id, tab_id))`)
-	store.db.Exec(`INSERT INTO lg_group_members VALUES (1, 'old-tab', 'copilot', 'x', 'claude')`)
+	store.db.Exec(`INSERT INTO lg_group_members VALUES (1, 'old-tab', 'thinker', 'x', 'claude')`)
 
 	reopened, err := Open(dbPath, testProjectID)
 	if err != nil {

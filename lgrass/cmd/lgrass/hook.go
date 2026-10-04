@@ -141,8 +141,8 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	if payload.TabID != "" {
 		parts = append(parts, session.FormatPrefixNote())
 	}
-	if member, group, ok := liveCopilot(store, payload.TabID); ok {
-		parts = append(parts, session.FormatCopilotStart(member, group))
+	if member, group, ok := liveThinker(store, payload.TabID); ok {
+		parts = append(parts, session.FormatThinkerStart(member, group))
 	}
 	parts = append(parts, notificationContext(store, payload.TabID)...)
 	return newHookResult("SessionStart", "", parts)
@@ -171,7 +171,7 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 		return newHookResult("PreToolUse", "deny", []string{session.FormatPlanModeDeny()})
 	}
 
-	member, isCopilot, deny := copilotGateDecision(store, payload)
+	member, isThinker, deny := thinkerGateDecision(store, payload)
 	if deny != "" {
 		return newHookResult("PreToolUse", "deny", []string{deny})
 	}
@@ -183,8 +183,8 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 	}
 
 	if payload.EnforceBibliothek && hasBiblio(projectPath) {
-		// A copilot skips only the bibliothek gate, and only unless its pilot required the bibliothek skill for it.
-		bibliothekOptional := isCopilot && !member.Requires(bibliothekChecklistID)
+		// A thinker skips only the bibliothek gate, and only unless its leader required the bibliothek skill for it.
+		bibliothekOptional := isThinker && !member.Requires(bibliothekChecklistID)
 		if isBibliothekSkillCall(payload) {
 			store.Sign(payload.SessionID, bibliothekChecklistID)
 		} else if !bibliothekOptional {
@@ -218,21 +218,21 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 	return newHookResult("PreToolUse", "allow", parts)
 }
 
-// The copilot this tab is in its live group, if any. Any lookup failure reads as not a copilot, so a store problem never blocks a tool call.
-func liveCopilot(store *session.Store, tab string) (session.Member, session.Group, bool) {
+// The thinker this tab is in its live group, if any. Any lookup failure reads as not a thinker, so a store problem never blocks a tool call.
+func liveThinker(store *session.Store, tab string) (session.Member, session.Group, bool) {
 	if tab == "" {
 		return session.Member{}, session.Group{}, false
 	}
 	group, member, err := store.LiveMembership(tab)
-	if err != nil || member.Role != session.RoleCopilot {
+	if err != nil || member.Role != session.RoleThinker {
 		return session.Member{}, session.Group{}, false
 	}
 	return member, group, true
 }
 
-// Applies the copilot gates and records a skill load. Returns the tab's member row, whether it is a copilot, and a deny message or "".
-func copilotGateDecision(store *session.Store, payload hookEvent) (session.Member, bool, string) {
-	member, _, ok := liveCopilot(store, payload.TabID)
+// Applies the thinker gates and records a skill load. Returns the tab's member row, whether it is a thinker, and a deny message or "".
+func thinkerGateDecision(store *session.Store, payload hookEvent) (session.Member, bool, string) {
+	member, _, ok := liveThinker(store, payload.TabID)
 	if !ok {
 		return session.Member{}, false, ""
 	}
@@ -241,7 +241,7 @@ func copilotGateDecision(store *session.Store, payload hookEvent) (session.Membe
 		return member, true, ""
 	}
 	listening, _ := store.ListenerLive(payload.TabID, time.Now())
-	deny, loaded := copilotGate(copilotGateInput{
+	deny, loaded := thinkerGate(thinkerGateInput{
 		ToolName:  payload.ToolName,
 		ToolInput: payload.ToolInput,
 		Vendor:    member.Vendor,

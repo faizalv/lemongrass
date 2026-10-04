@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_lg_notifications_created ON lg_notifications(crea
 CREATE TABLE IF NOT EXISTS lg_groups (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	project_id TEXT NOT NULL,
-	pilot_tab_id TEXT NOT NULL,
+	leader_tab_id TEXT NOT NULL,
 	created_at TEXT NOT NULL,
 	disbanded_at TEXT
 );
@@ -131,3 +131,22 @@ const legacyThreadDrop = `
 DROP TABLE IF EXISTS thread_messages;
 DROP TABLE IF EXISTS thread_participants;
 `
+
+// Groups created before the leader and thinker names carry pilot columns and roles; they are dropped rather than migrated.
+func dropPilotGroups(db *sql.DB) error {
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('lg_groups') WHERE name = 'pilot_tab_id'`).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return nil
+	}
+	_, err := db.Exec(`DROP TABLE lg_groups; DROP TABLE lg_group_members;`)
+	return err
+}
+
+// A dropped group leaves its thread behind with a group id, and a new group reusing that id would collide on the unique group index.
+func detachOrphanThreads(db *sql.DB) error {
+	_, err := db.Exec(`UPDATE lg_threads SET group_id = NULL WHERE group_id IS NOT NULL AND group_id NOT IN (SELECT id FROM lg_groups)`)
+	return err
+}

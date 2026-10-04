@@ -9,8 +9,8 @@ import (
 
 const validYAML = `
 name: schema-review
-pilot_label: lead
-copilots:
+leader_label: lead
+thinkers:
   - label: reviewer
     vendor: claude
     model: sonnet
@@ -26,28 +26,28 @@ func TestParseYAMLAppliesFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	if cfg.Name != "schema-review" || cfg.PilotLabel != "lead" || len(cfg.Copilots) != 2 {
+	if cfg.Name != "schema-review" || cfg.LeaderLabel != "lead" || len(cfg.Thinkers) != 2 {
 		t.Fatalf("cfg = %+v", cfg)
 	}
-	if cfg.Copilots[0].Prompt != "Review the schema changes." || cfg.Copilots[0].Model != "sonnet" || cfg.Copilots[1].Vendor != "codex" {
-		t.Errorf("copilots = %+v", cfg.Copilots)
+	if cfg.Thinkers[0].Prompt != "Review the schema changes." || cfg.Thinkers[0].Model != "sonnet" || cfg.Thinkers[1].Vendor != "codex" {
+		t.Errorf("thinkers = %+v", cfg.Thinkers)
 	}
 }
 
 func TestParseAcceptsJSONAndDefaults(t *testing.T) {
-	cfg, err := Parse([]byte(`{"name":"audit","copilots":[{"label":"a","vendor":"claude","prompt":"go"}]}`), t.TempDir())
+	cfg, err := Parse([]byte(`{"name":"audit","thinkers":[{"label":"a","vendor":"claude","prompt":"go"}]}`), t.TempDir())
 	if err != nil {
 		t.Fatalf("Parse JSON: %v", err)
 	}
-	if cfg.Name != "audit" || cfg.PilotLabel != "pilot" {
-		t.Errorf("parsed = %q %q, want audit pilot", cfg.Name, cfg.PilotLabel)
+	if cfg.Name != "audit" || cfg.LeaderLabel != "leader" {
+		t.Errorf("parsed = %q %q, want audit leader", cfg.Name, cfg.LeaderLabel)
 	}
 }
 
 func TestParseRequiresAName(t *testing.T) {
 	for _, body := range []string{
-		`copilots: [{label: a, vendor: claude, prompt: go}]`,
-		`{"name":"   ","copilots":[{"label":"a","vendor":"claude","prompt":"go"}]}`,
+		`thinkers: [{label: a, vendor: claude, prompt: go}]`,
+		`{"name":"   ","thinkers":[{"label":"a","vendor":"claude","prompt":"go"}]}`,
 	} {
 		_, err := Parse([]byte(body), t.TempDir())
 		if err == nil || !strings.HasPrefix(err.Error(), "workgroup: ") || !strings.Contains(err.Error(), "needs a name") {
@@ -61,10 +61,10 @@ func TestParseReadsPromptFileRelativeToTheConfig(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "prompts"), 0o755)
 	os.WriteFile(filepath.Join(dir, "prompts", "a.md"), []byte("from a file\n"), 0o600)
 	path := filepath.Join(dir, "team.yaml")
-	os.WriteFile(path, []byte("name: t\ncopilots:\n  - {label: a, vendor: codex, prompt_file: prompts/a.md}\n"), 0o600)
+	os.WriteFile(path, []byte("name: t\nthinkers:\n  - {label: a, vendor: codex, prompt_file: prompts/a.md}\n"), 0o600)
 
 	cfg, err := Load(path)
-	if err != nil || cfg.Copilots[0].Prompt != "from a file" || cfg.Copilots[0].PromptFile != "" {
+	if err != nil || cfg.Thinkers[0].Prompt != "from a file" || cfg.Thinkers[0].PromptFile != "" {
 		t.Fatalf("Load = %+v, %v, want the file's text as the prompt", cfg, err)
 	}
 }
@@ -72,19 +72,19 @@ func TestParseReadsPromptFileRelativeToTheConfig(t *testing.T) {
 func TestParseRejectsInvalidConfigs(t *testing.T) {
 	long := strings.Repeat("x", MaxPromptRunes+1)
 	cases := map[string]string{
-		"no copilots":       "name: t\ncopilots: []",
-		"unknown key":       "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x, extra: 1}",
-		"bad vendor":        "name: t\ncopilots:\n  - {label: a, vendor: cursor, prompt: x}",
-		"bad label":         "name: t\ncopilots:\n  - {label: 'has space', vendor: claude, prompt: x}",
-		"duplicate label":   "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x}\n  - {label: A, vendor: codex, prompt: y}",
-		"pilot label clash": "name: t\npilot_label: a\ncopilots:\n  - {label: a, vendor: claude, prompt: x}",
-		"bad model":         "name: t\ncopilots:\n  - {label: a, vendor: claude, model: 'x y', prompt: x}",
-		"both prompts":      "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x, prompt_file: y.md}",
-		"no prompt":         "name: t\ncopilots:\n  - {label: a, vendor: claude}",
-		"missing file":      "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt_file: nope.md}",
-		"prompt too long":   "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: " + long + "}",
-		"too many":          "name: t\ncopilots:\n" + strings.Repeat("  - {label: a, vendor: claude, prompt: x}\n", MaxCopilots+1),
-		"not yaml":          "name: t\ncopilots: [unclosed",
+		"no thinkers":        "name: t\nthinkers: []",
+		"unknown key":        "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, extra: 1}",
+		"bad vendor":         "name: t\nthinkers:\n  - {label: a, vendor: cursor, prompt: x}",
+		"bad label":          "name: t\nthinkers:\n  - {label: 'has space', vendor: claude, prompt: x}",
+		"duplicate label":    "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x}\n  - {label: A, vendor: codex, prompt: y}",
+		"leader label clash": "name: t\nleader_label: a\nthinkers:\n  - {label: a, vendor: claude, prompt: x}",
+		"bad model":          "name: t\nthinkers:\n  - {label: a, vendor: claude, model: 'x y', prompt: x}",
+		"both prompts":       "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, prompt_file: y.md}",
+		"no prompt":          "name: t\nthinkers:\n  - {label: a, vendor: claude}",
+		"missing file":       "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt_file: nope.md}",
+		"prompt too long":    "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: " + long + "}",
+		"too many":           "name: t\nthinkers:\n" + strings.Repeat("  - {label: a, vendor: claude, prompt: x}\n", MaxThinkers+1),
+		"not yaml":           "name: t\nthinkers: [unclosed",
 	}
 	for name, body := range cases {
 		if _, err := Parse([]byte(body), t.TempDir()); err == nil {
@@ -95,26 +95,26 @@ func TestParseRejectsInvalidConfigs(t *testing.T) {
 	}
 }
 
-func TestSkillsAreDedupedAndTheCopilotSkillIsImplicit(t *testing.T) {
-	cfg, err := Parse([]byte("name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x, skills: [lgrass-connector, lgrass-copilot, bibliothek, lgrass-connector]}"), t.TempDir())
+func TestSkillsAreDedupedAndTheThinkerSkillIsImplicit(t *testing.T) {
+	cfg, err := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [lgrass-connector, lgrass-howtobe-thinker, bibliothek, lgrass-connector]}"), t.TempDir())
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	c := cfg.Copilots[0]
-	if got := c.RequiredSkills(); len(got) != 3 || got[0] != "lgrass-copilot" || got[1] != "lgrass-connector" || got[2] != "bibliothek" {
-		t.Errorf("RequiredSkills = %v, want the copilot skill first then the listed ones once each", got)
+	c := cfg.Thinkers[0]
+	if got := c.RequiredSkills(); len(got) != 3 || got[0] != "lgrass-howtobe-thinker" || got[1] != "lgrass-connector" || got[2] != "bibliothek" {
+		t.Errorf("RequiredSkills = %v, want the thinker skill first then the listed ones once each", got)
 	}
-	plain, _ := Parse([]byte("name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x}"), t.TempDir())
-	if got := plain.Copilots[0].RequiredSkills(); len(got) != 1 || got[0] != "lgrass-copilot" {
+	plain, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x}"), t.TempDir())
+	if got := plain.Thinkers[0].RequiredSkills(); len(got) != 1 || got[0] != "lgrass-howtobe-thinker" {
 		t.Errorf("RequiredSkills without a list = %v", got)
 	}
 }
 
 func TestSkillNamesAreValidated(t *testing.T) {
 	for name, body := range map[string]string{
-		"path in name": "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x, skills: ['../evil']}",
-		"space":        "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x, skills: ['a b']}",
-		"too many":     "name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x, skills: [a1, a2, a3, a4, a5, a6, a7, a8, a9]}",
+		"path in name": "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: ['../evil']}",
+		"space":        "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: ['a b']}",
+		"too many":     "name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [a1, a2, a3, a4, a5, a6, a7, a8, a9]}",
 	} {
 		if _, err := Parse([]byte(body), t.TempDir()); err == nil {
 			t.Errorf("%s accepted", name)
@@ -129,21 +129,21 @@ func TestCheckSkillsInstalledPerVendor(t *testing.T) {
 		os.MkdirAll(dir, 0o755)
 		os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("x"), 0o600)
 	}
-	install(".claude", "lgrass-copilot")
+	install(".claude", "lgrass-howtobe-thinker")
 	install(".claude", "bibliothek")
-	install(".codex", "lgrass-copilot")
+	install(".codex", "lgrass-howtobe-thinker")
 
-	cfg, _ := Parse([]byte("name: t\ncopilots:\n  - {label: a, vendor: claude, prompt: x, skills: [bibliothek]}\n  - {label: b, vendor: codex, prompt: y}"), t.TempDir())
+	cfg, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [bibliothek]}\n  - {label: b, vendor: codex, prompt: y}"), t.TempDir())
 	if err := cfg.CheckSkillsInstalled(home); err != nil {
 		t.Fatalf("CheckSkillsInstalled: %v", err)
 	}
 
-	cfg, _ = Parse([]byte("name: t\ncopilots:\n  - {label: b, vendor: codex, prompt: y, skills: [bibliothek]}"), t.TempDir())
+	cfg, _ = Parse([]byte("name: t\nthinkers:\n  - {label: b, vendor: codex, prompt: y, skills: [bibliothek]}"), t.TempDir())
 	err := cfg.CheckSkillsInstalled(home)
-	if err == nil || !strings.Contains(err.Error(), `"bibliothek"`) || !strings.Contains(err.Error(), "lgrass-copilot") {
+	if err == nil || !strings.Contains(err.Error(), `"bibliothek"`) || !strings.Contains(err.Error(), "lgrass-howtobe-thinker") {
 		t.Errorf("error = %v, want the missing codex skill named and the installed ones listed", err)
 	}
-	if err := (Config{Copilots: []Copilot{{Label: "a", Vendor: "claude"}}}).CheckSkillsInstalled(t.TempDir()); err == nil {
+	if err := (Config{Thinkers: []Thinker{{Label: "a", Vendor: "claude"}}}).CheckSkillsInstalled(t.TempDir()); err == nil {
 		t.Error("a home with no skills passed the check")
 	}
 }

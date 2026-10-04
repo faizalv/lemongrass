@@ -38,20 +38,20 @@ func TestProposeReturnsATokenAndSpawnPresentsOnlyIt(t *testing.T) {
 	path, seen := fakeApp(t, func(r Request) Response {
 		return Response{OK: true, Approved: r.Op == opPropose, Token: "tok-1"}
 	})
-	req := Request{ProjectPath: "/p", PilotTabID: "pilot-tab", PilotLabel: "lead", GroupName: "g", Members: []SpawnMember{{TabID: "t1", Label: "a", Vendor: "claude", Prompt: "go"}}}
+	req := Request{ProjectPath: "/p", LeaderTabID: "leader-tab", LeaderLabel: "lead", GroupName: "g", Members: []SpawnMember{{TabID: "t1", Label: "a", Vendor: "claude", Prompt: "go"}}}
 
 	answer, err := Propose(path, req)
 	token := answer.Token
 	if err != nil || !answer.Approved || token != "tok-1" {
 		t.Fatalf("Propose = %+v, %v, want an approval with a token", answer, err)
 	}
-	if got := <-seen; got.Op != "propose" || got.PilotTabID != "pilot-tab" || len(got.Members) != 1 || got.Members[0].Prompt != "go" {
+	if got := <-seen; got.Op != "propose" || got.LeaderTabID != "leader-tab" || len(got.Members) != 1 || got.Members[0].Prompt != "go" {
 		t.Errorf("propose request = %+v", got)
 	}
 	if err := Spawn(path, token); err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	if got := <-seen; got.Op != "spawn" || got.Token != "tok-1" || len(got.Members) != 0 || got.PilotTabID != "" {
+	if got := <-seen; got.Op != "spawn" || got.Token != "tok-1" || len(got.Members) != 0 || got.LeaderTabID != "" {
 		t.Errorf("spawn request = %+v, want only the op and token", got)
 	}
 }
@@ -78,9 +78,9 @@ func TestProposeCarriesTheDeclineReasonAndWithdrawal(t *testing.T) {
 }
 
 func TestAppErrorsAndAnUnreachableAppCarryThePackagePrefix(t *testing.T) {
-	path, _ := fakeApp(t, func(Request) Response { return Response{Error: "pilot tab not found"} })
+	path, _ := fakeApp(t, func(Request) Response { return Response{Error: "leader tab not found"} })
 	err := Spawn(path, "tok")
-	if err == nil || err.Error() != "workgroup: pilot tab not found" {
+	if err == nil || err.Error() != "workgroup: leader tab not found" {
 		t.Errorf("Spawn error = %v", err)
 	}
 	if _, err := Propose(filepath.Join(t.TempDir(), "none.sock"), Request{}); err == nil || !strings.HasPrefix(err.Error(), "workgroup: the lemongrass app is not reachable") {
@@ -101,8 +101,8 @@ func TestNewTabIDIsAVersion4UUID(t *testing.T) {
 }
 
 func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
-	claude := ComposePrompt("claude", "reviewer", "schema-review", "lead", []string{"lgrass-copilot", "lgrass-connector"}, "Review the diff.")
-	for _, want := range []string{`copilot "reviewer"`, `workgroup "schema-review"`, `pilot "lead"`, "lgrass-copilot, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the pilot's go", "Review the diff."} {
+	claude := ComposePrompt("claude", "reviewer", "schema-review", "lead", []string{"lgrass-howtobe-thinker", "lgrass-connector"}, "Review the diff.")
+	for _, want := range []string{`thinker "reviewer"`, `workgroup "schema-review"`, `leader "lead"`, "lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the leader's go", "Review the diff."} {
 		if !strings.Contains(claude, want) {
 			t.Errorf("claude prompt missing %q", want)
 		}
@@ -110,7 +110,7 @@ func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
 	if strings.Contains(claude, "lgrass listen") {
 		t.Error("a claude prompt asks for a listener")
 	}
-	if !strings.Contains(ComposePrompt("codex", "t", "g", "p", []string{"lgrass-copilot"}, "x"), "lgrass listen") {
+	if !strings.Contains(ComposePrompt("codex", "t", "g", "p", []string{"lgrass-howtobe-thinker"}, "x"), "lgrass listen") {
 		t.Error("a codex prompt does not ask for a listener")
 	}
 }

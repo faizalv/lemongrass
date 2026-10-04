@@ -95,8 +95,8 @@ COMMANDS
 
   workgroup create <path-to-config>
                                      Declares a workgroup from a YAML or JSON config and asks the human to approve it in the
-                                     lemongrass app; approved copilots open as tabs next to this one, and this tab is the pilot
-  workgroup disband <id>            Ends a workgroup; only its pilot may. Tabs stay open and the thread stays readable
+                                     lemongrass app; approved thinkers open as tabs next to this one, and this tab is the leader
+  workgroup disband <id>            Ends a workgroup; only its leader may. Tabs stay open and the thread stays readable
   workgroup thread [--all] [--before <message-id>] [--limit N]
                                      Reads this tab's workgroup thread, post to it with thread post
   session nudge <tab-id>            Prints the tab's pending thread nudge and marks it sent; the app types that line into the tab

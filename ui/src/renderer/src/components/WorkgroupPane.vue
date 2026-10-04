@@ -33,8 +33,8 @@ const scroller = ref<HTMLDivElement>()
 const cancelButton = ref<HTMLButtonElement | null>(null)
 
 const ROLE_LABELS: Record<WorkgroupMemberInfo['role'], string> = {
-  pilot: 'Pilot',
-  copilot: 'Co-pilot'
+  leader: 'Leader',
+  thinker: 'Thinker'
 }
 
 watch(
@@ -51,7 +51,7 @@ function online(member: WorkgroupMemberInfo): boolean {
 
 function onMember(member: WorkgroupMemberInfo): void {
   if (online(member)) focusTab(props.project, member.tabId)
-  else if (group.value) void reopenWorkgroupMember(props.project, member, group.value.pilotTabId)
+  else if (group.value) void reopenWorkgroupMember(props.project, member, group.value.leaderTabId)
 }
 
 interface BodyPart {
@@ -188,8 +188,8 @@ onBeforeUnmount(() => clearInterval(timer))
           <h2 class="pane-title">{{ group.name }}</h2>
           <p class="pane-sub">
             <span class="state" :class="{ live: !!live }">{{ live ? 'Live' : 'Disbanded' }}</span>
-            <span v-if="live && !isTabOpen(project.id, group.pilotTabId)" class="orphaned">
-              Orphaned, the pilot's tab is not open
+            <span v-if="live && !isTabOpen(project.id, group.leaderTabId)" class="orphaned">
+              Orphaned, the leader's tab is not open
             </span>
           </p>
         </div>
@@ -373,7 +373,7 @@ onBeforeUnmount(() => clearInterval(timer))
   font-size: var(--text-xs);
 }
 
-.member-role.pilot {
+.member-role.leader {
   color: var(--color-fg-accent);
 }
 

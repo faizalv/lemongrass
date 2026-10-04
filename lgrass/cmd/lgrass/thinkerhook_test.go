@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	gateTabPilot   = "aaaaaaaa-1111-4111-8111-111111111111"
+	gateTabLeader  = "aaaaaaaa-1111-4111-8111-111111111111"
 	gateTabClaude  = "bbbbbbbb-2222-4222-8222-222222222222"
 	gateTabCodex   = "cccccccc-3333-4333-8333-333333333333"
 	gateTabOutside = "dddddddd-4444-4444-8444-444444444444"
@@ -20,7 +20,7 @@ const (
 func storeWithGroup(t *testing.T, claudeSkills []string) (*session.Store, session.Group) {
 	t.Helper()
 	store := openHookTestStore(t)
-	group, err := store.CreateGroup("review", session.Member{TabID: gateTabPilot, Label: "lead", Vendor: "claude"}, []session.Member{
+	group, err := store.CreateGroup("review", session.Member{TabID: gateTabLeader, Label: "lead", Vendor: "claude"}, []session.Member{
 		{TabID: gateTabClaude, Label: "reviewer", Vendor: "claude", Skills: claudeSkills},
 		{TabID: gateTabCodex, Label: "tester", Vendor: "codex"},
 	})
@@ -42,19 +42,19 @@ func projectWithBiblio(t *testing.T) string {
 	return dir
 }
 
-func TestOnlyCopilotsAreGated(t *testing.T) {
+func TestOnlyThinkersAreGated(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
 	dir := t.TempDir()
 
-	for _, tab := range []string{gateTabPilot, gateTabOutside, ""} {
+	for _, tab := range []string{gateTabLeader, gateTabOutside, ""} {
 		result := hookPreToolUse(store, preTool(tab, "Bash", map[string]string{"command": "ls"}), dir)
 		if result.PermissionDecision == "deny" {
 			t.Errorf("tab %q was gated: %s", tab, result.PermissionDecisionReason)
 		}
 	}
 	result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
-	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-copilot") {
-		t.Errorf("copilot was not gated: %+v", result)
+	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-howtobe-thinker") {
+		t.Errorf("thinker was not gated: %+v", result)
 	}
 }
 
@@ -62,7 +62,7 @@ func TestLoadingTheSkillLiftsGateOneAndSurvivesToLaterCalls(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
 	dir := t.TempDir()
 
-	load := hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-copilot"}), dir)
+	load := hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-howtobe-thinker"}), dir)
 	if load.PermissionDecision == "deny" {
 		t.Fatalf("the skill load was denied: %s", load.PermissionDecisionReason)
 	}
@@ -74,11 +74,11 @@ func TestLoadingTheSkillLiftsGateOneAndSurvivesToLaterCalls(t *testing.T) {
 	}
 }
 
-func TestACopilotWithARequiredSkillListMustLoadThemAll(t *testing.T) {
+func TestAThinkerWithARequiredSkillListMustLoadThemAll(t *testing.T) {
 	store, _ := storeWithGroup(t, []string{"lgrass-connector"})
 	dir := t.TempDir()
 
-	hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-copilot"}), dir)
+	hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-howtobe-thinker"}), dir)
 	result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
 	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-connector") {
 		t.Fatalf("the second required skill was not enforced: %+v", result)
@@ -89,10 +89,10 @@ func TestACopilotWithARequiredSkillListMustLoadThemAll(t *testing.T) {
 	}
 }
 
-func TestCodexCopilotNeedsALiveListenerAfterItsSkills(t *testing.T) {
+func TestCodexThinkerNeedsALiveListenerAfterItsSkills(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
 	dir := t.TempDir()
-	read := map[string]any{"command": []string{"bash", "-lc", "cat ~/.codex/skills/lgrass-copilot/SKILL.md"}}
+	read := map[string]any{"command": []string{"bash", "-lc", "cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md"}}
 
 	if load := hookPreToolUse(store, preTool(gateTabCodex, "shell", read), dir); load.PermissionDecision == "deny" {
 		t.Fatalf("the skill read was denied: %s", load.PermissionDecisionReason)
@@ -108,35 +108,35 @@ func TestCodexCopilotNeedsALiveListenerAfterItsSkills(t *testing.T) {
 	}
 }
 
-func TestDisbandingFreesTheCopilots(t *testing.T) {
+func TestDisbandingFreesTheThinkers(t *testing.T) {
 	store, group := storeWithGroup(t, nil)
 	store.DisbandGroup(group.ID)
 
 	result := hookPreToolUse(store, preTool(gateTabCodex, "Bash", map[string]string{"command": "ls"}), t.TempDir())
 	if result.PermissionDecision == "deny" {
-		t.Errorf("a disbanded group's copilot is still gated: %s", result.PermissionDecisionReason)
+		t.Errorf("a disbanded group's thinker is still gated: %s", result.PermissionDecisionReason)
 	}
 }
 
-func TestBibliothekGateIsOptionalForACopilotUnlessRequired(t *testing.T) {
+func TestBibliothekGateIsOptionalForAThinkerUnlessRequired(t *testing.T) {
 	store, _ := storeWithGroup(t, []string{"bibliothek"})
 	dir := projectWithBiblio(t)
-	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-copilot"))
+	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-howtobe-thinker"))
 	store.MarkReady(gateTabClaude, session.SkillMark("bibliothek"))
 
-	// The required copilot has not signed the bibliothek gate, so it is denied for that.
+	// The required thinker has not signed the bibliothek gate, so it is denied for that.
 	result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
 	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "bibliothek hasn't been invoked") {
-		t.Errorf("a copilot that must use bibliothek was not held to the gate: %+v", result)
+		t.Errorf("a thinker that must use bibliothek was not held to the gate: %+v", result)
 	}
 
 	// The tester requires no bibliothek, so the same call passes the bibliothek gate.
-	store.MarkReady(gateTabCodex, session.SkillMark("lgrass-copilot"))
+	store.MarkReady(gateTabCodex, session.SkillMark("lgrass-howtobe-thinker"))
 	store.Heartbeat(gateTabCodex)
 	event := preTool(gateTabCodex, "Bash", map[string]string{"command": "ls"})
 	event.EnforceBibliothek = true
 	if result := hookPreToolUse(store, event, dir); result.PermissionDecision == "deny" {
-		t.Errorf("a copilot without the bibliothek requirement was held to its gate: %s", result.PermissionDecisionReason)
+		t.Errorf("a thinker without the bibliothek requirement was held to its gate: %s", result.PermissionDecisionReason)
 	}
 	// A plain tab is still held to it.
 	if result := hookPreToolUse(store, preTool(gateTabOutside, "Bash", map[string]string{"command": "ls"}), dir); result.PermissionDecision != "deny" {
@@ -144,14 +144,14 @@ func TestBibliothekGateIsOptionalForACopilotUnlessRequired(t *testing.T) {
 	}
 }
 
-func TestFoundationalRulesStillApplyToCopilots(t *testing.T) {
+func TestFoundationalRulesStillApplyToThinkers(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
 	dir := projectWithBiblio(t)
-	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-copilot"))
+	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-howtobe-thinker"))
 
 	result := hookPreToolUse(store, preTool(gateTabClaude, "EnterPlanMode", map[string]string{}), dir)
 	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "EnterPlanMode") {
-		t.Errorf("a copilot was allowed into plan mode: %+v", result)
+		t.Errorf("a thinker was allowed into plan mode: %+v", result)
 	}
 }
 
@@ -160,16 +160,16 @@ func TestSessionStartSendsLawsAndTheStartLineAndResetsMarks(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "biblio", "laws"), 0o755)
 	os.WriteFile(filepath.Join(dir, "biblio", "laws", "summary.md"), []byte("# Laws summary\n- a law"), 0o600)
-	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-copilot"))
+	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-howtobe-thinker"))
 
 	result := hookSessionStart(store, hookEvent{SessionID: "s1", TabID: gateTabClaude}, dir)
-	for _, want := range []string{"a law", `copilot "reviewer"`, "lgrass-copilot, lgrass-connector", "lgrass workgroup thread"} {
+	for _, want := range []string{"a law", `thinker "reviewer"`, "lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread"} {
 		if !strings.Contains(result.AdditionalContext, want) {
 			t.Errorf("start context missing %q:\n%s", want, result.AdditionalContext)
 		}
 	}
 	if strings.Contains(result.AdditionalContext, "lgrass listen") {
-		t.Error("a Claude copilot was told to run a listener")
+		t.Error("a Claude thinker was told to run a listener")
 	}
 	if marks, _ := store.Marks(gateTabClaude); len(marks) != 0 {
 		t.Errorf("marks survived SessionStart: %v", marks)
@@ -177,10 +177,10 @@ func TestSessionStartSendsLawsAndTheStartLineAndResetsMarks(t *testing.T) {
 
 	codex := hookSessionStart(store, hookEvent{SessionID: "s2", TabID: gateTabCodex}, dir)
 	if !strings.Contains(codex.AdditionalContext, "lgrass listen") {
-		t.Error("a Codex copilot was not told to keep a listener running")
+		t.Error("a Codex thinker was not told to keep a listener running")
 	}
-	pilot := hookSessionStart(store, hookEvent{SessionID: "s3", TabID: gateTabPilot}, dir)
-	if strings.Contains(pilot.AdditionalContext, "copilot") || !strings.Contains(pilot.AdditionalContext, "a law") {
-		t.Errorf("the pilot's start context = %q, want laws only", pilot.AdditionalContext)
+	leader := hookSessionStart(store, hookEvent{SessionID: "s3", TabID: gateTabLeader}, dir)
+	if strings.Contains(leader.AdditionalContext, "thinker") || !strings.Contains(leader.AdditionalContext, "a law") {
+		t.Errorf("the leader's start context = %q, want laws only", leader.AdditionalContext)
 	}
 }

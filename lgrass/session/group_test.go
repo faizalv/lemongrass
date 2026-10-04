@@ -1,7 +1,9 @@
 package session
 
 import (
+	"database/sql"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -24,8 +26,8 @@ func TestCreateGroupStoresMembersAndItsThread(t *testing.T) {
 	g := newTestGroup(t, store)
 
 	members, err := store.GroupMembers(g.ID)
-	if err != nil || len(members) != 3 || members[0].Role != RolePilot || members[0].TabID != tabA {
-		t.Fatalf("members = %+v, %v, want the pilot first then two copilots", members, err)
+	if err != nil || len(members) != 3 || members[0].Role != RoleLeader || members[0].TabID != tabA {
+		t.Fatalf("members = %+v, %v, want the leader first then two thinkers", members, err)
 	}
 	thread, err := store.ThreadByID(g.ThreadID)
 	if err != nil || thread.GroupID != g.ID || thread.Title != "Schema review" || thread.MessageCount != 0 {
@@ -33,7 +35,7 @@ func TestCreateGroupStoresMembersAndItsThread(t *testing.T) {
 	}
 	live, err := store.LiveGroupForTab(tabC)
 	if err != nil || live.ID != g.ID || !live.Live() {
-		t.Errorf("LiveGroupForTab(copilot) = %+v, %v, want the group", live, err)
+		t.Errorf("LiveGroupForTab(thinker) = %+v, %v, want the group", live, err)
 	}
 }
 
@@ -170,18 +172,18 @@ func TestNotificationAndReadOutputShowGroupLabels(t *testing.T) {
 		t.Errorf("read output missing group labels:\n%s", out)
 	}
 	members, _ := store.GroupMembers(g.ID)
-	if header := FormatGroupHeader(g, members); !strings.Contains(header, "lead (pilot, claude") || !strings.Contains(header, "tester (copilot, codex") {
+	if header := FormatGroupHeader(g, members); !strings.Contains(header, "lead (leader, claude") || !strings.Contains(header, "tester (thinker, codex") {
 		t.Errorf("header = %q", header)
 	}
 }
 
-func TestFormatMemberHeaderGivesACopilotItsRoleBack(t *testing.T) {
-	pilot := FormatMemberHeader(Member{Role: RolePilot})
-	if !strings.Contains(pilot, "pilot") {
-		t.Errorf("pilot header = %q", pilot)
+func TestFormatMemberHeaderGivesAThinkerItsRoleBack(t *testing.T) {
+	leader := FormatMemberHeader(Member{Role: RoleLeader})
+	if !strings.Contains(leader, "leader") {
+		t.Errorf("leader header = %q", leader)
 	}
-	header := FormatMemberHeader(Member{Role: RoleCopilot, Label: "reviewer", Prompt: "Review the diff.", Skills: []string{"lgrass-connector"}})
-	for _, want := range []string{`copilot "reviewer"`, "lgrass-copilot, lgrass-connector", "Your assignment:", "Review the diff."} {
+	header := FormatMemberHeader(Member{Role: RoleThinker, Label: "reviewer", Prompt: "Review the diff.", Skills: []string{"lgrass-connector"}})
+	for _, want := range []string{`thinker "reviewer"`, "lgrass-howtobe-thinker, lgrass-connector", "Your assignment:", "Review the diff."} {
 		if !strings.Contains(header, want) {
 			t.Errorf("header missing %q:\n%s", want, header)
 		}
@@ -224,5 +226,31 @@ func TestGroupNamesAreUniqueEvenAfterADisband(t *testing.T) {
 	}
 	if err := store.CheckGroupName("Schema review"); !errors.Is(err, ErrNameTaken) {
 		t.Errorf("CheckGroupName after disband = %v, want the name to stay reserved", err)
+	}
+}
+
+func TestOpenDetachesThreadsOfDroppedGroups(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "lg.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(schema + threadSchema); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DROP TABLE lg_groups; CREATE TABLE lg_groups (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, pilot_tab_id TEXT NOT NULL, created_at TEXT NOT NULL, disbanded_at TEXT);
+		INSERT INTO lg_groups (project_id, pilot_tab_id, created_at) VALUES ('p', 'tab', 'x');
+		INSERT INTO lg_threads (project_id, title, group_id, created_by, created_at) VALUES ('p', 'old', 1, 'tab', 'x')`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	s, err := Open(path, "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.CreateGroup("fresh", Member{TabID: "a", Label: "lead", Vendor: "claude"}, []Member{{TabID: "b", Label: "x", Vendor: "claude"}}); err != nil {
+		t.Fatalf("creating a group after the old groups were dropped: %v", err)
 	}
 }

@@ -596,11 +596,11 @@ onShellExit((tabId) => {
 })
 
 // A positional prompt starts the session with it as the first message, which extra system prompt text does not.
-// Reopens a closed member in the pilot's pane under its original tab id, resuming the saved session when there is one.
+// Reopens a closed member in the leader's pane under its original tab id, resuming the saved session when there is one.
 export async function reopenWorkgroupMember(
   project: ProjectRef,
   member: { tabId: string; label: string; vendor: string },
-  pilotTabId: string
+  leaderTabId: string
 ): Promise<void> {
   if (isTabOpen(project.id, member.tabId)) return focusTab(project, member.tabId)
   const agent = shellAgentById(member.vendor)
@@ -623,7 +623,7 @@ export async function reopenWorkgroupMember(
   }
   const leaves = tree.allLeaves(root)
   const target =
-    tree.findLeafByTab(root, pilotTabId) ??
+    tree.findLeafByTab(root, leaderTabId) ??
     leaves.find((leaf) => leaf.id === workspaces[project.id].layout.focusedPaneId) ??
     leaves[0]
   commit(
@@ -642,9 +642,9 @@ function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
   const project = [...projectRefs.values()].find((ref) => ref.path === request.projectPath)
   const root = project ? workspaces[project.id]?.layout.root : null
   if (!project || !root)
-    return { ok: false, error: 'the pilot project is not open in the workspace' }
-  const pilotLeaf = tree.findLeafByTab(root, request.pilotTabId)
-  if (!pilotLeaf) return { ok: false, error: 'the pilot tab is not in the workspace' }
+    return { ok: false, error: 'the leader project is not open in the workspace' }
+  const leaderLeaf = tree.findLeafByTab(root, request.leaderTabId)
+  if (!leaderLeaf) return { ok: false, error: 'the leader tab is not in the workspace' }
 
   let next = root
   for (const member of request.members) {
@@ -656,9 +656,9 @@ function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
       cwd: project.path
     }
     setShellArgs(tab.id, workgroupArgs(member))
-    next = tree.addTab(next, pilotLeaf.id, tab)
+    next = tree.addTab(next, leaderLeaf.id, tab)
   }
-  commit(project, tree.setActiveTab(next, pilotLeaf.id, request.pilotTabId))
+  commit(project, tree.setActiveTab(next, leaderLeaf.id, request.leaderTabId))
   return { ok: true }
 }
 

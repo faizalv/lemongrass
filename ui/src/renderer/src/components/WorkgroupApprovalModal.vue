@@ -17,9 +17,9 @@ function projectName(request: WorkgroupPending): string {
   return parts[parts.length - 1] ?? request.projectPath
 }
 
-function coPilotCount(request: WorkgroupPending): string {
+function thinkerCount(request: WorkgroupPending): string {
   const count = request.members.length
-  return `${count} co-pilot${count === 1 ? '' : 's'}`
+  return `${count} thinker${count === 1 ? '' : 's'}`
 }
 
 function focusDecline(): void {
@@ -66,7 +66,7 @@ watch(
             >
               <span class="request-name">{{ request.groupName }}</span>
               <span class="request-meta">
-                {{ projectName(request) }}, {{ coPilotCount(request) }}
+                {{ projectName(request) }}, {{ thinkerCount(request) }}
               </span>
             </button>
           </li>
@@ -83,10 +83,10 @@ watch(
             </div>
             <div class="fact">
               <dt>Started by</dt>
-              <dd>{{ selected.pilotLabel }}</dd>
+              <dd>{{ selected.leaderLabel }}</dd>
             </div>
             <div class="fact">
-              <dt>Co-pilots</dt>
+              <dt>Thinkers</dt>
               <dd>{{ selected.members.length }}</dd>
             </div>
           </dl>

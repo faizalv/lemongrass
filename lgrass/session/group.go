@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	RolePilot   = "pilot"
-	RoleCopilot = "copilot"
+	RoleLeader  = "leader"
+	RoleThinker = "thinker"
 
-	// Every copilot loads this skill.
-	CopilotSkill = "lgrass-copilot"
+	// Every thinker loads this skill.
+	ThinkerSkill = "lgrass-howtobe-thinker"
 )
 
 type Group struct {
 	ID          int64
-	PilotTabID  string
+	LeaderTabID string
 	ThreadID    int64
 	Name        string
 	CreatedAt   string
@@ -32,7 +32,7 @@ type Member struct {
 	Label  string
 	Vendor string
 	Prompt string   // the assignment from the group config
-	Skills []string // skills the member must load, beyond the ones every copilot loads
+	Skills []string // skills the member must load, beyond the ones every thinker loads
 }
 
 var (
@@ -76,12 +76,12 @@ func (s *Store) CheckGroupName(name string) error {
 	return nil
 }
 
-// Creates the group, its members, and its one thread in a single transaction. The pilot is added as a member.
-func (s *Store) CreateGroup(name string, pilot Member, copilots []Member) (Group, error) {
-	pilot.Role = RolePilot
-	members := []Member{pilot}
-	for _, c := range copilots {
-		c.Role = RoleCopilot
+// Creates the group, its members, and its one thread in a single transaction. The leader is added as a member.
+func (s *Store) CreateGroup(name string, leader Member, thinkers []Member) (Group, error) {
+	leader.Role = RoleLeader
+	members := []Member{leader}
+	for _, c := range thinkers {
+		c.Role = RoleThinker
 		members = append(members, c)
 	}
 
@@ -114,7 +114,7 @@ func (s *Store) CreateGroup(name string, pilot Member, copilots []Member) (Group
 	}
 
 	ts := now()
-	res, err := tx.Exec(`INSERT INTO lg_groups (project_id, pilot_tab_id, created_at) VALUES (?, ?, ?)`, s.projectID, pilot.TabID, ts)
+	res, err := tx.Exec(`INSERT INTO lg_groups (project_id, leader_tab_id, created_at) VALUES (?, ?, ?)`, s.projectID, leader.TabID, ts)
 	if err != nil {
 		return Group{}, err
 	}
@@ -127,7 +127,7 @@ func (s *Store) CreateGroup(name string, pilot Member, copilots []Member) (Group
 			return Group{}, err
 		}
 	}
-	res, err = tx.Exec(`INSERT INTO lg_threads (project_id, title, group_id, created_by, created_at) VALUES (?, ?, ?, ?, ?)`, s.projectID, name, groupID, pilot.TabID, ts)
+	res, err = tx.Exec(`INSERT INTO lg_threads (project_id, title, group_id, created_by, created_at) VALUES (?, ?, ?, ?, ?)`, s.projectID, name, groupID, leader.TabID, ts)
 	if err != nil {
 		return Group{}, err
 	}
@@ -138,17 +138,17 @@ func (s *Store) CreateGroup(name string, pilot Member, copilots []Member) (Group
 	if err := tx.Commit(); err != nil {
 		return Group{}, err
 	}
-	return Group{ID: groupID, PilotTabID: pilot.TabID, ThreadID: threadID, Name: name, CreatedAt: ts}, nil
+	return Group{ID: groupID, LeaderTabID: leader.TabID, ThreadID: threadID, Name: name, CreatedAt: ts}, nil
 }
 
 const groupSelect = `
-	SELECT g.id, g.pilot_tab_id, COALESCE(t.id, 0), COALESCE(t.title, ''), g.created_at, COALESCE(g.disbanded_at, '')
+	SELECT g.id, g.leader_tab_id, COALESCE(t.id, 0), COALESCE(t.title, ''), g.created_at, COALESCE(g.disbanded_at, '')
 	FROM lg_groups g LEFT JOIN lg_threads t ON t.group_id = g.id
 `
 
 func scanGroup(row *sql.Row) (Group, error) {
 	var g Group
-	err := row.Scan(&g.ID, &g.PilotTabID, &g.ThreadID, &g.Name, &g.CreatedAt, &g.DisbandedAt)
+	err := row.Scan(&g.ID, &g.LeaderTabID, &g.ThreadID, &g.Name, &g.CreatedAt, &g.DisbandedAt)
 	if err == sql.ErrNoRows {
 		return Group{}, ErrNoSuchGroup
 	}
@@ -159,7 +159,7 @@ func (s *Store) GroupByID(id int64) (Group, error) {
 	return scanGroup(s.db.QueryRow(groupSelect+` WHERE g.project_id = ? AND g.id = ?`, s.projectID, id))
 }
 
-// The live group the tab belongs to as pilot or member; ErrNoSuchGroup when it has none.
+// The live group the tab belongs to as leader or member; ErrNoSuchGroup when it has none.
 func (s *Store) LiveGroupForTab(tabID string) (Group, error) {
 	return scanGroup(s.db.QueryRow(groupSelect+`
 		JOIN lg_group_members m ON m.group_id = g.id
@@ -176,7 +176,7 @@ func (s *Store) LiveGroups() ([]Group, error) {
 	var out []Group
 	for rows.Next() {
 		var g Group
-		if err := rows.Scan(&g.ID, &g.PilotTabID, &g.ThreadID, &g.Name, &g.CreatedAt, &g.DisbandedAt); err != nil {
+		if err := rows.Scan(&g.ID, &g.LeaderTabID, &g.ThreadID, &g.Name, &g.CreatedAt, &g.DisbandedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, g)
@@ -185,7 +185,7 @@ func (s *Store) LiveGroups() ([]Group, error) {
 }
 
 func (s *Store) GroupMembers(groupID int64) ([]Member, error) {
-	rows, err := s.db.Query(`SELECT tab_id, role, label, vendor, prompt, skills FROM lg_group_members WHERE group_id = ? ORDER BY CASE role WHEN 'pilot' THEN 0 ELSE 1 END, rowid`, groupID)
+	rows, err := s.db.Query(`SELECT tab_id, role, label, vendor, prompt, skills FROM lg_group_members WHERE group_id = ? ORDER BY CASE role WHEN 'leader' THEN 0 ELSE 1 END, rowid`, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -286,9 +286,9 @@ func (s *Store) Labels(tabIDs []string) map[string]string {
 	return out
 }
 
-// The copilot skill first, then the skills the pilot listed, each once.
+// The thinker skill first, then the skills the leader listed, each once.
 func (m Member) RequiredSkills() []string {
-	out := []string{CopilotSkill}
+	out := []string{ThinkerSkill}
 	for _, name := range m.Skills {
 		if !containsString(out, name) {
 			out = append(out, name)

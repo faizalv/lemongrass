@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	kindsPilot = "aaaaaaaa-1111-4111-8111-111111111111"
-	kindsOne   = "bbbbbbbb-2222-4222-8222-222222222222"
-	kindsTwo   = "cccccccc-3333-4333-8333-333333333333"
+	kindsLeader = "aaaaaaaa-1111-4111-8111-111111111111"
+	kindsOne    = "bbbbbbbb-2222-4222-8222-222222222222"
+	kindsTwo    = "cccccccc-3333-4333-8333-333333333333"
 )
 
 func storeWithKindsGroup(t *testing.T) (*session.Store, session.Group) {
 	t.Helper()
 	store := openHookTestStore(t)
-	store.RegisterTab(kindsPilot, "claude")
-	g, err := store.CreateGroup("Review", session.Member{TabID: kindsPilot, Label: "lead", Vendor: "claude"}, []session.Member{
+	store.RegisterTab(kindsLeader, "claude")
+	g, err := store.CreateGroup("Review", session.Member{TabID: kindsLeader, Label: "lead", Vendor: "claude"}, []session.Member{
 		{TabID: kindsOne, Label: "reviewer", Vendor: "claude"},
 		{TabID: kindsTwo, Label: "tester", Vendor: "claude"},
 	})
@@ -31,7 +31,7 @@ func storeWithKindsGroup(t *testing.T) (*session.Store, session.Group) {
 
 func TestHookSurfacesNotYouLinesButTheNudgeDoesNot(t *testing.T) {
 	store, g := storeWithKindsGroup(t)
-	store.PostMessage(kindsPilot, g.ThreadID, "for one !>>"+kindsOne+"<<!")
+	store.PostMessage(kindsLeader, g.ThreadID, "for one !>>"+kindsOne+"<<!")
 
 	if text, ok := consumePending(store, kindsTwo); ok {
 		t.Fatalf("a nudge for an unmentioned member was composed: %q", text)
@@ -47,8 +47,8 @@ func TestHookSurfacesNotYouLinesButTheNudgeDoesNot(t *testing.T) {
 
 func TestNudgeSettlesTheNotYouRowsOfThatTab(t *testing.T) {
 	store, g := storeWithKindsGroup(t)
-	store.PostMessage(kindsOne, g.ThreadID, "to lead !>>"+kindsPilot+"<<!")
-	store.PostMessage(kindsPilot, g.ThreadID, "to all")
+	store.PostMessage(kindsOne, g.ThreadID, "to lead !>>"+kindsLeader+"<<!")
+	store.PostMessage(kindsLeader, g.ThreadID, "to all")
 
 	text, ok := consumePending(store, kindsTwo)
 	if !ok || strings.Contains(text, "not you") || !strings.Contains(text, "1 new from lead") {
@@ -80,13 +80,13 @@ func TestPrintThreadShowsOnlyUnreadAfterTheFirstRead(t *testing.T) {
 	t.Cleanup(func() { tabID = "" })
 	args := threadArgs{limit: defaultThreadReadLimit}
 
-	store.PostMessage(kindsPilot, g.ThreadID, "first news")
+	store.PostMessage(kindsLeader, g.ThreadID, "first news")
 	first := captureStdout(t, func() { printThread(store, g.ThreadID, args, nil) })
 	if !strings.Contains(first, "first news") || strings.Contains(first, "unread only") {
 		t.Fatalf("first read = %q, want the latest page", first)
 	}
 
-	store.PostMessage(kindsPilot, g.ThreadID, "second news")
+	store.PostMessage(kindsLeader, g.ThreadID, "second news")
 	second := captureStdout(t, func() { printThread(store, g.ThreadID, args, nil) })
 	if !strings.Contains(second, "second news") || strings.Contains(second, "first news") || !strings.Contains(second, "unread only") {
 		t.Errorf("second read = %q, want only the new message", second)
@@ -106,7 +106,7 @@ func TestPrintThreadShowsOnlyUnreadAfterTheFirstRead(t *testing.T) {
 func TestPrintThreadWithoutATabKeepsTheLatestPage(t *testing.T) {
 	store, g := storeWithKindsGroup(t)
 	tabID = ""
-	store.PostMessage(kindsPilot, g.ThreadID, "one")
+	store.PostMessage(kindsLeader, g.ThreadID, "one")
 	for i := 0; i < 2; i++ {
 		out := captureStdout(t, func() { printThread(store, g.ThreadID, threadArgs{limit: 10}, nil) })
 		if !strings.Contains(out, "one") || strings.Contains(out, "unread only") {
@@ -125,7 +125,7 @@ func TestPrintThreadHeaderIsFullOnlyOnTheFirstRead(t *testing.T) {
 		return "header"
 	}
 	captureStdout(t, func() { printThread(store, g.ThreadID, threadArgs{limit: 10}, header) })
-	store.PostMessage(kindsPilot, g.ThreadID, "x")
+	store.PostMessage(kindsLeader, g.ThreadID, "x")
 	captureStdout(t, func() { printThread(store, g.ThreadID, threadArgs{limit: 10}, header) })
 	captureStdout(t, func() { printThread(store, g.ThreadID, threadArgs{limit: 10, all: true}, header) })
 	if len(firsts) != 3 || !firsts[0] || firsts[1] || !firsts[2] {

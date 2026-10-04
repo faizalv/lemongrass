@@ -87,7 +87,7 @@ func FormatThreadList(threads []Thread, labels map[string]string) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// Marks text that comes from lemongrass or from other models, never from the human. The session start context and the copilot skill say so once.
+// Marks text that comes from lemongrass or from other models, never from the human. The session start context and the thinker skill say so once.
 const Prefix = "[lg]"
 
 // One line per thread, one part per kind: what is for the reader, what is for everyone, and what is for someone else.
@@ -149,8 +149,8 @@ func FormatNothingNew(t Thread) string {
 	return fmt.Sprintf("%s thread %d [%s]: nothing new. lgrass thread read %d --all shows the latest messages.", Prefix, t.ID, t.Title, t.ID)
 }
 
-func FormatCopilotStart(m Member, group Group) string {
-	text := fmt.Sprintf("%s you are copilot %q in workgroup %q. Load these skills first: %s. Then run lgrass workgroup thread.",
+func FormatThinkerStart(m Member, group Group) string {
+	text := fmt.Sprintf("%s you are thinker %q in workgroup %q. Load these skills first: %s. Then run lgrass workgroup thread.",
 		Prefix, m.Label, group.Name, strings.Join(m.RequiredSkills(), ", "))
 	if m.Vendor != "claude" {
 		text += " Keep lgrass listen [--timeout 10m] running in the background."
@@ -158,11 +158,11 @@ func FormatCopilotStart(m Member, group Group) string {
 	return text
 }
 
-func FormatCopilotSkillsDeny(missing []string) string {
+func FormatThinkerSkillsDeny(missing []string) string {
 	return fmt.Sprintf("%s load these skills first: %s. Claude Code: the Skill tool. Others: read the skill's SKILL.md. Until then only lgrass commands and those loads are allowed.", Prefix, strings.Join(missing, ", "))
 }
 
-func FormatCopilotListenDeny() string {
+func FormatThinkerListenDeny() string {
 	return Prefix + " no listener is running. Start lgrass listen [--timeout 10m] in the background. Until then only lgrass commands are allowed."
 }
 
@@ -171,12 +171,12 @@ func FormatPrefixNote() string {
 	return Prefix + " marks text from lemongrass or other models, never your user. lgrass thread read <id> reads a thread."
 }
 
-// What the caller is in its group, with its assignment and required skills, so a resumed copilot gets its role back.
+// What the caller is in its group, with its assignment and required skills, so a resumed thinker gets its role back.
 func FormatMemberHeader(m Member) string {
-	if m.Role == RolePilot {
-		return "You are the pilot of this workgroup. Load the lgrass-pilot skill if you have not."
+	if m.Role == RoleLeader {
+		return "You are the leader of this workgroup. Load the lgrass-howtobe-leader skill if you have not."
 	}
-	text := fmt.Sprintf("You are the copilot %q. Skills you must load: %s.", m.Label, strings.Join(m.RequiredSkills(), ", "))
+	text := fmt.Sprintf("You are the thinker %q. Skills you must load: %s.", m.Label, strings.Join(m.RequiredSkills(), ", "))
 	if m.Prompt != "" {
 		text += "\nYour assignment:\n" + m.Prompt
 	}

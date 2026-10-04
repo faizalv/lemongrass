@@ -213,7 +213,7 @@ export interface WorkgroupSpawnMember {
 export interface WorkgroupSpawnRequest {
   requestId: string
   projectPath: string
-  pilotTabId: string
+  leaderTabId: string
   members: WorkgroupSpawnMember[]
 }
 
@@ -224,7 +224,7 @@ export interface WorkgroupSpawnResult {
 
 export interface WorkgroupMemberInfo {
   tabId: string
-  role: 'pilot' | 'copilot'
+  role: 'leader' | 'thinker'
   label: string
   vendor: string
 }
@@ -233,7 +233,7 @@ export interface WorkgroupInfo {
   id: number
   name: string
   threadId: number
-  pilotTabId: string
+  leaderTabId: string
   members: WorkgroupMemberInfo[]
 }
 
@@ -249,7 +249,7 @@ export interface WorkgroupPending {
   requestId: string
   projectPath: string
   groupName: string
-  pilotLabel: string
+  leaderLabel: string
   members: WorkgroupPendingMember[]
   createdAt: number
 }

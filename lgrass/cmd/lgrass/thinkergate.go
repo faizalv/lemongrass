@@ -17,7 +17,7 @@ const shellMetacharacters = ";&|<>`$\n\r"
 // The commands an agent may run to read a skill's SKILL.md on vendors with no skill tool.
 var skillReaders = map[string]bool{"cat": true, "sed": true, "head": true, "tail": true, "nl": true, "less": true, "more": true, "bat": true}
 
-type copilotGateInput struct {
+type thinkerGateInput struct {
 	ToolName  string
 	ToolInput json.RawMessage
 	Vendor    string
@@ -27,7 +27,7 @@ type copilotGateInput struct {
 }
 
 // Returns the deny message, "" to allow, and the required skill this call loads, "" if none. The caller records that skill's mark.
-func copilotGate(in copilotGateInput) (deny, loaded string) {
+func thinkerGate(in thinkerGateInput) (deny, loaded string) {
 	loaded = requiredSkillLoad(in)
 
 	var missing []string
@@ -44,9 +44,9 @@ func copilotGate(in copilotGateInput) (deny, loaded string) {
 		return "", loaded
 	}
 	if len(missing) > 0 {
-		return session.FormatCopilotSkillsDeny(missing), ""
+		return session.FormatThinkerSkillsDeny(missing), ""
 	}
-	return session.FormatCopilotListenDeny(), ""
+	return session.FormatThinkerListenDeny(), ""
 }
 
 // The command string of a shell tool call, "" for any other tool. Codex passes an argv array, whose last element is the script after a -c style flag.
@@ -92,7 +92,7 @@ func isLgrassCommand(command string) bool {
 	return len(fields) > 0 && fields[0] == "lgrass"
 }
 
-func requiredSkillLoad(in copilotGateInput) string {
+func requiredSkillLoad(in thinkerGateInput) string {
 	if in.ToolName == "Skill" {
 		var input struct {
 			Skill string `json:"skill"`

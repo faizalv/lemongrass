@@ -22,7 +22,7 @@ const waiting = computed(() => pendingFor(props.project.path))
 const focusedId = computed(() => focusedWorkgroupId(props.project.id))
 
 function orphaned(group: WorkgroupInfo): boolean {
-  return !isTabOpen(props.project.id, group.pilotTabId)
+  return !isTabOpen(props.project.id, group.leaderTabId)
 }
 
 function refresh(): void {
@@ -116,12 +116,12 @@ watch(() => liveShellCount(props.project.id), refresh)
         @click="openWorkgroup(project, group.id)"
       >
         <span class="wg-row-name">{{ group.name }}</span>
-        <span v-if="orphaned(group)" class="wg-orphaned" title="The pilot's tab is not open">
+        <span v-if="orphaned(group)" class="wg-orphaned" title="The leader's tab is not open">
           Orphaned
         </span>
       </button>
       <p v-if="groups.length === 0 && waiting.length === 0" class="wg-empty">
-        No workgroup is active. A pilot agent can start co-pilots in other tabs of this project and
+        No workgroup is active. A leader agent can start thinkers in other tabs of this project and
         coordinate them through one shared thread. Ask an agent to set one up.
       </p>
     </div>

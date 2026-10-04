@@ -173,10 +173,10 @@ func TestMentionRejectsShortUnknownAmbiguousAndMalformed(t *testing.T) {
 
 func TestMentionResolvesAGroupMemberWithoutATabRecord(t *testing.T) {
 	store := openTestStore(t)
-	if _, err := store.db.Exec(`INSERT INTO lg_groups (id, project_id, pilot_tab_id, created_at) VALUES (1, ?, ?, ?)`, testProjectID, tabA, now()); err != nil {
+	if _, err := store.db.Exec(`INSERT INTO lg_groups (id, project_id, leader_tab_id, created_at) VALUES (1, ?, ?, ?)`, testProjectID, tabA, now()); err != nil {
 		t.Fatalf("seeding group: %v", err)
 	}
-	if _, err := store.db.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor) VALUES (1, ?, 'copilot', 'reviewer', 'claude')`, tabB); err != nil {
+	if _, err := store.db.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor) VALUES (1, ?, 'thinker', 'reviewer', 'claude')`, tabB); err != nil {
 		t.Fatalf("seeding member: %v", err)
 	}
 

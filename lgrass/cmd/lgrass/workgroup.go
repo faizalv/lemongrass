@@ -58,21 +58,21 @@ func cmdWorkgroupCreate(args []string) {
 	if err := store.CheckGroupName(cfg.Name); err != nil {
 		fail(err)
 	}
-	pilotVendor, _ := store.VendorForTab(tabID)
+	leaderVendor, _ := store.VendorForTab(tabID)
 	proj := currentProject()
 
-	members := make([]workgroup.SpawnMember, len(cfg.Copilots))
-	for i, c := range cfg.Copilots {
+	members := make([]workgroup.SpawnMember, len(cfg.Thinkers))
+	for i, c := range cfg.Thinkers {
 		members[i] = workgroup.SpawnMember{
 			TabID:  workgroup.NewTabID(),
 			Label:  c.Label,
 			Vendor: c.Vendor,
 			Model:  c.Model,
-			Prompt: workgroup.ComposePrompt(c.Vendor, c.Label, cfg.Name, cfg.PilotLabel, c.RequiredSkills(), c.Prompt),
+			Prompt: workgroup.ComposePrompt(c.Vendor, c.Label, cfg.Name, cfg.LeaderLabel, c.RequiredSkills(), c.Prompt),
 			Skills: c.RequiredSkills(),
 		}
 	}
-	req := workgroup.Request{ProjectPath: proj.Path, PilotTabID: tabID, PilotLabel: cfg.PilotLabel, GroupName: cfg.Name, Members: members}
+	req := workgroup.Request{ProjectPath: proj.Path, LeaderTabID: tabID, LeaderLabel: cfg.LeaderLabel, GroupName: cfg.Name, Members: members}
 
 	fmt.Println("lgrass: waiting for the human to approve this workgroup in the lemongrass app.")
 	answer, err := workgroup.Propose(workgroup.AppSocketPath(), req)
@@ -85,7 +85,7 @@ func cmdWorkgroupCreate(args []string) {
 	}
 	token := answer.Token
 
-	group, err := store.CreateGroup(cfg.Name, session.Member{TabID: tabID, Label: cfg.PilotLabel, Vendor: pilotVendor}, toMembers(members, cfg.Copilots))
+	group, err := store.CreateGroup(cfg.Name, session.Member{TabID: tabID, Label: cfg.LeaderLabel, Vendor: leaderVendor}, toMembers(members, cfg.Thinkers))
 	if err != nil {
 		fail(err)
 	}
@@ -100,10 +100,10 @@ func cmdWorkgroupCreate(args []string) {
 	}
 }
 
-func toMembers(spawn []workgroup.SpawnMember, copilots []workgroup.Copilot) []session.Member {
+func toMembers(spawn []workgroup.SpawnMember, thinkers []workgroup.Thinker) []session.Member {
 	out := make([]session.Member, len(spawn))
 	for i, m := range spawn {
-		out[i] = session.Member{TabID: m.TabID, Label: m.Label, Vendor: m.Vendor, Prompt: copilots[i].Prompt, Skills: copilots[i].Skills}
+		out[i] = session.Member{TabID: m.TabID, Label: m.Label, Vendor: m.Vendor, Prompt: thinkers[i].Prompt, Skills: thinkers[i].Skills}
 	}
 	return out
 }
@@ -125,8 +125,8 @@ func cmdWorkgroupDisband(args []string) {
 	if err != nil {
 		fail(err)
 	}
-	if tabID != "" && tabID != group.PilotTabID {
-		fmt.Fprintf(os.Stderr, "lgrass workgroup: only the pilot can disband workgroup %d\n", id)
+	if tabID != "" && tabID != group.LeaderTabID {
+		fmt.Fprintf(os.Stderr, "lgrass workgroup: only the leader can disband workgroup %d\n", id)
 		os.Exit(1)
 	}
 	if err := store.DisbandGroup(id); err != nil {
@@ -176,11 +176,11 @@ type listedMember struct {
 }
 
 type listedGroup struct {
-	ID         int64          `json:"id"`
-	Name       string         `json:"name"`
-	ThreadID   int64          `json:"threadId"`
-	PilotTabID string         `json:"pilotTabId"`
-	Members    []listedMember `json:"members"`
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`
+	ThreadID    int64          `json:"threadId"`
+	LeaderTabID string         `json:"leaderTabId"`
+	Members     []listedMember `json:"members"`
 }
 
 func cmdWorkgroupList(args []string) {
@@ -202,7 +202,7 @@ func cmdWorkgroupList(args []string) {
 		if err != nil {
 			fail(err)
 		}
-		entry := listedGroup{ID: g.ID, Name: g.Name, ThreadID: g.ThreadID, PilotTabID: g.PilotTabID, Members: make([]listedMember, len(members))}
+		entry := listedGroup{ID: g.ID, Name: g.Name, ThreadID: g.ThreadID, LeaderTabID: g.LeaderTabID, Members: make([]listedMember, len(members))}
 		for i, m := range members {
 			entry.Members[i] = listedMember{TabID: m.TabID, Role: m.Role, Label: m.Label, Vendor: m.Vendor}
 		}

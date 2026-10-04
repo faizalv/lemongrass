@@ -159,8 +159,8 @@ func TestHeartbeatUpsertsAndDropsStaleOnes(t *testing.T) {
 func TestVendorForTabFallsBackToGroupMembership(t *testing.T) {
 	store := openTestStore(t)
 	store.RegisterTab(tabA, "claude")
-	store.db.Exec(`INSERT INTO lg_groups (id, project_id, pilot_tab_id, created_at) VALUES (1, ?, ?, ?)`, testProjectID, tabA, now())
-	store.db.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor) VALUES (1, ?, 'copilot', 'r', 'codex')`, tabB)
+	store.db.Exec(`INSERT INTO lg_groups (id, project_id, leader_tab_id, created_at) VALUES (1, ?, ?, ?)`, testProjectID, tabA, now())
+	store.db.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor) VALUES (1, ?, 'thinker', 'r', 'codex')`, tabB)
 
 	if v, _ := store.VendorForTab(tabA); v != "claude" {
 		t.Errorf("VendorForTab(A) = %q, want claude", v)

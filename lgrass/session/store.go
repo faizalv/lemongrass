@@ -73,7 +73,15 @@ func Open(dbPath, projectID string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("configuring %s: %w", dbPath, err)
 	}
+	if err := dropPilotGroups(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrating schema: %w", err)
+	}
 	if _, err := db.Exec(schema + threadSchema + legacyThreadDrop); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrating schema: %w", err)
+	}
+	if err := detachOrphanThreads(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrating schema: %w", err)
 	}
