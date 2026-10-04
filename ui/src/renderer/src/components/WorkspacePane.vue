@@ -5,7 +5,13 @@ import {
   activateTab,
   addShell,
   addShellInNewPane,
+  closeAllDocuments,
+  closeAllTabs,
+  closeDocumentsInPane,
+  closeOtherTabs,
   closeTab,
+  closeTabsInPane,
+  docTabCount,
   focusPane,
   openInNewShell,
   placeTab,
@@ -22,13 +28,6 @@ const props = defineProps<{
   leaf: Leaf
   project: ProjectRef
   focused: boolean
-  confirmingDocuments: boolean
-  hasDocuments: boolean
-}>()
-
-const emit = defineEmits<{
-  closeAllDocuments: []
-  closeAllTabs: []
 }>()
 
 const TAB_MIME = 'application/x-lemongrass-doc-tab'
@@ -159,13 +158,62 @@ function menuClose(): void {
   menu.value = null
 }
 
-function menuCloseAllDocuments(): void {
-  emit('closeAllDocuments')
+const TAB_ICON = [
+  'M2.2 4.2h9.6c.7 0 1.2.5 1.2 1.2v5.4c0 .7-.5 1.2-1.2 1.2H2.2c-.7 0-1.2-.5-1.2-1.2V5.4c0-.7.5-1.2 1.2-1.2Z',
+  'M3.5 2h3.2',
+  'M5.2 6.2l3.6 3.6M8.8 6.2l-3.6 3.6'
+]
+
+const DOC_ICON = [
+  'M2.5 4.5v7.3c0 .7.5 1.2 1.2 1.2h5.8',
+  'M5.7 2.2h4.6c.7 0 1.2.5 1.2 1.2v6.4c0 .7-.5 1.2-1.2 1.2H5.7c-.7 0-1.2-.5-1.2-1.2V3.4c0-.7.5-1.2 1.2-1.2Z',
+  'M6.7 5.1l2.6 2.6M9.3 5.1L6.7 7.7'
+]
+
+const WARNING_ICON = ['M7 3v5.2', 'M7 10.8v.1']
+
+const closeActions = computed(() => {
+  const paneHasDocs = props.leaf.tabs.some((t) => t.kind === 'doc')
+  return [
+    {
+      key: 'other',
+      label: 'Close Other Tabs',
+      icon: TAB_ICON,
+      disabled: props.leaf.tabs.length < 2
+    },
+    { key: 'paneTabs', label: 'Close All Tabs In Pane', icon: TAB_ICON, disabled: false },
+    { key: 'paneDocs', label: 'Close Documents In Pane', icon: DOC_ICON, disabled: !paneHasDocs },
+    {
+      key: 'allDocs',
+      label: 'Close All Documents',
+      icon: DOC_ICON,
+      disabled: docTabCount(props.project.id) === 0
+    },
+    { key: 'allTabs', label: 'Close All Tabs', icon: TAB_ICON, disabled: false }
+  ]
+})
+
+const confirmingKey = ref<string | null>(null)
+
+watch(menu, () => (confirmingKey.value = null))
+
+function runCloseAction(key: string): void {
+  if (key === 'other') {
+    if (props.leaf.activeTabId) closeOtherTabs(props.project, props.leaf.id, props.leaf.activeTabId)
+  } else if (key === 'paneTabs') closeTabsInPane(props.project, props.leaf.id)
+  else if (key === 'paneDocs') closeDocumentsInPane(props.project, props.leaf.id)
+  else if (key === 'allDocs') closeAllDocuments(props.project)
+  else closeAllTabs(props.project)
 }
 
-function menuCloseAllTabs(): void {
+function menuCloseAction(key: string): void {
+  if (!menu.value) return
+  if (confirmingKey.value !== key) {
+    confirmingKey.value = key
+    return
+  }
   menu.value = null
-  emit('closeAllTabs')
+  runCloseAction(key)
 }
 
 const copiedTabId = ref<string | null>(null)
@@ -488,25 +536,14 @@ onBeforeUnmount(() => {
         </button>
       </template>
       <div class="menu-divider" />
-      <button class="menu-item" :disabled="!hasDocuments" @click="menuCloseAllDocuments">
-        <svg
-          class="menu-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M2.5 4.5v7.3c0 .7.5 1.2 1.2 1.2h5.8" />
-          <rect x="4.5" y="2.2" width="7" height="8.8" rx="1.2" />
-          <path d="M6.7 5.1l2.6 2.6M9.3 5.1L6.7 7.7" />
-        </svg>
-        {{ confirmingDocuments ? 'Click again to close all documents' : 'Close all documents' }}
-      </button>
-      <button class="menu-item" @click="menuCloseAllTabs">
+      <button
+        v-for="action in closeActions"
+        :key="action.key"
+        class="menu-item"
+        :class="{ confirming: confirmingKey === action.key }"
+        :disabled="action.disabled"
+        @click="menuCloseAction(action.key)"
+      >
         <svg
           class="menu-icon"
           width="14"
@@ -519,12 +556,13 @@ onBeforeUnmount(() => {
           stroke-linejoin="round"
         >
           <path
-            d="M2.2 4.2h9.6c.7 0 1.2.5 1.2 1.2v5.4c0 .7-.5 1.2-1.2 1.2H2.2c-.7 0-1.2-.5-1.2-1.2V5.4c0-.7.5-1.2 1.2-1.2Z"
+            v-for="d in confirmingKey === action.key ? WARNING_ICON : action.icon"
+            :key="d"
+            :d="d"
           />
-          <path d="M3.5 2h3.2" />
-          <path d="M5.2 6.2l3.6 3.6M8.8 6.2l-3.6 3.6" />
         </svg>
-        Close all tabs
+        {{ action.label }}
+        <span class="menu-confirm-hint">Click again</span>
       </button>
       <div class="menu-divider" />
       <button class="menu-item" @click="menuClose">
@@ -785,6 +823,28 @@ onBeforeUnmount(() => {
 .menu-item:disabled {
   color: var(--color-fg-muted);
   cursor: default;
+}
+
+.menu-item.confirming,
+.menu-item.confirming:hover:not(:disabled) {
+  background: var(--color-error-muted);
+  color: var(--color-error);
+}
+
+.menu-item.confirming .menu-icon,
+.menu-item.confirming:hover:not(:disabled) .menu-icon {
+  color: var(--color-error);
+}
+
+.menu-confirm-hint {
+  margin-left: auto;
+  padding-left: var(--space-4);
+  font-size: var(--text-xs);
+  visibility: hidden;
+}
+
+.menu-item.confirming .menu-confirm-hint {
+  visibility: visible;
 }
 
 .menu-divider {

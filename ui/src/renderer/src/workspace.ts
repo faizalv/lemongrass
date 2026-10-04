@@ -556,10 +556,15 @@ export function placeTab(
   commit(project, result.root, tree.findLeafByTab(result.root, result.placed.id)?.id)
 }
 
-function closeMatching(project: ProjectRef, matches: (tab: WorkspaceTab) => boolean): void {
+function closeMatching(
+  project: ProjectRef,
+  matches: (tab: WorkspaceTab) => boolean,
+  paneId?: string
+): void {
   let root = workspaces[project.id].layout.root
   if (!root) return
   for (const leaf of tree.allLeaves(root)) {
+    if (paneId && leaf.id !== paneId) continue
     for (const tab of leaf.tabs) {
       if (!root || !matches(tab)) continue
       if (tab.kind === 'shell') discardShell(project, tab.id)
@@ -582,6 +587,18 @@ export function closeAllDocuments(project: ProjectRef): void {
 
 export function closeAllTabs(project: ProjectRef): void {
   closeMatching(project, () => true)
+}
+
+export function closeOtherTabs(project: ProjectRef, paneId: string, keepTabId: string): void {
+  closeMatching(project, (tab) => tab.id !== keepTabId, paneId)
+}
+
+export function closeTabsInPane(project: ProjectRef, paneId: string): void {
+  closeMatching(project, () => true, paneId)
+}
+
+export function closeDocumentsInPane(project: ProjectRef, paneId: string): void {
+  closeMatching(project, (tab) => tab.kind === 'doc', paneId)
 }
 
 onShellExit((tabId) => {

@@ -1,15 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed } from 'vue'
 import AppModal from './AppModal.vue'
 import WorkspaceLayout from './WorkspaceLayout.vue'
 import {
   addShell,
   cancelShellPicker,
-  closeAllDocuments,
-  closeAllTabs,
   confirmShellPicker,
-  docTabCount,
-  liveShellCount,
   shellPicker,
   workspaceOf,
   type ProjectRef
@@ -21,40 +17,7 @@ const props = defineProps<{
 }>()
 
 const workspace = computed(() => workspaceOf(props.project.id))
-const shellCount = computed(() => liveShellCount(props.project.id))
-const documentCount = computed(() => docTabCount(props.project.id))
 const selectedAgentWarning = computed(() => shellAgentById(shellPicker.selectedId).warning)
-
-const closeAllSummary = computed((): string => {
-  const shells = `${shellCount.value} running ${shellCount.value === 1 ? 'shell' : 'shells'}`
-  const documents = `${documentCount.value} ${documentCount.value === 1 ? 'document' : 'documents'}`
-  if (shellCount.value && documentCount.value) return `This ends ${shells} and closes ${documents}.`
-  if (shellCount.value) return `This ends ${shells}.`
-  if (documentCount.value) return `This closes ${documents}.`
-  return 'This closes every open tab.'
-})
-
-const confirmingDocuments = ref(false)
-const confirmingAll = ref(false)
-let confirmTimer: ReturnType<typeof setTimeout> | undefined
-
-function onCloseDocuments(): void {
-  if (!confirmingDocuments.value) {
-    confirmingDocuments.value = true
-    confirmTimer = setTimeout(() => (confirmingDocuments.value = false), 3000)
-    return
-  }
-  clearTimeout(confirmTimer)
-  confirmingDocuments.value = false
-  closeAllDocuments(props.project)
-}
-
-function onCloseAllTabs(): void {
-  closeAllTabs(props.project)
-  confirmingAll.value = false
-}
-
-onBeforeUnmount(() => clearTimeout(confirmTimer))
 </script>
 
 <template>
@@ -65,10 +28,6 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
           :node="workspace.layout.root"
           :project="project"
           :focused-pane-id="workspace.layout.focusedPaneId"
-          :confirming-documents="confirmingDocuments"
-          :has-documents="Boolean(documentCount)"
-          @close-all-documents="onCloseDocuments"
-          @close-all-tabs="confirmingAll = true"
         />
       </div>
     </template>
@@ -99,14 +58,6 @@ onBeforeUnmount(() => clearTimeout(confirmTimer))
       <template #footer>
         <button class="ghost-button" @click="cancelShellPicker">Cancel</button>
         <button class="primary-button" @click="confirmShellPicker()">Open</button>
-      </template>
-    </AppModal>
-
-    <AppModal v-if="confirmingAll" title="Close all tabs?" @close="confirmingAll = false">
-      <p class="card-text">{{ closeAllSummary }}</p>
-      <template #footer>
-        <button class="ghost-button" @click="confirmingAll = false">Cancel</button>
-        <button class="primary-button" @click="onCloseAllTabs">Close all tabs</button>
       </template>
     </AppModal>
   </div>
