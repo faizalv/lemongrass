@@ -13,9 +13,10 @@ interface ChapterEntry {
   tags: string[]
 }
 
-interface GroupEntry {
-  kind: 'group'
-  label: string
+interface WarningPart {
+  text: string
+  book?: string
+  code?: boolean
 }
 
 interface BookEntry {
@@ -24,7 +25,7 @@ interface BookEntry {
   title: string
   date: string
   tags: string[]
-  description: string
+  warning: WarningPart[]
   chapters: ChapterEntry[]
 }
 
@@ -33,9 +34,9 @@ interface TextEntry {
   text: string
 }
 
-type TocEntry = GroupEntry | BookEntry | TextEntry
+type TocEntry = BookEntry | TextEntry
 
-const BOOK_LINE = /^(\S+?)\[(\d{4}-\d{2}-\d{2})\]\[([^\]]*)\]\s*-\s*(.+)$/
+const BOOK_LINE = /^(\S+?)\[(\d{4}-\d{2}-\d{2})\]\[([^\]]*)\](?:\s+warning:\s*(.+))?$/
 const CHAPTER_NAME = /^(.+?)\[([^\]]*)\]$/
 
 function humanize(snakeCase: string): string {
@@ -57,6 +58,20 @@ function parseChapter(node: BiblioNode): ChapterEntry {
   return { path: node.path, title: humanize(match[1]), tags: splitTags(match[2]) }
 }
 
+function parseWarning(raw: string | undefined, bookNames: Set<string>): WarningPart[] {
+  if (!raw) return []
+  return raw
+    .split(/(`[^`]+`)/)
+    .filter(Boolean)
+    .map((piece) => {
+      const quoted = /^`([^`]+)`$/.exec(piece)
+      if (!quoted) return { text: piece }
+      return bookNames.has(quoted[1])
+        ? { text: quoted[1], book: quoted[1] }
+        : { text: quoted[1], code: true }
+    })
+}
+
 function findBooksDir(tree: BiblioNode[]): BiblioNode | undefined {
   return tree.find((n) => n.type === 'dir' && n.name === 'books')
 }
@@ -67,31 +82,31 @@ function findBookDir(booksDir: BiblioNode | undefined, name: string): BiblioNode
 
 function parseToc(raw: string, tree: BiblioNode[]): TocEntry[] {
   const booksDir = findBooksDir(tree)
-  return raw
+  const lines = raw
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
-    .map((line): TocEntry => {
-      const bookMatch = BOOK_LINE.exec(line)
-      if (bookMatch) {
-        const [, name, date, tagsRaw, description] = bookMatch
-        const bookDir = findBookDir(booksDir, name)
-        const chapters = (bookDir?.children ?? [])
-          .filter((n) => n.type === 'file' && n.name.endsWith('.md'))
-          .map(parseChapter)
-        return {
-          kind: 'book',
-          name,
-          title: humanize(name),
-          date,
-          tags: splitTags(tagsRaw),
-          description,
-          chapters
-        }
-      }
-      if (line.endsWith(':')) return { kind: 'group', label: line.slice(0, -1) }
-      return { kind: 'text', text: line }
-    })
+  const bookNames = new Set(
+    lines.map((line) => BOOK_LINE.exec(line)?.[1]).filter((n): n is string => !!n)
+  )
+  return lines.map((line): TocEntry => {
+    const bookMatch = BOOK_LINE.exec(line)
+    if (!bookMatch) return { kind: 'text', text: line }
+    const [, name, date, tagsRaw, warningRaw] = bookMatch
+    const bookDir = findBookDir(booksDir, name)
+    const chapters = (bookDir?.children ?? [])
+      .filter((n) => n.type === 'file' && n.name.endsWith('.md'))
+      .map(parseChapter)
+    return {
+      kind: 'book',
+      name,
+      title: humanize(name),
+      date,
+      tags: splitTags(tagsRaw),
+      warning: parseWarning(warningRaw, bookNames),
+      chapters
+    }
+  })
 }
 
 const entries = ref<TocEntry[]>([])
@@ -118,20 +133,28 @@ onMounted(() => {
 onBeforeUnmount(() => unsubscribe?.())
 watch(() => props.project.path, load)
 
+const root = ref<HTMLElement | null>(null)
+
+function showBook(name: string): void {
+  root.value?.querySelector(`[data-book="${name}"]`)?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  })
+}
+
 function openChapter(path: string): void {
   openFile(props.project, path)
 }
 </script>
 
 <template>
-  <div class="toc-viewer lg-scroll">
+  <div ref="root" class="toc-viewer lg-scroll">
     <p v-if="loading" class="empty">Loading...</p>
     <p v-else-if="entries.length === 0" class="empty">Nothing in books/ yet.</p>
     <template v-else>
       <template v-for="(entry, i) in entries" :key="i">
-        <h3 v-if="entry.kind === 'group'" class="group-label">{{ entry.label }}</h3>
-        <p v-else-if="entry.kind === 'text'" class="text-line">{{ entry.text }}</p>
-        <div v-else class="book-card">
+        <p v-if="entry.kind === 'text'" class="text-line">{{ entry.text }}</p>
+        <div v-else class="book-card" :data-book="entry.name">
           <div class="book-header">
             <h4 class="book-title">{{ entry.title }}</h4>
             <span class="date-capsule">{{ entry.date }}</span>
@@ -139,7 +162,16 @@ function openChapter(path: string): void {
           <div v-if="entry.tags.length" class="tag-row">
             <span v-for="tag in entry.tags" :key="tag" class="tag-capsule">{{ tag }}</span>
           </div>
-          <p class="book-description">{{ entry.description }}</p>
+          <p v-if="entry.warning.length" class="book-warning">
+            <span class="warning-label">Warning</span>
+            <template v-for="(part, j) in entry.warning" :key="j">
+              <button v-if="part.book" class="warning-link" @click="showBook(part.book)">
+                {{ part.text }}
+              </button>
+              <code v-else-if="part.code">{{ part.text }}</code>
+              <template v-else>{{ part.text }}</template>
+            </template>
+          </p>
           <div v-if="entry.chapters.length" class="chapters">
             <button
               v-for="chapter in entry.chapters"
@@ -176,16 +208,6 @@ function openChapter(path: string): void {
 .empty {
   color: var(--color-fg-muted);
   font-size: var(--text-sm);
-}
-
-.group-label {
-  margin-top: var(--space-2);
-  color: var(--color-fg-muted);
-  font-family: var(--font-display);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
 }
 
 .text-line {
@@ -245,10 +267,40 @@ function openChapter(path: string): void {
   padding: 0px var(--space-1);
 }
 
-.book-description {
+.book-warning {
   color: var(--color-fg-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
+}
+
+.warning-label {
+  display: inline-block;
+  margin-right: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-error-muted);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.book-warning code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.warning-link {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--color-fg-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .chapters {
