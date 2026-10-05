@@ -13,7 +13,7 @@ import (
 )
 
 // Must match the id formatted into session.FormatMemoryFeedbackDeny.
-const memoryFeedbackChecklistID = "memory-feedback-law"
+const memoryWriteChecklistID = "i-write-memory"
 
 // Short enough to resurface again within the same session if memory writes are still happening.
 const memoryFeedbackSignatureTTL = 30 * time.Minute
@@ -36,7 +36,7 @@ func memoryFeedbackDeny(store *session.Store, payload hookEvent, projectPath str
 	if !touchesClaudeMemory(payload, projectPath) {
 		return ""
 	}
-	signedAt, err := store.SignedAt(payload.SessionID, memoryFeedbackChecklistID)
+	signedAt, err := store.SignedAt(payload.SessionID, memoryWriteChecklistID)
 	if err == nil && !signedAt.IsZero() && time.Since(signedAt) <= memoryFeedbackSignatureTTL {
 		return ""
 	}

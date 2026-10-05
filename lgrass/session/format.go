@@ -47,13 +47,13 @@ func FormatBibliothekDeny() string {
 	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry."
 }
 
-// The id here must match memoryFeedbackChecklistID in cmd/lgrass/memorygate.go. This only formats the message, the caller owns the sign/TTL check.
+// The id here must match memoryWriteChecklistID in hook/memorygate.go. This only formats the message, the caller owns the sign/TTL check.
 func FormatMemoryFeedbackDeny() string {
-	const id = "memory-feedback-law"
+	const id = "i-write-memory"
 	return "lgrass: STOP. This call writes into Claude Code memory, which holds one-line pointers only.\n\n" +
 		"A standing rule (type: feedback) placed in memory is a violation: it gets deleted and you redo it in biblio/laws/<slug>.md and biblio/laws/summary.md. " +
 		"Every route into memory is watched: Write, Edit, patches, notebooks and shell commands. Switching tools does not get around this check.\n\n" +
-		"If this is a rule, write the law first. Then run `lgrass sign " + id + "` and retry."
+		"If you are only writing a pointer, run `lgrass sign " + id + "` and retry."
 }
 
 func FormatPlanModeDeny() string {

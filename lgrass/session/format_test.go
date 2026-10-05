@@ -49,7 +49,7 @@ func TestFormatNudgeCountsActiveAndIdling(t *testing.T) {
 
 func TestFormatMemoryFeedbackDeny(t *testing.T) {
 	got := FormatMemoryFeedbackDeny()
-	if !strings.Contains(got, "lgrass sign memory-feedback-law") {
+	if !strings.Contains(got, "lgrass sign i-write-memory") {
 		t.Errorf("FormatMemoryFeedbackDeny() = %q, missing the sign command", got)
 	}
 	if !strings.Contains(got, "biblio/laws") {

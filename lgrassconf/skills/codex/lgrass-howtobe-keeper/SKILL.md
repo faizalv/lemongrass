@@ -22,7 +22,7 @@ Dated records of what happened: activity logs and archived tasks.
 ## Sweep
 
 1. **Whiteboard and handovers.** One row per active handover and none for an archived one. A handover with no row gets a row, and a row with no handover is dropped. Renumber in place.
-2. **Memory pointers.** One `type: project` pointer per active handover. A pointer whose handover is archived or missing is deleted with its `MEMORY.md` line. Memory writes need `lgrass sign memory-feedback-law`.
+2. **Memory pointers.** One `type: project` pointer per active handover. A pointer whose handover is archived or missing is deleted with its `MEMORY.md` line. Memory writes need `lgrass sign i-write-memory`.
 3. **Scratchpad directories.** Each one outside `archive/` is either a task with a handover, or a recon, debug or notes task. A directory that is neither, or that holds finished work, is reported.
 4. **Handover shape.** A handover exists only for a paused or delegated task. It points at a `prd.md` only, and its Status holds where to resume, what is next and what is blocked.
 5. **Git against PRD marks.** Compare each PRD's Plans marks with the code and with `git log` for the paths involved. An item the code shows as shipped gets marked `[x]`, and a mark the code does not support is cleared. Work that looks fully finished is reported as ready for `lgrass-howtodo-taskclosing` and is not closed or archived here.

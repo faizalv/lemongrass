@@ -186,11 +186,11 @@ func TestMemoryFeedbackDenyUntilSigned(t *testing.T) {
 	if result.PermissionDecision != "deny" {
 		t.Fatalf("PermissionDecision = %q, want deny before signing", result.PermissionDecision)
 	}
-	if !strings.Contains(result.PermissionDecisionReason, "memory-feedback-law") {
-		t.Errorf("PermissionDecisionReason = %q, want it to mention memory-feedback-law", result.PermissionDecisionReason)
+	if !strings.Contains(result.PermissionDecisionReason, "i-write-memory") {
+		t.Errorf("PermissionDecisionReason = %q, want it to mention i-write-memory", result.PermissionDecisionReason)
 	}
 
-	if err := store.Sign("session-a", memoryFeedbackChecklistID); err != nil {
+	if err := store.Sign("session-a", memoryWriteChecklistID); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 

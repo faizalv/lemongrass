@@ -75,7 +75,7 @@ func TestMemoryFeedbackDenyCoversBashUntilSigned(t *testing.T) {
 	if result := hookPreToolUse(store, payload, projectPath); result.PermissionDecision != "deny" {
 		t.Fatalf("PermissionDecision = %q, want deny for a Bash write into memory", result.PermissionDecision)
 	}
-	if err := store.Sign("session-a", memoryFeedbackChecklistID); err != nil {
+	if err := store.Sign("session-a", memoryWriteChecklistID); err != nil {
 		t.Fatal(err)
 	}
 	if result := hookPreToolUse(store, payload, projectPath); result.PermissionDecision == "deny" {
