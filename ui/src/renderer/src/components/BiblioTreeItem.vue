@@ -24,6 +24,7 @@ const CATEGORY_ICONS = new Set(['books', 'handover', 'laws', 'scratchpad'])
 const iconName = computed((): string => {
   if (props.node.type === 'file') return 'file'
   if (props.depth === 0 && CATEGORY_ICONS.has(props.node.name)) return props.node.name
+  if (props.node.path === 'scratchpad/archive') return 'archive'
   return 'folder'
 })
 
@@ -86,7 +87,7 @@ const isArchivableScratchpadTask = computed((): boolean => {
     <span class="label">{{ node.name.replace(/\.md$/, '') }}</span>
   </button>
 
-  <div v-else class="dir-row">
+  <div v-else class="dir-row" :class="{ 'archive-row': iconName === 'archive' }">
     <button
       class="tree-item tree-item-main"
       :style="{ paddingLeft: `${depth * 14 + 10}px` }"
@@ -150,6 +151,22 @@ const isArchivableScratchpadTask = computed((): boolean => {
       >
         <path d="M1.5 4.5h9M8 2.5l2.5 2-2.5 2" />
         <path d="M12.5 9.5h-9M6 11.5l-2.5-2 2.5-2" />
+      </svg>
+      <svg
+        v-else-if="iconName === 'archive'"
+        class="icon"
+        width="13"
+        height="13"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect x="1.5" y="2" width="11" height="3" rx="0.5" />
+        <path d="M2.5 5v6a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V5" />
+        <line x1="5.5" y1="7.5" x2="8.5" y2="7.5" />
       </svg>
       <svg
         v-else-if="iconName === 'scratchpad'"
@@ -240,6 +257,12 @@ const isArchivableScratchpadTask = computed((): boolean => {
 </template>
 
 <style scoped>
+.archive-row {
+  margin: var(--space-1) 0;
+  border-bottom: 1px dashed var(--color-border-default);
+  font-style: italic;
+}
+
 .tree-item {
   display: flex;
   align-items: center;

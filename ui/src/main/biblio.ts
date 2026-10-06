@@ -62,11 +62,25 @@ function extractToc(children: BiblioNode[]): BiblioNode | null {
   return toc
 }
 
+const ARCHIVE_DIR = 'archive'
+
+function createdMs(path: string): number {
+  const stats = statSync(path)
+  return stats.birthtimeMs > 0 ? stats.birthtimeMs : stats.mtimeMs
+}
+
 function walk(dir: string, relativeTo: string): BiblioNode[] {
+  const parent = relative(relativeTo, dir)
+  const newestFirst = parent === 'scratchpad' || parent === join('scratchpad', ARCHIVE_DIR)
   const entries = readdirSync(dir, { withFileTypes: true })
     .filter((e) => (e.isDirectory() && e.name !== IMAGES_DIR) || e.name.endsWith('.md'))
     .sort((a, b) => {
       if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
+      if (a.isDirectory() && newestFirst) {
+        if (a.name === ARCHIVE_DIR) return -1
+        if (b.name === ARCHIVE_DIR) return 1
+        return createdMs(join(dir, b.name)) - createdMs(join(dir, a.name))
+      }
       return a.name.localeCompare(b.name)
     })
 
