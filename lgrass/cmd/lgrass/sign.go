@@ -8,11 +8,36 @@ import (
 	"github.com/faizalv/lemongrass/session"
 )
 
-// The model-facing side of the prerequisite gate: satisfies a checklist's PreToolUse deny for this session, for that checklist's own TTL.
+const signUsage = `usage: lgrass sign [--session-id <id>] <word>
+
+Signs a word for the current session. A deny message names the word to sign, and
+.lgrass/checklists.json can define more. A sign prints the word's pledge, the rule it
+stands for, and satisfies the deny until the word's TTL expires. A word that is not
+registered is rejected.
+
+  --session-id <id>   the session to sign for, needed when the agent does not export
+                      CLAUDE_CODE_SESSION_ID
+`
+
+// The model-facing side of the prerequisite gate: satisfies a registered word's PreToolUse deny for this session, for that word's own TTL, and answers with its pledge.
 func cmdSign(args []string) {
+	if signHelpRequested(args) {
+		fmt.Print(signUsage)
+		return
+	}
 	checklistID, sessionID, err := signRequest(args)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "usage: lgrass sign [--session-id <id>] <checklist-id>")
+		fmt.Fprintf(os.Stderr, "error: %v\n\n%s", err, signUsage)
+		os.Exit(1)
+	}
+	proj := currentProject()
+	signable, ok, err := session.ResolveSignable(proj.Path, checklistID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	if !ok {
+		fmt.Fprintf(os.Stderr, "error: unknown checklist id %q\n", checklistID)
 		os.Exit(1)
 	}
 	if sessionID == "" {
@@ -20,7 +45,6 @@ func cmdSign(args []string) {
 		os.Exit(1)
 	}
 
-	proj := currentProject()
 	store, err := session.Open(session.DBPath(), proj.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -28,11 +52,30 @@ func cmdSign(args []string) {
 	}
 	defer store.Close()
 
-	if err := store.Sign(sessionID, checklistID); err != nil {
+	if err := store.Sign(sessionID, signable.ID); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("signed %q.\n", checklistID)
+	fmt.Println(signAcknowledgement(signable))
+}
+
+func signHelpRequested(args []string) bool {
+	if len(args) == 0 {
+		return true
+	}
+	for _, a := range args {
+		if a == "-h" || a == "--help" {
+			return true
+		}
+	}
+	return false
+}
+
+func signAcknowledgement(s session.Signable) string {
+	if s.Pledge == "" {
+		return "signed " + s.ID + "."
+	}
+	return "signed " + s.ID + ". " + s.Pledge
 }
 
 func signRequest(args []string) (checklistID, sessionID string, err error) {

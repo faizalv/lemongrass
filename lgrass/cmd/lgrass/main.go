@@ -75,9 +75,10 @@ COMMANDS
   tips list                         List this project's custom tips, with their ids
   tips remove <id>                  Remove a custom tip by id
 
-  sign [--session-id <id>] <checklist-id>
-                                     Satisfies a .lgrass/checklists.json prerequisite gate for the
-                                     current session, until that checklist's TTL expires
+  sign [--session-id <id>] <word>   Signs a word a deny message names, or one defined in
+                                     .lgrass/checklists.json, for the current session until its
+                                     TTL expires, and prints the word's pledge; an unregistered
+                                     word is rejected
 
   session list                      Other tabs open in this project, with short tab id, vendor and shell title
   session tabs list                 Tab id to session id map for this project, as JSON

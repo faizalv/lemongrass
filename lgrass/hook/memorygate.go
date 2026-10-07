@@ -12,8 +12,7 @@ import (
 	"github.com/faizalv/lemongrass/session"
 )
 
-// Must match the id formatted into session.FormatMemoryFeedbackDeny.
-const memoryWriteChecklistID = "i-write-memory"
+const memoryWriteChecklistID = session.MemoryWriteChecklistID
 
 // Short enough to resurface again within the same session if memory writes are still happening.
 const memoryFeedbackSignatureTTL = 30 * time.Minute

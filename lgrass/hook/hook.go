@@ -49,7 +49,7 @@ type patchToolInput struct {
 	Command string `json:"command"`
 }
 
-const bibliothekChecklistID = "bibliothek"
+const bibliothekChecklistID = session.BibliothekChecklistID
 
 // Long enough to outlast any real session.
 const bibliothekSignatureTTL = 7 * 24 * time.Hour

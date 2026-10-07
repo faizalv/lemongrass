@@ -40,20 +40,19 @@ func FormatNudge(liveness []SessionStatus) string {
 }
 
 func FormatChecklistDeny(c Checklist) string {
-	return fmt.Sprintf("lgrass: %q requires signing before this call proceeds -- run `lgrass sign %s`, then retry:\n\n%s", c.ID, c.ID, c.Content)
+	return fmt.Sprintf("lgrass: sign %q before this call proceeds. Run `lgrass sign %s`, then retry:\n\n%s", c.ID, c.ID, c.Content)
 }
 
 func FormatBibliothekDeny() string {
-	return "lgrass: bibliothek hasn't been invoked yet this session -- call the Skill tool with skill \"bibliothek\" before anything else, then retry."
+	return "lgrass: invoke the bibliothek skill first (Skill tool, skill \"bibliothek\"), then retry."
 }
 
-// The id here must match memoryWriteChecklistID in hook/memorygate.go. This only formats the message, the caller owns the sign/TTL check.
+// This only formats the message, the caller owns the sign/TTL check.
 func FormatMemoryFeedbackDeny() string {
-	const id = "i-write-memory"
-	return "lgrass: STOP. This call writes into Claude Code memory, which holds one-line pointers only.\n\n" +
-		"A standing rule (type: feedback) placed in memory is a violation: it gets deleted and you redo it in biblio/laws/<slug>.md and biblio/laws/summary.md. " +
-		"Every route into memory is watched: Write, Edit, patches, notebooks and shell commands. Switching tools does not get around this check.\n\n" +
-		"If you are only writing a pointer, run `lgrass sign " + id + "` and retry."
+	return "lgrass: STOP. This call writes into Claude Code memory, which holds one-line pointers only. " +
+		"A rule or feedback placed there is a violation and gets deleted; it goes in biblio/laws/. " +
+		"Every write route is watched, whatever the tool. " +
+		"For a pointer, run `lgrass sign " + MemoryWriteChecklistID + "` and retry."
 }
 
 func FormatPlanModeDeny() string {

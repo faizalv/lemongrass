@@ -58,7 +58,7 @@ A correction in the activity log that became a standing rule goes to `laws/<slug
 ## 9. Archive, in one action
 
 - Move the task's scratchpad directory into `scratchpad/archive/`.
-- If the task has a handover: set its Status to "Done, implemented <date>", move it into `handover/archive/`, drop its row from `handover/whiteboard.md` and renumber the rest in place, and delete its `type: project` memory file and `MEMORY.md` line. Memory writes need `lgrass sign memory-feedback-law`.
+- If the task has a handover: set its Status to "Done, implemented <date>", move it into `handover/archive/`, drop its row from `handover/whiteboard.md` and renumber the rest in place, and delete its `type: project` memory file and `MEMORY.md` line. Memory writes need `lgrass sign i-write-memory`.
 
 Archived copies are the permanent record and are never deleted.
 

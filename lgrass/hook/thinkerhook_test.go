@@ -125,7 +125,7 @@ func TestBibliothekGateIsOptionalForAThinkerUnlessRequired(t *testing.T) {
 
 	// The required thinker has not signed the bibliothek gate, so it is denied for that.
 	result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
-	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "bibliothek hasn't been invoked") {
+	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "invoke the bibliothek skill first") {
 		t.Errorf("a thinker that must use bibliothek was not held to the gate: %+v", result)
 	}
 

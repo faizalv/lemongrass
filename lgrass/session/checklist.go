@@ -16,6 +16,7 @@ type Checklist struct {
 	Tool         string `json:"tool"`          // pipe-separated tool names, "" matches any
 	PathContains string `json:"path_contains"` // substring match against the tool's file path, "" matches any
 	Content      string `json:"content"`       // shown to the model in the deny message
+	Pledge       string `json:"pledge"`        // printed back on a sign, "" falls back to Content
 	TTLMinutes   int    `json:"ttl_minutes"`   // 0 falls back to defaultChecklistTTL
 }
 
