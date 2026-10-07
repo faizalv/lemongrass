@@ -63,7 +63,7 @@ func TestMemoryFeedbackDenyCoversBashUntilSigned(t *testing.T) {
 	store := openHookTestStore(t)
 	_, projectPath := memoryGateFixture(t)
 	memDir, _ := claudeMemoryDir(projectPath)
-	if err := store.Sign("session-a", bibliothekChecklistID); err != nil {
+	if err := store.Sign("session-a", bibliothekWord); err != nil {
 		t.Fatal(err)
 	}
 	payload := hookEvent{
@@ -75,7 +75,7 @@ func TestMemoryFeedbackDenyCoversBashUntilSigned(t *testing.T) {
 	if result := hookPreToolUse(store, payload, projectPath); result.PermissionDecision != "deny" {
 		t.Fatalf("PermissionDecision = %q, want deny for a Bash write into memory", result.PermissionDecision)
 	}
-	if err := store.Sign("session-a", memoryWriteChecklistID); err != nil {
+	if err := store.Sign("session-a", memoryWriteWord); err != nil {
 		t.Fatal(err)
 	}
 	if result := hookPreToolUse(store, payload, projectPath); result.PermissionDecision == "deny" {

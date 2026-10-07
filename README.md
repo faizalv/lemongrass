@@ -84,6 +84,7 @@ The three are siblings, not nested. Neither toolchain's file tree (`node_modules
 | `lgrass-howtobe-keeper` | Keep `biblio/` and the code in agreement: clean the whiteboard, dangling handovers and tasks, correct books against the code, and tidy `toc.md`. |
 | `lgrass-howtodo-work` | Work a task end to end: read the related books, plan first, keep the PRD marked as work happens, wait for the user only before code, then close. |
 | `lgrass-howtodo-taskclosing` | Close a finished task: verify it is done and the checks pass, compare git with the stated facts, update the books and `toc.md`, archive, and sweep stale references. |
+| `lgrass-howtodo-newlaws` | Offer the user a new standing law, and write it to `biblio/laws/` only after they approve explicitly. |
 
 ## Build
 

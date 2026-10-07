@@ -12,7 +12,7 @@ import (
 	"github.com/faizalv/lemongrass/session"
 )
 
-const memoryWriteChecklistID = session.MemoryWriteChecklistID
+const memoryWriteWord = session.MemoryWriteWord
 
 // Short enough to resurface again within the same session if memory writes are still happening.
 const memoryFeedbackSignatureTTL = 30 * time.Minute
@@ -35,7 +35,7 @@ func memoryFeedbackDeny(store *session.Store, payload hookEvent, projectPath str
 	if !touchesClaudeMemory(payload, projectPath) {
 		return ""
 	}
-	signedAt, err := store.SignedAt(payload.SessionID, memoryWriteChecklistID)
+	signedAt, err := store.SignedAt(payload.SessionID, memoryWriteWord)
 	if err == nil && !signedAt.IsZero() && time.Since(signedAt) <= memoryFeedbackSignatureTTL {
 		return ""
 	}

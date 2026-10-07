@@ -73,23 +73,6 @@ func TestCodexHookAdapterPreservesSessionState(t *testing.T) {
 	}
 }
 
-func TestCodexChecklistDenyUsesExplicitSessionID(t *testing.T) {
-	store := openHookTestStore(t)
-	projectPath := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(projectPath, ".lgrass"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	checklist := `[{"id":"review","tool":"Bash","content":"Review the checklist."}]`
-	if err := os.WriteFile(filepath.Join(projectPath, ".lgrass", "checklists.json"), []byte(checklist), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	payload := hookEvent{SessionID: "codex-session", ToolName: "Bash", PreserveSessionState: true}
-	deny := checklistDeny(store, payload, nil, projectPath)
-	if !strings.Contains(deny, "lgrass sign --session-id codex-session review") {
-		t.Errorf("checklistDeny() = %q, want a Codex session signing command", deny)
-	}
-}
-
 func TestBibliothekDenyUntilSigned(t *testing.T) {
 	store := openHookTestStore(t)
 
@@ -97,7 +80,7 @@ func TestBibliothekDenyUntilSigned(t *testing.T) {
 		t.Error("bibliothekDeny before signing = \"\", want a deny message")
 	}
 
-	if err := store.Sign("session-a", bibliothekChecklistID); err != nil {
+	if err := store.Sign("session-a", bibliothekWord); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 
@@ -109,7 +92,7 @@ func TestBibliothekDenyUntilSigned(t *testing.T) {
 func TestBibliothekDenyIsPerSession(t *testing.T) {
 	store := openHookTestStore(t)
 
-	if err := store.Sign("session-a", bibliothekChecklistID); err != nil {
+	if err := store.Sign("session-a", bibliothekWord); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 
@@ -172,7 +155,7 @@ func TestMemoryFeedbackDenyUntilSigned(t *testing.T) {
 		t.Fatalf("claudeMemoryDir: %v", err)
 	}
 	memFile := filepath.Join(memDir, "feedback_testing.md")
-	if err := store.Sign("session-a", bibliothekChecklistID); err != nil {
+	if err := store.Sign("session-a", bibliothekWord); err != nil {
 		t.Fatalf("Sign bibliothek: %v", err)
 	}
 
@@ -190,7 +173,7 @@ func TestMemoryFeedbackDenyUntilSigned(t *testing.T) {
 		t.Errorf("PermissionDecisionReason = %q, want it to mention i-write-memory", result.PermissionDecisionReason)
 	}
 
-	if err := store.Sign("session-a", memoryWriteChecklistID); err != nil {
+	if err := store.Sign("session-a", memoryWriteWord); err != nil {
 		t.Fatalf("Sign: %v", err)
 	}
 
@@ -207,7 +190,7 @@ func TestMemoryFeedbackDenyIgnoresNonMemoryPaths(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(projectPath, "biblio"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Sign("session-a", bibliothekChecklistID); err != nil {
+	if err := store.Sign("session-a", bibliothekWord); err != nil {
 		t.Fatalf("Sign bibliothek: %v", err)
 	}
 
@@ -302,7 +285,7 @@ func TestBibliothekDenyRecoversFromTranscript(t *testing.T) {
 		t.Errorf("bibliothekDeny with a transcript proving invocation = %q, want \"\"", deny)
 	}
 
-	signedAt, err := store.SignedAt("session-a", bibliothekChecklistID)
+	signedAt, err := store.SignedAt("session-a", bibliothekWord)
 	if err != nil {
 		t.Fatalf("SignedAt: %v", err)
 	}

@@ -10,10 +10,9 @@ import (
 
 const signUsage = `usage: lgrass sign [--session-id <id>] <word>
 
-Signs a word for the current session. A deny message names the word to sign, and
-.lgrass/checklists.json can define more. A sign prints the word's pledge, the rule it
-stands for, and satisfies the deny until the word's TTL expires. A word that is not
-registered is rejected.
+Signs a word for the current session. A deny message names the word to sign. A sign prints the
+word's pledge, the rule it stands for, and satisfies the deny until the word's TTL
+expires. A word that is not registered is rejected.
 
   --session-id <id>   the session to sign for, needed when the agent does not export
                       CLAUDE_CODE_SESSION_ID
@@ -25,19 +24,19 @@ func cmdSign(args []string) {
 		fmt.Print(signUsage)
 		return
 	}
-	checklistID, sessionID, err := signRequest(args)
+	word, sessionID, err := signRequest(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n\n%s", err, signUsage)
 		os.Exit(1)
 	}
 	proj := currentProject()
-	signable, ok, err := session.ResolveSignable(proj.Path, checklistID)
+	signable, ok, err := session.ResolveSignable(proj.Path, word)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 	if !ok {
-		fmt.Fprintf(os.Stderr, "error: unknown checklist id %q\n", checklistID)
+		fmt.Fprintf(os.Stderr, "error: unknown word %q\n", word)
 		os.Exit(1)
 	}
 	if sessionID == "" {
@@ -78,7 +77,7 @@ func signAcknowledgement(s session.Signable) string {
 	return "signed " + s.ID + ". " + s.Pledge
 }
 
-func signRequest(args []string) (checklistID, sessionID string, err error) {
+func signRequest(args []string) (word, sessionID string, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--session-id":
@@ -88,17 +87,17 @@ func signRequest(args []string) (checklistID, sessionID string, err error) {
 			}
 			sessionID = args[i]
 		default:
-			if checklistID != "" {
-				return "", "", errors.New("multiple checklist ids")
+			if word != "" {
+				return "", "", errors.New("multiple words")
 			}
-			checklistID = args[i]
+			word = args[i]
 		}
 	}
-	if checklistID == "" {
-		return "", "", errors.New("missing checklist id")
+	if word == "" {
+		return "", "", errors.New("missing word")
 	}
 	if sessionID == "" {
 		sessionID = os.Getenv("CLAUDE_CODE_SESSION_ID")
 	}
-	return checklistID, sessionID, nil
+	return word, sessionID, nil
 }

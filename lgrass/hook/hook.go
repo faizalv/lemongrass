@@ -49,7 +49,7 @@ type patchToolInput struct {
 	Command string `json:"command"`
 }
 
-const bibliothekChecklistID = session.BibliothekChecklistID
+const bibliothekWord = session.BibliothekWord
 
 // Long enough to outlast any real session.
 const bibliothekSignatureTTL = 7 * 24 * time.Hour
@@ -184,9 +184,9 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 
 	if payload.EnforceBibliothek && hasBiblio(projectPath) {
 		// A thinker skips only the bibliothek gate, and only unless its leader required the bibliothek skill for it.
-		bibliothekOptional := isThinker && !member.Requires(bibliothekChecklistID)
+		bibliothekOptional := isThinker && !member.Requires(bibliothekWord)
 		if isBibliothekSkillCall(payload) {
-			store.Sign(payload.SessionID, bibliothekChecklistID)
+			store.Sign(payload.SessionID, bibliothekWord)
 		} else if !bibliothekOptional {
 			if deny := bibliothekDeny(store, payload.SessionID, payload.TranscriptPath); deny != "" {
 				return newHookResult("PreToolUse", "deny", []string{deny})
@@ -196,10 +196,6 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 		if deny := memoryFeedbackDeny(store, payload, projectPath); deny != "" {
 			return newHookResult("PreToolUse", "deny", []string{deny})
 		}
-	}
-
-	if deny := checklistDeny(store, payload, filePaths, projectPath); deny != "" {
-		return newHookResult("PreToolUse", "deny", []string{deny})
 	}
 
 	var parts []string
@@ -265,7 +261,7 @@ func isBibliothekSkillCall(payload hookEvent) bool {
 
 // Returns the deny message when this session hasn't signed the bibliothek gate yet (or its signature expired), "" once signed.
 func bibliothekDeny(store *session.Store, sessionID, transcriptPath string) string {
-	signedAt, err := store.SignedAt(sessionID, bibliothekChecklistID)
+	signedAt, err := store.SignedAt(sessionID, bibliothekWord)
 	if err == nil && !signedAt.IsZero() && time.Since(signedAt) <= bibliothekSignatureTTL {
 		return ""
 	}
@@ -276,7 +272,7 @@ func bibliothekDeny(store *session.Store, sessionID, transcriptPath string) stri
 	// The transcript itself still carries the original call regardless, so
 	// check it directly before denying.
 	if transcriptHasBibliothekInvocation(transcriptPath) {
-		store.Sign(sessionID, bibliothekChecklistID)
+		store.Sign(sessionID, bibliothekWord)
 		return ""
 	}
 
@@ -325,33 +321,6 @@ func transcriptHasBibliothekInvocation(transcriptPath string) bool {
 		}
 	}
 	return false
-}
-
-// Returns the deny message for the first unsigned or TTL-expired checklist matching this call, "" if none match or all are signed.
-func checklistDeny(store *session.Store, payload hookEvent, filePaths []string, projectPath string) string {
-	checklists, err := session.LoadChecklists(projectPath)
-	if err != nil || len(checklists) == 0 {
-		return ""
-	}
-	if len(filePaths) == 0 {
-		filePaths = []string{""}
-	}
-	for _, c := range checklists {
-		if !checklistMatches(c, payload.ToolName, filePaths) {
-			continue
-		}
-		signedAt, err := store.SignedAt(payload.SessionID, c.ID)
-		if err != nil {
-			continue
-		}
-		if signedAt.IsZero() || time.Since(signedAt) > c.TTL() {
-			if payload.PreserveSessionState {
-				return fmt.Sprintf("lgrass: %q requires signing before this call proceeds. Run `lgrass sign --session-id %s %s`, then retry:\n\n%s", c.ID, payload.SessionID, c.ID, c.Content)
-			}
-			return session.FormatChecklistDeny(c)
-		}
-	}
-	return ""
 }
 
 func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string) hookResult {
@@ -423,18 +392,6 @@ type hookAdapter interface {
 
 func isFileEdit(payload hookEvent) bool {
 	return payload.ToolName == "Write" || payload.ToolName == "Edit" || payload.ToolName == "apply_patch"
-}
-
-func checklistMatches(checklist session.Checklist, toolName string, filePaths []string) bool {
-	for _, filePath := range filePaths {
-		if checklist.Matches(toolName, filePath) {
-			return true
-		}
-		if toolName == "apply_patch" && (checklist.Matches("Write", filePath) || checklist.Matches("Edit", filePath)) {
-			return true
-		}
-	}
-	return false
 }
 
 func toolFilePaths(payload hookEvent) []string {

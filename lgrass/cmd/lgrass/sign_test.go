@@ -18,7 +18,7 @@ func TestSignRequest(t *testing.T) {
 	}{
 		{"Claude environment", []string{"review"}, "review", "claude-session", false},
 		{"explicit Codex session", []string{"--session-id", "codex-session", "review"}, "review", "codex-session", false},
-		{"missing checklist", nil, "", "", true},
+		{"missing word", nil, "", "", true},
 		{"missing session flag value", []string{"--session-id"}, "", "", true},
 	}
 	for _, c := range cases {
@@ -75,7 +75,7 @@ func TestSignHelpRequested(t *testing.T) {
 }
 
 func TestSignUsageNamesNoRegisteredWord(t *testing.T) {
-	for _, id := range []string{session.BibliothekChecklistID, session.MemoryWriteChecklistID} {
+	for _, id := range []string{session.BibliothekWord, session.MemoryWriteWord} {
 		if strings.Contains(signUsage, id) {
 			t.Errorf("signUsage names the registered word %q", id)
 		}

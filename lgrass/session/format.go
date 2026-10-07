@@ -39,10 +39,6 @@ func FormatNudge(liveness []SessionStatus) string {
 	return b.String()
 }
 
-func FormatChecklistDeny(c Checklist) string {
-	return fmt.Sprintf("lgrass: sign %q before this call proceeds. Run `lgrass sign %s`, then retry:\n\n%s", c.ID, c.ID, c.Content)
-}
-
 func FormatBibliothekDeny() string {
 	return "lgrass: invoke the bibliothek skill first (Skill tool, skill \"bibliothek\"), then retry."
 }
@@ -52,7 +48,7 @@ func FormatMemoryFeedbackDeny() string {
 	return "lgrass: STOP. This call writes into Claude Code memory, which holds one-line pointers only. " +
 		"A rule or feedback placed there is a violation and gets deleted; it goes in biblio/laws/. " +
 		"Every write route is watched, whatever the tool. " +
-		"For a pointer, run `lgrass sign " + MemoryWriteChecklistID + "` and retry."
+		"For a pointer, run `lgrass sign " + MemoryWriteWord + "` and retry."
 }
 
 func FormatPlanModeDeny() string {
