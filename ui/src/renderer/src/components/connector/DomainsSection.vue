@@ -60,6 +60,7 @@ interface UserDraft {
 
 const showDomainForm = ref(false)
 const editingDomainName = ref<string | null>(null)
+const copiedFrom = ref('')
 const loadingDomainName = ref<string | null>(null)
 const newDomainName = ref('')
 const newDomainBaseUrl = ref('')
@@ -77,6 +78,7 @@ const creatingDomain = ref(false)
 
 function openDomainForm(): void {
   editingDomainName.value = null
+  copiedFrom.value = ''
   newDomainName.value = ''
   newDomainBaseUrl.value = ''
   newDomainLoginEndpoint.value = ''
@@ -109,6 +111,29 @@ function userDraftFromDomainUser(user: VaultDomainUser): UserDraft {
   }
 }
 
+function fillDomainForm(domain: VaultDomain): void {
+  newDomainBaseUrl.value = domain.BaseURL
+  newDomainLoginEndpoint.value = domain.LoginEndpoint
+  newDomainTokenPath.value = domain.TokenPath
+  if (domain.TTLOrigin === 'jwt-exp') {
+    newDomainTtlMode.value = 'jwt'
+    newDomainTtlField.value = ''
+  } else if (domain.TTLOrigin !== '') {
+    newDomainTtlMode.value = 'field'
+    newDomainTtlField.value = domain.TTLOrigin
+  } else {
+    newDomainTtlMode.value = 'fixed'
+    newDomainTtlField.value = ''
+  }
+  newDomainFixedTtlMinutes.value = domain.FixedTTLSeconds / 60
+  newDomainTokenKind.value = domain.TokenPlacement.Kind
+  newDomainTokenName.value = domain.TokenPlacement.Name
+  newDomainTokenPrefix.value = domain.TokenPlacement.Prefix
+  newDomainUsers.value = (domain.Users ?? []).map(userDraftFromDomainUser)
+  domainFormError.value = ''
+  showDomainForm.value = true
+}
+
 async function openDomainEdit(name: string): Promise<void> {
   if (!vaultUnlocked.value || loadingDomainName.value) return
   loadingDomainName.value = name
@@ -116,27 +141,26 @@ async function openDomainEdit(name: string): Promise<void> {
   try {
     const domain = await window.api.vault.getDomain(sessionPassphrase.value, name)
     editingDomainName.value = name
+    copiedFrom.value = ''
     newDomainName.value = name
-    newDomainBaseUrl.value = domain.BaseURL
-    newDomainLoginEndpoint.value = domain.LoginEndpoint
-    newDomainTokenPath.value = domain.TokenPath
-    if (domain.TTLOrigin === 'jwt-exp') {
-      newDomainTtlMode.value = 'jwt'
-      newDomainTtlField.value = ''
-    } else if (domain.TTLOrigin !== '') {
-      newDomainTtlMode.value = 'field'
-      newDomainTtlField.value = domain.TTLOrigin
-    } else {
-      newDomainTtlMode.value = 'fixed'
-      newDomainTtlField.value = ''
-    }
-    newDomainFixedTtlMinutes.value = domain.FixedTTLSeconds / 60
-    newDomainTokenKind.value = domain.TokenPlacement.Kind
-    newDomainTokenName.value = domain.TokenPlacement.Name
-    newDomainTokenPrefix.value = domain.TokenPlacement.Prefix
-    newDomainUsers.value = (domain.Users ?? []).map(userDraftFromDomainUser)
-    domainFormError.value = ''
-    showDomainForm.value = true
+    fillDomainForm(domain)
+  } catch (err) {
+    domainsError.value = describeError(err)
+  } finally {
+    loadingDomainName.value = null
+  }
+}
+
+async function openDomainCopy(name: string): Promise<void> {
+  if (!vaultUnlocked.value || loadingDomainName.value) return
+  loadingDomainName.value = name
+  domainsError.value = ''
+  try {
+    const domain = await window.api.vault.getDomain(sessionPassphrase.value, name)
+    editingDomainName.value = null
+    copiedFrom.value = name
+    newDomainName.value = `${name} copy`
+    fillDomainForm(domain)
   } catch (err) {
     domainsError.value = describeError(err)
   } finally {
@@ -219,9 +243,14 @@ async function testUserDraft(index: number): Promise<void> {
   }
 }
 
+const domainNameTaken = computed(
+  () => editingDomainName.value === null && domains.value.includes(newDomainName.value.trim())
+)
+
 const canSubmitDomain = computed(
   () =>
     newDomainName.value.trim().length > 0 &&
+    !domainNameTaken.value &&
     newDomainBaseUrl.value.trim().length > 0 &&
     newDomainUsers.value.length > 0 &&
     newDomainUsers.value.every((u) => u.name.trim().length > 0)
@@ -275,7 +304,13 @@ watch(
 
     <div v-if="showDomainForm" class="inline-section">
       <h4 class="inline-section-title">
-        {{ editingDomainName !== null ? 'Edit domain' : 'New domain' }}
+        {{
+          editingDomainName !== null
+            ? 'Edit domain'
+            : copiedFrom
+              ? `New domain from ${copiedFrom}`
+              : 'New domain'
+        }}
       </h4>
 
       <div class="field-block">
@@ -288,6 +323,7 @@ watch(
           :disabled="editingDomainName !== null"
           autofocus
         />
+        <p v-if="domainNameTaken" class="error-text">A domain with this name already exists.</p>
       </div>
 
       <div class="field-block">
@@ -471,6 +507,14 @@ watch(
           <span class="channel-db">{{ name }}</span>
         </div>
         <div class="channel-actions">
+          <button
+            class="ghost-button"
+            :disabled="!vaultUnlocked || loadingDomainName === name"
+            :title="!vaultUnlocked ? 'Unlock the vault first' : 'Create a new domain from this one'"
+            @click="openDomainCopy(name)"
+          >
+            Copy
+          </button>
           <button
             class="ghost-button"
             :disabled="!vaultUnlocked || loadingDomainName === name"
