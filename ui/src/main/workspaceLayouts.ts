@@ -34,6 +34,7 @@ type LegacyNode<T extends { id: string }> =
 interface WorkspaceState {
   root: LegacyNode<{ id: string; kind: string }> | null
   focusedPaneId: string | null
+  groupColors?: Record<string, string>
 }
 
 function readJson(file: string): Record<string, unknown> {

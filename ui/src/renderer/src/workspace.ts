@@ -9,7 +9,8 @@ import {
   setShellArgs,
   setShellResume
 } from './shellRegistry'
-import { isWorkgroupMember } from './workgroups'
+import { defaultGroupColor, groupColorVar, isGroupColor, type GroupColor } from './groupColors'
+import { isWorkgroupMember, tabGroup, workgroupStateOf } from './workgroups'
 import {
   preferredShellAgentId,
   resumeArgs,
@@ -171,6 +172,33 @@ export function focusTab(project: ProjectRef, tabId: string): void {
   if (root && leaf) commit(project, tree.setActiveTab(root, leaf.id, tabId), leaf.id)
 }
 
+export function groupColorOf(projectId: string, groupId: number): GroupColor {
+  const chosen = workspaces[projectId]?.layout.groupColors?.[String(groupId)]
+  return isGroupColor(chosen) ? chosen : defaultGroupColor(groupId)
+}
+
+export function setGroupColor(projectId: string, groupId: number, color: GroupColor): void {
+  const layout = workspaces[projectId]?.layout
+  if (!layout) return
+  layout.groupColors = { ...layout.groupColors, [String(groupId)]: color }
+}
+
+export interface TabBand {
+  color: string
+  leader: boolean
+  groupName: string
+}
+
+export function tabBand(projectId: string, tab: WorkspaceTab): TabBand | null {
+  const group = tabGroup(projectId, tab)
+  if (!group) return null
+  return {
+    color: groupColorVar(groupColorOf(projectId, group.id)),
+    leader: group.leader,
+    groupName: workgroupStateOf(projectId).names[group.id] ?? 'Workgroup'
+  }
+}
+
 export function focusedWorkgroupId(projectId: string): number | null {
   const layout = workspaces[projectId]?.layout
   if (!layout) return null
@@ -271,7 +299,9 @@ function scheduleLayoutSave(projectId: string): void {
       const layout = workspaces[projectId].layout
       window.api.workspaceLayouts.save(
         projectId,
-        layout.root ? JSON.parse(JSON.stringify(layout)) : null
+        layout.root || Object.keys(layout.groupColors ?? {}).length
+          ? JSON.parse(JSON.stringify(layout))
+          : null
       )
     }, LAYOUT_SAVE_MS)
   )
@@ -329,7 +359,11 @@ async function init(project: ProjectRef): Promise<void> {
   await window.api.tabSessions.clear(project.path)
   await restoreShellSessions(project, saved?.root ?? null)
   workspaces[project.id] = {
-    layout: { root: saved?.root ?? null, focusedPaneId: saved?.focusedPaneId ?? null },
+    layout: {
+      root: saved?.root ?? null,
+      focusedPaneId: saved?.focusedPaneId ?? null,
+      groupColors: saved?.groupColors ?? {}
+    },
     docs: {}
   }
   const layout = workspaces[project.id].layout

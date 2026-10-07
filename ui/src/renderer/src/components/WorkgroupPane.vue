@@ -3,7 +3,15 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppModal from './AppModal.vue'
 import { bodyParts, type BodyPart } from '../mentions'
 import { disbandWorkgroup, refreshWorkgroups, workgroupStateOf } from '../workgroups'
-import { focusTab, isTabOpen, reopenWorkgroupMember, type ProjectRef } from '../workspace'
+import { GROUP_COLORS, groupColorVar } from '../groupColors'
+import {
+  focusTab,
+  groupColorOf,
+  isTabOpen,
+  reopenWorkgroupMember,
+  setGroupColor,
+  type ProjectRef
+} from '../workspace'
 import type {
   WorkgroupInfo,
   WorkgroupMemberInfo,
@@ -32,6 +40,8 @@ const threadError = ref<string | null>(null)
 const loadingOlder = ref(false)
 const scroller = ref<HTMLDivElement>()
 const cancelButton = ref<HTMLButtonElement | null>(null)
+
+const color = computed(() => groupColorOf(props.project.id, props.groupId))
 
 const ROLE_LABELS: Record<WorkgroupMemberInfo['role'], string> = {
   leader: 'Leader',
@@ -174,6 +184,19 @@ onBeforeUnmount(() => clearInterval(timer))
               Orphaned, the leader's tab is not open
             </span>
           </p>
+          <div class="swatches" role="radiogroup" aria-label="Group color">
+            <button
+              v-for="name in GROUP_COLORS"
+              :key="name"
+              class="swatch"
+              :class="{ selected: name === color }"
+              :style="{ background: groupColorVar(name) }"
+              role="radio"
+              :aria-checked="name === color"
+              :title="name"
+              @click="setGroupColor(project.id, groupId, name)"
+            />
+          </div>
         </div>
         <button v-if="live" class="danger-button" @click="confirming = true">Disband</button>
       </header>
@@ -288,6 +311,33 @@ onBeforeUnmount(() => clearInterval(timer))
   gap: var(--space-3);
   margin-top: var(--space-1);
   font-size: var(--text-xs);
+}
+
+.swatches {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: padding-box;
+  outline: 1px solid transparent;
+  outline-offset: 2px;
+  cursor: pointer;
+  transition: outline-color var(--duration-fast) var(--ease-out);
+}
+
+.swatch:hover {
+  outline-color: var(--color-border-strong);
+}
+
+.swatch.selected {
+  outline-color: var(--color-fg-primary);
 }
 
 .state {

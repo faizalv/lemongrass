@@ -16,6 +16,7 @@ import {
   openInNewShell,
   placeTab,
   projectRelativePath,
+  tabBand,
   type ProjectRef
 } from '../workspace'
 import { tabKindOf, type TabContext } from '../tabKinds'
@@ -38,6 +39,11 @@ const activeTab = computed(() => props.leaf.tabs.find((t) => t.id === props.leaf
 function tabContext(tab: WorkspaceTab): TabContext {
   return { project: props.project, active: tab.id === props.leaf.activeTabId }
 }
+
+const shellGroup = computed(() => {
+  const active = props.leaf.tabs.find((tab) => tab.id === props.leaf.activeTabId)
+  return active?.kind === 'shell' ? tabBand(props.project.id, active) : null
+})
 
 const tabBar = ref<HTMLDivElement>()
 
@@ -311,6 +317,21 @@ onBeforeUnmount(() => {
           @contextmenu.prevent="openMenu($event, tab.id)"
           @dragstart="onTabDragStart($event, tab.id)"
         >
+          <template v-if="tabBand(project.id, tab)">
+            <svg
+              v-if="tabBand(project.id, tab)?.leader"
+              class="tab-band-star"
+              viewBox="0 0 14 14"
+              :style="{ fill: tabBand(project.id, tab)?.color }"
+            >
+              <path d="M7 1l1.8 3.9 4.2.5-3.1 2.9.8 4.2L7 10.4 3.3 12.5l.8-4.2L1 5.4l4.2-.5z" />
+            </svg>
+            <span
+              v-else
+              class="tab-band"
+              :style="{ background: tabBand(project.id, tab)?.color }"
+            />
+          </template>
           <TabIcon v-if="tabKindOf(tab).icon.length" :shapes="tabKindOf(tab).icon" />
           <span class="tab-label">
             <span v-if="tabKindOf(tab).label(tab, tabContext(tab)).prefix" class="tab-parent">
@@ -452,6 +473,11 @@ onBeforeUnmount(() => {
       <div v-if="dropZone" class="drop-overlay" :class="dropZone">
         <span v-if="dropDuplicate" class="drop-copy">Copy</span>
       </div>
+    </div>
+
+    <div v-if="shellGroup" class="group-strip">
+      <span class="group-strip-band" :style="{ background: shellGroup.color }" />
+      Workgroup: {{ shellGroup.groupName }}
     </div>
 
     <div
@@ -729,6 +755,40 @@ onBeforeUnmount(() => {
 
 .tab.active .tab-parent {
   color: var(--color-amber-dim);
+}
+
+.tab-band {
+  flex-shrink: 0;
+  width: 3px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+}
+
+.tab-band-star {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+}
+
+.group-strip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-strip-band {
+  flex-shrink: 0;
+  width: 3px;
+  height: 12px;
+  border-radius: var(--radius-pill);
 }
 
 .tab-label {

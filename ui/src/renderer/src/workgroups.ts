@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import type { WorkgroupInfo, WorkgroupPending } from '../../preload/types'
+import type { WorkgroupInfo, WorkgroupPending, WorkspaceTab } from '../../preload/types'
 import type { ProjectRef } from './workspace'
 
 export interface WorkgroupState {
@@ -71,6 +71,18 @@ export function isWorkgroupMember(projectId: string, tabId: string): boolean {
   return (states[projectId]?.groups ?? []).some((group) =>
     group.members.some((member) => member.tabId === tabId)
   )
+}
+
+export function tabGroup(
+  projectId: string,
+  tab: WorkspaceTab
+): { id: number; leader: boolean } | null {
+  if (tab.kind === 'workgroup') return { id: tab.groupId, leader: false }
+  if (tab.kind !== 'shell') return null
+  const group = (states[projectId]?.groups ?? []).find((g) =>
+    g.members.some((member) => member.tabId === tab.id)
+  )
+  return group ? { id: group.id, leader: group.leaderTabId === tab.id } : null
 }
 
 export function pendingFor(projectPath: string): WorkgroupPending[] {

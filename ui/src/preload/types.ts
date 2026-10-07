@@ -200,6 +200,7 @@ export type WorkspaceLayoutNode =
 export interface WorkspaceLayoutState {
   root: WorkspaceLayoutNode | null
   focusedPaneId: string | null
+  groupColors?: Record<string, string>
 }
 
 export interface WorkgroupSpawnMember {
