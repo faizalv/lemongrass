@@ -31,7 +31,7 @@ Ask the user before changing the core idea: the Problem, the Expectation, the Ob
 
 ## 6. Out-of-scope findings
 
-A problem outside the Objective is not worked in this task. Offer the user a new scratchpad task for it. A Plans item big enough to be built and tracked on its own is offered as a split: its own task, with the parent's Plans pointing at it.
+A problem outside the Objective is not worked in this task. Offer the user a new scratchpad task for it, or, when a task covers the same domain, offer to add it to that task's PRD instead. A Plans item big enough to be built and tracked on its own is offered as a split: its own task, with the parent's Plans pointing at it.
 
 ## 7. Pausing or delegating
 

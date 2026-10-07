@@ -28,7 +28,7 @@ List the task and every sub-task: split PRDs, child scratchpad directories, and 
 
 Collect only what is clearly decided as out of scope: what the PRD's Objective excludes, and anything already written down as deferred or undecided. A passing idea or a drift is not collected. A Plans item that needs its own task is split out: it moves into a child scratchpad task, and the parent PRD's Plans point at the child and no longer carry it. Never invent concerns.
 
-For each one, ask the user a clarifying question first: whether it should be tracked at all. Never offer a PRD or a task before that is answered. Create nothing until the user answers. If there is nothing, skip this step and say nothing about it.
+For each one, ask the user a clarifying question first: whether it should be tracked at all. Never offer a PRD or a task before that is answered. Create nothing until the user answers. If a task covers the same domain, offer to add the item to that task's PRD instead of a new task. If there is nothing, skip this step and say nothing about it.
 
 ## 5. Books
 
@@ -53,7 +53,7 @@ Bring `prd.md`, notes, debug and recon files to their final state, with no stale
 
 ## 8. Laws
 
-A correction in the activity log that became a standing rule goes to `laws/<slug>.md` and one line in `laws/summary.md`. A rule never goes to memory.
+A correction in the activity log that may be a standing rule is offered with `lgrass-howtodo-newlaws` and written only once the user approves. A rule never goes to memory.
 
 ## 9. Archive, in one action
 
