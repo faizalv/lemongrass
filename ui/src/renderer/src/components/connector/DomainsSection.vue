@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
+import { collidingUserName, userHandle } from '../../userHandle'
 import type { VaultDomain, VaultDomainUser } from '../../../../preload/types'
 
 const props = defineProps<{
@@ -247,6 +248,8 @@ const domainNameTaken = computed(
   () => editingDomainName.value === null && domains.value.includes(newDomainName.value.trim())
 )
 
+const userNames = computed(() => newDomainUsers.value.map((u) => u.name))
+
 const canSubmitDomain = computed(
   () =>
     newDomainName.value.trim().length > 0 &&
@@ -422,6 +425,18 @@ watch(
               Bring your own token
             </label>
           </div>
+
+          <p
+            v-if="userHandle(user.name) !== '' && userHandle(user.name) !== user.name"
+            class="hint"
+          >
+            Models use this user as {{ userHandle(user.name) }}.
+          </p>
+          <p v-if="collidingUserName(userNames, userIndex) !== null" class="error-text">
+            Models would use the same handle, {{ userHandle(user.name) }}, for "{{
+              collidingUserName(userNames, userIndex)
+            }}". Rename one of them.
+          </p>
 
           <input
             v-model="user.tags"

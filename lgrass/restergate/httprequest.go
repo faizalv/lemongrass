@@ -130,7 +130,7 @@ func (g *Gate) retryWithFreshToken(id vault.ChannelID, domain vault.Domain, user
 	}
 	g.evictCachedToken(id, user)
 	if domainUser.IsBYOT() {
-		return nil, fmt.Errorf("restergate: %s's token appears to have gone stale; ask them to paste a fresh one into the domain and re-save it", user)
+		return nil, fmt.Errorf("restergate: %s's token appears to have gone stale; ask them to paste a fresh one into the domain and re-save it", vault.UserHandle(user))
 	}
 
 	freshToken, _, err := g.refreshToken(id, domain, user)

@@ -90,21 +90,25 @@ func (g *Gate) forgetTokens(id vault.ChannelID) {
 	}
 }
 
-// resolveUser returns the user a call runs as: the named one, or the domain's only user when
-// name is empty. Otherwise the error lists the users a caller can choose from.
+// resolveUser returns the stored name of the user a call runs as: the one whose handle matches
+// name, or the domain's only user when name is empty. Otherwise the error lists the handles a
+// caller can choose from.
 func resolveUser(domain vault.Domain, name string) (string, error) {
 	if name == "" && len(domain.Users) == 1 {
 		return domain.Users[0].Name, nil
 	}
-	if _, err := findDomainUser(domain, name); err == nil {
-		return name, nil
+	handle := vault.UserHandle(name)
+	for _, u := range domain.Users {
+		if vault.UserHandle(u.Name) == handle {
+			return u.Name, nil
+		}
 	}
 	if len(domain.Users) == 0 {
 		return "", errors.New("restergate: this domain has no users")
 	}
 	names := make([]string, len(domain.Users))
 	for i, u := range domain.Users {
-		names[i] = u.Name
+		names[i] = vault.UserHandle(u.Name)
 		if len(u.Tags) > 0 {
 			names[i] += " (" + strings.Join(u.Tags, ", ") + ")"
 		}

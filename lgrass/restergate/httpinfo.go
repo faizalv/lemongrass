@@ -80,7 +80,7 @@ func userInfos(domain vault.Domain) []HTTPUserInfo {
 		if tags == nil {
 			tags = []string{}
 		}
-		out[i] = HTTPUserInfo{Name: u.Name, Tags: tags}
+		out[i] = HTTPUserInfo{Name: vault.UserHandle(u.Name), Tags: tags}
 	}
 	return out
 }

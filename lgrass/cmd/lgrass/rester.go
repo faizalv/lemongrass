@@ -29,7 +29,8 @@ info prints the channel's base URL, how long it stays valid, the methods it allo
 users. users prints just the users with their tags. The request form proxies one HTTP call
 through the channel's domain; the vault handles login and token injection. <path> is relative
 to the domain's base URL, a full URL under it also works. --user may be left out when the
-domain has a single user. Response is printed as JSON:
+domain has a single user. A user is named as users shows it: lowercase, with underscores for
+spaces, and a name typed in another case or with spaces reaches the same user. Response is printed as JSON:
 {"status": N, "headers": {...}, "body": ..., "url": "..."}.
 
 --out saves the response body of a successful call to a file instead of printing it, byte for

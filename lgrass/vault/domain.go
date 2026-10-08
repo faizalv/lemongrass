@@ -56,6 +56,23 @@ func (u DomainUser) IsBYOT() bool {
 	return u.Token != ""
 }
 
+// UserHandle is the name a model types for a user: trimmed, lowercased, whitespace runs joined by one underscore.
+func UserHandle(name string) string {
+	return strings.Join(strings.Fields(strings.ToLower(name)), "_")
+}
+
+func checkUserHandles(users []DomainUser) error {
+	seen := make(map[string]string, len(users))
+	for _, u := range users {
+		h := UserHandle(u.Name)
+		if prev, ok := seen[h]; ok {
+			return fmt.Errorf("vault: users %q and %q both map to the handle %q", prev, u.Name, h)
+		}
+		seen[h] = u.Name
+	}
+	return nil
+}
+
 const domainKeyPrefix = "domains-"
 
 func domainKey(name string) string {
@@ -65,6 +82,9 @@ func domainKey(name string) string {
 // PutDomain encrypts d under the root key and stores it as name, alongside credentials in the
 // same Store but under a distinct key prefix so domain and db connection names never collide.
 func (s *Service) PutDomain(rootSecret, name string, d Domain) error {
+	if err := checkUserHandles(d.Users); err != nil {
+		return err
+	}
 	rootKey, err := DeriveKey(rootSecret, s.rootSalt)
 	if err != nil {
 		return err
