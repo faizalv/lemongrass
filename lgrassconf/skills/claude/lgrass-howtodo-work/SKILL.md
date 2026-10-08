@@ -9,13 +9,19 @@ Read `biblio/books/toc.md` and open every book whose name or tags relate to the 
 
 ## 2. Plan first
 
-Show the plan in chat and write it to the task's scratchpad directory in the same turn: `biblio/scratchpad/<task-slug>/prd.md` with Problem, Expectation, Objective and Plans. Write every Plans item as `- [ ]`. A small task gets a short PRD, not none. For a task that already has a directory, read its `prd.md` and `activities.md` first and continue from the marks, since the marks show what is done.
+Show the plan in chat and write it to the task's scratchpad directory in the same turn: `biblio/scratchpad/<task-slug>/prd.md` with Problem, Expectation, Objective and Plans. Write every Plans item as `- [ ]`. A small task gets a short PRD, not none.
+
+Write Plans as the simplest reading of the Objective. Every item must be needed to meet an Expectation. If a similar function or an earlier feature suggests adding more, do not put it in Plans. Tell the user in one or two plain sentences with your recommendation, and add it only after they say yes. Whoever resumes the PRD reads it as the spec, so an unconfirmed item becomes an order.
+
+For a task that already has a directory, read its `prd.md` and `activities.md` first and continue from the marks, since the marks show what is done.
 
 ## 3. What waits for the user
 
-Wait for the user's go-ahead before changing code or running anything with side effects outside `biblio/`. Writing under `biblio/` never waits: the PRD, notes, activity log, books and toc are the model's own responsibility.
+Wait for the user's go-ahead before changing code or running anything with side effects outside `biblio/`. Also ask before changing the core idea: the Problem, the Expectation, the Objective, a settled design decision, or dropping a Plans item. Writing under `biblio/` never waits: the PRD, notes, activity log, books and toc are the model's own responsibility, and so are adding an item the Objective requires, adding detail, marking done and logging.
 
-## 4. Keep the PRD current
+## 4. Do the work, keeping the PRD current
+
+Follow the PRD as written. If building it hits a contradiction, such as an import cycle or a missing piece, stop and tell the user in one or two plain sentences with your recommendation, instead of working around it.
 
 In the same turn that a decision is made or a Plans item is finished:
 
@@ -23,21 +29,17 @@ In the same turn that a decision is made or a Plans item is finished:
 - Write the decision into the PRD in place.
 - Append a dated entry to `activities.md` for a decision, shipped work or a correction.
 
-None of this needs approval. The marks are how anyone, including you tomorrow, knows what is done.
+The marks are how anyone, including you tomorrow, knows what is done.
 
-## 5. When approval is needed
-
-Ask the user before changing the core idea: the Problem, the Expectation, the Objective, a settled design decision, or dropping a Plans item. Adding an item inside the same Objective, adding detail, marking done and logging do not need it.
-
-## 6. Out-of-scope findings
+## 5. Out-of-scope findings
 
 A problem outside the Objective is not worked in this task. Offer the user a new scratchpad task for it, or, when a task covers the same domain, offer to add it to that task's PRD instead. A Plans item big enough to be built and tracked on its own is offered as a split: its own task, with the parent's Plans pointing at it.
 
-## 7. Pausing or delegating
+## 6. Pausing or delegating
 
 Write a handover only when the task is paused or handed to someone else, never for a small task finished in one session. Its Status holds where to resume, what is next and what is blocked, and the PRD marks hold what is done. A handover comes with a whiteboard row and a memory pointer.
 
-## 8. Done
+## 7. Done
 
 When the work is done, run `lgrass-howtodo-taskclosing`.
 
