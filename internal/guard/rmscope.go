@@ -7,69 +7,148 @@ import (
 
 var deletionScopeRules = map[string]bool{"rm-force": true, "rm-plain": true, "find-delete": true}
 
-var protectedProjectDirs = []string{".git", "biblio"}
-
 var directoryChangers = map[string]bool{"cd": true, "pushd": true, "popd": true}
 
-// deletionScopeOpen reports whether deletions in the script may be judged by where their targets land in the project.
-func (c checker) deletionScopeOpen(script shellScript) bool {
+// deletionDirs returns every directory the script's deletions could run from, or why deletions in it cannot be judged.
+func (c checker) deletionDirs(script shellScript) ([]string, string) {
 	root := c.projectRoot()
-	if root == "" || c.in.Cwd == "" || !withinOrEqual(resolveFully(c.in.Cwd), root) {
-		return false
+	if root == "" {
+		return nil, "This session has no launch project (a Codex tab or a shell outside lemongrass), so every deletion needs the user."
 	}
+	if c.in.Cwd == "" {
+		return nil, "The shell's current directory is unknown, so the paths cannot be checked."
+	}
+	start := resolveFully(c.in.Cwd)
+	if !withinOrEqual(start, root) {
+		return nil, "The shell is in " + start + ", outside the project " + root + ". cd back into the project in its own call first."
+	}
+	dirs := []string{start}
 	for _, call := range script.Calls {
-		if directoryChangers[call.Name] {
-			return false
+		if !directoryChangers[call.Name] {
+			continue
+		}
+		shown := strings.TrimSpace(call.Name + " " + strings.Join(call.Args, " "))
+		target, ok := directoryTarget(call)
+		if !ok {
+			return nil, "'" + shown + "' moves to a directory the guard cannot know, so the paths after it cannot be checked. Write the paths from the project instead."
+		}
+		if !literalTarget(target) {
+			return nil, "'" + shown + "' uses a variable or substitution, so the paths after it cannot be checked. Write the directory out."
+		}
+		for _, dir := range dirs {
+			located := ResolvePath(target, dir, c.in.Home)
+			next := resolveFully(located)
+			if !withinOrEqual(next, root) {
+				if next != located {
+					return nil, "'" + shown + "' is a symlink to " + next + ", outside the project " + root + "."
+				}
+				return nil, "'" + shown + "' leaves the project (" + next + "), so the paths after it cannot be checked. Write the paths from inside the project instead."
+			}
+			if !containsArg(dirs, next) {
+				dirs = append(dirs, next)
+			}
 		}
 	}
-	return true
+	return dirs, ""
 }
 
-// deletesInProject reports whether an rm or find -delete call only removes paths inside the project root and outside its protected directories.
-func (c checker) deletesInProject(call shellCall) bool {
+func directoryTarget(call shellCall) (string, bool) {
+	if call.Name == "popd" {
+		return "", false
+	}
+	for i, arg := range call.Args {
+		if arg == "--" {
+			if i+1 < len(call.Args) {
+				return call.Args[i+1], true
+			}
+			return "", false
+		}
+		if arg == "-L" || arg == "-P" || arg == "-e" || arg == "-@" {
+			continue
+		}
+		if arg == "-" || strings.HasPrefix(arg, "+") || strings.HasPrefix(arg, "-") {
+			return "", false
+		}
+		return arg, true
+	}
+	return "", false
+}
+
+// deletionCheck returns why an rm or find -delete call does not only remove paths inside the project root and outside its protected directories, or "" when it does.
+func (c checker) deletionCheck(call shellCall, dirs []string) string {
 	if call.Indirect {
-		return false
+		return "The paths come from xargs, find -exec or env -C at run time, so they cannot be checked. Name the files on the rm itself."
 	}
 	switch call.Name {
 	case "rm":
 		if hasLongFlag(call.Args, "--no-preserve-root") {
-			return false
+			return "--no-preserve-root is never allowed."
 		}
-		return c.allInProject(rmTargets(call.Args))
+		targets := rmTargets(call.Args)
+		if len(targets) == 0 {
+			return "rm has no path to check."
+		}
+		return c.targetsCheck(targets, dirs, false)
 	case "find":
 		roots, followsLinks := findRoots(call.Args)
-		return !followsLinks && c.allInProject(roots)
+		if followsLinks {
+			return "find follows symlinks with -L, -H or -follow, which can reach outside the project. Drop that option."
+		}
+		return c.targetsCheck(roots, dirs, true)
 	}
-	return false
+	return "Only rm and find -delete can be judged."
 }
 
-func (c checker) allInProject(targets []string) bool {
-	root := c.projectRoot()
-	if len(targets) == 0 {
-		return false
-	}
+func (c checker) targetsCheck(targets, dirs []string, isFind bool) string {
 	for _, target := range targets {
 		if !literalTarget(target) {
-			return false
+			return "'" + target + "' uses a variable, substitution, braces or ~user, so where it lands is unknown until it runs. Write the path out."
 		}
-		resolved := []string{ResolvePath(target, c.in.Cwd, c.in.Home)}
-		if strings.ContainsAny(target, "*?[") {
-			matches, err := filepath.Glob(resolved[0])
-			if err != nil {
-				return false
+		for _, dir := range dirs {
+			resolved := []string{ResolvePath(target, dir, c.in.Home)}
+			if strings.ContainsAny(target, "*?[") {
+				matches, err := filepath.Glob(resolved[0])
+				if err != nil {
+					return "'" + target + "' is not a valid pattern."
+				}
+				resolved = append(resolved, matches...)
 			}
-			resolved = append(resolved, matches...)
-		}
-		for _, p := range resolved {
-			location := filepath.Join(resolveExisting(filepath.Dir(p)), filepath.Base(p))
-			for _, candidate := range []string{location, resolveFully(p)} {
-				if !strictlyWithin(candidate, root) || isProtected(candidate, root) {
-					return false
+			for _, p := range resolved {
+				location := filepath.Join(resolveExisting(filepath.Dir(p)), filepath.Base(p))
+				for _, candidate := range []string{location, resolveFully(p)} {
+					if reason := c.candidateCheck(target, candidate, dir, dirs, isFind); reason != "" {
+						return reason
+					}
 				}
 			}
 		}
 	}
-	return true
+	return ""
+}
+
+func (c checker) candidateCheck(target, candidate, dir string, dirs []string, isFind bool) string {
+	root := c.projectRoot()
+	subject := "'" + target + "'"
+	if candidate != target {
+		subject += " resolves to " + candidate + " and"
+	}
+	if candidate == root {
+		if isFind {
+			return "find from the project root would also search .git and biblio. Search a subfolder instead."
+		}
+		return subject + " is the project root, which cannot be removed."
+	}
+	if !strictlyWithin(candidate, root) {
+		from := ""
+		if dir != dirs[0] {
+			from = " when run from " + dir
+		}
+		return subject + " is outside the project " + root + from + ". Only paths inside the project can be removed."
+	}
+	if why := protectedReason(candidate, root); why != "" {
+		return "'" + target + "' " + why
+	}
+	return ""
 }
 
 func (c checker) projectRoot() string {
@@ -137,17 +216,22 @@ func literalTarget(target string) bool {
 	return !strings.ContainsAny(rest, "${}`")
 }
 
-func isProtected(p, root string) bool {
+func protectedReason(p, root string) string {
 	scratchpad := filepath.Join(root, "biblio", "scratchpad")
-	if strictlyWithin(p, scratchpad) && !withinOrEqual(p, filepath.Join(scratchpad, "archive")) {
-		return false
+	archive := filepath.Join(scratchpad, "archive")
+	switch {
+	case withinOrEqual(p, filepath.Join(root, ".git")):
+		return "is in .git, which is protected."
+	case withinOrEqual(p, archive):
+		return "is in biblio/scratchpad/archive, the frozen record of closed tasks, which is protected."
+	case p == scratchpad:
+		return "is biblio/scratchpad itself, which is protected. Remove a task folder inside it instead."
+	case strictlyWithin(p, scratchpad):
+		return ""
+	case withinOrEqual(p, filepath.Join(root, "biblio")):
+		return "is in biblio, which is protected. Only biblio/scratchpad outside its archive can be removed."
 	}
-	for _, dir := range protectedProjectDirs {
-		if withinOrEqual(p, filepath.Join(root, dir)) {
-			return true
-		}
-	}
-	return false
+	return ""
 }
 
 func resolveFully(p string) string {

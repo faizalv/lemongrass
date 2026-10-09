@@ -22,9 +22,18 @@ type Verdict struct {
 	RuleID      string
 	Description string
 	Mode        Mode
+	// Detail says why a deletion was not exempt and what would pass.
+	Detail string
 }
 
 func (v Verdict) Message() string {
+	if v.Detail != "" {
+		subject := "rm"
+		if v.RuleID == "find-delete" {
+			subject = "find -delete"
+		}
+		return "lgrass: " + subject + " blocked (rule " + v.RuleID + "). " + v.Detail + " If the user really wants it, ask them to run it themselves with the ! prefix in the prompt."
+	}
 	if v.Mode == ModeApproval {
 		return "lgrass: rule " + v.RuleID + " (" + v.Description + ") needs the user's approval, and approval is not available yet. Ask the user to run it themselves with the ! prefix in the prompt."
 	}
@@ -78,20 +87,30 @@ func (c checker) bash() *Verdict {
 		found = append(found, secretVerdict())
 	}
 	catalog := dangerCatalog(c.in.Home)
-	deletionScope := c.deletionScopeOpen(script)
+	dirs, scopeReason := c.deletionDirs(script)
 	for _, call := range script.Calls {
 		if call.Dynamic {
 			found = append(found, Verdict{RuleID: "dynamic-command", Description: "the command name is computed at runtime, so it cannot be checked", Mode: ModeDeny})
 			continue
 		}
-		deletionAllowed := deletionScope && c.deletesInProject(call)
 		for _, rule := range catalog {
-			if deletionAllowed && deletionScopeRules[rule.ID] && c.policy.Rules[rule.ID] != overrideDeny {
+			if !rule.Match(call) {
 				continue
 			}
-			if rule.Match(call) {
-				found = append(found, Verdict{RuleID: rule.ID, Description: rule.Description, Mode: rule.Mode})
+			verdict := Verdict{RuleID: rule.ID, Description: rule.Description, Mode: rule.Mode}
+			if deletionScopeRules[rule.ID] {
+				verdict.Detail = scopeReason
+				if verdict.Detail == "" {
+					verdict.Detail = c.deletionCheck(call, dirs)
+				}
+				if verdict.Detail == "" {
+					if c.policy.Rules[rule.ID] != overrideDeny {
+						continue
+					}
+					verdict.Detail = "The user's Safety policy sets " + rule.ID + " to deny."
+				}
 			}
+			found = append(found, verdict)
 		}
 		if c.policy.blocksBinary(call.Name) {
 			found = append(found, Verdict{RuleID: "custom-binary", Description: "a binary the user blocked", Mode: ModeDeny})

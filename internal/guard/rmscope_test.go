@@ -3,6 +3,7 @@ package guard
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -71,9 +72,9 @@ func TestRmInsideProject(t *testing.T) {
 		{"rm -rf {build,/etc}", "", "rm-force"},
 		{"rm -rf --no-preserve-root build", "", "rm-force"},
 		{"rm -rf", "", "rm-force"},
-		{"cd build && rm -rf out", "", "rm-force"},
+		{"cd build && rm -rf out", "", ""},
 		{"(cd /tmp; rm -rf build)", "", "rm-force"},
-		{"pushd sub && rm c.txt", "", "rm-plain"},
+		{"pushd sub && rm c.txt", "", ""},
 		{"env -C /tmp rm -rf build", "", "rm-force"},
 		{"ls | xargs rm -f", "", "rm-force"},
 		{"echo build | xargs rm -rf build", "", "rm-force"},
@@ -97,7 +98,7 @@ func TestRmInsideProject(t *testing.T) {
 		{"find -L build -delete", "", "find-delete"},
 		{"find build -follow -delete", "", "find-delete"},
 		{"find \"$DIR\" -delete", "", "find-delete"},
-		{"cd build && find out -delete", "", "find-delete"},
+		{"cd build && find out -delete", "", ""},
 		{"find build -delete", outside, "find-delete"},
 		{"find build -name x -exec rm {} \\;", "", "rm-plain"},
 	}
@@ -245,6 +246,90 @@ func TestDeletionInsideScratchpad(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("rule = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDeletionFollowsCdInsideProject(t *testing.T) {
+	root, home, outside := rmProject(t)
+	cases := []struct {
+		command string
+		want    string
+	}{
+		{"cd sub && rm c.txt", ""},
+		{"cd biblio/scratchpad && rm -rf task-a", ""},
+		{"cd build && cd out && rm x", ""},
+		{"cd sub; rm c.txt", ""},
+		{"(cd sub; rm c.txt)", ""},
+		{"cd -P sub && rm c.txt", ""},
+		{"cd sub && cd .. && rm notes.txt", "rm-plain"},
+
+		{"cd .. && rm -rf app/build", "rm-force"},
+		{"cd escape && rm x", "rm-plain"},
+		{"cd " + outside + " && rm x", "rm-plain"},
+		{"cd && rm x", "rm-plain"},
+		{"cd - && rm x", "rm-plain"},
+		{"cd ~ && rm x", "rm-plain"},
+		{"cd \"$D\" && rm x", "rm-plain"},
+		{"popd && rm x", "rm-plain"},
+		{"cd sub && rm -rf ../.git", "rm-force"},
+		{"cd sub && rm ../../x", "rm-plain"},
+		{"cd biblio && rm -rf books", "rm-force"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			in := Input{Tool: "Bash", Command: tc.command, Cwd: root, Home: home, ProjectRoot: root}
+			got := ""
+			if verdict := Decide(in, Policy{}); verdict != nil {
+				got = verdict.RuleID
+			}
+			if got != tc.want {
+				t.Errorf("rule = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDeletionDenialDetail(t *testing.T) {
+	root, home, outside := rmProject(t)
+	cases := []struct {
+		command string
+		cwd     string
+		root    string
+		policy  Policy
+		want    string
+	}{
+		{"rm -rf ../x", root, root, Policy{}, "is outside the project " + root},
+		{"rm biblio/books/toc.md", root, root, Policy{}, "is in biblio, which is protected"},
+		{"rm -rf .git", root, root, Policy{}, "is in .git, which is protected"},
+		{"rm -rf biblio/scratchpad", root, root, Policy{}, "is biblio/scratchpad itself"},
+		{"rm -rf biblio/scratchpad/archive", root, root, Policy{}, "frozen record of closed tasks"},
+		{"rm -rf .", root, root, Policy{}, "is the project root, which cannot be removed"},
+		{"rm -rf \"$TMP\"/x", root, root, Policy{}, "uses a variable, substitution, braces or ~user"},
+		{"cd .. && rm -rf x", root, root, Policy{}, "'cd ..' leaves the project"},
+		{"cd escape && rm x", root, root, Policy{}, "'cd escape' is a symlink to " + outside},
+		{"popd && rm x", root, root, Policy{}, "'popd' moves to a directory the guard cannot know"},
+		{"cd \"$D\" && rm x", root, root, Policy{}, "uses a variable or substitution"},
+		{"rm x", outside, root, Policy{}, "The shell is in " + outside},
+		{"ls | xargs rm -f", root, root, Policy{}, "come from xargs, find -exec or env -C"},
+		{"find -L build -delete", root, root, Policy{}, "find follows symlinks"},
+		{"find . -name x -delete", root, root, Policy{}, "find from the project root would also search .git and biblio"},
+		{"rm -rf", root, root, Policy{}, "rm has no path to check"},
+		{"rm -rf --no-preserve-root build", root, root, Policy{}, "--no-preserve-root is never allowed"},
+		{"rm notes.txt", root, "", Policy{}, "no launch project"},
+		{"rm notes.txt", root, root, Policy{Rules: map[string]string{"rm-plain": overrideDeny}}, "Safety policy sets rm-plain to deny"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			in := Input{Tool: "Bash", Command: tc.command, Cwd: tc.cwd, Home: home, ProjectRoot: tc.root}
+			verdict := Decide(in, tc.policy)
+			if verdict == nil {
+				t.Fatal("not denied")
+			}
+			message := verdict.Message()
+			if !strings.Contains(message, tc.want) || !strings.Contains(message, "! prefix") {
+				t.Errorf("message = %q, want it to contain %q", message, tc.want)
 			}
 		})
 	}
