@@ -21,3 +21,6 @@ biblio/
 
 /ui/*.tsbuildinfo
 /ui/bin/*
+.codex
+.aws
+.agents
