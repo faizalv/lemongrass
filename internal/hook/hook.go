@@ -79,6 +79,11 @@ func Run(args []string, tabID string) {
 
 	proj, err := project.Resolve(payload.Cwd)
 	if err != nil {
+		if event == "PreToolUse" && payload.TabID != "" {
+			if verdict := dangerDecision(payload); verdict != nil {
+				adapter.emit(newHookResult("PreToolUse", "deny", []string{verdict.Message()}))
+			}
+		}
 		os.Exit(0)
 	}
 

@@ -14,6 +14,8 @@ type Input struct {
 	Writes  bool
 	Cwd     string
 	Home    string
+	// ProjectRoot is the project the agent was started in; rm and find -delete inside it are not gated.
+	ProjectRoot string
 }
 
 type Verdict struct {
@@ -76,12 +78,17 @@ func (c checker) bash() *Verdict {
 		found = append(found, secretVerdict())
 	}
 	catalog := dangerCatalog(c.in.Home)
+	deletionScope := c.deletionScopeOpen(script)
 	for _, call := range script.Calls {
 		if call.Dynamic {
 			found = append(found, Verdict{RuleID: "dynamic-command", Description: "the command name is computed at runtime, so it cannot be checked", Mode: ModeDeny})
 			continue
 		}
+		deletionAllowed := deletionScope && c.deletesInProject(call)
 		for _, rule := range catalog {
+			if deletionAllowed && deletionScopeRules[rule.ID] && c.policy.Rules[rule.ID] != overrideDeny {
+				continue
+			}
 			if rule.Match(call) {
 				found = append(found, Verdict{RuleID: rule.ID, Description: rule.Description, Mode: rule.Mode})
 			}

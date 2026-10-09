@@ -5,14 +5,17 @@ import (
 	"os"
 
 	"github.com/faizalv/lemongrass/internal/guard"
+	"github.com/faizalv/lemongrass/internal/project"
 )
+
+const claudeProjectDirEnv = "CLAUDE_PROJECT_DIR"
 
 func dangerDecision(payload hookEvent) *guard.Verdict {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = ""
 	}
-	input := guard.Input{Tool: payload.ToolName, Cwd: payload.Cwd, Home: home}
+	input := guard.Input{Tool: payload.ToolName, Cwd: payload.Cwd, Home: home, ProjectRoot: launchProjectRoot()}
 	if payload.ToolName == "Bash" {
 		var shell shellToolInput
 		if err := json.Unmarshal(payload.ToolInput, &shell); err != nil {
@@ -42,4 +45,17 @@ func dangerToolPaths(payload hookEvent) []string {
 		}
 	}
 	return paths
+}
+
+// launchProjectRoot is the registered project Claude Code was started in, which a cd inside the session does not move.
+func launchProjectRoot() string {
+	dir := os.Getenv(claudeProjectDirEnv)
+	if dir == "" {
+		return ""
+	}
+	proj, err := project.Resolve(dir)
+	if err != nil {
+		return ""
+	}
+	return proj.Path
 }

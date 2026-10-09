@@ -15,6 +15,8 @@ type shellCall struct {
 	Path    string
 	Dynamic bool
 	Args    []string
+	// Indirect marks a call whose arguments or working directory come from xargs, find -exec or env --chdir at run time.
+	Indirect bool
 }
 
 type shellRedirect struct {
@@ -106,18 +108,19 @@ func (s *shellScript) addCallExpr(call *syntax.CallExpr, depth int) error {
 		text, _ := wordText(word)
 		args = append(args, text)
 	}
-	return s.addCall(name, dynamic, args, depth)
+	return s.addCall(name, dynamic, args, false, depth)
 }
 
-func (s *shellScript) addCall(name string, dynamic bool, args []string, depth int) error {
+func (s *shellScript) addCall(name string, dynamic bool, args []string, indirect bool, depth int) error {
 	base := filepath.Base(name)
-	s.Calls = append(s.Calls, shellCall{Name: base, Path: name, Dynamic: dynamic, Args: args})
+	s.Calls = append(s.Calls, shellCall{Name: base, Path: name, Dynamic: dynamic, Args: args, Indirect: indirect})
 	if dynamic {
 		return nil
 	}
 	if wrapper, ok := shellWrappers[base]; ok {
 		if inner := unwrapArgs(wrapper, args); len(inner) > 0 {
-			return s.addCall(inner[0], false, inner[1:], depth+1)
+			innerIndirect := indirect || base == "xargs" || (base == "env" && changesDirectory(args))
+			return s.addCall(inner[0], false, inner[1:], innerIndirect, depth+1)
 		}
 		return nil
 	}
@@ -145,7 +148,7 @@ func (s *shellScript) addFindExec(args []string, depth int) error {
 				end++
 			}
 			if end > i+1 {
-				if err := s.addCall(args[i+1], false, args[i+2:end], depth+1); err != nil {
+				if err := s.addCall(args[i+1], false, args[i+2:end], true, depth+1); err != nil {
 					return err
 				}
 			}
@@ -221,6 +224,15 @@ func pipelineNames(cmd *syntax.BinaryCmd) []string {
 		}
 	}
 	return names
+}
+
+func changesDirectory(args []string) bool {
+	for _, arg := range args {
+		if arg == "-C" || arg == "--chdir" || strings.HasPrefix(arg, "--chdir=") || (strings.HasPrefix(arg, "-C") && len(arg) > 2) {
+			return true
+		}
+	}
+	return false
 }
 
 func unwrapArgs(wrapper shellWrapper, args []string) []string {
