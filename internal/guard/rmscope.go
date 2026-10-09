@@ -61,7 +61,8 @@ func (c checker) allInProject(targets []string) bool {
 			resolved = append(resolved, matches...)
 		}
 		for _, p := range resolved {
-			for _, candidate := range []string{p, resolveFully(p)} {
+			location := filepath.Join(resolveExisting(filepath.Dir(p)), filepath.Base(p))
+			for _, candidate := range []string{location, resolveFully(p)} {
 				if !strictlyWithin(candidate, root) || isProtected(candidate, root) {
 					return false
 				}
@@ -137,6 +138,10 @@ func literalTarget(target string) bool {
 }
 
 func isProtected(p, root string) bool {
+	scratchpad := filepath.Join(root, "biblio", "scratchpad")
+	if strictlyWithin(p, scratchpad) && !withinOrEqual(p, filepath.Join(scratchpad, "archive")) {
+		return false
+	}
 	for _, dir := range protectedProjectDirs {
 		if withinOrEqual(p, filepath.Join(root, dir)) {
 			return true
@@ -149,7 +154,23 @@ func resolveFully(p string) string {
 	if resolved, err := filepath.EvalSymlinks(p); err == nil {
 		return filepath.Clean(resolved)
 	}
-	return filepath.Clean(p)
+	return resolveExisting(p)
+}
+
+// resolveExisting resolves symlinks in the deepest existing ancestor of p and keeps the missing remainder as written.
+func resolveExisting(p string) string {
+	dir, rest := filepath.Clean(p), ""
+	for {
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return filepath.Clean(p)
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = parent
+	}
 }
 
 func strictlyWithin(p, root string) bool {

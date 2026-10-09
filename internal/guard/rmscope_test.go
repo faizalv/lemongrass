@@ -148,3 +148,104 @@ func TestRmInsideProjectKeepsSecretCheck(t *testing.T) {
 		t.Errorf("verdict = %+v, want secret-path", verdict)
 	}
 }
+
+func TestDeletionThroughSymlinkedProjectPath(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "data", "Projects", "app")
+	if err := os.MkdirAll(filepath.Join(real, "build"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(real, "biblio"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(real, "a.txt"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	home := filepath.Join(base, "home")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(base, "data", "Projects"), filepath.Join(home, "Projects")); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(home, "Projects", "app")
+	spellings := map[string]string{"real": real, "link": link}
+	for rootName, root := range spellings {
+		for cwdName, cwd := range spellings {
+			cases := []struct {
+				command string
+				want    string
+			}{
+				{"rm -rf a.txt", ""},
+				{"rm -rf build", ""},
+				{"rm -rf missing/x", ""},
+				{"rm -rf " + filepath.Join(real, "missing", "x"), ""},
+				{"rm -rf " + filepath.Join(link, "missing", "x"), ""},
+				{"rm -rf ~/Projects/app/missing/x", ""},
+				{"find missing/dir -delete", ""},
+				{"rm -rf " + filepath.Join(link, "biblio", "missing"), "rm-force"},
+				{"rm -rf ~/Projects/other/missing", "rm-force"},
+				{"rm -rf " + link, "rm-force"},
+			}
+			for _, tc := range cases {
+				t.Run(rootName+" root, "+cwdName+" cwd: "+tc.command, func(t *testing.T) {
+					in := Input{Tool: "Bash", Command: tc.command, Cwd: cwd, Home: home, ProjectRoot: root}
+					got := ""
+					if verdict := Decide(in, Policy{}); verdict != nil {
+						got = verdict.RuleID
+					}
+					if got != tc.want {
+						t.Errorf("rule = %q, want %q", got, tc.want)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestDeletionInsideScratchpad(t *testing.T) {
+	root, home, _ := rmProject(t)
+	for _, dir := range []string{"biblio/scratchpad/task-a", "biblio/scratchpad/archive/old-task"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, file := range []string{"biblio/scratchpad/task-a/notes.md", "biblio/scratchpad/task-a/tmp.log", "biblio/scratchpad/archive/old-task/prd.md"} {
+		if err := os.WriteFile(filepath.Join(root, file), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cases := []struct {
+		command string
+		want    string
+	}{
+		{"rm biblio/scratchpad/task-a/notes.md", ""},
+		{"rm -rf biblio/scratchpad/task-a", ""},
+		{"rm biblio/scratchpad/task-a/*.log", ""},
+		{"rm -rf biblio/scratchpad/new-idea", ""},
+		{"find biblio/scratchpad/task-a -name '*.log' -delete", ""},
+		{"rm -rf " + filepath.Join(root, "biblio", "scratchpad", "task-a"), ""},
+
+		{"rm -rf biblio/scratchpad", "rm-force"},
+		{"rm -rf biblio/scratchpad/", "rm-force"},
+		{"rm -rf biblio/scratchpad/archive", "rm-force"},
+		{"rm biblio/scratchpad/archive/old-task/prd.md", "rm-plain"},
+		{"rm -rf biblio/scratchpad/*", "rm-force"},
+		{"rm -rf biblio/scratchpad/task-a/../archive", "rm-force"},
+		{"find biblio/scratchpad -delete", "find-delete"},
+		{"rm -rf biblio/books", "rm-force"},
+		{"rm biblio/books/toc.md", "rm-plain"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.command, func(t *testing.T) {
+			in := Input{Tool: "Bash", Command: tc.command, Cwd: root, Home: home, ProjectRoot: root}
+			got := ""
+			if verdict := Decide(in, Policy{}); verdict != nil {
+				got = verdict.RuleID
+			}
+			if got != tc.want {
+				t.Errorf("rule = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
