@@ -5,7 +5,7 @@ import { homedir } from 'os'
 import { spawn } from 'child_process'
 
 // Maps Node's process.platform + process.arch to the bundled resource
-// subdirectory (Go GOOS-GOARCH naming from lgrass/lgrassconf Makefiles).
+// subdirectory (Go GOOS-GOARCH naming from the root Makefile).
 function resourceDir(): string | null {
   let osName: string
   switch (process.platform) {

@@ -67,10 +67,12 @@ Limits:
 ## How it fits together
 
 - `ui/` is the Electron app: terminal panes, project and layout management, the bibliothek tree and reader, and the Connector tab.
-- `lgrass/` is the Go CLI: session and thread coordination, the hooks and their gates, the vault, `lgrass db`, `lgrass rester`, and `lgrass workgroup`.
-- `lgrassconf/` is a small Go daemon, a systemd user service on Linux and a LaunchAgent on macOS. It registers the Claude Code and Codex hooks and installs each agent's skills.
+- `cmd/lgrass` is the Go CLI models and users call: session and thread coordination, `lgrass db`, `lgrass rester`, and `lgrass workgroup`.
+- `cmd/lgrassd` is the binary only the app and the agents' hooks call, installed off `PATH`: the hooks and their gates, the vault and agent daemons, tab records and account management.
+- `cmd/lgrassconf` is a small Go daemon, a systemd user service on Linux and a LaunchAgent on macOS. It registers the Claude Code and Codex hooks, installs each agent's skills and keeps every Claude account's hooks and shared folders in place.
+- `internal/` holds the Go packages the three binaries share, such as the vault, the guard, the hook engine, the session store and the account manager. It is importable only from inside this repository.
 
-The three are siblings, not nested. Neither toolchain's file tree (`node_modules` and `tsconfig*` against `go.mod` and `go.sum`) sits inside the other's, and neither side's scripts reach across that boundary. `lgrass` is bundled inside the Electron app at build time and installs itself onto `PATH` when the app launches, so the two stay on the same version without a separate release pipeline.
+The Go code is one module at the repo root, and `ui/` is the second toolchain beside it. Neither side's scripts reach across that boundary except through the `dist/` binaries. The binaries are bundled inside the Electron app at build time, and `lgrass` installs itself onto `PATH` when the app launches, so the two stay on the same version without a separate release pipeline.
 
 ## Skills
 
@@ -92,7 +94,7 @@ The three are siblings, not nested. Neither toolchain's file tree (`node_modules
 make build-linux
 ```
 
-Cross-compiles `lgrass` and `lgrassconf` for `linux/amd64` and `linux/arm64`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `lgrass/dist/` to exist already, so use the root `make` target. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
+Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `linux/amd64` and `linux/arm64` into `dist/`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `dist/` to exist already, so use the root `make` target. `make verify` compiles every Go package without writing a binary into the source tree. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
 
 ```
 make build-rpm

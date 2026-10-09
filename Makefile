@@ -1,14 +1,30 @@
 VERSION := $(shell node -p "require('./ui/package.json').version")
+DIST := dist
+BIN_DIR := $(HOME)/.local/bin
+D_BIN_DIR := $(HOME)/.lemongrass/bin
+LDFLAGS := -ldflags "-X github.com/faizalv/lemongrass/cmd/lgrass/version.Version=$(VERSION)"
+BINARIES := lgrass lgrassd lgrassconf
 
-.PHONY: build-linux build-rpm build-mac dist-linux dist-darwin dev clean
+.PHONY: build-linux build-rpm build-mac dist dist-linux dist-darwin dev install verify clean
 
+dist: dist-linux dist-darwin
+
+# Every binary for each target arch, written to dist/<os>-<arch>/ where ui/electron-builder.yml reads them. The old output of that os is removed first so a stale binary is never bundled.
 dist-linux:
-	$(MAKE) -C lgrass dist-linux VERSION=$(VERSION)
-	$(MAKE) -C lgrassconf dist-linux
+	rm -rf $(DIST)/linux-amd64 $(DIST)/linux-arm64
+	mkdir -p $(DIST)/linux-amd64 $(DIST)/linux-arm64
+	for bin in $(BINARIES); do \
+		GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(DIST)/linux-amd64/$$bin ./cmd/$$bin || exit 1; \
+		GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(DIST)/linux-arm64/$$bin ./cmd/$$bin || exit 1; \
+	done
 
 dist-darwin:
-	$(MAKE) -C lgrass dist-darwin VERSION=$(VERSION)
-	$(MAKE) -C lgrassconf dist-darwin
+	rm -rf $(DIST)/darwin-amd64 $(DIST)/darwin-arm64
+	mkdir -p $(DIST)/darwin-amd64 $(DIST)/darwin-arm64
+	for bin in $(BINARIES); do \
+		GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(DIST)/darwin-amd64/$$bin ./cmd/$$bin || exit 1; \
+		GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(DIST)/darwin-arm64/$$bin ./cmd/$$bin || exit 1; \
+	done
 
 build-linux: dist-linux
 	npm --prefix ui run build:linux
@@ -19,12 +35,23 @@ build-rpm: dist-linux
 build-mac: dist-darwin
 	npm --prefix ui run build:mac
 
-dev:
-	$(MAKE) -C lgrassconf install
-	$(MAKE) -C lgrass install
+# Host-arch build for local dev iteration. lgrass goes to ~/.local/bin, lgrassd to ~/.lemongrass/bin, and lgrassconf beside lgrass with its service unit registered. A running executable cannot be overwritten in place, so lgrassconf and lgrassd are built beside the old file and renamed over it.
+install:
+	mkdir -p $(BIN_DIR) $(D_BIN_DIR)
+	go build $(LDFLAGS) -o $(BIN_DIR)/lgrassconf.new ./cmd/lgrassconf
+	mv -f $(BIN_DIR)/lgrassconf.new $(BIN_DIR)/lgrassconf
+	$(BIN_DIR)/lgrassconf install
+	go build $(LDFLAGS) -o $(BIN_DIR)/lgrass ./cmd/lgrass
+	go build $(LDFLAGS) -o $(D_BIN_DIR)/lgrassd.new ./cmd/lgrassd
+	mv -f $(D_BIN_DIR)/lgrassd.new $(D_BIN_DIR)/lgrassd
+
+dev: install
 	npm --prefix ui run dev
 
+# Compiles everything and discards the output, since a plain `go build` of a single main package writes its binary into the source directory.
+verify:
+	go build -a -o /dev/null ./...
+
 clean:
-	$(MAKE) -C lgrass clean
-	$(MAKE) -C lgrassconf clean
-	rm -rf ui/out ui/dist
+	rm -rf $(DIST) ui/out ui/dist
+	rm -f $(BINARIES) $(addsuffix .exe,$(BINARIES))

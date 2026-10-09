@@ -29,17 +29,17 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
   extraResources:
-    - from: "../lgrass/dist/darwin-amd64/lgrass"
+    - from: "../dist/darwin-amd64/lgrass"
       to: "bin/darwin-amd64/lgrass"
-    - from: "../lgrass/dist/darwin-amd64/lgrassd"
+    - from: "../dist/darwin-amd64/lgrassd"
       to: "bin/darwin-amd64/lgrassd"
-    - from: "../lgrass/dist/darwin-arm64/lgrass"
+    - from: "../dist/darwin-arm64/lgrass"
       to: "bin/darwin-arm64/lgrass"
-    - from: "../lgrass/dist/darwin-arm64/lgrassd"
+    - from: "../dist/darwin-arm64/lgrassd"
       to: "bin/darwin-arm64/lgrassd"
-    - from: "../lgrassconf/dist/darwin-amd64/lgrassconf"
+    - from: "../dist/darwin-amd64/lgrassconf"
       to: "bin/darwin-amd64/lgrassconf"
-    - from: "../lgrassconf/dist/darwin-arm64/lgrassconf"
+    - from: "../dist/darwin-arm64/lgrassconf"
       to: "bin/darwin-arm64/lgrassconf"
 dmg:
   artifactName: ${name}-${version}.${ext}
@@ -56,17 +56,17 @@ linux:
     # electron-builder's ${arch} path templating across AppImage/deb/snap
     # -- the main process picks the right one at install time via
     # process.arch.
-    - from: "../lgrass/dist/linux-amd64/lgrass"
+    - from: "../dist/linux-amd64/lgrass"
       to: "bin/linux-amd64/lgrass"
-    - from: "../lgrass/dist/linux-amd64/lgrassd"
+    - from: "../dist/linux-amd64/lgrassd"
       to: "bin/linux-amd64/lgrassd"
-    - from: "../lgrass/dist/linux-arm64/lgrass"
+    - from: "../dist/linux-arm64/lgrass"
       to: "bin/linux-arm64/lgrass"
-    - from: "../lgrass/dist/linux-arm64/lgrassd"
+    - from: "../dist/linux-arm64/lgrassd"
       to: "bin/linux-arm64/lgrassd"
-    - from: "../lgrassconf/dist/linux-amd64/lgrassconf"
+    - from: "../dist/linux-amd64/lgrassconf"
       to: "bin/linux-amd64/lgrassconf"
-    - from: "../lgrassconf/dist/linux-arm64/lgrassconf"
+    - from: "../dist/linux-arm64/lgrassconf"
       to: "bin/linux-arm64/lgrassconf"
 deb:
   afterInstall: build/deb-after-install.sh
