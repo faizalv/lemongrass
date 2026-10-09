@@ -87,10 +87,15 @@ const isArchivableScratchpadTask = computed((): boolean => {
     <span class="label">{{ node.name.replace(/\.md$/, '') }}</span>
   </button>
 
-  <div v-else class="dir-row" :class="{ 'archive-row': iconName === 'archive' }">
+  <div
+    v-else
+    class="dir-row"
+    :class="{ 'archive-row': iconName === 'archive' }"
+    :style="iconName === 'archive' ? { marginLeft: `${depth * 14}px`, width: 'auto' } : undefined"
+  >
     <button
       class="tree-item tree-item-main"
-      :style="{ paddingLeft: `${depth * 14 + 10}px` }"
+      :style="iconName === 'archive' ? undefined : { paddingLeft: `${depth * 14 + 10}px` }"
       @click="expanded = !expanded"
     >
       <svg
@@ -258,9 +263,26 @@ const isArchivableScratchpadTask = computed((): boolean => {
 
 <style scoped>
 .archive-row {
-  margin: var(--space-1) 0;
-  border-bottom: 1px dashed var(--color-border-default);
-  font-style: italic;
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-1);
+  margin-right: var(--space-2);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.archive-row:hover {
+  background: var(--color-surface-3);
+}
+
+.archive-row .tree-item-main {
+  padding-left: var(--space-3);
+  color: var(--color-fg-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.archive-row .tree-item:hover {
+  background: transparent;
 }
 
 .tree-item {
