@@ -4,7 +4,9 @@ import ProjectSidebar from './components/ProjectSidebar.vue'
 import ProjectSwitcher from './components/ProjectSwitcher.vue'
 import HeaderBar from './components/HeaderBar.vue'
 import WorkspaceView from './components/WorkspaceView.vue'
+import SettingsModal from './components/SettingsModal.vue'
 import WorkgroupApprovalModal from './components/WorkgroupApprovalModal.vue'
+import { loadAccounts } from './accounts'
 import {
   cancelShellPicker,
   ensureLoaded,
@@ -26,6 +28,7 @@ const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const loadedProjects = reactive<Record<string, boolean>>({})
 const sidebarCollapsed = ref(false)
 const closing = ref(false)
+const settingsOpen = ref(false)
 
 const activeProject = computed((): Project | undefined =>
   projects.value.find((p) => p.id === activeProjectId.value)
@@ -113,6 +116,7 @@ let unsubscribeClosing: (() => void) | undefined
 
 onMounted(() => {
   loadProjects()
+  void loadAccounts()
   window.addEventListener('keydown', onKeydown, { capture: true })
   unsubscribeBiblio = window.api.biblio.onChanged(onBiblioChanged)
   unsubscribeClosing = window.api.windowControls.onClosing(() => (closing.value = true))
@@ -129,6 +133,7 @@ onBeforeUnmount(() => {
     <HeaderBar
       :sidebar-collapsed="sidebarCollapsed"
       @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed"
+      @open-settings="settingsOpen = true"
     >
       <template #title>
         <span class="brand-mark">
@@ -176,6 +181,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <SettingsModal v-if="settingsOpen" @close="settingsOpen = false" />
     <WorkgroupApprovalModal />
 
     <div v-if="closing" class="closing-overlay">

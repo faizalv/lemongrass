@@ -1,13 +1,17 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/faizalv/lemongrass/lgrassconf/agentconf"
+)
 
 var codexHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop", "PermissionRequest", "Interrupt"}
 
 func reconcileCodexHooks(data []byte, lgrassdPath string) ([]byte, bool, error) {
-	registrations := make([]hookRegistration, 0, len(codexHookEvents))
+	registrations := make([]agentconf.HookRegistration, 0, len(codexHookEvents))
 	for _, event := range codexHookEvents {
-		handler := hookHandler{
+		handler := agentconf.HookHandler{
 			Type:    "command",
 			Command: fmt.Sprintf("LGRASS_HOOK_VENDOR=codex %s hook %s", lgrassdPath, event),
 		}
@@ -19,11 +23,11 @@ func reconcileCodexHooks(data []byte, lgrassdPath string) ([]byte, bool, error) 
 		case "SessionEnd", "Interrupt":
 			handler.Timeout = 3
 		}
-		registrations = append(registrations, hookRegistration{
+		registrations = append(registrations, agentconf.HookRegistration{
 			Event:   event,
 			Matcher: matcher,
 			Handler: handler,
 		})
 	}
-	return reconcileHookGroups(data, registrations)
+	return agentconf.ReconcileHookGroups(data, registrations)
 }

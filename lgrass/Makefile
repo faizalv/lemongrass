@@ -4,7 +4,7 @@ BIN_DIR := $(HOME)/.local/bin
 D_BIN_DIR := $(HOME)/.lemongrass/bin
 LDFLAGS := -ldflags "-X github.com/faizalv/lemongrass/cmd/lgrass/version.Version=$(VERSION)"
 
-.PHONY: dist dist-linux dist-darwin install clean
+.PHONY: dist dist-linux dist-darwin install verify clean
 
 dist: dist-linux dist-darwin
 
@@ -33,5 +33,10 @@ install:
 	go build $(LDFLAGS) -o $(D_BIN_DIR)/lgrassd.new ./cmd/lgrassd
 	mv -f $(D_BIN_DIR)/lgrassd.new $(D_BIN_DIR)/lgrassd
 
+# Compiles everything and discards the output, since a plain `go build` of a single main package writes its binary into the source directory.
+verify:
+	go build -a -o /dev/null ./...
+
 clean:
 	rm -rf $(DIST)
+	rm -f lgrass lgrass.exe lgrassd lgrassd.exe

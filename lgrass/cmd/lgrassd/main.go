@@ -27,6 +27,8 @@ func main() {
 		cmdAgent(os.Args[2:])
 	case "tabs":
 		cmdTabs(os.Args[2:])
+	case "accounts":
+		cmdAccounts(os.Args[2:])
 	case "nudge":
 		cmdNudge(os.Args[2:])
 	case "hook":
@@ -52,6 +54,9 @@ COMMANDS
   tabs title <tab-id> <title>       Records the shell title a tab currently shows
   tabs clear                        Drops every registered tab of the project, keeping their saved sessions
   tabs forget <tab-id>              Drops a closed tab's records
+  accounts list                     The Claude accounts beside the primary, as JSON
+  accounts add <name>               Creates ~/.claude-<name>, links the shared folders and registers the hooks
+  accounts remove <name>            Deletes ~/.claude-<name> and forgets the account
   nudge <tab-id>                    Prints the tab's pending thread nudge and marks it sent
   hook <event>                      Invoked by Claude Code's and Codex's own hook systems, reads hook JSON off stdin
 

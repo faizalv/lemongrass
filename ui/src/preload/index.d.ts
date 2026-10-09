@@ -1,5 +1,8 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  AccountAddResult,
+  AccountInfo,
+  AccountRemoveResult,
   PtySpawnOptions,
   PtyDataPayload,
   PtyExitPayload,
@@ -45,6 +48,11 @@ interface Api {
       limit?: number
     ) => Promise<WorkgroupThreadResult>
     disband: (projectPath: string, groupId: number) => Promise<WorkgroupDisbandResult>
+  }
+  accounts: {
+    list: () => Promise<AccountInfo[]>
+    add: (name: string) => Promise<AccountAddResult>
+    remove: (name: string) => Promise<AccountRemoveResult>
   }
   pty: {
     spawn: (opts: PtySpawnOptions) => Promise<{ id: string }>

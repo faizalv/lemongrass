@@ -3,7 +3,9 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   attachShell,
   closeFailedShell,
+  continueOnPrimary,
   fitShell,
+  shellAccountGone,
   shellRestoreFailures,
   startFreshShell,
   type ShellSpec
@@ -29,7 +31,17 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 <template>
   <div class="terminal-card fade-in">
     <div ref="containerEl" class="terminal-pane"></div>
-    <div v-if="shellRestoreFailures[spec.id]" class="restore-failure">
+    <div v-if="shellAccountGone[spec.id]" class="restore-failure">
+      <span class="restore-message">
+        The account {{ shellAccountGone[spec.id] }} was deleted, so this tab can't continue under
+        it. Continuing on the primary account bills the primary and sends this conversation to it.
+      </span>
+      <button class="ghost-button" @click="closeFailedShell(spec.id)">Close tab</button>
+      <button class="primary-button" @click="continueOnPrimary(spec.id)">
+        Continue on primary
+      </button>
+    </div>
+    <div v-else-if="shellRestoreFailures[spec.id]" class="restore-failure">
       <span class="restore-message">
         This tab could not resume its previous session. The agent's message is shown above.
       </span>

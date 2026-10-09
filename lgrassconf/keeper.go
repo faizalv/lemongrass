@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/faizalv/lemongrass/lgrassconf/agentconf"
 )
 
 //go:embed skills
@@ -79,6 +81,10 @@ func (k *keeper) legacySkillDir(v vendor, name string) string {
 	return filepath.Join(k.skillsRoot(v), name)
 }
 
+func (k *keeper) accounts() agentconf.Accounts {
+	return agentconf.Accounts{Home: k.home, HookBinary: k.lgrassdPath()}
+}
+
 func (k *keeper) claudeSettingsPath() string {
 	return filepath.Join(k.home, ".claude", "settings.json")
 }
@@ -116,7 +122,7 @@ func removeLegacySkill(dir string) error {
 func (k *keeper) reconcile() error {
 	var errs []error
 	for _, f := range k.skills {
-		if err := syncFile(f.path, f.content); err != nil {
+		if err := agentconf.SyncFile(f.path, f.content); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -128,12 +134,15 @@ func (k *keeper) reconcile() error {
 		}
 	}
 	if path := k.lgrassdPath(); path != "" {
-		if err := syncHookConfig(k.claudeSettingsPath(), path, reconcileClaudeSettings); err != nil {
+		if err := agentconf.SyncHookConfig(k.claudeSettingsPath(), path, agentconf.ReconcileClaudeSettings); err != nil {
 			errs = append(errs, err)
 		}
-		if err := syncHookConfig(k.codexHooksPath(), path, reconcileCodexHooks); err != nil {
+		if err := agentconf.SyncHookConfig(k.codexHooksPath(), path, reconcileCodexHooks); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	if err := k.accounts().Reconcile(); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }

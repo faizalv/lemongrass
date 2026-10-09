@@ -44,6 +44,12 @@ func (k *keeper) watchedDirs() []string {
 	for _, c := range k.candidates {
 		dirs = append(dirs, filepath.Dir(c))
 	}
+	accounts := k.accounts()
+	dirs = append(dirs, filepath.Dir(accounts.FilePath()))
+	names, _ := accounts.Names()
+	for _, name := range names {
+		dirs = append(dirs, accounts.Dir(name))
+	}
 	return dirs
 }
 
@@ -66,6 +72,12 @@ func (k *keeper) relevant() map[string]bool {
 	for _, c := range k.candidates {
 		set[c] = true
 	}
+	accounts := k.accounts()
+	set[accounts.FilePath()] = true
+	names, _ := accounts.Names()
+	for _, name := range names {
+		set[accounts.SettingsPath(name)] = true
+	}
 	return set
 }
 
@@ -84,15 +96,16 @@ func (k *keeper) run(ctx context.Context) error {
 	}
 	defer w.Close()
 
+	var relevant map[string]bool
 	pass := func() {
 		if err := k.reconcile(); err != nil {
 			log.Printf("reconcile: %v", err)
 		}
 		k.addWatches(w)
+		relevant = k.relevant()
 	}
 	pass()
 
-	relevant := k.relevant()
 	timer := time.NewTimer(debounce)
 	timer.Stop()
 	tick := time.NewTicker(safetyNetTick)

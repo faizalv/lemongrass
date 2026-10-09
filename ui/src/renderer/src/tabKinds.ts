@@ -53,7 +53,9 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     title: shellLabel,
     body: ShellView,
     keepAlive: true,
-    bodyProps: (tab) => ({ spec: { id: tab.id, command: tab.command, cwd: tab.cwd } })
+    bodyProps: (tab) => ({
+      spec: { id: tab.id, command: tab.command, cwd: tab.cwd, account: tab.account }
+    })
   },
   doc: {
     icon: [],

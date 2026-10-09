@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { accountIsDeleted, accountsSettled } from './accounts'
 import { isResumableCommand, spawnArgs } from './shellAgents'
 import '@xterm/xterm/css/xterm.css'
 
@@ -28,6 +29,7 @@ export interface ShellSpec {
   id: string
   command: string
   cwd?: string
+  account?: string
 }
 
 interface ShellSession {
@@ -53,13 +55,21 @@ const RESUME_FAILURE_WINDOW_MS = 10_000
 // Escape followed by carriage return, which the agent CLI reads as a newline in its input.
 const NEWLINE_SEQUENCE = '\x1b\r'
 let exitHandler: ((tabId: string) => void) | undefined
+let accountHandler: ((tabId: string, account: string | undefined) => void) | undefined
 let listening = false
 
 export const shellTitles = reactive<Record<string, string>>({})
 export const shellRestoreFailures = reactive<Record<string, { exitCode: number }>>({})
+export const shellAccountGone = reactive<Record<string, string>>({})
 
 export function onShellExit(handler: (tabId: string) => void): void {
   exitHandler = handler
+}
+
+export function onShellAccountChange(
+  handler: (tabId: string, account: string | undefined) => void
+): void {
+  accountHandler = handler
 }
 
 export function setShellArgs(tabId: string, args: string[]): void {
@@ -169,6 +179,14 @@ function createSession(spec: ShellSpec): ShellSession {
 
 async function start(session: ShellSession): Promise<void> {
   const { spec, term } = session
+  if (spec.command === 'claude' && spec.account) {
+    await accountsSettled
+    if (session.disposed) return
+    if (accountIsDeleted(spec.account)) {
+      shellAccountGone[spec.id] = spec.account
+      return
+    }
+  }
   const initial = initialArgs.get(spec.id)
   initialArgs.delete(spec.id)
   const args = spawnArgs(spec.command, spec.id, initial)
@@ -177,6 +195,7 @@ async function start(session: ShellSession): Promise<void> {
     command: spec.command,
     args,
     cwd: spec.cwd,
+    account: spec.account,
     tabId: isResumableCommand(spec.command) ? spec.id : undefined,
     cols: term.cols,
     rows: term.rows
@@ -208,7 +227,17 @@ export function startFreshShell(tabId: string): void {
 
 export function closeFailedShell(tabId: string): void {
   delete shellRestoreFailures[tabId]
+  delete shellAccountGone[tabId]
   exitHandler?.(tabId)
+}
+
+export function continueOnPrimary(tabId: string): void {
+  const session = sessions.get(tabId)
+  if (!session || session.shellId || !shellAccountGone[tabId]) return
+  delete shellAccountGone[tabId]
+  session.spec.account = undefined
+  accountHandler?.(tabId, undefined)
+  void start(session)
 }
 
 export function fitShell(tabId: string): void {
@@ -249,6 +278,7 @@ export function disposeShell(tabId: string): void {
   titlePushTimers.delete(tabId)
   delete shellTitles[tabId]
   delete shellRestoreFailures[tabId]
+  delete shellAccountGone[tabId]
   session.disposed = true
   if (session.shellId) {
     byShellId.delete(session.shellId)

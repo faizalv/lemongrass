@@ -10,6 +10,7 @@ import {
   workspaceOf,
   type ProjectRef
 } from '../workspace'
+import { accountStore } from '../accounts'
 import { SHELL_AGENTS, shellAgentById } from '../shellAgents'
 
 const props = defineProps<{
@@ -18,6 +19,9 @@ const props = defineProps<{
 
 const workspace = computed(() => workspaceOf(props.project.id))
 const selectedAgentWarning = computed(() => shellAgentById(shellPicker.selectedId).warning)
+const showAccounts = computed(
+  () => shellPicker.selectedId === 'claude' && accountStore.items.length > 0
+)
 </script>
 
 <template>
@@ -54,6 +58,37 @@ const selectedAgentWarning = computed(() => shellAgentById(shellPicker.selectedI
           <span class="agent-hint">{{ agent.hint }}</span>
         </button>
       </div>
+      <template v-if="showAccounts">
+        <p class="card-text">Which account should it use?</p>
+        <div class="agent-list" role="listbox" aria-label="Claude account">
+          <button
+            type="button"
+            class="agent-option"
+            :class="{ selected: shellPicker.account === undefined }"
+            role="option"
+            :aria-selected="shellPicker.account === undefined"
+            @click="shellPicker.account = undefined"
+            @dblclick="confirmShellPicker()"
+          >
+            <span class="agent-label">primary</span>
+            <span class="agent-hint">~/.claude</span>
+          </button>
+          <button
+            v-for="account in accountStore.items"
+            :key="account.name"
+            type="button"
+            class="agent-option"
+            :class="{ selected: shellPicker.account === account.name }"
+            role="option"
+            :aria-selected="shellPicker.account === account.name"
+            @click="shellPicker.account = account.name"
+            @dblclick="confirmShellPicker()"
+          >
+            <span class="agent-label">{{ account.name }}</span>
+            <span class="agent-hint">{{ account.dir }}</span>
+          </button>
+        </div>
+      </template>
       <p v-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
       <template #footer>
         <button class="ghost-button" @click="cancelShellPicker">Cancel</button>

@@ -94,6 +94,8 @@ func TestDangerDecisionBash(t *testing.T) {
 		{"ls $HOME/.aws", "secret-path"},
 		{"cat ~/.lemongrass/session.db", "secret-path"},
 		{"~/.lemongrass/bin/lgrassd tabs list", "secret-path"},
+		{"~/.lemongrass/bin/lgrassd accounts remove work", "secret-path"},
+		{"cd ~/.lemongrass/bin && ./lgrassd accounts add x", "secret-path"},
 		{"$HOME/.lemongrass/bin/lgrassd vault run", "dynamic-command"},
 		{"cd ~/.lemongrass/bin && ./lgrassd nudge abc", "secret-path"},
 		{"tar czf x.tgz ~/.gnupg", "secret-path"},
@@ -114,6 +116,7 @@ func TestDangerDecisionBash(t *testing.T) {
 
 		{"echo x > ~/.claude/settings.json", "guard-config"},
 		{"sed -i s/a/b/ ~/.claude/settings.local.json", "guard-config"},
+		{"echo x > ~/.claude-work/settings.json", "guard-config"},
 		{"cp evil ~/.local/bin/lgrass", "guard-config"},
 		{"tee /usr/local/bin/lgrassconf", "guard-config"},
 
@@ -149,6 +152,8 @@ func TestDecideToolPaths(t *testing.T) {
 		{"write settings", "Write", []string{"~/.claude/settings.json"}, true, "guard-config"},
 		{"edit project settings", "Edit", []string{".claude/settings.local.json"}, true, "guard-config"},
 		{"read settings", "Read", []string{"~/.claude/settings.json"}, false, ""},
+		{"write account settings", "Write", []string{"~/.claude-work/settings.json"}, true, "guard-config"},
+		{"read account settings", "Read", []string{"~/.claude-work/settings.json"}, false, ""},
 		{"write normal file", "Write", []string{"/tmp/a.txt"}, true, ""},
 		{"patch into lgrass binary", "apply_patch", []string{"~/.local/bin/lgrass"}, true, "guard-config"},
 	}

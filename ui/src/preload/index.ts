@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
+  AccountAddResult,
+  AccountInfo,
+  AccountRemoveResult,
   PtySpawnOptions,
   PtyDataPayload,
   PtyExitPayload,
@@ -250,8 +253,16 @@ const workgroup = {
     ipcRenderer.invoke('workgroups:disband', { projectPath, groupId })
 }
 
+const accounts = {
+  list: (): Promise<AccountInfo[]> => ipcRenderer.invoke('accounts:list'),
+  add: (name: string): Promise<AccountAddResult> => ipcRenderer.invoke('accounts:add', name),
+  remove: (name: string): Promise<AccountRemoveResult> =>
+    ipcRenderer.invoke('accounts:remove', name)
+}
+
 const api = {
   pty,
+  accounts,
   projects,
   workspaceLayouts,
   tabSessions,

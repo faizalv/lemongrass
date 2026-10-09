@@ -1,6 +1,6 @@
 module github.com/faizalv/lemongrass
 
-go 1.26.7
+go 1.26.8
 
 require (
 	github.com/go-mysql-org/go-mysql v1.16.0
@@ -23,6 +23,7 @@ require (
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/faizalv/lemongrass/lgrassconf v0.0.0
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -50,3 +51,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
+
+replace github.com/faizalv/lemongrass/lgrassconf => ../lgrassconf

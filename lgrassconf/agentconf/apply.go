@@ -1,4 +1,4 @@
-package main
+package agentconf
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func writeAtomic(path string, data []byte, mode os.FileMode) error {
+func WriteAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -44,9 +44,9 @@ func statKey(path string) (time.Time, int64) {
 	return info.ModTime(), info.Size()
 }
 
-type hookReconciler func([]byte, string) ([]byte, bool, error)
+type HookReconciler func([]byte, string) ([]byte, bool, error)
 
-func syncHookConfig(path, lgrassdPath string, reconcile hookReconciler) error {
+func SyncHookConfig(path, lgrassdPath string, reconcile HookReconciler) error {
 	for attempt := 0; attempt < 3; attempt++ {
 		data, err := os.ReadFile(path)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -70,15 +70,15 @@ func syncHookConfig(path, lgrassdPath string, reconcile hookReconciler) error {
 		if !afterTime.Equal(beforeTime) || afterSize != beforeSize {
 			continue
 		}
-		return writeAtomic(path, out, mode)
+		return WriteAtomic(path, out, mode)
 	}
 	return errors.New("settings changed on every attempt, giving up until the next event")
 }
 
-func syncFile(path string, want []byte) error {
+func SyncFile(path string, want []byte) error {
 	have, err := os.ReadFile(path)
 	if err == nil && bytes.Equal(have, want) {
 		return nil
 	}
-	return writeAtomic(path, want, 0o644)
+	return WriteAtomic(path, want, 0o644)
 }

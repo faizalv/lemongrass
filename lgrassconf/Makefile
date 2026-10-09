@@ -2,7 +2,7 @@ VERSION ?= dev
 DIST := dist
 BIN_DIR := $(HOME)/.local/bin
 
-.PHONY: dist dist-linux dist-darwin install clean
+.PHONY: dist dist-linux dist-darwin install verify clean
 
 dist: dist-linux dist-darwin
 
@@ -23,5 +23,10 @@ install:
 	mv -f $(BIN_DIR)/lgrassconf.new $(BIN_DIR)/lgrassconf
 	$(BIN_DIR)/lgrassconf install
 
+# Compiles everything and discards the output, since a plain `go build` of a single main package writes its binary into the source directory.
+verify:
+	go build -a -o /dev/null ./...
+
 clean:
 	rm -rf $(DIST)
+	rm -f lgrassconf lgrassconf.exe

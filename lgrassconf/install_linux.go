@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/faizalv/lemongrass/lgrassconf/agentconf"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,7 +32,7 @@ func installService(home string) error {
 	}
 
 	unitPath := filepath.Join(home, ".config", "systemd", "user", unitName)
-	if err := writeAtomic(unitPath, []byte(unitText(binary)), 0o644); err != nil {
+	if err := agentconf.WriteAtomic(unitPath, []byte(unitText(binary)), 0o644); err != nil {
 		return err
 	}
 	legacy := exec.Command("systemctl", "--user", "disable", "--now", legacyUnitName)

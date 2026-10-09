@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/faizalv/lemongrass/lgrassconf/agentconf"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,7 +51,7 @@ func installService(home string) error {
 		return err
 	}
 	plistPath := filepath.Join(agentsDir, launchAgentLabel+".plist")
-	if err := writeAtomic(plistPath, []byte(plist), 0o644); err != nil {
+	if err := agentconf.WriteAtomic(plistPath, []byte(plist), 0o644); err != nil {
 		return err
 	}
 

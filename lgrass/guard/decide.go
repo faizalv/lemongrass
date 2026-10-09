@@ -2,6 +2,7 @@ package guard
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -31,6 +32,8 @@ func (v Verdict) Message() string {
 var secretComponents = map[string]bool{".ssh": true, ".aws": true, ".gnupg": true, ".kube": true, ".lemongrass": true, ".netrc": true}
 
 var guardFragments = []string{".claude/settings", "/.local/bin/lgrass", "/usr/local/bin/lgrass", "lgrassconf.service", ".codex/hooks.json", ".codex/config.toml"}
+
+var accountSettingsPattern = regexp.MustCompile(`\.claude-[a-z0-9-]+/settings`)
 
 var readOnlyCommands = map[string]bool{
 	"cat": true, "ls": true, "head": true, "tail": true, "grep": true, "rg": true, "less": true, "more": true,
@@ -299,6 +302,9 @@ func mentionsGuard(raw, resolved string) bool {
 			if strings.Contains(text, fragment) {
 				return true
 			}
+		}
+		if accountSettingsPattern.MatchString(text) {
+			return true
 		}
 	}
 	return false

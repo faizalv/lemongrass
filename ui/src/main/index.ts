@@ -10,6 +10,7 @@ import {
   stopCodexShells
 } from './pty'
 import { registerTabSessionHandlers } from './tabSessions'
+import { registerAccountHandlers } from './accounts'
 import { registerProjectHandlers } from './projects'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
@@ -90,6 +91,7 @@ app.whenReady().then(() => {
   }
 
   registerPtyHandlers(() => mainWindow?.webContents)
+  registerAccountHandlers(lgrassdPath)
   registerProjectHandlers(() => mainWindow)
   registerWorkspaceLayoutHandlers()
   registerTabSessionHandlers(lgrassdPath)

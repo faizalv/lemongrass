@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TabIcon from './TabIcon.vue'
+import { accountLabel, accountStore } from '../accounts'
 import {
   activateTab,
   addShell,
@@ -43,6 +44,13 @@ function tabContext(tab: WorkspaceTab): TabContext {
 const shellGroup = computed(() => {
   const active = props.leaf.tabs.find((tab) => tab.id === props.leaf.activeTabId)
   return active?.kind === 'shell' ? tabBand(props.project.id, active) : null
+})
+
+const shellAccount = computed(() => {
+  const active = props.leaf.tabs.find((tab) => tab.id === props.leaf.activeTabId)
+  if (active?.kind !== 'shell' || active.command !== 'claude') return null
+  if (!active.account && accountStore.items.length === 0) return null
+  return accountLabel(active.account)
 })
 
 const tabBar = ref<HTMLDivElement>()
@@ -475,9 +483,12 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div v-if="shellGroup" class="group-strip">
-      <span class="group-strip-band" :style="{ background: shellGroup.color }" />
-      Workgroup: {{ shellGroup.groupName }}
+    <div v-if="shellGroup || shellAccount" class="group-strip">
+      <span v-if="shellGroup" class="strip-item">
+        <span class="group-strip-band" :style="{ background: shellGroup.color }" />
+        Workgroup: {{ shellGroup.groupName }}
+      </span>
+      <span v-if="shellAccount" class="strip-item">Account: {{ shellAccount }}</span>
     </div>
 
     <div
@@ -774,7 +785,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-4);
   padding: var(--space-1) var(--space-4);
   color: var(--color-fg-secondary);
   font-family: var(--font-body);
@@ -782,6 +793,12 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.strip-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .group-strip-band {

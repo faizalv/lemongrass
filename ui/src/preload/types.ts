@@ -8,6 +8,7 @@ export interface PtySpawnOptions {
   args?: string[]
   cwd?: string
   tabId?: string
+  account?: string
   cols?: number
   rows?: number
 }
@@ -185,7 +186,7 @@ export type WorkspaceTab =
   | { id: string; kind: 'diff'; path: string }
   | { id: string; kind: 'connector' }
   | { id: string; kind: 'workgroup'; groupId: number }
-  | { id: string; kind: 'shell'; label: string; command: string; cwd?: string }
+  | { id: string; kind: 'shell'; label: string; command: string; cwd?: string; account?: string }
 
 export type WorkspaceLayoutNode =
   | { type: 'leaf'; id: string; tabs: WorkspaceTab[]; activeTabId: string | null }
@@ -281,3 +282,12 @@ export interface WorkgroupDisbandResult {
   ok: boolean
   error?: string
 }
+
+export interface AccountInfo {
+  name: string
+  dir: string
+}
+
+export type AccountAddResult = { ok: true; account: AccountInfo } | { ok: false; error: string }
+
+export type AccountRemoveResult = { ok: true } | { ok: false; error: string }

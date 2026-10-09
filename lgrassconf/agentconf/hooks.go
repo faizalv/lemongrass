@@ -1,4 +1,4 @@
-package main
+package agentconf
 
 import (
 	"bytes"
@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-var claudeHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification", "Stop"}
+var ClaudeHookEvents = []string{"SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "UserPromptSubmit", "Notification", "Stop"}
 
-type hookHandler struct {
+type HookHandler struct {
 	Type                   string `json:"type"`
 	Command                string `json:"command"`
 	Timeout                int    `json:"timeout,omitempty"`
@@ -17,15 +17,15 @@ type hookHandler struct {
 	AdditionalContextLimit int    `json:"additionalContextLimit,omitempty"`
 }
 
-type hookGroup struct {
+type HookGroup struct {
 	Matcher string        `json:"matcher,omitempty"`
-	Hooks   []hookHandler `json:"hooks"`
+	Hooks   []HookHandler `json:"hooks"`
 }
 
-type hookRegistration struct {
+type HookRegistration struct {
 	Event   string
 	Matcher string
-	Handler hookHandler
+	Handler HookHandler
 }
 
 func ownedByEvent(group json.RawMessage, event string) bool {
@@ -54,19 +54,19 @@ func sameJSON(a, b []byte) bool {
 	return bytes.Equal(ca.Bytes(), cb.Bytes())
 }
 
-func reconcileClaudeSettings(data []byte, lgrassdPath string) ([]byte, bool, error) {
-	registrations := make([]hookRegistration, 0, len(claudeHookEvents))
-	for _, event := range claudeHookEvents {
-		registrations = append(registrations, hookRegistration{
+func ReconcileClaudeSettings(data []byte, lgrassdPath string) ([]byte, bool, error) {
+	registrations := make([]HookRegistration, 0, len(ClaudeHookEvents))
+	for _, event := range ClaudeHookEvents {
+		registrations = append(registrations, HookRegistration{
 			Event:   event,
-			Handler: hookHandler{Type: "command", Command: lgrassdPath + " hook " + event},
+			Handler: HookHandler{Type: "command", Command: lgrassdPath + " hook " + event},
 		})
 	}
-	return reconcileHookGroups(data, registrations)
+	return ReconcileHookGroups(data, registrations)
 }
 
 // Returns the input untouched and false when every Lemongrass hook group already matches.
-func reconcileHookGroups(data []byte, registrations []hookRegistration) ([]byte, bool, error) {
+func ReconcileHookGroups(data []byte, registrations []HookRegistration) ([]byte, bool, error) {
 	top := map[string]json.RawMessage{}
 	if len(bytes.TrimSpace(data)) > 0 {
 		if err := json.Unmarshal(data, &top); err != nil {
@@ -84,7 +84,7 @@ func reconcileHookGroups(data []byte, registrations []hookRegistration) ([]byte,
 	dirty := false
 	for _, registration := range registrations {
 		event := registration.Event
-		desired, err := json.Marshal(hookGroup{Matcher: registration.Matcher, Hooks: []hookHandler{registration.Handler}})
+		desired, err := json.Marshal(HookGroup{Matcher: registration.Matcher, Hooks: []HookHandler{registration.Handler}})
 		if err != nil {
 			return nil, false, err
 		}

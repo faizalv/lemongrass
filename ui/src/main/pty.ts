@@ -1,5 +1,6 @@
 import { ipcMain, WebContents } from 'electron'
 import { homedir } from 'os'
+import { join } from 'path'
 import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
 import { registerTab } from './tabSessions'
@@ -17,6 +18,8 @@ interface SpawnOptions {
   cwd?: string
   /** Workspace tab id, exposed to the agent process so its session hooks can tie a session to this tab. */
   tabId?: string
+  /** Claude account name; the agent then runs with that account's config directory. */
+  account?: string
   cols?: number
   rows?: number
 }
@@ -32,6 +35,8 @@ interface ManagedShell {
 // Terminal replies such as focus and cursor reports start with an escape byte and are not typing.
 const ESCAPE = 27
 const HUMAN_QUIET_MS = 5_000
+
+const ACCOUNT_NAME = /^[a-z0-9-]{1,32}$/
 
 const shells = new Map<string, ManagedShell>()
 const stopping = new Map<string, Promise<void>>()
@@ -50,10 +55,17 @@ function send(sender: WebContents | undefined, channel: string, payload: unknown
   if (sender && !sender.isDestroyed()) sender.send(channel, payload)
 }
 
+function accountConfigDir(opts: SpawnOptions): string | undefined {
+  if (opts.command !== 'claude' || !opts.account || !ACCOUNT_NAME.test(opts.account))
+    return undefined
+  return join(homedir(), `.claude-${opts.account}`)
+}
+
 export function registerPtyHandlers(getSender: () => WebContents | undefined): void {
   ipcMain.handle('pty:spawn', async (_event, opts: SpawnOptions) => {
     const id = randomUUID()
     const args = opts.args ?? []
+    const configDir = accountConfigDir(opts)
     if (opts.tabId && opts.cwd) await registerTab(opts.cwd, opts.tabId, opts.command)
     const proc = pty.spawn(opts.command, args, {
       name: 'xterm-256color',
@@ -62,7 +74,8 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       cwd: opts.cwd ?? homedir(),
       env: {
         ...(process.env as Record<string, string>),
-        ...(opts.tabId ? { LGRASS_TAB_ID: opts.tabId } : {})
+        ...(opts.tabId ? { LGRASS_TAB_ID: opts.tabId } : {}),
+        ...(configDir ? { CLAUDE_CONFIG_DIR: configDir } : {})
       }
     })
 

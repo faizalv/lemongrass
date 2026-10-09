@@ -5,10 +5,12 @@ import type { DropZone, EdgeZone } from './layoutTree'
 import {
   disposeShell,
   focusShell,
+  onShellAccountChange,
   onShellExit,
   setShellArgs,
   setShellResume
 } from './shellRegistry'
+import { preferredAccount, setPreferredAccount } from './accounts'
 import { defaultGroupColor, groupColorVar, isGroupColor, type GroupColor } from './groupColors'
 import { isWorkgroupMember, tabGroup, workgroupStateOf } from './workgroups'
 import {
@@ -64,10 +66,12 @@ export const shellPicker = reactive<{
   open: boolean
   placement: ShellPlacement | null
   selectedId: string
+  account: string | undefined
 }>({
   open: false,
   placement: null,
-  selectedId: preferredShellAgentId()
+  selectedId: preferredShellAgentId(),
+  account: undefined
 })
 
 const workspaces = reactive<Record<string, Workspace>>({})
@@ -109,7 +113,7 @@ function tabsOf(projectId: string): WorkspaceTab[] {
   return tree.allLeaves(workspaces[projectId].layout.root).flatMap((leaf) => leaf.tabs)
 }
 
-function newShellTab(project: ProjectRef, agent: ShellAgent): ShellTab {
+function newShellTab(project: ProjectRef, agent: ShellAgent, account?: string): ShellTab {
   const count = tabsOf(project.id).filter(
     (tab) => tab.kind === 'shell' && tab.command === agent.command
   ).length
@@ -118,7 +122,8 @@ function newShellTab(project: ProjectRef, agent: ShellAgent): ShellTab {
     kind: 'shell',
     label: `${agent.label} ${count + 1}`,
     command: agent.command,
-    cwd: project.path
+    cwd: project.path,
+    ...(account ? { account } : {})
   }
 }
 
@@ -129,6 +134,7 @@ function focusShellAfterMount(tabId: string): void {
 export function openShellPicker(placement: ShellPlacement): void {
   shellPicker.placement = placement
   shellPicker.selectedId = preferredShellAgentId()
+  shellPicker.account = preferredAccount()
   shellPicker.open = true
 }
 
@@ -142,19 +148,21 @@ export function confirmShellPicker(agentId?: string): void {
   if (!placement) return
   const agent = shellAgentById(agentId ?? shellPicker.selectedId)
   setPreferredShellAgentId(agent.id)
+  const account = agent.id === 'claude' ? shellPicker.account : undefined
+  if (agent.id === 'claude') setPreferredAccount(account)
   shellPicker.open = false
   shellPicker.placement = null
   shellPicker.selectedId = agent.id
 
   if (placement.kind === 'tab') {
-    addShellWithAgent(placement.project, agent, placement.paneId)
+    addShellWithAgent(placement.project, agent, placement.paneId, account)
     return
   }
   if (placement.kind === 'split') {
-    addShellInNewPaneWithAgent(placement.project, placement.paneId, placement.zone, agent)
+    addShellInNewPaneWithAgent(placement.project, placement.paneId, placement.zone, agent, account)
     return
   }
-  openInNewShellWithAgent(placement.project, placement.paneId, placement.tabId, agent)
+  openInNewShellWithAgent(placement.project, placement.paneId, placement.tabId, agent, account)
 }
 
 function openPaths(projectId: string): string[] {
@@ -498,9 +506,14 @@ export function addShell(project: ProjectRef, paneId?: string): void {
   openShellPicker({ kind: 'tab', project, paneId })
 }
 
-function addShellWithAgent(project: ProjectRef, agent: ShellAgent, paneId?: string): void {
+function addShellWithAgent(
+  project: ProjectRef,
+  agent: ShellAgent,
+  paneId?: string,
+  account?: string
+): void {
   const layout = workspaces[project.id].layout
-  const tab = newShellTab(project, agent)
+  const tab = newShellTab(project, agent, account)
   const root = layout.root
   if (!root) {
     const leaf = tree.createLeaf<WorkspaceTab>([tab])
@@ -525,11 +538,12 @@ function addShellInNewPaneWithAgent(
   project: ProjectRef,
   paneId: string,
   zone: EdgeZone,
-  agent: ShellAgent
+  agent: ShellAgent,
+  account?: string
 ): void {
   const root = workspaces[project.id].layout.root
   if (!root) return
-  const tab = newShellTab(project, agent)
+  const tab = newShellTab(project, agent, account)
   const next = tree.splitWithTab(root, paneId, zone, tab)
   commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
   focusShellAfterMount(tab.id)
@@ -543,12 +557,13 @@ function openInNewShellWithAgent(
   project: ProjectRef,
   paneId: string,
   tabId: string,
-  agent: ShellAgent
+  agent: ShellAgent,
+  account?: string
 ): void {
   const root = workspaces[project.id].layout.root
   const source = tree.findLeaf(root, paneId)?.tabs.find((tab) => tab.id === tabId)
   if (!root || source?.kind !== 'doc') return
-  const tab = newShellTab(project, agent)
+  const tab = newShellTab(project, agent, account)
   // The 'shell' agent spawns zsh directly, which treats a positional prompt argument as a script path to source.
   if (agent.id !== 'shell') {
     setShellArgs(tab.id, [
@@ -654,6 +669,16 @@ export function closeDocumentsInPane(project: ProjectRef, paneId: string): void 
   closeMatching(project, (tab) => tab.kind === 'doc', paneId)
 }
 
+onShellAccountChange((tabId, account) => {
+  for (const projectId of Object.keys(workspaces)) {
+    const tab = tabsOf(projectId).find((candidate) => candidate.id === tabId)
+    if (tab?.kind !== 'shell') continue
+    if (account) tab.account = account
+    else delete tab.account
+    return
+  }
+})
+
 onShellExit((tabId) => {
   for (const [projectId, project] of projectRefs) {
     const root = workspaces[projectId]?.layout.root
@@ -678,12 +703,15 @@ export async function reopenWorkgroupMember(
   const args = sessionId ? resumeArgs(agent.command, sessionId) : null
   if (args) setShellResume(member.tabId, args)
 
+  const leaderTab = tabsOf(project.id).find((candidate) => candidate.id === leaderTabId)
+  const account = leaderTab?.kind === 'shell' ? leaderTab.account : undefined
   const tab: ShellTab = {
     id: member.tabId,
     kind: 'shell',
     label: member.label,
     command: agent.command,
-    cwd: project.path
+    cwd: project.path,
+    ...(agent.command === 'claude' && account ? { account } : {})
   }
   const root = workspaces[project.id].layout.root
   if (!root) {
@@ -729,6 +757,8 @@ function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
     return { ok: false, error: 'the leader project is not open in the workspace' }
   if (!leaderLeaf) return { ok: false, error: 'the leader tab is not in the workspace' }
 
+  const leaderTab = leaderLeaf.tabs.find((tab) => tab.id === request.leaderTabId)
+  const account = leaderTab?.kind === 'shell' ? leaderTab.account : undefined
   let next = root
   for (const member of request.members) {
     const tab: ShellTab = {
@@ -736,7 +766,8 @@ function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
       kind: 'shell',
       label: member.label,
       command: shellAgentById(member.vendor).command,
-      cwd: project.path
+      cwd: project.path,
+      ...(member.vendor === 'claude' && account ? { account } : {})
     }
     setShellArgs(tab.id, workgroupArgs(member))
     next = tree.addTab(next, leaderLeaf.id, tab)

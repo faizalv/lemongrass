@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/faizalv/lemongrass/lgrassconf/agentconf"
 )
 
 func fakeHome(t *testing.T) (*keeper, string) {
@@ -196,7 +198,7 @@ func TestWatcherHealsDriftWithoutAnyOtherProcess(t *testing.T) {
 	waitFor(t, "initial registration", healthy)
 
 	drifted := `{"hooks":{"PreToolUse":[{"matcher":"Write|Edit","hooks":[{"type":"command","command":"` + lgrass + ` hook PreToolUse"}]}]}}`
-	if err := writeAtomic(k.claudeSettingsPath(), []byte(drifted), 0o644); err != nil {
+	if err := agentconf.WriteAtomic(k.claudeSettingsPath(), []byte(drifted), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "matcher healed after drift", healthy)

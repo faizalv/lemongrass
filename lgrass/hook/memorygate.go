@@ -26,8 +26,10 @@ type shellToolInput struct {
 }
 
 var (
-	shellDevNullRedirect = regexp.MustCompile(`\d*>&?\s*/dev/null`)
-	shellWriteIndicator  = regexp.MustCompile(`>|<<|\btee\b|\bsed\b[^|;&]*\s-[a-zA-Z]*i|--in-place|\b(cp|mv|install|dd|truncate|rm|ln|touch|patch|rsync|ed|ex|vi|vim|nano|emacs|curl|wget|python[0-9.]*|node|ruby|perl|php|deno|bun)\b|\b(sh|bash|zsh)\s+-c\b|\beval\b`)
+	claudeConfigDirName     = regexp.MustCompile(`^\.claude(-[a-z0-9-]+)?$`)
+	claudeProjectsInCommand = regexp.MustCompile(`\.claude(-[a-z0-9-]+)?/projects`)
+	shellDevNullRedirect    = regexp.MustCompile(`\d*>&?\s*/dev/null`)
+	shellWriteIndicator     = regexp.MustCompile(`>|<<|\btee\b|\bsed\b[^|;&]*\s-[a-zA-Z]*i|--in-place|\b(cp|mv|install|dd|truncate|rm|ln|touch|patch|rsync|ed|ex|vi|vim|nano|emacs|curl|wget|python[0-9.]*|node|ruby|perl|php|deno|bun)\b|\b(sh|bash|zsh)\s+-c\b|\beval\b`)
 )
 
 // memoryFeedbackDeny gates every route that can write into a Claude Code memory directory (file tools, patches, notebooks, shell commands) behind a sign, once per session per memoryFeedbackSignatureTTL.
@@ -80,18 +82,18 @@ func memoryToolPaths(payload hookEvent) []string {
 	return paths
 }
 
-// isClaudeMemoryPath matches any project's memory directory under ~/.claude/projects, not only this project's, so a slug-algorithm mismatch or a sibling project's directory does not open a gap.
+// isClaudeMemoryPath matches any project's memory directory under the projects directory of ~/.claude or of any ~/.claude-<account>, not only this project's, so a slug-algorithm mismatch or a sibling project's directory does not open a gap.
 func isClaudeMemoryPath(p, cwd, home, projectMemDir string) bool {
 	p = guard.ResolvePath(p, cwd, home)
 	if projectMemDir != "" && strings.HasPrefix(p+string(filepath.Separator), projectMemDir) {
 		return true
 	}
-	root := filepath.Join(home, ".claude", "projects") + string(filepath.Separator)
-	if !strings.HasPrefix(p, root) {
+	prefix := home + string(filepath.Separator)
+	if !strings.HasPrefix(p, prefix) {
 		return false
 	}
-	parts := strings.Split(strings.TrimPrefix(p, root), string(filepath.Separator))
-	return len(parts) >= 2 && parts[1] == "memory"
+	parts := strings.Split(strings.TrimPrefix(p, prefix), string(filepath.Separator))
+	return len(parts) >= 4 && claudeConfigDirName.MatchString(parts[0]) && parts[1] == "projects" && parts[3] == "memory"
 }
 
 // A shell command counts when it names a memory directory, or runs from inside one, and contains something that can write. Plain reads (cat, ls, grep, head) pass.
@@ -107,7 +109,7 @@ func shellTouchesClaudeMemory(payload hookEvent, home, projectMemDir string) boo
 		return true
 	}
 	cmd := strings.ReplaceAll(in.Command, "\\", "")
-	return strings.Contains(cmd, ".claude/projects") && strings.Contains(cmd, "memory") ||
+	return claudeProjectsInCommand.MatchString(cmd) && strings.Contains(cmd, "memory") ||
 		projectMemDir != "" && strings.Contains(cmd, strings.TrimSuffix(projectMemDir, string(filepath.Separator)))
 }
 
@@ -117,6 +119,10 @@ func claudeMemoryDir(projectPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	configDir := os.Getenv("CLAUDE_CONFIG_DIR")
+	if configDir == "" {
+		configDir = filepath.Join(home, ".claude")
+	}
 	slug := strings.ReplaceAll(projectPath, string(filepath.Separator), "-")
-	return filepath.Join(home, ".claude", "projects", slug, "memory") + string(filepath.Separator), nil
+	return filepath.Join(configDir, "projects", slug, "memory") + string(filepath.Separator), nil
 }
