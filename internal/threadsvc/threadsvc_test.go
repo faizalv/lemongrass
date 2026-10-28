@@ -36,7 +36,7 @@ func openStore(t *testing.T) *session.Store {
 	return store
 }
 
-// Stands in for the app: types the tab's pending nudge, marking the rows sent the way `lgrassd nudge` does.
+// Stands in for the app: types the tab's owed nudge, composed and marked typed the way `lgrassd nudge` does.
 type recorder struct {
 	mu    sync.Mutex
 	store *session.Store
@@ -54,12 +54,11 @@ func (r *recorder) nudge(tab string) (bool, string, error) {
 	if r.human {
 		return false, "typing", nil
 	}
-	pending, _ := r.store.PendingForTab(tab)
-	if pending.Empty() {
+	text, ok := r.store.ConsumePending(tab)
+	if !ok {
 		return false, "nothing pending", nil
 	}
-	r.store.MarkNotificationsSent(pending.RowIDs())
-	r.texts = append(r.texts, r.store.NotificationText(pending))
+	r.texts = append(r.texts, text)
 	return true, "", nil
 }
 
@@ -73,19 +72,6 @@ func (r *recorder) set(fail, human bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.fail, r.human = fail, human
-}
-
-func TestBackoffDoublesAndFitsFiveAttemptsInTenMinutes(t *testing.T) {
-	var total time.Duration
-	for attempts := 1; attempts < MaxAttempts; attempts++ {
-		total += Backoff(attempts)
-	}
-	if Backoff(0) != 0 || Backoff(1) != 30*time.Second || Backoff(2) != time.Minute {
-		t.Errorf("backoff = %v %v %v, want 0 30s 1m", Backoff(0), Backoff(1), Backoff(2))
-	}
-	if total > 10*time.Minute {
-		t.Errorf("waits before the fifth attempt total %v, want within 10m", total)
-	}
 }
 
 func TestDeliverTabTypesOneCoalescedNudgeAndMarksSent(t *testing.T) {
@@ -134,7 +120,8 @@ func TestDeliverTabTypesABranchNotice(t *testing.T) {
 	}
 }
 
-func TestDeliverTabFailureCountsAnAttemptAndStaysPending(t *testing.T) {
+// A tab with no process makes the app fail, and its rows must stay owed for the next tick however long it takes to start.
+func TestDeliverTabFailureLeavesTheRowsOwed(t *testing.T) {
 	for _, tab := range []string{tabClaude, tabCodex} {
 		t.Run(tab, func(t *testing.T) {
 			store := openStore(t)
@@ -148,8 +135,11 @@ func TestDeliverTabFailureCountsAnAttemptAndStaysPending(t *testing.T) {
 			if pending, _ := store.PendingForTab(tab); len(pending.Threads) != 1 {
 				t.Fatalf("pending = %+v, want the row kept", pending)
 			}
-			if due, _ := store.TabsDueForRetry(MaxAttempts, Backoff, time.Now().Add(time.Hour)); len(due) != 1 {
-				t.Errorf("row with an attempt is not due after the backoff: %v", due)
+			for i := 0; i < 10; i++ {
+				d.DeliverTab(tab)
+			}
+			if tabs, _ := store.PendingTabs(); len(tabs) != 1 || tabs[0] != tab {
+				t.Errorf("PendingTabs after repeated failures = %v, want the tab still owed", tabs)
 			}
 		})
 	}
@@ -270,7 +260,8 @@ func TestRunScansAtStartAndRetriesDueRows(t *testing.T) {
 	}
 }
 
-func TestATabMidTurnIsNotNudgedUntilItsTurnEnds(t *testing.T) {
+// The agent queues typed input while it works, so a turn in progress does not hold the line.
+func TestATabMidTurnIsNudgedAtOnce(t *testing.T) {
 	for _, tab := range []string{tabClaude, tabCodex} {
 		t.Run(tab, func(t *testing.T) {
 			store := openStore(t)
@@ -280,21 +271,40 @@ func TestATabMidTurnIsNotNudgedUntilItsTurnEnds(t *testing.T) {
 			rec := &recorder{store: store}
 			svc := NewService(store)
 			svc.deliver.Nudge = rec.nudge
-			svc.recheckDelay = 50 * time.Millisecond
 
 			svc.Wake()
-			if rec.count() != 0 {
-				t.Fatalf("a tab mid-turn was nudged: %q", rec.texts)
-			}
-			if due, _ := store.TabsDueForRetry(MaxAttempts, Backoff, time.Now()); len(due) != 1 {
-				t.Errorf("a deferred nudge should not count as an attempt, due = %v", due)
-			}
-
-			store.SetTabState(tab, session.StateIdle)
-			if !waitForCount(rec, 1) {
-				t.Fatal("no nudge after the turn ended")
+			if rec.count() != 1 {
+				t.Fatalf("nudges for a tab mid-turn = %d, want 1", rec.count())
 			}
 		})
+	}
+}
+
+func TestEveryDecisionIsLogged(t *testing.T) {
+	store := openStore(t)
+	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
+	rec := &recorder{store: store}
+	var outcomes []string
+	d := &Deliverer{Store: store, Nudge: rec.nudge, Log: func(_ string, rows []int64, outcome string) {
+		if len(rows) == 0 {
+			t.Errorf("%q logged with no rows", outcome)
+		}
+		outcomes = append(outcomes, outcome)
+	}}
+
+	d.Ready = func(string) bool { return false }
+	d.DeliverTab(tabClaude)
+	d.Ready = nil
+	rec.set(true, false)
+	d.DeliverTab(tabClaude)
+	rec.set(false, true)
+	d.DeliverTab(tabClaude)
+	rec.set(false, false)
+	d.DeliverTab(tabClaude)
+
+	want := []string{"held, a prompt is open", "not typed: the app is not reachable", "held, the human is typing", "typed"}
+	if strings.Join(outcomes, "|") != strings.Join(want, "|") {
+		t.Errorf("outcomes = %q, want %q", outcomes, want)
 	}
 }
 
@@ -338,37 +348,6 @@ func TestANudgeWaitsWhileTheHumanIsTyping(t *testing.T) {
 			rec.set(false, false)
 			if !waitForCount(rec, 1) {
 				t.Fatal("no nudge once the human stopped typing")
-			}
-		})
-	}
-}
-
-func TestATabThatReadTheThreadIsNeverNudged(t *testing.T) {
-	for _, tab := range []string{tabClaude, tabCodex} {
-		t.Run(tab, func(t *testing.T) {
-			store := openStore(t)
-			id, _ := store.CreateThread(tabAuthor, "Review", "a !>>"+tab+"<<!")
-			store.SetTabState(tab, session.StateWorking)
-
-			rec := &recorder{store: store}
-			svc := NewService(store)
-			svc.deliver.Nudge = rec.nudge
-			svc.recheckDelay = 50 * time.Millisecond
-
-			svc.Wake()
-			msgs, _, err := store.ReadThread(id, 0, 10)
-			if err != nil {
-				t.Fatalf("ReadThread: %v", err)
-			}
-			var ids []int64
-			for _, m := range msgs {
-				ids = append(ids, m.ID)
-			}
-			store.MarkMessagesRead(tab, ids)
-			store.SetTabState(tab, session.StateIdle)
-			time.Sleep(300 * time.Millisecond)
-			if rec.count() != 0 {
-				t.Errorf("nudged for a message the tab had already read: %q", rec.texts)
 			}
 		})
 	}

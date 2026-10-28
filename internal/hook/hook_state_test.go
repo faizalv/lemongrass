@@ -6,26 +6,17 @@ package hook
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/faizalv/lemongrass/internal/session"
 )
 
-// Tells the three states apart: idle is ready now, working is ready only once stale, prompting never is.
 func stateOf(t *testing.T, store *session.Store, tab string) string {
 	t.Helper()
-	now, err := store.TabReadyForNudge(tab, time.Now())
+	state, err := store.TabState(tab)
 	if err != nil {
-		t.Fatalf("TabReadyForNudge: %v", err)
+		t.Fatalf("TabState: %v", err)
 	}
-	stale, _ := store.TabReadyForNudge(tab, time.Now().Add(time.Hour))
-	switch {
-	case now:
-		return session.StateIdle
-	case stale:
-		return session.StateWorking
-	}
-	return session.StatePrompting
+	return state
 }
 
 func TestTabStateFollowsTheAgentsHookEvents(t *testing.T) {
@@ -52,6 +43,9 @@ func TestTabStateFollowsTheAgentsHookEvents(t *testing.T) {
 		{"Notification", hookEvent{Message: "Claude needs your permission to use Bash"}, session.StatePrompting},
 		{"Notification", hookEvent{NotificationType: "idle_prompt"}, session.StateIdle},
 		{"Notification", hookEvent{NotificationType: "auth_success"}, session.StateIdle},
+		{"PreToolUse", hookEvent{ToolName: "AskUserQuestion"}, session.StatePrompting},
+		{"PostToolUse", hookEvent{ToolName: "AskUserQuestion"}, session.StateWorking},
+		{"PreToolUse", hookEvent{ToolName: "Bash"}, session.StateWorking},
 	}
 	for _, step := range steps {
 		step.payload.TabID = tab
@@ -63,7 +57,7 @@ func TestTabStateFollowsTheAgentsHookEvents(t *testing.T) {
 
 	recordTabState(store, "PreToolUse", hookEvent{TabID: tab})
 	recordTabState(store, "SessionEnd", hookEvent{TabID: tab})
-	if got := stateOf(t, store, tab); got != session.StateIdle {
+	if got := stateOf(t, store, tab); got != "" {
 		t.Errorf("after SessionEnd the state is %s, want it cleared", got)
 	}
 }
@@ -71,7 +65,7 @@ func TestTabStateFollowsTheAgentsHookEvents(t *testing.T) {
 func TestTabStateIgnoresSessionsWithoutATab(t *testing.T) {
 	store := openHookTestStore(t)
 	recordTabState(store, "PreToolUse", hookEvent{})
-	if got := stateOf(t, store, notifyTabTarget); got != session.StateIdle {
+	if got := stateOf(t, store, notifyTabTarget); got != "" {
 		t.Errorf("a hook with no tab changed a tab's state to %s", got)
 	}
 }

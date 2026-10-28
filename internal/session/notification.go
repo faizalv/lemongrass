@@ -18,6 +18,19 @@ const (
 	stateRead = "read"
 )
 
+// A typed thread row stays owed until its tab reads the message, because typing into a terminal does not prove the line reached the model.
+const (
+	RetypeAfter = 2 * time.Minute
+	MaxTypings  = 3
+)
+
+// A row is owed while pending, or while typed and still unread once RetypeAfter has passed and typings remain.
+const dueCondition = `(n.state = 'pending' OR (n.state = 'typed' AND n.attempts < ? AND n.sent_at < ?))`
+
+func dueArgs() []interface{} {
+	return []interface{}{MaxTypings, time.Now().Add(-RetypeAfter).UTC().Format(time.RFC3339Nano)}
+}
+
 // How a notification's target relates to its message.
 const (
 	KindYou   = "you"   // the target is mentioned
@@ -82,34 +95,34 @@ func (p Pending) RowIDs() []int64 {
 	return ids
 }
 
-// The rows that may wake a tab, meaning every kind but other. A tab id is globally unique, so this ignores the store's project.
+// The rows owed to a tab that may wake it, meaning every kind but other. A tab id is globally unique, so this ignores the store's project.
 func (s *Store) PendingForTab(tabID string) (Pending, error) {
-	return s.pendingRows(tabID, `AND n.kind != 'other'`)
+	return s.pendingRows(tabID, `AND n.kind != 'other' AND `+dueCondition, dueArgs()...)
 }
 
-// Every pending row of the tab, other included, for a tab that is already mid-turn and sees them as hook context.
+// Every pending row of the tab, other included, surfaced as hook context. A typed row is left out, since its line is already on its way.
 func (s *Store) SurfaceableForTab(tabID string) (Pending, error) {
-	return s.pendingRows(tabID, ``)
+	return s.pendingRows(tabID, `AND n.state = 'pending'`)
 }
 
-func (s *Store) pendingRows(tabID, filter string) (Pending, error) {
-	threads, err := s.pendingThreads(tabID, filter)
+func (s *Store) pendingRows(tabID, filter string, args ...interface{}) (Pending, error) {
+	threads, err := s.pendingThreads(tabID, filter, args...)
 	if err != nil {
 		return Pending{}, err
 	}
-	events, err := s.pendingEvents(tabID, filter)
+	events, err := s.pendingEvents(tabID, filter, args...)
 	if err != nil {
 		return Pending{}, err
 	}
 	return Pending{Threads: threads, Events: events}, nil
 }
 
-func (s *Store) pendingEvents(tabID, filter string) ([]PendingEvent, error) {
+func (s *Store) pendingEvents(tabID, filter string, args ...interface{}) ([]PendingEvent, error) {
 	rows, err := s.db.Query(`
 		SELECT n.id, n.source, n.ref FROM lg_notifications n
-		WHERE n.target_tab_id = ? AND n.state = 'pending' AND n.source != 'thread' `+filter+`
+		WHERE n.target_tab_id = ? AND n.source != 'thread' `+filter+`
 		ORDER BY n.id
-	`, tabID)
+	`, append([]interface{}{tabID}, args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -126,15 +139,15 @@ func (s *Store) pendingEvents(tabID, filter string) ([]PendingEvent, error) {
 }
 
 // The thread comes through the message, since a thread row's ref is the message id and message ids are unique across the store.
-func (s *Store) pendingThreads(tabID, filter string) ([]PendingThread, error) {
+func (s *Store) pendingThreads(tabID, filter string, args ...interface{}) ([]PendingThread, error) {
 	rows, err := s.db.Query(`
 		SELECT n.id, m.thread_id, t.title, m.tab_id, n.kind, m.id
 		FROM lg_notifications n
 		JOIN lg_messages m ON m.id = n.ref
 		JOIN lg_threads t ON t.id = m.thread_id
-		WHERE n.target_tab_id = ? AND n.state = 'pending' AND n.source = 'thread' `+filter+`
+		WHERE n.target_tab_id = ? AND n.source = 'thread' `+filter+`
 		ORDER BY n.id
-	`, tabID)
+	`, append([]interface{}{tabID}, args...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -241,12 +254,13 @@ func (s *Store) MarkNotificationsSent(rowIDs []int64) error {
 	return err
 }
 
-func (s *Store) RecordNotificationAttempt(rowIDs []int64) error {
+// attempts counts typings only, so a tab with no process to type into loses none while it waits.
+func (s *Store) MarkNotificationsTyped(rowIDs []int64) error {
 	if len(rowIDs) == 0 {
 		return nil
 	}
 	marks, args := idPlaceholders(rowIDs)
-	_, err := s.db.Exec(`UPDATE lg_notifications SET attempts = attempts + 1, last_attempt_at = ? WHERE id IN (`+marks+`)`, append([]interface{}{now()}, args...)...)
+	_, err := s.db.Exec(`UPDATE lg_notifications SET state = 'typed', sent_at = ?, attempts = attempts + 1, last_attempt_at = ? WHERE state IN ('pending', 'typed') AND id IN (`+marks+`)`, append([]interface{}{now(), now()}, args...)...)
 	return err
 }
 
@@ -265,9 +279,9 @@ func (s *Store) MarkMessagesRead(tabID string, messageIDs []int64) error {
 	return err
 }
 
-// Tabs that have pending rows that may wake them, whatever their vendor.
+// Tabs owed rows that may wake them, whatever their vendor.
 func (s *Store) PendingTabs() ([]string, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT target_tab_id FROM lg_notifications WHERE state = 'pending' AND kind != 'other'`)
+	rows, err := s.db.Query(`SELECT DISTINCT n.target_tab_id FROM lg_notifications n WHERE n.kind != 'other' AND `+dueCondition, dueArgs()...)
 	if err != nil {
 		return nil, err
 	}
@@ -279,40 +293,6 @@ func (s *Store) PendingTabs() ([]string, error) {
 			return nil, err
 		}
 		out = append(out, tab)
-	}
-	return out, rows.Err()
-}
-
-// Tabs with a pending row that has attempts left and whose backoff since the last attempt has elapsed.
-func (s *Store) TabsDueForRetry(maxAttempts int, backoff func(attempts int) time.Duration, at time.Time) ([]string, error) {
-	rows, err := s.db.Query(`SELECT target_tab_id, attempts, last_attempt_at FROM lg_notifications WHERE state = 'pending' AND kind != 'other' AND attempts < ?`, maxAttempts)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	seen := map[string]bool{}
-	var out []string
-	for rows.Next() {
-		var tab string
-		var attempts int
-		var last sql.NullString
-		if err := rows.Scan(&tab, &attempts, &last); err != nil {
-			return nil, err
-		}
-		if seen[tab] {
-			continue
-		}
-		due := true
-		if last.Valid && attempts > 0 {
-			if t, err := time.Parse(time.RFC3339Nano, last.String); err == nil {
-				due = !at.Before(t.Add(backoff(attempts)))
-			}
-		}
-		if due {
-			seen[tab] = true
-			out = append(out, tab)
-		}
 	}
 	return out, rows.Err()
 }
@@ -340,13 +320,21 @@ func (s *Store) VendorForTab(tabID string) (string, error) {
 	return vendor, err
 }
 
-// The tab's pending nudge text with its rows marked sent; false when nothing is pending.
+// The tab's nudge text for every row it is owed, thread rows marked typed and the rest sent; false when nothing is owed.
 func (s *Store) ConsumePending(tab string) (string, bool) {
 	pending, err := s.PendingForTab(tab)
 	if err != nil || pending.Empty() {
 		return "", false
 	}
-	s.MarkNotificationsSent(pending.RowIDs())
+	var threadRows, eventRows []int64
+	for _, t := range pending.Threads {
+		threadRows = append(threadRows, t.RowIDs...)
+	}
+	for _, e := range pending.Events {
+		eventRows = append(eventRows, e.RowID)
+	}
+	s.MarkNotificationsTyped(threadRows)
+	s.MarkNotificationsSent(eventRows)
 	s.MarkOtherSent(tab)
 	return s.NotificationText(pending), true
 }

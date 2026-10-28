@@ -72,7 +72,7 @@ COMMANDS
   accounts add <name>               Creates ~/.claude-<name>, links the shared folders and registers the hooks
   accounts remove <name>            Deletes ~/.claude-<name> and forgets the account
   trust <path> [--target <t>]       Marks a project trusted for Claude and Codex; t is primary, codex or an account name
-  nudge <tab-id>                    Prints the tab's pending thread nudge and marks it sent
+  nudge <tab-id>                    Prints the tab's owed nudge and marks it typed
   migrate                           Brings the session store up to its current schema version
   branch changed <from> <to> <carry>
                                     Tells the project's recently active agent tabs the git branch

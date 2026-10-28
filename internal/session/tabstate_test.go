@@ -3,42 +3,24 @@
 
 package session
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
-func TestTabReadyForNudgeFollowsTheHookState(t *testing.T) {
+func TestOnlyAnOpenPromptHoldsANudge(t *testing.T) {
 	store := openTestStore(t)
-	at := time.Now()
 
-	if ready, err := store.TabReadyForNudge(tabA, at); err != nil || !ready {
+	if ready, err := store.TabReadyForNudge(tabA); err != nil || !ready {
 		t.Errorf("a tab with no state = %v, %v, want ready", ready, err)
 	}
-	for state, want := range map[string]bool{StateIdle: true, StateWorking: false, StatePrompting: false} {
+	for state, want := range map[string]bool{StateIdle: true, StateWorking: true, StatePrompting: false} {
 		if err := store.SetTabState(tabA, state); err != nil {
 			t.Fatalf("SetTabState(%s): %v", state, err)
 		}
-		if ready, _ := store.TabReadyForNudge(tabA, at); ready != want {
+		if ready, _ := store.TabReadyForNudge(tabA); ready != want {
 			t.Errorf("state %s ready = %v, want %v", state, ready, want)
 		}
 	}
-}
-
-func TestStaleWorkingIsReadyButAPermissionPromptNever(t *testing.T) {
-	store := openTestStore(t)
-	later := time.Now().Add(2 * workingStaleAfter)
-
-	store.SetTabState(tabA, StateWorking)
-	if ready, _ := store.TabReadyForNudge(tabA, later); !ready {
-		t.Error("a working state left for a long time should count as ready")
-	}
-	store.SetTabState(tabA, StatePrompting)
-	if ready, _ := store.TabReadyForNudge(tabA, later); ready {
-		t.Error("an open permission prompt must never be ready, however long ago")
-	}
 	store.ClearTabState(tabA)
-	if ready, _ := store.TabReadyForNudge(tabA, later); !ready {
+	if ready, _ := store.TabReadyForNudge(tabA); !ready {
 		t.Error("a cleared state should count as ready")
 	}
 }

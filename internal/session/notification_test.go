@@ -100,30 +100,66 @@ func TestReadingMessagesSettlesOnlyThoseRowsAndKeepsThem(t *testing.T) {
 	}
 }
 
-func TestTabsDueForRetryHonorsAttemptsAndBackoff(t *testing.T) {
+// Moves the tab's typed rows back past the retype window, as if their line went out that long ago.
+func ageTypedRows(t *testing.T, store *Store, tab string) {
+	t.Helper()
+	past := time.Now().Add(-RetypeAfter - time.Second).UTC().Format(time.RFC3339Nano)
+	if _, err := store.db.Exec(`UPDATE lg_notifications SET sent_at = ? WHERE target_tab_id = ? AND state = 'typed'`, past, tab); err != nil {
+		t.Fatalf("aging typed rows: %v", err)
+	}
+}
+
+func TestATypedMessageStaysOwedUntilReadUpToTheCap(t *testing.T) {
 	store := openTestStore(t)
 	seedTabs(store)
-	store.CreateThread(tabA, "Review", "x !>>"+tabB+"<<!")
-	backoff := func(attempts int) time.Duration { return time.Duration(attempts) * time.Minute }
+	id, _ := store.CreateThread(tabA, "Review", "x !>>"+tabB+"<<!")
 
-	if due, _ := store.TabsDueForRetry(3, backoff, time.Now()); len(due) != 1 {
-		t.Fatalf("untried row not due: %v", due)
+	if _, ok := store.ConsumePending(tabB); !ok {
+		t.Fatal("nothing composed for the mention")
 	}
-	pending, _ := threadsOf(store.PendingForTab(tabB))
-	store.RecordNotificationAttempt(pending[0].RowIDs)
-	if due, _ := store.TabsDueForRetry(3, backoff, time.Now()); len(due) != 0 {
-		t.Errorf("row due right after an attempt: %v", due)
+	if _, ok := store.ConsumePending(tabB); ok {
+		t.Error("a line just typed was composed again inside the retype window")
 	}
-	if due, _ := store.TabsDueForRetry(3, backoff, time.Now().Add(2*time.Minute)); len(due) != 1 {
-		t.Errorf("row not due after its backoff: %v", due)
+	if tabs, _ := store.PendingTabs(); len(tabs) != 0 {
+		t.Errorf("PendingTabs = %v, want none inside the retype window", tabs)
 	}
-	store.RecordNotificationAttempt(pending[0].RowIDs)
-	store.RecordNotificationAttempt(pending[0].RowIDs)
-	if due, _ := store.TabsDueForRetry(3, backoff, time.Now().Add(time.Hour)); len(due) != 0 {
-		t.Errorf("row past its attempt limit still due: %v", due)
+	if surfaced, _ := store.SurfaceableForTab(tabB); !surfaced.Empty() {
+		t.Errorf("a typed row was surfaced as hook context: %+v", surfaced)
 	}
-	if tabs, _ := store.PendingTabs(); len(tabs) != 1 || tabs[0] != tabB {
-		t.Errorf("PendingTabs = %v, want the row past its limit to stay pending for B", tabs)
+
+	for typing := 2; typing <= MaxTypings; typing++ {
+		ageTypedRows(t, store, tabB)
+		if tabs, _ := store.PendingTabs(); len(tabs) != 1 || tabs[0] != tabB {
+			t.Fatalf("typing %d: PendingTabs = %v, want B owed again", typing, tabs)
+		}
+		if _, ok := store.ConsumePending(tabB); !ok {
+			t.Fatalf("typing %d: an unread typed row was not composed again", typing)
+		}
+	}
+	ageTypedRows(t, store, tabB)
+	if _, ok := store.ConsumePending(tabB); ok {
+		t.Errorf("composed past %d typings", MaxTypings)
+	}
+
+	msgs, _, _ := store.ReadThread(id, 0, 10)
+	store.MarkMessagesRead(tabB, []int64{msgs[0].ID})
+	var state string
+	store.db.QueryRow(`SELECT state FROM lg_notifications WHERE target_tab_id = ?`, tabB).Scan(&state)
+	if state != "read" {
+		t.Errorf("state after reading = %q, want read", state)
+	}
+}
+
+func TestAReadAfterTypingEndsTheRetypes(t *testing.T) {
+	store := openTestStore(t)
+	seedTabs(store)
+	id, _ := store.CreateThread(tabA, "Review", "x !>>"+tabB+"<<!")
+	store.ConsumePending(tabB)
+	msgs, _, _ := store.ReadThread(id, 0, 10)
+	store.MarkMessagesRead(tabB, []int64{msgs[0].ID})
+	ageTypedRows(t, store, tabB)
+	if tabs, _ := store.PendingTabs(); len(tabs) != 0 {
+		t.Errorf("PendingTabs = %v, want nothing owed once read", tabs)
 	}
 }
 

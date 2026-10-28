@@ -45,7 +45,7 @@ type Service struct {
 	now          func() time.Time
 }
 
-// How long a tab that is mid-turn or showing a prompt waits before its nudge is tried again.
+// How long a tab held by an open prompt or the human's typing waits before its nudge is tried again.
 const defaultRecheckDelay = 10 * time.Second
 
 func NewService(store *session.Store) *Service {
@@ -62,11 +62,11 @@ func NewService(store *session.Store) *Service {
 }
 
 func (s *Service) ready(tabID string) bool {
-	ready, err := s.store.TabReadyForNudge(tabID, s.now())
+	ready, err := s.store.TabReadyForNudge(tabID)
 	return err != nil || ready
 }
 
-// One pending look per tab, so a busy session is not rechecked by several timers at once.
+// One pending look per tab, so a held tab is not rechecked by several timers at once.
 func (s *Service) later(tabID string) {
 	s.mu.Lock()
 	if s.rechecking[tabID] {
@@ -125,7 +125,7 @@ func (s *Service) Wake() {
 	}
 }
 
-// Scans for pending rows at start, then retries due pushes and prunes the ledger until ctx ends.
+// Scans for owed rows at start, then delivers whatever is still owed on every tick and prunes the ledger until ctx ends.
 func (s *Service) Run(ctx context.Context, retryEvery, pruneEvery time.Duration) {
 	s.Wake()
 	retry := time.NewTicker(retryEvery)
@@ -137,20 +137,10 @@ func (s *Service) Run(ctx context.Context, retryEvery, pruneEvery time.Duration)
 		case <-ctx.Done():
 			return
 		case <-retry.C:
-			s.retryDue()
+			s.Wake()
 		case <-prune.C:
 			s.store.PruneNotifications(s.now())
 		}
-	}
-}
-
-func (s *Service) retryDue() {
-	tabs, err := s.store.TabsDueForRetry(MaxAttempts, Backoff, s.now())
-	if err != nil {
-		return
-	}
-	for _, tab := range tabs {
-		s.deliver.DeliverTab(tab)
 	}
 }
 

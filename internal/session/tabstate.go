@@ -5,16 +5,12 @@ package session
 
 import (
 	"database/sql"
-	"time"
 )
 
 const (
 	StateWorking   = "working"
 	StateIdle      = "idle"
 	StatePrompting = "prompting"
-
-	// A working state nothing has refreshed for this long is treated as left over from a session that died.
-	workingStaleAfter = 10 * time.Minute
 )
 
 // Which of the agent's own hook events last fired for the tab: a turn is running, the turn ended, or a permission prompt is open.
@@ -31,22 +27,21 @@ func (s *Store) ClearTabState(tabID string) error {
 	return err
 }
 
-// True when the tab can take a typed nudge: its turn ended, its state is unknown, or a working state went stale. A permission prompt is never treated as stale.
-func (s *Store) TabReadyForNudge(tabID string, at time.Time) (bool, error) {
-	var state, updated string
-	err := s.db.QueryRow(`SELECT state, updated_at FROM lg_tab_state WHERE tab_id = ?`, tabID).Scan(&state, &updated)
+// Empty string, no error, when no hook has recorded a state for the tab.
+func (s *Store) TabState(tabID string) (string, error) {
+	var state string
+	err := s.db.QueryRow(`SELECT state FROM lg_tab_state WHERE tab_id = ?`, tabID).Scan(&state)
 	if err == sql.ErrNoRows {
-		return true, nil
+		return "", nil
 	}
+	return state, err
+}
+
+// True unless a permission prompt or question picker is open, where a typed Enter would answer it. A busy agent queues typed input for its next tool call, so working does not block.
+func (s *Store) TabReadyForNudge(tabID string) (bool, error) {
+	state, err := s.TabState(tabID)
 	if err != nil {
 		return false, err
 	}
-	switch state {
-	case StateIdle:
-		return true, nil
-	case StateWorking:
-		since, err := time.Parse(time.RFC3339Nano, updated)
-		return err == nil && at.Sub(since) > workingStaleAfter, nil
-	}
-	return false, nil
+	return state != StatePrompting, nil
 }

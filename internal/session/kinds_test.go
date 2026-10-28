@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestGroupMessageKindsFollowMentions(t *testing.T) {
@@ -46,9 +45,6 @@ func TestOtherRowsNeverWakeATab(t *testing.T) {
 	tabs, _ := store.PendingTabs()
 	if len(tabs) != 1 || tabs[0] != tabB {
 		t.Errorf("PendingTabs = %v, want only the mentioned tab", tabs)
-	}
-	if due, _ := store.TabsDueForRetry(5, func(int) time.Duration { return 0 }, time.Now()); len(due) != 1 || due[0] != tabB {
-		t.Errorf("TabsDueForRetry = %v, want only the mentioned tab", due)
 	}
 	if wake, _ := threadsOf(store.PendingForTab(tabC)); len(wake) != 0 {
 		t.Errorf("an unmentioned member would be woken: %+v", wake)

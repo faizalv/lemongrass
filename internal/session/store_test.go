@@ -659,7 +659,7 @@ func TestClearTabsKeepsSavedSessionsAndClearsTabState(t *testing.T) {
 	if id, _ := store.SessionForTab(tabA); id != "sess-1" {
 		t.Errorf("saved session = %q, want it kept for resume", id)
 	}
-	if ready, _ := store.TabReadyForNudge(tabA, time.Now()); !ready {
+	if ready, _ := store.TabReadyForNudge(tabA); !ready {
 		t.Errorf("the cleared tab's stale prompting state still blocks a nudge")
 	}
 }

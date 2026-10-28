@@ -10,7 +10,7 @@ import (
 	"github.com/faizalv/lemongrass/internal/threadsvc"
 )
 
-// Records which of the agent's own hook events fired last for the tab, so a typed nudge only lands between turns and never on an open permission prompt.
+// Records which of the agent's own hook events fired last for the tab, so a typed nudge never lands on an open permission prompt or question picker.
 func recordTabState(store *session.Store, event string, payload hookEvent) {
 	tab := payload.TabID
 	if tab == "" {
@@ -21,7 +21,14 @@ func recordTabState(store *session.Store, event string, payload hookEvent) {
 		store.SetTabState(tab, session.StateIdle)
 	case "SessionEnd":
 		store.ClearTabState(tab)
-	case "PreToolUse", "PostToolUse", "UserPromptSubmit":
+	case "PreToolUse":
+		// The question picker takes an Enter as a choice, so it blocks typing like a permission prompt until its PostToolUse.
+		if payload.ToolName == "AskUserQuestion" {
+			store.SetTabState(tab, session.StatePrompting)
+		} else {
+			store.SetTabState(tab, session.StateWorking)
+		}
+	case "PostToolUse", "UserPromptSubmit":
 		store.SetTabState(tab, session.StateWorking)
 	case "PermissionRequest":
 		store.SetTabState(tab, session.StatePrompting)
