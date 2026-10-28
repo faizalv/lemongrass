@@ -14,6 +14,7 @@ import {
 import AppButton from './AppButton.vue'
 import AppConfirmButton from './AppConfirmButton.vue'
 import PolicySection from './safety/PolicySection.vue'
+import UpdatesSection from './updates/UpdatesSection.vue'
 import type { Project } from '../../../preload/types'
 
 const props = defineProps<{
@@ -25,7 +26,7 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const section = ref<'accounts' | 'safety'>('accounts')
+const section = ref<'accounts' | 'safety' | 'updates'>('accounts')
 
 const newName = ref('')
 const addError = ref('')
@@ -71,11 +72,24 @@ async function onRemove(name: string): Promise<void> {
         >
           Safety
         </button>
+        <button
+          type="button"
+          class="settings-nav-item"
+          :class="{ selected: section === 'updates' }"
+          @click="section = 'updates'"
+        >
+          Updates
+        </button>
       </aside>
 
       <section v-if="section === 'safety'" class="settings-section settings-section--fixed">
         <h4 class="settings-title">Safety</h4>
         <PolicySection :projects="props.projects" :active-project-id="props.activeProjectId" />
+      </section>
+
+      <section v-else-if="section === 'updates'" class="settings-section">
+        <h4 class="settings-title">Updates</h4>
+        <UpdatesSection />
       </section>
 
       <section v-else class="settings-section">

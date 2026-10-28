@@ -568,6 +568,30 @@ export type AccountAddResult = { ok: true; account: AccountInfo } | { ok: false;
 
 export type AccountRemoveResult = { ok: true } | { ok: false; error: string }
 
+// unsupported: this build cannot update itself (a source build, or not installed from the rpm), and
+// message says why. installing covers the polkit password prompt, which rpm cannot be told apart from.
+export type UpdatePhase =
+  | 'unsupported'
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  | 'verifying'
+  | 'installing'
+  | 'installed'
+  | 'failed'
+
+export interface UpdateState {
+  phase: UpdatePhase
+  current: string
+  // The newest published release, null until a check succeeds.
+  latest: string | null
+  available: boolean
+  checkedAt: number | null
+  // Downloaded fraction from 0 to 1 while downloading, otherwise null.
+  progress: number | null
+  message: string | null
+}
+
 export interface NodeShare {
   alias: string
   books: string[]

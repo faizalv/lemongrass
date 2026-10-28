@@ -6,6 +6,7 @@ import type {
   AccountAddResult,
   AccountInfo,
   AccountRemoveResult,
+  UpdateState,
   DeviceEnd,
   DeviceListResult,
   DevicePacket,
@@ -94,6 +95,13 @@ interface Api {
     list: () => Promise<AccountInfo[]>
     add: (name: string) => Promise<AccountAddResult>
     remove: (name: string) => Promise<AccountRemoveResult>
+  }
+  update: {
+    state: () => Promise<UpdateState>
+    check: () => Promise<UpdateState>
+    install: () => Promise<void>
+    restart: () => Promise<void>
+    onState: (callback: (state: UpdateState) => void) => () => void
   }
   pty: {
     spawn: (opts: PtySpawnOptions) => Promise<{ id: string }>

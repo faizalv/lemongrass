@@ -15,6 +15,7 @@ import {
 import { loadLoginEnv } from './loginPath'
 import { registerTabSessionHandlers } from './tabSessions'
 import { registerAccountHandlers } from './accounts'
+import { registerUpdateHandlers } from './updater'
 import { registerProjectHandlers } from './projects'
 import { setTrustBinary } from './projectTrust'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
@@ -108,6 +109,7 @@ app.whenReady().then(async () => {
 
   registerPtyHandlers(() => mainWindow?.webContents)
   registerAccountHandlers(lgrassdPath)
+  registerUpdateHandlers(() => mainWindow)
   setTrustBinary(lgrassdPath)
   registerProjectHandlers(() => mainWindow)
   registerWorkspaceLayoutHandlers()

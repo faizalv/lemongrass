@@ -7,6 +7,7 @@ import type {
   AccountAddResult,
   AccountInfo,
   AccountRemoveResult,
+  UpdateState,
   DeviceEnd,
   DeviceListResult,
   DevicePacket,
@@ -431,6 +432,19 @@ const accounts = {
     ipcRenderer.invoke('accounts:remove', name)
 }
 
+const update = {
+  state: (): Promise<UpdateState> => ipcRenderer.invoke('update:state'),
+  check: (): Promise<UpdateState> => ipcRenderer.invoke('update:check'),
+  install: (): Promise<void> => ipcRenderer.invoke('update:install'),
+  restart: (): Promise<void> => ipcRenderer.invoke('update:restart'),
+  onState: (callback: (state: UpdateState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: UpdateState): void =>
+      callback(state)
+    ipcRenderer.on('update:state-changed', listener)
+    return () => ipcRenderer.removeListener('update:state-changed', listener)
+  }
+}
+
 const web = {
   attach: (tabId: string, bounds: WebBounds): Promise<void> =>
     ipcRenderer.invoke('web:attach', tabId, bounds),
@@ -448,6 +462,7 @@ const web = {
 const api = {
   pty,
   accounts,
+  update,
   projects,
   workspaceLayouts,
   tabSessions,
