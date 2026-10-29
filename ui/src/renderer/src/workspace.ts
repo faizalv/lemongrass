@@ -67,6 +67,7 @@ type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
 type WorkgroupTab = Extract<WorkspaceTab, { kind: 'workgroup' }>
 type WebTab = Extract<WorkspaceTab, { kind: 'web' }>
 type DeviceTab = Extract<WorkspaceTab, { kind: 'device' }>
+type ResterClientTab = Extract<WorkspaceTab, { kind: 'resterClient' }>
 
 const AUTOSAVE_MS = 600
 const LAYOUT_SAVE_MS = 400
@@ -133,6 +134,10 @@ function newVaultTab(): VaultTab {
 
 function newDeviceTab(): DeviceTab {
   return { id: crypto.randomUUID(), kind: 'device' }
+}
+
+function newResterClientTab(): ResterClientTab {
+  return { id: crypto.randomUUID(), kind: 'resterClient' }
 }
 
 function newWorkgroupTab(groupId: number): WorkgroupTab {
@@ -570,22 +575,35 @@ export function openVault(project: ProjectRef): void {
 
 // One device tab per project: opening it again focuses the existing tab wherever it lives.
 export function openDevice(project: ProjectRef): void {
+  openSingletonTab(project, 'device', newDeviceTab)
+}
+
+// One Rester Client tab per project, focused wherever it lives when opened again.
+export function openResterClient(project: ProjectRef): void {
+  openSingletonTab(project, 'resterClient', newResterClientTab)
+}
+
+function openSingletonTab(
+  project: ProjectRef,
+  kind: WorkspaceTab['kind'],
+  create: () => WorkspaceTab
+): void {
   const layout = workspaces[project.id].layout
   const root = layout.root
   if (!root) {
-    const leaf = tree.createLeaf<WorkspaceTab>([newDeviceTab()])
+    const leaf = tree.createLeaf<WorkspaceTab>([create()])
     commit(project, leaf, leaf.id)
     return
   }
   const leaves = tree.allLeaves(root)
   for (const leaf of leaves) {
-    const existing = leaf.tabs.find((tab) => tab.kind === 'device')
+    const existing = leaf.tabs.find((tab) => tab.kind === kind)
     if (!existing) continue
     commit(project, tree.setActiveTab(root, leaf.id, existing.id), leaf.id)
     return
   }
   const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
-  commit(project, tree.addTab(root, focused.id, newDeviceTab()), focused.id)
+  commit(project, tree.addTab(root, focused.id, create()), focused.id)
 }
 
 // One tab per workgroup: opening it again focuses the existing tab wherever it lives.

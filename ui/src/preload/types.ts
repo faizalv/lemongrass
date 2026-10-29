@@ -442,6 +442,56 @@ export interface DeviceEnd {
   replaced?: boolean
 }
 
+export interface ResterClientPair {
+  name: string
+  value: string
+}
+
+export type ResterClientBodyKind = 'none' | 'json' | 'form'
+
+// One saved request in a project's Rester Client. It holds no credential: the chosen rester user
+// supplies auth when it is sent.
+export interface ResterClientRequest {
+  id: string
+  name: string
+  rester: string
+  environment: string
+  user: string
+  method: string
+  url: string
+  headers: ResterClientPair[]
+  bodyKind: ResterClientBodyKind
+  json: string
+  form: ResterClientPair[]
+}
+
+export interface ResterClientCall {
+  rester: string
+  environment: string
+  user: string
+  method: string
+  path: string
+  body: string
+  contentType: string
+  headers: ResterClientPair[]
+}
+
+export interface ResterClientResult {
+  status: number
+  headers: Record<string, string[]>
+  body: string
+  binary: boolean
+  size: number
+  truncated: boolean
+  durationMs: number
+  url: string
+}
+
+export type ResterClientDownload =
+  | { kind: 'saved'; path: string; bytes: number; status: number; durationMs: number }
+  | { kind: 'cancelled' }
+  | { kind: 'inline'; result: ResterClientResult }
+
 export type WorkspaceTab =
   | { id: string; kind: 'doc'; path: string }
   | { id: string; kind: 'diff'; path: string }
@@ -450,6 +500,7 @@ export type WorkspaceTab =
   | { id: string; kind: 'web'; shellTabId: string }
   | { id: string; kind: 'workgroup'; groupId: number }
   | { id: string; kind: 'device' }
+  | { id: string; kind: 'resterClient' }
   | {
       id: string
       kind: 'shell'

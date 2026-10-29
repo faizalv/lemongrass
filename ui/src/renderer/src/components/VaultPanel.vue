@@ -2,21 +2,15 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, onMounted, ref, toRef } from 'vue'
+import { ref, toRef } from 'vue'
 import '../vault.css'
-import {
-  clearShortIds,
-  vaultSession,
-  describeError,
-  lockVaultSession,
-  noteVaultActivity,
-  unlockVaultSession
-} from '../vaultSession'
+import { vaultSession, lockVaultSession, noteVaultActivity } from '../vaultSession'
 import ConnectionsSection from './connector/ConnectionsSection.vue'
 import DbChannelsSection from './connector/DbChannelsSection.vue'
 import ResterList from './connector/rester/ResterList.vue'
 import HttpChannelsSection from './connector/HttpChannelsSection.vue'
 import AppButton from './AppButton.vue'
+import VaultUnlockGate from './VaultUnlockGate.vue'
 
 const props = defineProps<{
   active: boolean
@@ -27,78 +21,6 @@ const activeDbTab = ref<'connections' | 'channels'>('connections')
 const activeHttpTab = ref<'resters' | 'httpChannels'>('resters')
 
 const vaultUnlocked = toRef(vaultSession, 'unlocked')
-const unlockInput = ref('')
-const unlockError = ref('')
-const unlocking = ref(false)
-
-const hasPassphrase = ref(false)
-const hasPassphraseLoading = ref(true)
-const unlockMode = computed(() => (hasPassphrase.value ? 'enter' : 'set'))
-
-async function refreshHasPassphrase(): Promise<void> {
-  hasPassphraseLoading.value = true
-  try {
-    hasPassphrase.value = await window.api.vault.hasPassphrase()
-  } catch (err) {
-    unlockError.value = describeError(err)
-  } finally {
-    hasPassphraseLoading.value = false
-  }
-}
-
-onMounted(refreshHasPassphrase)
-
-async function unlockVault(): Promise<void> {
-  if (!unlockInput.value || unlocking.value) return
-  unlocking.value = true
-  unlockError.value = ''
-  const passphrase = unlockInput.value
-  try {
-    if (unlockMode.value === 'set') {
-      await window.api.vault.setPassphrase(passphrase)
-      hasPassphrase.value = true
-    } else {
-      await window.api.vault.verifyPassphrase(passphrase)
-    }
-    unlockInput.value = ''
-    unlockVaultSession(passphrase)
-  } catch (err) {
-    unlockError.value = describeError(err)
-  } finally {
-    unlocking.value = false
-  }
-}
-
-const showResetConfirm = ref(false)
-const resetting = ref(false)
-const resetError = ref('')
-
-function openResetConfirm(): void {
-  showResetConfirm.value = true
-  resetError.value = ''
-}
-
-function cancelResetConfirm(): void {
-  showResetConfirm.value = false
-}
-
-async function confirmReset(): Promise<void> {
-  if (resetting.value) return
-  resetting.value = true
-  resetError.value = ''
-  try {
-    await window.api.vault.resetVault()
-    showResetConfirm.value = false
-    unlockError.value = ''
-    unlockInput.value = ''
-    hasPassphrase.value = false
-    clearShortIds()
-  } catch (err) {
-    resetError.value = describeError(err)
-  } finally {
-    resetting.value = false
-  }
-}
 
 function shown(kind: 'database' | 'http', tab: string): boolean {
   if (!props.active || activeKind.value !== kind) return false
@@ -109,60 +31,7 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
 <template>
   <div class="vault-tab" @click.capture="noteVaultActivity" @keydown.capture="noteVaultActivity">
     <div class="vault-frame" :class="{ 'vault-frame--gate': !vaultUnlocked }">
-      <div v-if="!vaultUnlocked" class="vault-gate">
-        <div v-if="!hasPassphraseLoading" class="unlock-panel">
-          <template v-if="!showResetConfirm">
-            <h4 class="inline-section-title">
-              {{
-                unlockMode === 'set' ? 'Set your vault passphrase' : 'Enter your vault passphrase'
-              }}
-            </h4>
-            <p class="hint">
-              <template v-if="unlockMode === 'set'">
-                This becomes your vault's passphrase. Use the same one every time.
-              </template>
-              <template v-else>
-                Unlocks your connections and channel actions for this session. Auto-locks after 5
-                minutes idle.
-              </template>
-            </p>
-            <div class="unlock-row">
-              <input
-                v-model="unlockInput"
-                type="password"
-                placeholder="Vault passphrase"
-                autofocus
-                @keydown.enter="unlockVault"
-              />
-              <AppButton
-                variant="primary"
-                :disabled="!unlockInput || unlocking"
-                @click="unlockVault"
-              >
-                {{ unlocking ? 'Checking...' : 'Unlock' }}
-              </AppButton>
-            </div>
-            <p v-if="unlockError" class="error-text">{{ unlockError }}</p>
-            <AppButton v-if="unlockMode === 'enter'" class="reset-link" @click="openResetConfirm">
-              Forgot your passphrase?
-            </AppButton>
-          </template>
-
-          <template v-else>
-            <h4 class="inline-section-title">Reset the vault</h4>
-            <p class="hint">
-              This deletes every saved connection and channel permanently. This can't be undone.
-            </p>
-            <p v-if="resetError" class="error-text">{{ resetError }}</p>
-            <div class="unlock-row">
-              <AppButton @click="cancelResetConfirm">Cancel</AppButton>
-              <AppButton variant="danger" :disabled="resetting" @click="confirmReset">
-                {{ resetting ? 'Resetting...' : 'Reset vault' }}
-              </AppButton>
-            </div>
-          </template>
-        </div>
-      </div>
+      <VaultUnlockGate v-if="!vaultUnlocked" />
 
       <template v-else>
         <nav class="vault-nav">

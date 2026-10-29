@@ -12,11 +12,24 @@ import (
 	"github.com/faizalv/lemongrass/internal/vault"
 )
 
-// tokenCacheKey identifies one cached token: a channel plus which of the channel's rester
-// users it belongs to.
+// tokenOwner is whose calls a cached token serves: a channel, or for the human's own requests a
+// rester and environment with the channel left empty. A channel id is never empty, so the two
+// kinds cannot collide.
+type tokenOwner struct {
+	channel     vault.ChannelID
+	rester      string
+	environment string
+}
+
+func channelOwner(id vault.ChannelID) tokenOwner {
+	return tokenOwner{channel: id}
+}
+
+// tokenCacheKey identifies one cached token: its owner plus which of the rester's users it
+// belongs to.
 type tokenCacheKey struct {
-	channel vault.ChannelID
-	user    string
+	owner tokenOwner
+	user  string
 }
 
 // cachedToken holds a token obtained (or pasted, for a bring-your-own-token user) for one
@@ -34,19 +47,19 @@ type cachedToken struct {
 // proactively re-logs in, so a request doesn't race an about-to-expire token.
 const tokenRefreshMargin = 30 * time.Second
 
-func (g *Gate) cachedTokenFor(id vault.ChannelID, user string) (cachedToken, bool) {
+func (g *Gate) cachedTokenFor(owner tokenOwner, user string) (cachedToken, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	t, ok := g.tokens[tokenCacheKey{id, user}]
+	t, ok := g.tokens[tokenCacheKey{owner, user}]
 	return t, ok
 }
 
-func (g *Gate) setCachedToken(id vault.ChannelID, user, token string, expiresAt time.Time) error {
+func (g *Gate) setCachedToken(owner tokenOwner, user, token string, expiresAt time.Time) error {
 	locked, err := vault.LockKey([]byte(token))
 	if err != nil {
 		return err
 	}
-	key := tokenCacheKey{id, user}
+	key := tokenCacheKey{owner, user}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.tokens == nil {
@@ -61,20 +74,20 @@ func (g *Gate) setCachedToken(id vault.ChannelID, user, token string, expiresAt 
 
 // markTokenUsed records that a call using this cached token just came back 2xx, arming the
 // reactive re-login-and-retry signal for its next use.
-func (g *Gate) markTokenUsed(id vault.ChannelID, user string) {
+func (g *Gate) markTokenUsed(owner tokenOwner, user string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	key := tokenCacheKey{id, user}
+	key := tokenCacheKey{owner, user}
 	if t, ok := g.tokens[key]; ok {
 		t.everUsed = true
 		g.tokens[key] = t
 	}
 }
 
-func (g *Gate) evictCachedToken(id vault.ChannelID, user string) {
+func (g *Gate) evictCachedToken(owner tokenOwner, user string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	key := tokenCacheKey{id, user}
+	key := tokenCacheKey{owner, user}
 	if t, ok := g.tokens[key]; ok {
 		vault.LockedFree(t.locked)
 		delete(g.tokens, key)
@@ -86,7 +99,7 @@ func (g *Gate) forgetTokens(id vault.ChannelID) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for key, t := range g.tokens {
-		if key.channel == id {
+		if key.owner.channel == id {
 			vault.LockedFree(t.locked)
 			delete(g.tokens, key)
 		}
@@ -135,16 +148,16 @@ func findResterUser(rester vault.ResolvedRester, userName string) (vault.ResterU
 // tokenRefreshMargin of its computed expiry, otherwise a fresh one -- a login user re-logs in
 // via rester.LoginEndpoint, a bring-your-own-token user's stored token is reused directly
 // since there's no login call to refresh from.
-func (g *Gate) obtainToken(id vault.ChannelID, rester vault.ResolvedRester, userName string) (string, bool, error) {
-	if cached, ok := g.cachedTokenFor(id, userName); ok && time.Until(cached.expiresAt) > tokenRefreshMargin {
+func (g *Gate) obtainToken(owner tokenOwner, rester vault.ResolvedRester, userName string) (string, bool, error) {
+	if cached, ok := g.cachedTokenFor(owner, userName); ok && time.Until(cached.expiresAt) > tokenRefreshMargin {
 		return string(cached.locked), cached.everUsed, nil
 	}
-	return g.refreshToken(id, rester, userName)
+	return g.refreshToken(owner, rester, userName)
 }
 
 // refreshToken always obtains a fresh token, bypassing any cached one -- used both by
 // obtainToken on a cache miss/near-expiry and by the reactive re-login-and-retry path.
-func (g *Gate) refreshToken(id vault.ChannelID, rester vault.ResolvedRester, userName string) (string, bool, error) {
+func (g *Gate) refreshToken(owner tokenOwner, rester vault.ResolvedRester, userName string) (string, bool, error) {
 	user, err := findResterUser(rester, userName)
 	if err != nil {
 		return "", false, err
@@ -165,7 +178,7 @@ func (g *Gate) refreshToken(id vault.ChannelID, rester vault.ResolvedRester, use
 		}
 	}
 
-	if err := g.setCachedToken(id, userName, token, expiresAt); err != nil {
+	if err := g.setCachedToken(owner, userName, token, expiresAt); err != nil {
 		return "", false, err
 	}
 	return token, false, nil

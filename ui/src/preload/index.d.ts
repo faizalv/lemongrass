@@ -39,6 +39,10 @@ import type {
   GitStash,
   NodeIssued,
   NodeIssueRequest,
+  ResterClientCall,
+  ResterClientDownload,
+  ResterClientRequest,
+  ResterClientResult,
   NodeState,
   WorkspaceLayoutState,
   VaultScope,
@@ -210,6 +214,13 @@ interface Api {
     control: (id: string, message: Uint8Array) => void
     onPacket: (callback: (packet: DevicePacket) => void) => () => void
     onEnd: (callback: (end: DeviceEnd) => void) => () => void
+  }
+  resterClient: {
+    request: (passphrase: string, call: ResterClientCall) => Promise<ResterClientResult>
+    download: (passphrase: string, call: ResterClientCall) => Promise<ResterClientDownload>
+    flush: (rester: string, environment: string, user: string) => Promise<number>
+    load: (projectId: string) => Promise<ResterClientRequest[]>
+    save: (projectId: string, requests: ResterClientRequest[]) => Promise<void>
   }
   node: {
     state: () => Promise<NodeState>

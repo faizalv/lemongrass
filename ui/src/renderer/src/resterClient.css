@@ -1,0 +1,117 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 The Lemongrass Authors */
+
+/* Shared by every component of the Rester Client tab; every rule is prefixed by .rester-client so
+   nothing leaks to the rest of the app. */
+
+.rester-client {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.rester-client .client-frame {
+  flex: 1;
+  min-width: 860px;
+  min-height: 0;
+  display: flex;
+}
+
+.rester-client .client-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+.rester-client .client-empty {
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.rester-client .target-row,
+.rester-client .url-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rester-client .target-picker {
+  width: 280px;
+}
+
+.rester-client .user-picker {
+  width: 220px;
+}
+
+.rester-client .method-picker {
+  width: 112px;
+  flex-shrink: 0;
+}
+
+.rester-client .url-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+}
+
+.rester-client .resolved {
+  font-family: var(--font-mono);
+}
+
+.rester-client .notice {
+  color: var(--color-fg-secondary);
+}
+
+.rester-client .panes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.rester-client .pane {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.rester-client input,
+.rester-client textarea {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.rester-client textarea {
+  font-family: var(--font-mono);
+}
+
+.rester-client input:focus,
+.rester-client textarea:focus {
+  outline: none;
+  border-color: var(--color-amber);
+}
+
+.rester-client .hint {
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.rester-client .error-text {
+  color: var(--color-error);
+  font-size: var(--text-xs);
+}

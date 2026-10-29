@@ -56,6 +56,10 @@ const (
 	opUpdateRester        = "update_rester"
 	opWebLoginFields      = "web_login_fields"
 	opAppLogin            = "app_login"
+
+	opHumanRequest  = "human_request"
+	opHumanDownload = "human_download"
+	opHumanFlush    = "human_flush"
 )
 
 var connDeadline = 10 * time.Second
@@ -280,6 +284,19 @@ type getResterPayload struct {
 	Name       string `json:"name"`
 }
 
+// humanRequestPayload is one Rester Client call from the app. It carries the root secret in place
+// of a channel, so it is admin-gated and never sent by the agent.
+type humanRequestPayload struct {
+	RootSecret string               `json:"root_secret"`
+	Call       restergate.HumanCall `json:"call"`
+}
+
+type humanFlushPayload struct {
+	Rester      string `json:"rester"`
+	Environment string `json:"environment"`
+	User        string `json:"user"`
+}
+
 type resterPayload struct {
 	Rester vault.Rester `json:"rester"`
 }
@@ -324,7 +341,7 @@ func handleConn(svc *Backend, adminLimiter *vault.FailureLimiter, conn net.Conn)
 			return
 		}
 	}
-	if req.Op == opRequestHTTP || req.Op == opRequestHTTPDownload {
+	if req.Op == opRequestHTTP || req.Op == opRequestHTTPDownload || req.Op == opHumanRequest || req.Op == opHumanDownload {
 		conn.SetDeadline(time.Now().Add(restergate.RequestTimeout))
 	}
 	if req.Op == opAppLogin {
@@ -332,6 +349,10 @@ func handleConn(svc *Backend, adminLimiter *vault.FailureLimiter, conn net.Conn)
 	}
 	if req.Op == opRequestHTTPDownload {
 		serveDownload(svc, conn, req)
+		return
+	}
+	if req.Op == opHumanDownload {
+		serveHumanDownload(svc, adminLimiter, conn, req)
 		return
 	}
 	json.NewEncoder(conn).Encode(dispatch(svc, adminLimiter, req))
@@ -689,6 +710,23 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 		return adminOp(adminLimiter, func() (response, error) {
 			return response{OK: true}, svc.UpdateRester(p.RootSecret, p.Name, p.Rester)
 		})
+
+	case opHumanRequest:
+		var p humanRequestPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return adminOp(adminLimiter, func() (response, error) {
+			result, err := svc.HTTP.HumanRequest(p.RootSecret, p.Call)
+			return payloadResponse(result), err
+		})
+
+	case opHumanFlush:
+		var p humanFlushPayload
+		if err := json.Unmarshal(req.Payload, &p); err != nil {
+			return errResponse(err)
+		}
+		return payloadResponse(flushedPayload{Flushed: svc.HTTP.FlushHumanTokens(p.Rester, p.Environment, p.User)})
 
 	case opListHTTPChannels:
 		channels, err := svc.ListHTTPChannels()

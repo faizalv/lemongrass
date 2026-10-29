@@ -58,6 +58,7 @@ func (s *Service) UpdateRester(rootSecret, name string, r Rester) error {
 	if err != nil {
 		return err
 	}
+	s.resterChanged(name)
 
 	var failed []string
 	for _, c := range mine {

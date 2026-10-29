@@ -32,6 +32,7 @@ type Service struct {
 	mu         sync.Mutex
 	activeKeys map[ChannelID][]byte
 	onInvalid  []func(ChannelID)
+	onRester   []func(string)
 
 	policyPath string
 	policy     policyFile

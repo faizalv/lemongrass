@@ -9,6 +9,7 @@ import DeviceEntry from './DeviceEntry.vue'
 import GitPanel from './GitPanel.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import NodeEntry from './NodeEntry.vue'
+import ResterClientEntry from './ResterClientEntry.vue'
 import VaultEntry from './VaultEntry.vue'
 import WorkgroupPanel from './WorkgroupPanel.vue'
 import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
@@ -180,6 +181,7 @@ function onGutterUp(): void {
       <GitPanel :project="project" />
       <VaultEntry @open="emit('openVault')" />
       <DeviceEntry :project="project" />
+      <ResterClientEntry :project="project" />
       <NodeEntry />
     </div>
 

@@ -74,7 +74,8 @@ onBeforeUnmount(() => clearTimeout(timer))
 <style scoped>
 .node-panel {
   flex-shrink: 0;
-  padding: 0 var(--space-2) var(--space-2);
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
 }
 
 .node-item {

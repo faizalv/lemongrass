@@ -32,6 +32,11 @@ func (g *Gate) DownloadHTTP(id vault.ChannelID, user, method, requestPath string
 	if err != nil {
 		return Download{}, err
 	}
+	return downloadFrom(resp, target)
+}
+
+// downloadFrom reads a non-2xx response inline and hands a 2xx one back with its body open.
+func downloadFrom(resp *http.Response, target requestTarget) (Download, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
 		result, err := readInline(resp, target.URL)

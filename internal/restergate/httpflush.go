@@ -27,7 +27,7 @@ func (g *Gate) flushTokens(id vault.ChannelID, user string) int {
 	defer g.mu.Unlock()
 	flushed := 0
 	for key, t := range g.tokens {
-		if key.channel != id || (user != "" && key.user != user) {
+		if key.owner.channel != id || (user != "" && key.user != user) {
 			continue
 		}
 		vault.LockedFree(t.locked)

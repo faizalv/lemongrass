@@ -24,6 +24,7 @@ import { registerGitHandlers } from './git'
 import { flushBranchNotices } from './gitBranch'
 import { registerDeviceHandlers, stopAllDevices } from './device'
 import { registerVaultHandlers } from './vault'
+import { registerResterClientHandlers } from './resterClient'
 import { registerNodeHandlers } from './node'
 import { registerWindowControlHandlers, wireMaximizeEvents } from './windowControls'
 import { installLgrass, installLgrassd, installLgrassconf } from './lgrassInstall'
@@ -118,6 +119,7 @@ app.whenReady().then(async () => {
   registerGitHandlers(lgrassdPath)
   registerDeviceHandlers(() => mainWindow?.webContents)
   registerVaultHandlers()
+  registerResterClientHandlers()
   registerNodeHandlers()
   registerWindowControlHandlers(() => mainWindow)
   startWorkgroupBridge(() => mainWindow, lgrassdPath)

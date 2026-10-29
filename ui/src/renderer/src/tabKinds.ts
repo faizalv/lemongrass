@@ -6,6 +6,7 @@ import DeviceView from './components/DeviceView.vue'
 import DiffViewer from './components/DiffViewer.vue'
 import DocView from './components/DocView.vue'
 import HistoryView from './components/HistoryView.vue'
+import ResterClientView from './components/resterClient/ResterClientView.vue'
 import ShellView from './components/ShellView.vue'
 import VaultPanel from './components/VaultPanel.vue'
 import WebPane from './components/WebPane.vue'
@@ -123,6 +124,18 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     // Kept alive so switching tabs does not restart the mirror on the phone.
     keepAlive: true,
     bodyProps: () => ({})
+  },
+  resterClient: {
+    icon: [
+      { tag: 'path', attrs: { d: 'M2 4.5h9.5L9.5 2.5' } },
+      { tag: 'path', attrs: { d: 'M12 9.5H2.5l2 2' } }
+    ],
+    label: () => ({ text: 'Rester Client' }),
+    title: () => 'Rester Client',
+    body: ResterClientView,
+    // Kept alive so an unsent draft and the last response survive switching tabs.
+    keepAlive: true,
+    bodyProps: (_tab, ctx) => ({ project: ctx.project })
   },
   workgroup: {
     icon: [

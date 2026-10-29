@@ -244,7 +244,11 @@ func (s *Service) ListResters() ([]string, error) {
 
 // DeleteRester removes a stored rester. It succeeds even if name was never stored.
 func (s *Service) DeleteRester(name string) error {
-	return s.creds.Delete(resterKey(name))
+	if err := s.creds.Delete(resterKey(name)); err != nil {
+		return err
+	}
+	s.resterChanged(name)
+	return nil
 }
 
 // GetRester decrypts name's stored rester in full, passwords and tokens included, for a human

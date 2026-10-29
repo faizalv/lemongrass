@@ -39,6 +39,10 @@ import type {
   GitRevision,
   GitStash,
   NodeIssued,
+  ResterClientCall,
+  ResterClientDownload,
+  ResterClientRequest,
+  ResterClientResult,
   NodeIssueRequest,
   NodeState,
   NodeUpdateRequest,
@@ -250,6 +254,19 @@ const device = {
     ipcRenderer.on('device:end', listener)
     return () => ipcRenderer.removeListener('device:end', listener)
   }
+}
+
+const resterClient = {
+  request: (passphrase: string, call: ResterClientCall): Promise<ResterClientResult> =>
+    ipcRenderer.invoke('resterClient:request', passphrase, call),
+  download: (passphrase: string, call: ResterClientCall): Promise<ResterClientDownload> =>
+    ipcRenderer.invoke('resterClient:download', passphrase, call),
+  flush: (rester: string, environment: string, user: string): Promise<number> =>
+    ipcRenderer.invoke('resterClient:flush', rester, environment, user),
+  load: (projectId: string): Promise<ResterClientRequest[]> =>
+    ipcRenderer.invoke('resterClient:load', projectId),
+  save: (projectId: string, requests: ResterClientRequest[]): Promise<void> =>
+    ipcRenderer.invoke('resterClient:save', projectId, requests)
 }
 
 const node = {
@@ -469,6 +486,7 @@ const api = {
   biblio,
   git,
   device,
+  resterClient,
   node,
   vault,
   web,

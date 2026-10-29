@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Lemongrass Authors
 
-// Package restergate makes HTTP calls through a channel: it checks scope, logs users in, caches their tokens and sends the request. The rester config comes from the vault and only tokens are cached here.
+// Package restergate makes HTTP calls through a channel, or for the human without one: it checks a channel's scope, logs users in, caches their tokens and sends the request. The rester config comes from the vault and only tokens are cached here.
 package restergate
 
 import (
@@ -26,9 +26,10 @@ type Gate struct {
 	tokens map[tokenCacheKey]cachedToken
 }
 
-// New returns a Gate reading rester config from svc and dropping a channel's cached tokens whenever the vault invalidates that channel.
+// New returns a Gate reading rester config from svc and dropping a channel's cached tokens whenever the vault invalidates that channel, and the human's tokens of a rester whenever it is edited or deleted.
 func New(svc *vault.Service) *Gate {
 	g := &Gate{vault: svc, tokens: make(map[tokenCacheKey]cachedToken)}
 	svc.OnInvalidate(g.forgetTokens)
+	svc.OnResterChange(g.forgetHumanTokens)
 	return g
 }

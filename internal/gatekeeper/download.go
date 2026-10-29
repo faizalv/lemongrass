@@ -211,6 +211,30 @@ func serveDownload(svc *Backend, conn net.Conn, req request) {
 	WriteDownload(conn, downloadResult(dl), restergate.RequestTimeout, nil)
 }
 
+// serveHumanDownload answers a Rester Client download. It carries the root secret, so a wrong one
+// counts against adminLimiter like any admin op.
+func serveHumanDownload(svc *Backend, adminLimiter *vault.FailureLimiter, conn net.Conn, req request) {
+	var p humanRequestPayload
+	if err := json.Unmarshal(req.Payload, &p); err != nil {
+		WriteDownloadError(conn, err)
+		return
+	}
+	if err := adminLimiter.Check(); err != nil {
+		WriteDownloadError(conn, err)
+		return
+	}
+	dl, err := svc.HTTP.HumanDownload(p.RootSecret, p.Call)
+	if err != nil {
+		if vault.IsAuthFailure(err) {
+			adminLimiter.RecordFailure()
+		}
+		WriteDownloadError(conn, err)
+		return
+	}
+	adminLimiter.RecordSuccess()
+	WriteDownload(conn, downloadResult(dl), restergate.RequestTimeout, nil)
+}
+
 func downloadResult(dl restergate.Download) DownloadResult {
 	if dl.Inline != nil {
 		return DownloadResult{Inline: dl.Inline}

@@ -95,51 +95,61 @@ func (g *Gate) exchange(id vault.ChannelID, user, method, requestPath string, bo
 		return nil, requestTarget{}, fmt.Errorf("restergate: this channel does not grant %s %s", strings.ToUpper(method), target.ScopePath)
 	}
 
-	if err := checkRequestBody(body, contentType); err != nil {
-		return nil, requestTarget{}, err
-	}
-	if err := checkCallHeaders(rester, headers); err != nil {
-		return nil, requestTarget{}, err
-	}
-
-	token, everUsed, err := g.obtainToken(id, rester, user)
+	resp, err := g.send(channelOwner(id), rester, user, method, target, body, contentType, headers, stream)
 	if err != nil {
 		return nil, requestTarget{}, err
+	}
+	return resp, target, nil
+}
+
+// send checks the body and the call's headers, obtains user's token under owner and sends the
+// request, re-logging in and retrying once when a token that worked before draws a stale-token status.
+func (g *Gate) send(owner tokenOwner, rester vault.ResolvedRester, user, method string, target requestTarget, body []byte, contentType string, headers []vault.Header, stream bool) (*http.Response, error) {
+	if err := checkRequestBody(body, contentType); err != nil {
+		return nil, err
+	}
+	if err := checkCallHeaders(rester, headers); err != nil {
+		return nil, err
+	}
+
+	token, everUsed, err := g.obtainToken(owner, rester, user)
+	if err != nil {
+		return nil, err
 	}
 
 	resp, err := sendHTTPRequest(rester, token, method, target, body, contentType, headers, stream)
 	if err != nil {
-		return nil, requestTarget{}, err
+		return nil, err
 	}
 
 	if everUsed && isStaleTokenSignal(resp.StatusCode) {
 		resp.Body.Close()
-		resp, err = g.retryWithFreshToken(id, rester, user, method, target, body, contentType, headers, stream)
+		resp, err = g.retryWithFreshToken(owner, rester, user, method, target, body, contentType, headers, stream)
 		if err != nil {
-			return nil, requestTarget{}, err
+			return nil, err
 		}
 	}
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		g.markTokenUsed(id, user)
+		g.markTokenUsed(owner, user)
 	}
-	return resp, target, nil
+	return resp, nil
 }
 
 // retryWithFreshToken evicts the stale cached token, re-logs in (bring-your-own-token users
 // have no login to refresh from, so their token is only evicted, not replaced), and retries the
 // call exactly once.
-func (g *Gate) retryWithFreshToken(id vault.ChannelID, rester vault.ResolvedRester, user, method string, target requestTarget, body []byte, contentType string, headers []vault.Header, stream bool) (*http.Response, error) {
+func (g *Gate) retryWithFreshToken(owner tokenOwner, rester vault.ResolvedRester, user, method string, target requestTarget, body []byte, contentType string, headers []vault.Header, stream bool) (*http.Response, error) {
 	resterUser, err := findResterUser(rester, user)
 	if err != nil {
 		return nil, err
 	}
-	g.evictCachedToken(id, user)
+	g.evictCachedToken(owner, user)
 	if resterUser.IsBYOT() {
 		return nil, fmt.Errorf("restergate: %s's token appears to have gone stale; ask them to paste a fresh one into the rester and re-save it", vault.UserHandle(user))
 	}
 
-	freshToken, _, err := g.refreshToken(id, rester, user)
+	freshToken, _, err := g.refreshToken(owner, rester, user)
 	if err != nil {
 		return nil, fmt.Errorf("restergate: token appeared stale, re-login also failed: %w", err)
 	}

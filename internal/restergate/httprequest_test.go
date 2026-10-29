@@ -179,7 +179,7 @@ func TestRequestHTTPBYOTStaleTokenIsNotRetried(t *testing.T) {
 	if _, err := svc.RequestHTTP(id, "bot", "GET", "/api/orders", nil, "", nil); err == nil {
 		t.Error("second RequestHTTP for a bring-your-own-token user's now-stale token = nil error, want an error (no login to retry with)")
 	}
-	if _, ok := svc.cachedTokenFor(id, "bot"); ok {
+	if _, ok := svc.cachedTokenFor(channelOwner(id), "bot"); ok {
 		t.Error("stale bring-your-own-token should be evicted from the cache after the failed retry attempt")
 	}
 }

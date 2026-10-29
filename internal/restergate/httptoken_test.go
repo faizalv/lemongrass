@@ -56,11 +56,11 @@ func TestObtainTokenCachesUntilNearExpiry(t *testing.T) {
 	}
 	id, _ := vault.NewChannelID()
 
-	token1, _, err := svc.obtainToken(id, domain, "alice")
+	token1, _, err := svc.obtainToken(channelOwner(id), domain, "alice")
 	if err != nil {
 		t.Fatalf("obtainToken: %v", err)
 	}
-	token2, _, err := svc.obtainToken(id, domain, "alice")
+	token2, _, err := svc.obtainToken(channelOwner(id), domain, "alice")
 	if err != nil {
 		t.Fatalf("obtainToken (cached): %v", err)
 	}
@@ -87,11 +87,11 @@ func TestObtainTokenRefreshesNearExpiry(t *testing.T) {
 	}
 	id, _ := vault.NewChannelID()
 
-	if err := svc.setCachedToken(id, "alice", "stale", time.Now().Add(5*time.Second)); err != nil {
+	if err := svc.setCachedToken(channelOwner(id), "alice", "stale", time.Now().Add(5*time.Second)); err != nil {
 		t.Fatalf("setCachedToken: %v", err)
 	}
 
-	token, _, err := svc.obtainToken(id, domain, "alice")
+	token, _, err := svc.obtainToken(channelOwner(id), domain, "alice")
 	if err != nil {
 		t.Fatalf("obtainToken: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestObtainTokenBYOTNeverCallsLogin(t *testing.T) {
 	}
 	id, _ := vault.NewChannelID()
 
-	token, _, err := svc.obtainToken(id, domain, "bot")
+	token, _, err := svc.obtainToken(channelOwner(id), domain, "bot")
 	if err != nil {
 		t.Fatalf("obtainToken: %v", err)
 	}
@@ -135,20 +135,20 @@ func TestMarkTokenUsedAndForgetTokens(t *testing.T) {
 	svc := newTestService(t)
 	id, _ := vault.NewChannelID()
 
-	if err := svc.setCachedToken(id, "alice", "tok", time.Now().Add(time.Hour)); err != nil {
+	if err := svc.setCachedToken(channelOwner(id), "alice", "tok", time.Now().Add(time.Hour)); err != nil {
 		t.Fatalf("setCachedToken: %v", err)
 	}
-	if cached, ok := svc.cachedTokenFor(id, "alice"); !ok || cached.everUsed {
+	if cached, ok := svc.cachedTokenFor(channelOwner(id), "alice"); !ok || cached.everUsed {
 		t.Errorf("cachedTokenFor before markTokenUsed: ok=%v everUsed=%v, want ok=true everUsed=false", ok, cached.everUsed)
 	}
 
-	svc.markTokenUsed(id, "alice")
-	if cached, ok := svc.cachedTokenFor(id, "alice"); !ok || !cached.everUsed {
+	svc.markTokenUsed(channelOwner(id), "alice")
+	if cached, ok := svc.cachedTokenFor(channelOwner(id), "alice"); !ok || !cached.everUsed {
 		t.Errorf("cachedTokenFor after markTokenUsed: ok=%v everUsed=%v, want ok=true everUsed=true", ok, cached.everUsed)
 	}
 
 	svc.forgetTokens(id)
-	if _, ok := svc.cachedTokenFor(id, "alice"); ok {
+	if _, ok := svc.cachedTokenFor(channelOwner(id), "alice"); ok {
 		t.Error("cachedTokenFor after forgetTokens: ok=true, want false")
 	}
 }

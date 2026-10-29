@@ -7,7 +7,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { listSSHHosts, resolveSSHHost } from './sshHosts'
 
-function vaultSocketPath(): string {
+export function vaultSocketPath(): string {
   return join(homedir(), '.lemongrass', 'vault.sock')
 }
 
