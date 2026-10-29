@@ -2,14 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
-import {
-  createWriteStream,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  unlinkSync,
-  writeFileSync
-} from 'fs'
+import { createWriteStream, unlinkSync } from 'fs'
 import type { WriteStream } from 'fs'
 import * as net from 'net'
 import { homedir } from 'os'
@@ -18,13 +11,23 @@ import type {
   ResterClientCall,
   ResterClientDownload,
   ResterClientRequest,
-  ResterClientResult
+  ResterClientResult,
+  ResterClientRun
 } from '../preload/types'
 import { DownloadDecoder, type DownloadEvent } from './downloadFrames'
+import {
+  appendRun,
+  clearHistory,
+  deleteRun,
+  loadHistory,
+  loadRequests,
+  saveRequests
+} from './resterClientStore'
 import { vaultCall, vaultSocketPath } from './vault'
 
-const STORE_DIR = join(homedir(), '.lemongrass')
-const STORE_FILE = join(STORE_DIR, 'rester-client.json')
+const STORE_DIR = join(homedir(), '.lemongrass', 'rester-client')
+// Where the first build kept one list per project.
+const LEGACY_STORE_FILE = join(homedir(), '.lemongrass', 'rester-client.json')
 
 interface WireResult {
   status: number
@@ -249,26 +252,6 @@ function humanDownload(
   })
 }
 
-function readStore(): Record<string, ResterClientRequest[]> {
-  if (!existsSync(STORE_FILE)) return {}
-  try {
-    return JSON.parse(readFileSync(STORE_FILE, 'utf-8'))
-  } catch {
-    return {}
-  }
-}
-
-function loadRequests(projectId: string): ResterClientRequest[] {
-  return readStore()[projectId] ?? []
-}
-
-function saveRequests(projectId: string, requests: ResterClientRequest[]): void {
-  const store = readStore()
-  store[projectId] = requests
-  mkdirSync(STORE_DIR, { recursive: true })
-  writeFileSync(STORE_FILE, JSON.stringify(store, null, 2))
-}
-
 export function registerResterClientHandlers(): void {
   ipcMain.handle('resterClient:request', (_event, passphrase: string, call: ResterClientCall) =>
     humanRequest(passphrase, call)
@@ -281,10 +264,20 @@ export function registerResterClientHandlers(): void {
     (_event, rester: string, environment: string, user: string) =>
       humanFlush(rester, environment, user)
   )
-  ipcMain.handle('resterClient:load', (_event, projectId: string) => loadRequests(projectId))
-  ipcMain.handle(
-    'resterClient:save',
-    (_event, projectId: string, requests: ResterClientRequest[]) =>
-      saveRequests(projectId, requests)
+  ipcMain.handle('resterClient:load', () => loadRequests(STORE_DIR, LEGACY_STORE_FILE))
+  ipcMain.handle('resterClient:save', (_event, requests: ResterClientRequest[]) =>
+    saveRequests(STORE_DIR, requests)
+  )
+  ipcMain.handle('resterClient:history', (_event, requestId: string) =>
+    loadHistory(STORE_DIR, requestId)
+  )
+  ipcMain.handle('resterClient:recordRun', (_event, requestId: string, run: ResterClientRun) =>
+    appendRun(STORE_DIR, requestId, run)
+  )
+  ipcMain.handle('resterClient:deleteRun', (_event, requestId: string, runId: string) =>
+    deleteRun(STORE_DIR, requestId, runId)
+  )
+  ipcMain.handle('resterClient:clearHistory', (_event, requestId: string) =>
+    clearHistory(STORE_DIR, requestId)
   )
 }

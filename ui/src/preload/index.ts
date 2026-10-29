@@ -43,6 +43,7 @@ import type {
   ResterClientDownload,
   ResterClientRequest,
   ResterClientResult,
+  ResterClientRun,
   NodeIssueRequest,
   NodeState,
   NodeUpdateRequest,
@@ -263,10 +264,17 @@ const resterClient = {
     ipcRenderer.invoke('resterClient:download', passphrase, call),
   flush: (rester: string, environment: string, user: string): Promise<number> =>
     ipcRenderer.invoke('resterClient:flush', rester, environment, user),
-  load: (projectId: string): Promise<ResterClientRequest[]> =>
-    ipcRenderer.invoke('resterClient:load', projectId),
-  save: (projectId: string, requests: ResterClientRequest[]): Promise<void> =>
-    ipcRenderer.invoke('resterClient:save', projectId, requests)
+  load: (): Promise<ResterClientRequest[]> => ipcRenderer.invoke('resterClient:load'),
+  save: (requests: ResterClientRequest[]): Promise<void> =>
+    ipcRenderer.invoke('resterClient:save', requests),
+  history: (requestId: string): Promise<ResterClientRun[]> =>
+    ipcRenderer.invoke('resterClient:history', requestId),
+  recordRun: (requestId: string, run: ResterClientRun): Promise<ResterClientRun[]> =>
+    ipcRenderer.invoke('resterClient:recordRun', requestId, run),
+  deleteRun: (requestId: string, runId: string): Promise<ResterClientRun[]> =>
+    ipcRenderer.invoke('resterClient:deleteRun', requestId, runId),
+  clearHistory: (requestId: string): Promise<void> =>
+    ipcRenderer.invoke('resterClient:clearHistory', requestId)
 }
 
 const node = {

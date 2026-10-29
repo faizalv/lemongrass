@@ -2,11 +2,12 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = withDefaults(
   defineProps<{
-    items: { id: string; label: string; title?: string }[]
+    // search is the text the filter box matches, the label when absent.
+    items: { id: string; label: string; title?: string; search?: string }[]
     activeId: string | null
     placeholder: string
     // Overrides what the closed trigger shows, such as an unsaved name; the list is unaffected.
@@ -16,8 +17,17 @@ const props = withDefaults(
     emptyText: string
     // A framed trigger sits among form fields; the plain one sits in a header.
     framed?: boolean
+    // Adds a filter box at the top of the dropdown.
+    searchable?: boolean
+    searchPlaceholder?: string
   }>(),
-  { label: undefined, addLabel: undefined, framed: false }
+  {
+    label: undefined,
+    addLabel: undefined,
+    framed: false,
+    searchable: false,
+    searchPlaceholder: 'Search'
+  }
 )
 
 const emit = defineEmits<{
@@ -27,13 +37,29 @@ const emit = defineEmits<{
 
 const open = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
+const query = ref('')
+const searchRef = ref<HTMLInputElement | null>(null)
+
+const shownItems = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  if (!q) return props.items
+  return props.items.filter((item) => (item.search ?? item.label).toLowerCase().includes(q))
+})
 
 const activeLabel = computed(
   () => props.label ?? props.items.find((i) => i.id === props.activeId)?.label ?? props.placeholder
 )
 
-function toggleOpen(): void {
+async function toggleOpen(): Promise<void> {
   open.value = !open.value
+  if (!open.value || !props.searchable) return
+  query.value = ''
+  await nextTick()
+  searchRef.value?.focus()
+}
+
+function pickFirstShown(): void {
+  if (shownItems.value.length > 0) pick(shownItems.value[0].id)
 }
 
 function pick(id: string): void {
@@ -84,9 +110,20 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
     </button>
 
     <div v-if="open" class="dropdown">
+      <input
+        v-if="searchable"
+        ref="searchRef"
+        v-model="query"
+        class="search"
+        type="text"
+        spellcheck="false"
+        :placeholder="searchPlaceholder"
+        @keydown.enter.prevent="pickFirstShown"
+        @keydown.escape="open = false"
+      />
       <div class="item-list">
         <button
-          v-for="item in items"
+          v-for="item in shownItems"
           :key="item.id"
           type="button"
           class="item-row"
@@ -97,6 +134,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
           {{ item.label }}
         </button>
         <p v-if="items.length === 0" class="empty">{{ emptyText }}</p>
+        <p v-else-if="shownItems.length === 0" class="empty">No match.</p>
       </div>
       <button v-if="addLabel" type="button" class="add-item" @click="pickAdd">
         <span class="icon">+</span>
@@ -178,6 +216,22 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
   overflow: hidden;
+}
+
+.search {
+  margin: var(--space-2) var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-0);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+.search:focus {
+  outline: none;
+  border-color: var(--color-amber);
 }
 
 .item-list {

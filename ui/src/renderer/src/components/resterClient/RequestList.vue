@@ -3,7 +3,6 @@
 
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
-import AppButton from '../AppButton.vue'
 import AppConfirmButton from '../AppConfirmButton.vue'
 import type { ResterClientRequest } from '../../../../preload/types'
 
@@ -14,7 +13,6 @@ defineProps<{
 
 const emit = defineEmits<{
   select: [id: string]
-  add: []
   remove: [id: string]
   rename: [id: string, name: string]
 }>()
@@ -41,11 +39,7 @@ function finishRename(): void {
 </script>
 
 <template>
-  <nav class="request-list">
-    <div class="list-head">
-      <span class="list-title">Requests</span>
-      <AppButton @click="emit('add')">+ Request</AppButton>
-    </div>
+  <div class="request-list">
     <p v-if="requests.length === 0" class="hint">No requests yet.</p>
     <div
       v-for="request in requests"
@@ -80,7 +74,7 @@ function finishRename(): void {
         ×
       </AppConfirmButton>
     </div>
-  </nav>
+  </div>
 </template>
 
 <style scoped>
@@ -88,26 +82,6 @@ function finishRename(): void {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex-shrink: 0;
-  width: 230px;
-  padding: var(--space-3);
-  border-right: 1px solid var(--color-border-default);
-  overflow-y: auto;
-}
-
-.list-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-2);
-}
-
-.list-title {
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .request-item {

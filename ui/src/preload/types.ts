@@ -492,6 +492,18 @@ export type ResterClientDownload =
   | { kind: 'cancelled' }
   | { kind: 'inline'; result: ResterClientResult }
 
+// One send of a request, kept in its history: the parameters it went out with and what came back.
+// A response body longer than the history cap is cut, with bodyCut set.
+export interface ResterClientRun {
+  id: string
+  at: string
+  request: Omit<ResterClientRequest, 'id' | 'name'>
+  result: ResterClientResult | null
+  download: ResterClientDownload | null
+  error: string
+  bodyCut: boolean
+}
+
 export type WorkspaceTab =
   | { id: string; kind: 'doc'; path: string }
   | { id: string; kind: 'diff'; path: string }

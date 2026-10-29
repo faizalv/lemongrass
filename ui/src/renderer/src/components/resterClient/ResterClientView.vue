@@ -2,32 +2,39 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import '../../resterClient.css'
 import AppButton from '../AppButton.vue'
+import AppConfirmButton from '../AppConfirmButton.vue'
+import AppSegmented from '../AppSegmented.vue'
 import AppSwitcher from '../AppSwitcher.vue'
 import VaultUnlockGate from '../VaultUnlockGate.vue'
 import RequestList from './RequestList.vue'
 import RequestEditor from './RequestEditor.vue'
 import ResponsePanel from './ResponsePanel.vue'
+import RunHistory from './RunHistory.vue'
 import { describeError, noteVaultActivity, vaultSession } from '../../vaultSession'
 import { plainCopy } from '../connector/rester/resterDraft'
 import { looksLikeCurl, matchBaseURL, parseCurl, type BaseURLTarget } from '../../curlRequest'
 import { apiUsers, buildCall } from '../../resterClientCall'
-import type { ProjectRef } from '../../workspace'
+import {
+  clearHistory,
+  deleteRun,
+  loadHistory,
+  loadResterClient,
+  recordRun,
+  removeRequest as removeStoredRequest,
+  resterClientStore
+} from '../../resterClientStore'
 import type {
   ResterClientDownload,
   ResterClientRequest,
   ResterClientResult,
+  ResterClientRun,
   VaultRester
 } from '../../../../preload/types'
 
-const props = defineProps<{
-  project: ProjectRef
-}>()
-
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
-const SAVE_MS = 400
 
 interface Outcome {
   result: ResterClientResult | null
@@ -35,12 +42,23 @@ interface Outcome {
   error: string
   sending: boolean
   notice: string
+  // Set while the outcome shows a run picked from history.
+  runId: string | null
+  bodyCut: boolean
 }
 
-const requests = ref<ResterClientRequest[]>([])
+const requests = computed(() => resterClientStore.requests)
 const selectedId = ref<string | null>(null)
-const loaded = ref(false)
 const outcomes = reactive<Record<string, Outcome>>({})
+
+const sidebarMode = ref<'requests' | 'history'>('requests')
+const sidebarModes = [
+  { value: 'requests' as const, label: 'Requests' },
+  { value: 'history' as const, label: 'History' }
+]
+const runs = computed(() =>
+  selectedId.value ? (resterClientStore.histories[selectedId.value] ?? []) : []
+)
 
 const resters = ref<Record<string, VaultRester>>({})
 const restersError = ref('')
@@ -50,7 +68,15 @@ const selected = computed(() => requests.value.find((r) => r.id === selectedId.v
 
 function outcomeOf(id: string): Outcome {
   if (!outcomes[id]) {
-    outcomes[id] = { result: null, download: null, error: '', sending: false, notice: '' }
+    outcomes[id] = {
+      result: null,
+      download: null,
+      error: '',
+      sending: false,
+      notice: '',
+      runId: null,
+      bodyCut: false
+    }
   }
   return outcomes[id]
 }
@@ -98,7 +124,8 @@ const userItems = computed(() => {
   if (!rester || !selected.value) return []
   return apiUsers(rester, selected.value.environment).map((user) => ({
     id: user.Name,
-    label: user.Tags?.length ? `${user.Name} (${user.Tags.join(', ')})` : user.Name
+    label: user.Tags?.length ? `${user.Name} (${user.Tags.join(', ')})` : user.Name,
+    search: user.Name
   }))
 })
 
@@ -143,31 +170,12 @@ watch(
 )
 
 onMounted(async () => {
-  requests.value = await window.api.resterClient.load(props.project.id)
-  selectedId.value = requests.value[0]?.id ?? null
-  loaded.value = true
+  await loadResterClient()
+  selectedId.value ??= requests.value[0]?.id ?? null
 })
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null
-
-function saveNow(): void {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = null
-  window.api.resterClient.save(props.project.id, plainCopy(requests.value))
-}
-
-watch(
-  requests,
-  () => {
-    if (!loaded.value) return
-    if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(saveNow, SAVE_MS)
-  },
-  { deep: true }
-)
-
-onBeforeUnmount(() => {
-  if (saveTimer) saveNow()
+watch([sidebarMode, selectedId], ([mode, id]) => {
+  if (mode === 'history' && id) loadHistory(id)
 })
 
 function addRequest(): void {
@@ -185,15 +193,16 @@ function addRequest(): void {
     json: '',
     form: []
   }
-  requests.value.push(request)
+  resterClientStore.requests.push(request)
   selectedId.value = request.id
+  sidebarMode.value = 'requests'
   if (!request.user) pickDefaultUser(request)
 }
 
 function removeRequest(id: string): void {
   const index = requests.value.findIndex((r) => r.id === id)
   if (index < 0) return
-  requests.value.splice(index, 1)
+  removeStoredRequest(id)
   delete outcomes[id]
   if (selectedId.value === id) {
     selectedId.value = requests.value[Math.min(index, requests.value.length - 1)]?.id ?? null
@@ -258,6 +267,13 @@ function onUrlPaste(event: ClipboardEvent): void {
   outcomeOf(request.id).notice = notes.join(' ')
 }
 
+function snapshot(request: ResterClientRequest): ResterClientRun['request'] {
+  const copy = plainCopy(request) as Partial<ResterClientRequest>
+  delete copy.id
+  delete copy.name
+  return copy as ResterClientRun['request']
+}
+
 async function send(download: boolean): Promise<void> {
   const request = selected.value
   if (!request || !canSend.value) return
@@ -265,7 +281,11 @@ async function send(download: boolean): Promise<void> {
   state.sending = true
   state.error = ''
   state.notice = ''
+  state.runId = null
+  state.bodyCut = false
   noteVaultActivity()
+  const sent = snapshot(request)
+  const at = new Date().toISOString()
   try {
     const call = plainCopy(buildCall(request))
     if (download) {
@@ -283,6 +303,34 @@ async function send(download: boolean): Promise<void> {
   } finally {
     state.sending = false
   }
+  if (state.download?.kind === 'cancelled') return
+  recordRun(request.id, {
+    id: crypto.randomUUID(),
+    at,
+    request: sent,
+    result: state.result,
+    download: state.download,
+    error: state.error,
+    bodyCut: false
+  }).catch((err) => (state.notice = `The run was not kept in history: ${describeError(err)}`))
+}
+
+// Loads a run's parameters into its request and shows the response it got.
+function pickRun(run: ResterClientRun): void {
+  const request = selected.value
+  if (!request) return
+  Object.assign(request, plainCopy(run.request))
+  const state = outcomeOf(request.id)
+  state.result = run.result
+  state.download = run.download
+  state.error = run.error
+  state.notice = ''
+  state.runId = run.id
+  state.bodyCut = run.bodyCut
+}
+
+function removeRun(runId: string): void {
+  if (selectedId.value) deleteRun(selectedId.value, runId)
 }
 
 async function flush(): Promise<void> {
@@ -315,14 +363,41 @@ function onUrlKeydown(event: KeyboardEvent): void {
     </div>
 
     <div v-else class="client-frame">
-      <RequestList
-        :requests="requests"
-        :selected-id="selectedId"
-        @select="selectedId = $event"
-        @add="addRequest"
-        @remove="removeRequest"
-        @rename="renameRequest"
-      />
+      <nav class="client-sidebar">
+        <AppSegmented v-model="sidebarMode" :options="sidebarModes" aria-label="Sidebar" />
+        <div v-if="sidebarMode === 'requests'" class="sidebar-actions">
+          <AppButton @click="addRequest">+ Request</AppButton>
+        </div>
+        <div v-else-if="selected" class="sidebar-actions">
+          <span class="sidebar-label"
+            >{{ runs.length }} {{ runs.length === 1 ? 'run' : 'runs' }}</span
+          >
+          <AppConfirmButton
+            v-if="runs.length > 0"
+            variant="ghost"
+            confirm-label="Click again to clear"
+            @confirm="clearHistory(selected.id)"
+          >
+            Clear
+          </AppConfirmButton>
+        </div>
+        <RequestList
+          v-if="sidebarMode === 'requests'"
+          :requests="requests"
+          :selected-id="selectedId"
+          @select="selectedId = $event"
+          @remove="removeRequest"
+          @rename="renameRequest"
+        />
+        <p v-else-if="!selected" class="hint">Pick a request to see its runs.</p>
+        <RunHistory
+          v-else
+          :runs="runs"
+          :selected-run-id="outcome?.runId ?? null"
+          @pick="pickRun"
+          @remove="removeRun"
+        />
+      </nav>
 
       <section v-if="selected && outcome" class="client-main">
         <div class="target-row">
@@ -342,6 +417,8 @@ function onUrlKeydown(event: KeyboardEvent): void {
           <div class="user-picker">
             <AppSwitcher
               framed
+              searchable
+              search-placeholder="Search users"
               :items="userItems"
               :active-id="selected.user || null"
               placeholder="Pick a user"
@@ -386,25 +463,21 @@ function onUrlKeydown(event: KeyboardEvent): void {
         <p v-if="outcome.notice" class="hint notice">{{ outcome.notice }}</p>
 
         <div class="panes">
-          <div class="pane">
-            <RequestEditor :model-value="selected" />
-          </div>
-          <div class="pane">
-            <ResponsePanel
-              :result="outcome.result"
-              :download="outcome.download"
-              :error="outcome.error"
-              :sending="outcome.sending"
-            />
-          </div>
+          <RequestEditor :model-value="selected" />
+          <ResponsePanel
+            :result="outcome.result"
+            :download="outcome.download"
+            :error="outcome.error"
+            :sending="outcome.sending"
+            :body-cut="outcome.bodyCut"
+          />
         </div>
       </section>
 
       <section v-else class="client-main client-empty">
-        <p class="hint">
+        <p class="box-placeholder">
           Add a request to start. Paste a curl command into its URL box to fill it.
         </p>
-        <AppButton variant="primary" @click="addRequest">+ Request</AppButton>
       </section>
     </div>
   </div>

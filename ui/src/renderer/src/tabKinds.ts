@@ -135,7 +135,7 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     body: ResterClientView,
     // Kept alive so an unsent draft and the last response survive switching tabs.
     keepAlive: true,
-    bodyProps: (_tab, ctx) => ({ project: ctx.project })
+    bodyProps: () => ({})
   },
   workgroup: {
     icon: [

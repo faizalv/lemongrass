@@ -5,6 +5,7 @@
 import { computed, ref } from 'vue'
 import AppSegmented from '../AppSegmented.vue'
 import JsonNode from './JsonNode.vue'
+import { statusClass } from '../../resterClientCall'
 import type { ResterClientDownload, ResterClientResult } from '../../../../preload/types'
 
 const props = defineProps<{
@@ -12,6 +13,8 @@ const props = defineProps<{
   download: ResterClientDownload | null
   error: string
   sending: boolean
+  // Set when the response comes from history and its body was cut when it was stored.
+  bodyCut: boolean
 }>()
 
 const view = ref<'tree' | 'raw' | 'headers'>('tree')
@@ -51,13 +54,6 @@ const headerRows = computed(() =>
   )
 )
 
-function statusClass(status: number): string {
-  if (status >= 200 && status < 300) return 'ok'
-  if (status >= 300 && status < 400) return 'redirect'
-  if (status >= 400 && status < 500) return 'client'
-  return 'server'
-}
-
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -66,109 +62,71 @@ function formatSize(bytes: number): string {
 </script>
 
 <template>
-  <div class="response">
-    <p v-if="sending" class="hint">Sending...</p>
-    <p v-else-if="error" class="error-text">{{ error }}</p>
-
-    <template v-else-if="download && download.kind === 'saved'">
-      <div class="meta">
-        <span class="status" :class="statusClass(download.status)">{{ download.status }}</span>
-        <span>{{ download.durationMs }} ms</span>
-        <span>{{ formatSize(download.bytes) }}</span>
-      </div>
-      <p class="hint">Saved to {{ download.path }}</p>
-    </template>
-    <p v-else-if="download && download.kind === 'cancelled'" class="hint">Download cancelled.</p>
-
-    <template v-else-if="result">
-      <div class="meta">
+  <section class="box">
+    <header class="box-head">
+      <span class="box-title">Response</span>
+      <template v-if="!sending && !error && result">
         <span class="status" :class="statusClass(result.status)">{{ result.status }}</span>
-        <span>{{ result.durationMs }} ms</span>
-        <span>{{ formatSize(result.size) }}</span>
-      </div>
-      <p v-if="result.truncated" class="hint">
-        Only the first {{ formatSize(result.size) }} is shown. Use Send and download for the whole
-        body.
+        <span class="meta">{{ result.durationMs }} ms</span>
+        <span class="meta">{{ formatSize(result.size) }}</span>
+        <AppSegmented
+          class="views"
+          :model-value="activeView"
+          :options="views"
+          aria-label="Response view"
+          @update:model-value="view = $event"
+        />
+      </template>
+      <template v-else-if="!sending && !error && download?.kind === 'saved'">
+        <span class="status" :class="statusClass(download.status)">{{ download.status }}</span>
+        <span class="meta">{{ download.durationMs }} ms</span>
+        <span class="meta">{{ formatSize(download.bytes) }}</span>
+      </template>
+    </header>
+
+    <div class="box-body">
+      <p v-if="sending" class="box-placeholder">Sending...</p>
+      <p v-else-if="error" class="error-text">{{ error }}</p>
+      <p v-else-if="download?.kind === 'saved'" class="box-placeholder">
+        Saved to {{ download.path }}
       </p>
-      <AppSegmented
-        :model-value="activeView"
-        :options="views"
-        aria-label="Response view"
-        @update:model-value="view = $event"
-      />
-      <div class="body">
+      <p v-else-if="download?.kind === 'cancelled'" class="box-placeholder">Download cancelled.</p>
+
+      <template v-else-if="result">
+        <p v-if="result.truncated" class="hint">
+          Only the first {{ formatSize(result.size) }} came back inline. Use Send and download for
+          the whole body.
+        </p>
+        <p v-if="bodyCut" class="hint">This saved response was cut when it went into history.</p>
         <template v-if="activeView === 'headers'">
           <div v-for="(row, i) in headerRows" :key="i" class="header-row">
             <span class="header-name">{{ row.name }}</span>
             <span class="header-value">{{ row.value }}</span>
           </div>
         </template>
-        <p v-else-if="result.binary" class="hint">
+        <p v-else-if="result.binary" class="box-placeholder">
           The body is binary. Use Send and download to save it.
         </p>
-        <p v-else-if="!result.body" class="hint">The response has no body.</p>
+        <p v-else-if="!result.body" class="box-placeholder">The response has no body.</p>
         <div v-else-if="activeView === 'tree'" class="tree">
           <JsonNode :value="parsed.value" :depth="0" :last="true" />
         </div>
         <pre v-else class="raw">{{ rawText }}</pre>
-      </div>
-    </template>
+      </template>
 
-    <p v-else class="hint">Send a request to see its response here.</p>
-  </div>
+      <p v-else class="box-placeholder">Send the request to see its response here.</p>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-.response {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 0;
-  flex: 1;
-}
-
 .meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
   color: var(--color-fg-secondary);
   font-size: var(--text-xs);
 }
 
-.status {
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-  font-weight: var(--weight-semibold);
-}
-
-.status.ok {
-  background: var(--color-success-muted);
-  color: var(--color-success);
-}
-
-.status.redirect {
-  background: var(--color-sapphire-muted);
-  color: var(--color-sapphire);
-}
-
-.status.client {
-  background: var(--color-amber-muted);
-  color: var(--color-amber);
-}
-
-.status.server {
-  background: var(--color-error-muted);
-  color: var(--color-error);
-}
-
-.body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: var(--space-3);
-  background: var(--color-surface-0);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
+.views {
+  margin-left: auto;
 }
 
 .tree {

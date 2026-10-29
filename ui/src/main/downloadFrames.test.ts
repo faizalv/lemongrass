@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Lemongrass Authors
 
-// @ts-ignore
+// @ts-ignore node:assert has no types in the node tsconfig
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-// @ts-ignore
+// @ts-ignore node --test imports the .ts source by its extension
 import { DownloadDecoder, type DownloadEvent } from './downloadFrames.ts'
 
 function frame(data: Buffer): Buffer {

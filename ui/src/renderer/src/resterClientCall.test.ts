@@ -4,6 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { apiUsers, buildCall } from './resterClientCall.ts'
+import type { VaultResterUser } from '../../preload/types'
 
 const request = {
   id: '1',
@@ -45,7 +46,7 @@ test('a json body leaves the content type to the proxy, and none sends nothing',
 })
 
 test('apiUsers keeps assigned users that can log in or carry a token', () => {
-  const user = (Name: string, envs: string[], Token = '') => ({
+  const user = (Name: string, envs: string[], Token = ''): VaultResterUser => ({
     Name,
     Fields: null,
     FieldTypes: null,

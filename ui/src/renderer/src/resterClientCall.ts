@@ -52,3 +52,11 @@ export function buildCall(request: ResterClientRequest): ResterClientCall {
       .map((header) => ({ name: header.name.trim(), value: header.value }))
   }
 }
+
+// The status capsule's color class in resterClient.css.
+export function statusClass(status: number): string {
+  if (status >= 200 && status < 300) return 'ok'
+  if (status >= 300 && status < 400) return 'redirect'
+  if (status >= 400 && status < 500) return 'client'
+  return 'server'
+}

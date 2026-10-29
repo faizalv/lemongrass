@@ -43,6 +43,7 @@ import type {
   ResterClientDownload,
   ResterClientRequest,
   ResterClientResult,
+  ResterClientRun,
   NodeState,
   WorkspaceLayoutState,
   VaultScope,
@@ -219,8 +220,12 @@ interface Api {
     request: (passphrase: string, call: ResterClientCall) => Promise<ResterClientResult>
     download: (passphrase: string, call: ResterClientCall) => Promise<ResterClientDownload>
     flush: (rester: string, environment: string, user: string) => Promise<number>
-    load: (projectId: string) => Promise<ResterClientRequest[]>
-    save: (projectId: string, requests: ResterClientRequest[]) => Promise<void>
+    load: () => Promise<ResterClientRequest[]>
+    save: (requests: ResterClientRequest[]) => Promise<void>
+    history: (requestId: string) => Promise<ResterClientRun[]>
+    recordRun: (requestId: string, run: ResterClientRun) => Promise<ResterClientRun[]>
+    deleteRun: (requestId: string, runId: string) => Promise<ResterClientRun[]>
+    clearHistory: (requestId: string) => Promise<void>
   }
   node: {
     state: () => Promise<NodeState>
