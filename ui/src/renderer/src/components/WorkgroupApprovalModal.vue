@@ -145,6 +145,12 @@ watch(
               <span class="vendor-badge">{{ member.vendor }}</span>
               <span v-if="member.model" class="model-name">{{ member.model }}</span>
             </summary>
+            <div v-if="member.commands.length" class="skills">
+              <span class="skills-label">Must run</span>
+              <span v-for="command in member.commands" :key="command" class="chip">{{
+                command
+              }}</span>
+            </div>
             <div v-if="member.skills.length" class="skills">
               <span class="skills-label">Must load</span>
               <span v-for="skill in member.skills" :key="skill" class="chip">{{ skill }}</span>

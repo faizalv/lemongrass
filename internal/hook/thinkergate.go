@@ -24,12 +24,12 @@ type thinkerGateInput struct {
 	ToolName  string
 	ToolInput json.RawMessage
 	Required  []string
-	// HowStart holds the thinker until it has run ThinkerStartCommand.
-	HowStart bool
+	// Commands the thinker must run, each marked by CommandMark once seen.
+	Commands []string
 	Marks    map[string]bool
 }
 
-// Returns the deny message, "" to allow, and the required skill this call loads, "" if none. The caller records that skill's mark.
+// Returns the deny message, "" to allow, and the required skill this call loads, "" if none. The caller records that skill's mark, and the marks of required commands before calling.
 func thinkerGate(in thinkerGateInput) (deny, loaded string) {
 	loaded = requiredSkillLoad(in)
 
@@ -39,14 +39,19 @@ func thinkerGate(in thinkerGateInput) (deny, loaded string) {
 			missing = append(missing, name)
 		}
 	}
-	needStart := in.HowStart && !in.Marks[session.ThinkerStartMark]
-	if len(missing) == 0 && !needStart {
+	var unrun []string
+	for _, command := range in.Commands {
+		if !in.Marks[session.CommandMark(command)] {
+			unrun = append(unrun, command)
+		}
+	}
+	if len(missing) == 0 && len(unrun) == 0 {
 		return "", loaded
 	}
 	if loaded != "" || isLgrassCommand(shellCommand(in.ToolName, in.ToolInput)) {
 		return "", loaded
 	}
-	return session.FormatThinkerGateDeny(needStart, missing), ""
+	return session.FormatThinkerGateDeny(unrun, missing), ""
 }
 
 // The command string of a shell tool call, "" for any other tool. Codex passes an argv array, whose last element is the script after a -c style flag.
@@ -116,6 +121,21 @@ func requiredSkillLoad(in thinkerGateInput) string {
 			if pattern.MatchString(strings.Trim(field, `"'`)) {
 				return name
 			}
+		}
+	}
+	return ""
+}
+
+// The required command this shell call runs, "" if none. Only a plain command counts, so a chained call never opens the gate.
+func requiredCommandRun(toolName string, toolInput json.RawMessage, required []string) string {
+	fields := plainCommand(shellCommand(toolName, toolInput))
+	if len(fields) == 0 {
+		return ""
+	}
+	command := session.NormalizeCommand(strings.Join(fields, " "))
+	for _, r := range required {
+		if command == r {
+			return r
 		}
 	}
 	return ""

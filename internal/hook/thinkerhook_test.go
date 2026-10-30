@@ -22,9 +22,15 @@ const (
 
 func storeWithGroup(t *testing.T, claudeSkills []string) (*session.Store, session.Group) {
 	t.Helper()
+	return storeWithClaudeThinker(t, session.Member{Skills: claudeSkills})
+}
+
+// The Claude thinker takes its skills and commands from claude; the rest of its row is fixed.
+func storeWithClaudeThinker(t *testing.T, claude session.Member) (*session.Store, session.Group) {
+	t.Helper()
 	store := openHookTestStore(t)
 	group, err := store.CreateGroup("review", session.Member{TabID: gateTabLeader, Label: "lead", Vendor: "claude"}, []session.Member{
-		{TabID: gateTabClaude, Label: "reviewer", Vendor: "claude", Skills: claudeSkills},
+		{TabID: gateTabClaude, Label: "reviewer", Vendor: "claude", Skills: claude.Skills, Commands: claude.Commands},
 		{TabID: gateTabCodex, Label: "tester", Vendor: "codex"},
 	})
 	if err != nil {
@@ -190,5 +196,52 @@ func TestSessionStartSendsLawsAndTheStartLineAndResetsMarks(t *testing.T) {
 	leader := hookSessionStart(store, hookEvent{SessionID: "s3", TabID: gateTabLeader}, dir)
 	if strings.Contains(leader.AdditionalContext, "thinker") || !strings.Contains(leader.AdditionalContext, "a law") {
 		t.Errorf("the leader's start context = %q, want laws only", leader.AdditionalContext)
+	}
+}
+
+func TestAThinkerMustRunEveryListedCommand(t *testing.T) {
+	store, _ := storeWithClaudeThinker(t, session.Member{Commands: []string{"lgrass how work task export-cli"}})
+	dir := t.TempDir()
+	run := func(command string) hookResult {
+		return hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": command}), dir)
+	}
+
+	result := run("ls")
+	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "run `lgrass how thinker start`, then run `lgrass how work task export-cli`") {
+		t.Fatalf("deny = %+v, want both commands named", result)
+	}
+	run("lgrass how thinker start")
+	if result := run("ls"); result.PermissionDecision != "deny" || strings.Contains(result.PermissionDecisionReason, "thinker start") {
+		t.Fatalf("deny = %+v, want only the listed command left", result)
+	}
+	run("lgrass how work task export-cli > /dev/null")
+	if result := run("ls"); result.PermissionDecision != "deny" {
+		t.Fatal("a redirected run of the command opened the gate")
+	}
+	run(`lgrass  how work task "export-cli"`)
+	if result := run("ls"); result.PermissionDecision == "deny" {
+		t.Errorf("still denied after every command ran: %s", result.PermissionDecisionReason)
+	}
+}
+
+func TestCodexThinkerRunsCommandsAndLoadsTheThinkerSkill(t *testing.T) {
+	store := openHookTestStore(t)
+	_, err := store.CreateGroup("review", session.Member{TabID: gateTabLeader, Label: "lead", Vendor: "claude"}, []session.Member{
+		{TabID: gateTabCodex, Label: "tester", Vendor: "codex", Commands: []string{"lgrass how book write"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	dir := t.TempDir()
+	shell := func(script string) hookResult {
+		return hookPreToolUse(store, preTool(gateTabCodex, "shell", map[string]any{"command": []string{"bash", "-lc", script}}), dir)
+	}
+	shell("cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md")
+	if result := shell("ls"); result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass how book write") || strings.Contains(result.PermissionDecisionReason, "thinker start") {
+		t.Fatalf("deny = %+v, want only the listed command", result)
+	}
+	shell("lgrass how book write")
+	if result := shell("ls"); result.PermissionDecision == "deny" {
+		t.Errorf("still denied: %s", result.PermissionDecisionReason)
 	}
 }

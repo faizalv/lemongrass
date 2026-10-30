@@ -84,6 +84,12 @@ func Render(root string, args []string) (string, error) {
 	return act.run(root, args[2:])
 }
 
+// Known reports whether domain and action name an existing action, without running it.
+func Known(domain, actionName string) bool {
+	_, ok := domains[domain][actionName]
+	return ok
+}
+
 func listDomains() string {
 	var b strings.Builder
 	b.WriteString("Domains, each listing its actions with `lgrass how <domain>`:\n")

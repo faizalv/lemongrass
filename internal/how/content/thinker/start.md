@@ -6,7 +6,7 @@ You are a thinker in a lemongrass workgroup. The leader set the objective and ga
 
 ### Find your group
 
-Run `lgrass workgroup thread`. It prints your group, the leader and the thinkers with their roles and short tab ids, your own assignment and the skills you must load, and then the group thread. Note the thread id, you need it to post. Later runs print one short line and only the messages you have not seen. Add `--all` to see the latest messages and the list of thinkers again.
+Run `lgrass workgroup thread`. It prints your group, the leader and the thinkers with their roles and short tab ids, your own assignment and the commands you must run and skills you must load, and then the group thread. Note the thread id, you need it to post. Later runs print one short line and only the messages you have not seen. Add `--all` to see the latest messages and the list of thinkers again.
 
 ### Talk to the group
 

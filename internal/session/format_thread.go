@@ -161,7 +161,7 @@ func FormatNothingNew(t Thread) string {
 
 func FormatThinkerStart(m Member, group Group) string {
 	text := fmt.Sprintf("%s you are thinker %q in workgroup %q. First %s. Then run lgrass workgroup thread.",
-		Prefix, m.Label, group.Name, ThinkerStartSteps(m.Vendor, m.RequiredSkills()))
+		Prefix, m.Label, group.Name, ThinkerStartSteps(m.RequiredCommands(), m.RequiredSkills()))
 	return text
 }
 
@@ -176,17 +176,14 @@ func FormatCollaboratorDeny() string {
 	return fmt.Sprintf("%s you are a collaborator in a workgroup. Run `%s` first. Until then only lgrass commands are allowed.", Prefix, CollaboratorJoinCommand)
 }
 
-func FormatThinkerGateDeny(needStart bool, missing []string) string {
-	var steps []string
-	if needStart {
-		steps = append(steps, "run `"+ThinkerStartCommand+"`")
-	}
+func FormatThinkerGateDeny(commands, skills []string) string {
+	steps := ThinkerStartSteps(commands, skills)
 	allowed := "lgrass commands are"
-	if len(missing) > 0 {
-		steps = append(steps, "load these skills: "+strings.Join(missing, ", ")+" (Claude Code: the Skill tool. Others: read the skill's SKILL.md)")
+	if len(skills) > 0 {
+		steps += " (Claude Code: the Skill tool. Others: read the skill's SKILL.md)"
 		allowed = "lgrass commands and those loads are"
 	}
-	return fmt.Sprintf("%s before anything else, %s. Until then only %s allowed.", Prefix, strings.Join(steps, ", then "), allowed)
+	return fmt.Sprintf("%s before anything else, %s. Until then only %s allowed.", Prefix, steps, allowed)
 }
 
 // The one line that teaches what the prefix means, added to the start context of every lemongrass tab.
@@ -207,7 +204,7 @@ func FormatMemberHeader(m Member) string {
 	if m.Role == RoleCollaborator {
 		return fmt.Sprintf("You are the collaborator %q. Run `%s` if you have not in this session.", m.Label, CollaboratorJoinCommand)
 	}
-	text := fmt.Sprintf("You are the thinker %q. Before anything else in this session, %s.", m.Label, ThinkerStartSteps(m.Vendor, m.RequiredSkills()))
+	text := fmt.Sprintf("You are the thinker %q. Before anything else in this session, %s.", m.Label, ThinkerStartSteps(m.RequiredCommands(), m.RequiredSkills()))
 	if m.Prompt != "" {
 		text += "\nYour assignment:\n" + m.Prompt
 	}

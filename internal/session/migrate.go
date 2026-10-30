@@ -20,6 +20,7 @@ type execer interface {
 var migrations = []func(execer) error{
 	migrateV1,
 	migrateV2,
+	migrateV3,
 }
 
 // Version 1 is the schema as it stood before the store was versioned, applied idempotently so a store from any earlier release lands on the same tables.
@@ -58,6 +59,12 @@ CREATE INDEX idx_lg_notifications_target ON lg_notifications(target_tab_id, stat
 CREATE INDEX idx_lg_notifications_created ON lg_notifications(created_at);
 CREATE INDEX idx_lg_notifications_source ON lg_notifications(source, ref);
 `)
+	return err
+}
+
+// Version 3 gives a workgroup member the lgrass commands its config requires it to run.
+func migrateV3(db execer) error {
+	_, err := db.ExecContext(context.Background(), `ALTER TABLE lg_group_members ADD COLUMN commands TEXT NOT NULL DEFAULT ''`)
 	return err
 }
 

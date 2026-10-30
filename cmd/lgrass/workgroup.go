@@ -72,12 +72,13 @@ func cmdWorkgroupCreate(args []string) {
 	members := make([]workgroup.SpawnMember, len(cfg.Thinkers))
 	for i, c := range cfg.Thinkers {
 		members[i] = workgroup.SpawnMember{
-			TabID:  workgroup.NewTabID(),
-			Label:  c.Label,
-			Vendor: c.Vendor,
-			Model:  c.Model,
-			Prompt: workgroup.ComposePrompt(c.Label, cfg.Name, cfg.LeaderLabel, c.Vendor, c.RequiredSkills(), c.Prompt),
-			Skills: c.RequiredSkills(),
+			TabID:    workgroup.NewTabID(),
+			Label:    c.Label,
+			Vendor:   c.Vendor,
+			Model:    c.Model,
+			Prompt:   workgroup.ComposePrompt(c.Label, cfg.Name, cfg.LeaderLabel, c.RequiredCommands(), c.RequiredSkills(), c.Prompt),
+			Commands: c.RequiredCommands(),
+			Skills:   c.RequiredSkills(),
 		}
 	}
 	req := workgroup.Request{ProjectPath: proj.Path, LeaderTabID: tabID, LeaderLabel: cfg.LeaderLabel, GroupName: cfg.Name, Members: members}
@@ -147,12 +148,13 @@ func cmdWorkgroupAdd(args []string) {
 	members := make([]workgroup.SpawnMember, len(cfg.Thinkers))
 	for i, c := range cfg.Thinkers {
 		members[i] = workgroup.SpawnMember{
-			TabID:  workgroup.NewTabID(),
-			Label:  c.Label,
-			Vendor: c.Vendor,
-			Model:  c.Model,
-			Prompt: workgroup.ComposeAddedPrompt(c.Label, group.Name, me.Label, c.Vendor, c.RequiredSkills(), c.Prompt),
-			Skills: c.RequiredSkills(),
+			TabID:    workgroup.NewTabID(),
+			Label:    c.Label,
+			Vendor:   c.Vendor,
+			Model:    c.Model,
+			Prompt:   workgroup.ComposeAddedPrompt(c.Label, group.Name, me.Label, c.RequiredCommands(), c.RequiredSkills(), c.Prompt),
+			Commands: c.RequiredCommands(),
+			Skills:   c.RequiredSkills(),
 		}
 	}
 	req := workgroup.Request{ProjectPath: currentProject().Path, LeaderTabID: tabID, LeaderLabel: me.Label, GroupName: group.Name, GroupID: group.ID, ExistingMembers: labels, Members: members}
@@ -280,7 +282,7 @@ func joinMessage(members []workgroup.SpawnMember) string {
 func toMembers(spawn []workgroup.SpawnMember, thinkers []workgroup.Thinker) []session.Member {
 	out := make([]session.Member, len(spawn))
 	for i, m := range spawn {
-		out[i] = session.Member{TabID: m.TabID, Label: m.Label, Vendor: m.Vendor, Prompt: thinkers[i].Prompt, Skills: thinkers[i].Skills}
+		out[i] = session.Member{TabID: m.TabID, Label: m.Label, Vendor: m.Vendor, Prompt: thinkers[i].Prompt, Skills: thinkers[i].Skills, Commands: thinkers[i].Commands}
 	}
 	return out
 }

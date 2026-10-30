@@ -206,3 +206,57 @@ func TestParseHasNoUpperThinkerLimit(t *testing.T) {
 		t.Errorf("Parse of 12 thinkers = %d, %v", len(cfg.Thinkers), err)
 	}
 }
+
+func TestCommandsAreNormalizedDedupedAndTheThinkerStartIsImplicit(t *testing.T) {
+	yaml := "name: t\nthinkers:\n  - label: a\n    vendor: claude\n    prompt: x\n    commands:\n      - lgrass how thinker start\n      - '  lgrass   how work task \"export-cli\" '\n      - lgrass how work task export-cli\n      - lgrass rester ab12cd34 info\n"
+	cfg, err := Parse([]byte(yaml), t.TempDir())
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	got := cfg.Thinkers[0].RequiredCommands()
+	want := []string{"lgrass how thinker start", "lgrass how work task export-cli", "lgrass rester ab12cd34 info"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("RequiredCommands = %q, want %q", got, want)
+	}
+	codex, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: codex, prompt: x, commands: [lgrass how book write]}"), t.TempDir())
+	if got := codex.Thinkers[0].RequiredCommands(); len(got) != 1 || got[0] != "lgrass how book write" {
+		t.Errorf("RequiredCommands of a Codex thinker = %q, want only the listed command, since it loads the thinker skill instead", got)
+	}
+}
+
+func TestOnlyReadOnlyLgrassCommandsAreAccepted(t *testing.T) {
+	accepted := []string{
+		"lgrass how book write", "lgrass how work task some-slug", "lgrass thread read a1b2c3 --all", "lgrass thread list",
+		"lgrass workgroup thread", "lgrass workgroup list", "lgrass session list", "lgrass session tabs list",
+		"lgrass biblio log books", "lgrass biblio show 12 books/toc.md", "lgrass rester ab12cd34 users", "lgrass tips list", "lgrass version",
+	}
+	refused := []string{
+		"ls", "lgrass", "/usr/bin/lgrass how book write", "lgrass how", "lgrass how book", "lgrass how book burn", "lgrass how nothing write",
+		"lgrass sign i-write-memory", "lgrass replay 3", "lgrass workgroup create c.yaml", "lgrass workgroup disband 1", "lgrass workgroup add c.yaml",
+		"lgrass thread post a1b2c3 hi", "lgrass thread create t c", "lgrass tips add x", "lgrass db ab12 --sql x",
+		"lgrass rester ab12 get /x", "lgrass rester ab12 flush", "lgrass rester ab12 info --out f", "lgrass device tap --text x", "lgrass flutter test",
+		"lgrass how book write; rm x", "lgrass how book write && ls", "lgrass how book write > f", "lgrass thread read $(id)", "lgrass how book write \\",
+		"lgrass how work task " + strings.Repeat("x", MaxCommandRunes),
+	}
+	for _, c := range accepted {
+		if _, err := checkCommand(c); err != nil {
+			t.Errorf("%q refused: %v", c, err)
+		}
+	}
+	for _, c := range refused {
+		if _, err := checkCommand(c); err == nil {
+			t.Errorf("%q accepted, want it refused", c)
+		}
+	}
+}
+
+func TestACommandListIsCappedAndARefusalNamesTheThinker(t *testing.T) {
+	_, err := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, commands: [lgrass sign x]}"), t.TempDir())
+	if err == nil || !strings.HasPrefix(err.Error(), "workgroup: ") || !strings.Contains(err.Error(), `thinker "a"`) || !strings.Contains(err.Error(), "read-only") {
+		t.Errorf("err = %v", err)
+	}
+	many := strings.Repeat(", lgrass version", MaxCommands+1)[2:]
+	if _, err := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, commands: ["+many+"]}"), t.TempDir()); err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Errorf("err = %v, want the command limit", err)
+	}
+}

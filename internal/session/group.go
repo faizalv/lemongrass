@@ -18,7 +18,7 @@ const (
 
 	// Every thinker on a vendor that does not start with ThinkerStartCommand loads this skill.
 	ThinkerSkill = "lgrass-howtobe-thinker"
-	// A Claude thinker reads its role with this command instead of loading ThinkerSkill. Codex thinkers still load the skill.
+	// A Claude thinker reads its role with this command instead of loading ThinkerSkill, as the first of its required commands. Codex thinkers still load the skill.
 	ThinkerStartCommand = "lgrass how thinker start"
 	// BibliothekSkill is never required of a Claude thinker, whose system prompt already carries it.
 	BibliothekSkill = "bibliothek"
@@ -42,6 +42,8 @@ type Member struct {
 	Vendor string
 	Prompt string   // the assignment from the group config
 	Skills []string // skills the member must load, beyond the ones every thinker loads
+	// Commands the member must run, beyond ThinkerStartCommand. Stored newline-separated, since a command holds spaces and may hold commas.
+	Commands []string
 }
 
 var (
@@ -133,7 +135,7 @@ func (s *Store) CreateGroup(name string, leader Member, thinkers []Member) (Grou
 		return Group{}, err
 	}
 	for _, m := range members {
-		if _, err := tx.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor, prompt, skills) VALUES (?, ?, ?, ?, ?, ?, ?)`, groupID, m.TabID, m.Role, m.Label, m.Vendor, m.Prompt, strings.Join(m.Skills, ",")); err != nil {
+		if _, err := tx.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor, prompt, skills, commands) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, groupID, m.TabID, m.Role, m.Label, m.Vendor, m.Prompt, strings.Join(m.Skills, ","), strings.Join(m.Commands, "\n")); err != nil {
 			return Group{}, err
 		}
 	}
@@ -194,7 +196,7 @@ func (s *Store) LiveGroups() ([]Group, error) {
 }
 
 func (s *Store) GroupMembers(groupID int64) ([]Member, error) {
-	rows, err := s.db.Query(`SELECT tab_id, role, label, vendor, prompt, skills FROM lg_group_members WHERE group_id = ? ORDER BY CASE role WHEN 'leader' THEN 0 ELSE 1 END, rowid`, groupID)
+	rows, err := s.db.Query(`SELECT tab_id, role, label, vendor, prompt, skills, commands FROM lg_group_members WHERE group_id = ? ORDER BY CASE role WHEN 'leader' THEN 0 ELSE 1 END, rowid`, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,12 +204,15 @@ func (s *Store) GroupMembers(groupID int64) ([]Member, error) {
 	var out []Member
 	for rows.Next() {
 		var m Member
-		var skills string
-		if err := rows.Scan(&m.TabID, &m.Role, &m.Label, &m.Vendor, &m.Prompt, &skills); err != nil {
+		var skills, commands string
+		if err := rows.Scan(&m.TabID, &m.Role, &m.Label, &m.Vendor, &m.Prompt, &skills, &commands); err != nil {
 			return nil, err
 		}
 		if skills != "" {
 			m.Skills = strings.Split(skills, ",")
+		}
+		if commands != "" {
+			m.Commands = strings.Split(commands, "\n")
 		}
 		out = append(out, m)
 	}
@@ -239,7 +244,7 @@ func (s *Store) AddMembers(groupID int64, thinkers []Member) error {
 
 // AddCollaborator joins an open tab to a live group under the same checks as AddMembers.
 func (s *Store) AddCollaborator(groupID int64, m Member) error {
-	m.Prompt, m.Skills = "", nil
+	m.Prompt, m.Skills, m.Commands = "", nil, nil
 	return s.addMembers(groupID, []Member{m}, RoleCollaborator)
 }
 
@@ -296,7 +301,7 @@ func (s *Store) addMembers(groupID int64, members []Member, role string) error {
 		if err != sql.ErrNoRows {
 			return err
 		}
-		if _, err := tx.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor, prompt, skills) VALUES (?, ?, ?, ?, ?, ?, ?)`, groupID, m.TabID, role, m.Label, m.Vendor, m.Prompt, strings.Join(m.Skills, ",")); err != nil {
+		if _, err := tx.Exec(`INSERT INTO lg_group_members (group_id, tab_id, role, label, vendor, prompt, skills, commands) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, groupID, m.TabID, role, m.Label, m.Vendor, m.Prompt, strings.Join(m.Skills, ","), strings.Join(m.Commands, "\n")); err != nil {
 			return err
 		}
 	}
@@ -378,6 +383,8 @@ func (s *Store) Labels(tabIDs []string) map[string]string {
 
 func (m Member) RequiredSkills() []string { return ThinkerSkills(m.Vendor, m.Skills) }
 
+func (m Member) RequiredCommands() []string { return ThinkerCommands(m.Vendor, m.Commands) }
+
 // RetiredClaudeSkills maps each lemongrass skill no longer installed for Claude to the lgrass how action that replaced it.
 var RetiredClaudeSkills = map[string]string{
 	"lgrass-howtodo-work":        "lgrass how work",
@@ -404,11 +411,34 @@ func ThinkerSkills(vendor string, listed []string) []string {
 	return out
 }
 
-// ThinkerStartSteps says what a thinker of this vendor does before any other tool call.
-func ThinkerStartSteps(vendor string, skills []string) string {
-	var steps []string
+// ThinkerCommands is ThinkerStartCommand first on a vendor that starts with it, then the commands the leader listed, each once.
+func ThinkerCommands(vendor string, listed []string) []string {
+	var out []string
 	if ThinkerStartsWithHow(vendor) {
-		steps = append(steps, "run `"+ThinkerStartCommand+"`")
+		out = append(out, ThinkerStartCommand)
+	}
+	for _, command := range listed {
+		if command != ThinkerStartCommand && !containsString(out, command) {
+			out = append(out, command)
+		}
+	}
+	return out
+}
+
+// NormalizeCommand collapses a command's whitespace and drops the quotes around each word, so a command reads the same in a config, in a mark and in the shell call that runs it.
+func NormalizeCommand(command string) string {
+	fields := strings.Fields(command)
+	for i, f := range fields {
+		fields[i] = strings.Trim(f, `"'`)
+	}
+	return strings.Join(fields, " ")
+}
+
+// ThinkerStartSteps says what a thinker does before any other tool call: run each command, then load the skills.
+func ThinkerStartSteps(commands, skills []string) string {
+	var steps []string
+	for _, command := range commands {
+		steps = append(steps, "run `"+command+"`")
 	}
 	if len(skills) > 0 {
 		steps = append(steps, "load these skills: "+strings.Join(skills, ", "))

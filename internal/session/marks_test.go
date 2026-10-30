@@ -58,7 +58,7 @@ func TestForgetTabClearsMarksAndRegisterPrunesOrphanedOnes(t *testing.T) {
 func TestMemberKeepsItsAssignmentAndSkills(t *testing.T) {
 	store := openTestStore(t)
 	g, err := store.CreateGroup("g", Member{TabID: tabA, Label: "lead", Vendor: "claude"}, []Member{
-		{TabID: tabB, Label: "reviewer", Vendor: "claude", Prompt: "Review the diff.", Skills: []string{"lgrass-connector", "bibliothek"}},
+		{TabID: tabB, Label: "reviewer", Vendor: "claude", Prompt: "Review the diff.", Skills: []string{"lgrass-connector", "bibliothek"}, Commands: []string{"lgrass how work task a,b", "lgrass thread list"}},
 		{TabID: tabC, Label: "tester", Vendor: "codex", Prompt: "Write tests."},
 	})
 	if err != nil {
@@ -72,7 +72,10 @@ func TestMemberKeepsItsAssignmentAndSkills(t *testing.T) {
 	if len(member.Skills) != 2 || member.Skills[0] != "lgrass-connector" || member.Skills[1] != "bibliothek" {
 		t.Errorf("skills = %v", member.Skills)
 	}
-	if _, m, _ := store.LiveMembership(tabC); len(m.Skills) != 0 || m.Prompt != "Write tests." {
+	if len(member.Commands) != 2 || member.Commands[0] != "lgrass how work task a,b" || member.Commands[1] != "lgrass thread list" {
+		t.Errorf("commands = %q", member.Commands)
+	}
+	if _, m, _ := store.LiveMembership(tabC); len(m.Skills) != 0 || len(m.Commands) != 0 || m.Prompt != "Write tests." {
 		t.Errorf("tester member = %+v, want no skills", m)
 	}
 	if _, m, _ := store.LiveMembership(tabA); m.Role != RoleLeader {

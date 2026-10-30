@@ -14,13 +14,16 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/faizalv/lemongrass/internal/how"
 	"github.com/faizalv/lemongrass/internal/session"
 
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	MaxSkills = 8
+	MaxSkills       = 8
+	MaxCommands     = 8
+	MaxCommandRunes = 200
 
 	// Every thinker reads its role on its own, so a config never has to list this skill.
 	ThinkerSkill      = session.ThinkerSkill
@@ -43,6 +46,7 @@ type Thinker struct {
 	Prompt     string   `yaml:"prompt"`
 	PromptFile string   `yaml:"prompt_file"`
 	Skills     []string `yaml:"skills"`
+	Commands   []string `yaml:"commands"`
 }
 
 type Config struct {
@@ -162,6 +166,20 @@ func validateThinkers(thinkers []Thinker, taken []string, baseDir string) error 
 			}
 		}
 		c.Skills = skills
+		if len(c.Commands) > MaxCommands {
+			return fmt.Errorf("workgroup: thinker %q lists %d commands and the limit is %d", c.Label, len(c.Commands), MaxCommands)
+		}
+		var commands []string
+		for _, raw := range c.Commands {
+			command, err := checkCommand(raw)
+			if err != nil {
+				return fmt.Errorf("workgroup: thinker %q command %q %w", c.Label, raw, err)
+			}
+			if command != session.ThinkerStartCommand && !containsString(commands, command) {
+				commands = append(commands, command)
+			}
+		}
+		c.Commands = commands
 		if (c.Prompt == "") == (c.PromptFile == "") {
 			return fmt.Errorf("workgroup: thinker %q needs exactly one of prompt and prompt_file", c.Label)
 		}
@@ -195,6 +213,60 @@ func containsString(list []string, v string) bool {
 	}
 	return false
 }
+
+// A thinker runs its commands before it has posted a plan or had the leader's go, so only commands that read are accepted. An allowlist, so a new subcommand stays refused until it is added here on purpose.
+func checkCommand(raw string) (string, error) {
+	if strings.ContainsAny(raw, shellMetacharacters) {
+		return "", errors.New("must be one plain lgrass command, with nothing that chains, redirects or substitutes")
+	}
+	command := session.NormalizeCommand(raw)
+	if utf8.RuneCountInString(command) > MaxCommandRunes {
+		return "", fmt.Errorf("is longer than %d characters", MaxCommandRunes)
+	}
+	fields := strings.Fields(command)
+	if len(fields) < 2 || fields[0] != "lgrass" {
+		return "", errors.New("must be an lgrass command")
+	}
+	args := fields[1:]
+	if args[0] == "how" {
+		if len(args) < 3 || !how.Known(args[1], args[2]) {
+			return "", errors.New("must name an existing action, `lgrass how <domain>` lists them")
+		}
+		return command, nil
+	}
+	if !readOnlyCommand(args) {
+		return "", errors.New("is not a read-only command a thinker can run before its plan: use lgrass how, thread read or list, workgroup thread or list, session list, session tabs list, biblio log or show, rester <id> info or users, tips list, or version")
+	}
+	return command, nil
+}
+
+func readOnlyCommand(args []string) bool {
+	switch {
+	case args[0] == "version":
+		return len(args) == 1
+	case args[0] == "rester":
+		return len(args) == 3 && (args[2] == "info" || args[2] == "users")
+	case len(args) >= 3 && args[0] == "session" && args[1] == "tabs":
+		return args[2] == "list"
+	case len(args) >= 2:
+		return readOnlySubcommands[args[0]][args[1]]
+	}
+	return false
+}
+
+var readOnlySubcommands = map[string]map[string]bool{
+	"thread":    {"read": true, "list": true},
+	"workgroup": {"thread": true, "list": true},
+	"session":   {"list": true},
+	"biblio":    {"log": true, "show": true},
+	"tips":      {"list": true},
+}
+
+// The characters the thinker gate refuses in a plain lgrass command, plus a backslash, so a listed command matches the shell call that runs it word for word.
+const shellMetacharacters = ";&|<>`$\n\r\\"
+
+// Every lgrass command a thinker must run, in the order it runs them.
+func (c Thinker) RequiredCommands() []string { return session.ThinkerCommands(c.Vendor, c.Commands) }
 
 // Every skill a thinker must load, in the order it loads them.
 func (c Thinker) RequiredSkills() []string { return session.ThinkerSkills(c.Vendor, c.Skills) }

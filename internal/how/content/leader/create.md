@@ -15,11 +15,15 @@ thinkers:
   - label: reviewer
     vendor: claude
     model: optional-model-name
+    commands:
+      - lgrass how work task export-cli
+    skills: [optional-skill-name]
     prompt: The assignment, or use prompt_file: with a path relative to the config.
 ```
 
 - `name` is required and names the group in the app. It must differ from every other workgroup's name, disbanded ones included. At least one thinker, with no upper limit. A label is letters, digits, `-` and `_`, up to 30 characters. The vendor is `claude` or `codex`. Every skill must be installed for that vendor. A prompt is up to 3000 characters.
-- A tab belongs to one live group at a time. Every thinker runs `lgrass how thinker start` on its own, so do not list a skill for that.
+- A tab belongs to one live group at a time. Every thinker runs `lgrass how thinker start` on its own, so do not list it.
+- `commands` are `lgrass` commands the thinker must run, and `skills` are skills it must load, before any other tool call. Up to 8 of each. List the procedures its assignment needs, such as `lgrass how work task <slug>` for the task it builds or `lgrass how book write` for a chapter it writes. A command runs before the thinker's plan and your go, so only commands that read are accepted: `lgrass how`, `thread read` or `list`, `workgroup thread` or `list`, `session list`, `session tabs list`, `biblio log` or `show`, `rester <id> info` or `users`, `tips list` and `version`.
 - The human sees each assignment in full before approving, so write it for them too.
 - If the human declines, the command prints their reason when they gave one. Read it and change the proposal, and do not resend the same one. A withdrawn proposal means nobody answered, so ask the human before trying again.
 

@@ -19,8 +19,8 @@ import {
 // The socket `lgrass workgroup create` talks to. A proposal waits in the app for the human and,
 // once approved, returns a one-time token. Only that token spawns tabs, and it spawns exactly what was shown.
 
-// The composed prompt is lgrass's role header, up to about 1300 characters with the longest names and skills, plus the config's 3000 character assignment.
-const MAX_PROMPT_CHARS = 5000
+// The composed prompt is lgrass's role header, up to about 3200 characters with the longest names, skills and commands, plus the config's 3000 character assignment.
+const MAX_PROMPT_CHARS = 7000
 const TOKEN_TTL_MS = 5 * 60_000
 const SPAWN_ACK_TIMEOUT_MS = 15_000
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -28,6 +28,9 @@ const LABEL = /^[A-Za-z0-9][A-Za-z0-9_-]{0,29}$/
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/
 const SKILL = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const MAX_SKILLS = 9
+// lgrass checks each command against its read-only allowlist; this only bounds what the modal renders and refuses shell syntax.
+const COMMAND = /^lgrass [^;&|<>`$\n\r\\]{1,200}$/
+const MAX_COMMANDS = 9
 const VENDORS = new Set(['claude', 'codex'])
 
 interface Proposal {
@@ -45,6 +48,7 @@ interface Proposal {
     vendor: string
     model?: string
     prompt: string
+    commands: string[]
     skills: string[]
   }[]
   token?: string
@@ -147,6 +151,13 @@ function validate(p: Proposal): string | null {
     ) {
       return 'a thinker skill list is not valid'
     }
+    if (
+      !Array.isArray(m.commands) ||
+      m.commands.length > MAX_COMMANDS ||
+      !m.commands.every((command) => typeof command === 'string' && COMMAND.test(command))
+    ) {
+      return 'a thinker command list is not valid'
+    }
     if (typeof m.prompt !== 'string' || !m.prompt || m.prompt.length > MAX_PROMPT_CHARS) {
       return `a thinker prompt must be 1 to ${MAX_PROMPT_CHARS} characters`
     }
@@ -158,8 +169,9 @@ function proposalText(p: Proposal): string {
   return p.members
     .map((m) => {
       const model = m.model ? `, model ${m.model}` : ''
+      const commands = m.commands.length ? `Must run: ${m.commands.join(', ')}\n` : ''
       const skills = m.skills.length ? `Must load: ${m.skills.join(', ')}\n` : ''
-      return `${m.label} (${m.vendor}${model})\n${skills}${m.prompt}`
+      return `${m.label} (${m.vendor}${model})\n${commands}${skills}${m.prompt}`
     })
     .join('\n\n----\n\n')
 }
@@ -240,6 +252,7 @@ async function askHuman(
         label: m.label,
         vendor: m.vendor,
         model: m.model || undefined,
+        commands: m.commands,
         skills: m.skills,
         prompt: m.prompt
       }))

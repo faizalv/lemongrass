@@ -255,15 +255,16 @@ func thinkerGateDecision(store *session.Store, payload hookEvent) (session.Membe
 	if err != nil {
 		return member, true, ""
 	}
-	if strings.Join(plainCommand(shellCommand(payload.ToolName, payload.ToolInput)), " ") == session.ThinkerStartCommand {
-		store.MarkReady(payload.TabID, session.ThinkerStartMark)
-		marks[session.ThinkerStartMark] = true
+	commands := member.RequiredCommands()
+	if ran := requiredCommandRun(payload.ToolName, payload.ToolInput, commands); ran != "" {
+		store.MarkReady(payload.TabID, session.CommandMark(ran))
+		marks[session.CommandMark(ran)] = true
 	}
 	deny, loaded := thinkerGate(thinkerGateInput{
 		ToolName:  payload.ToolName,
 		ToolInput: payload.ToolInput,
 		Required:  member.RequiredSkills(),
-		HowStart:  session.ThinkerStartsWithHow(member.Vendor),
+		Commands:  commands,
 		Marks:     marks,
 	})
 	if loaded != "" {

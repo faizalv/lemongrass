@@ -712,6 +712,7 @@ export interface WorkgroupPendingMember {
   label: string
   vendor: string
   model?: string
+  commands: string[]
   skills: string[]
   prompt: string
 }
