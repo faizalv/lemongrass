@@ -6,8 +6,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = withDefaults(
   defineProps<{
-    // search is the text the filter box matches, the label when absent.
-    items: { id: string; label: string; title?: string; search?: string }[]
+    // search is the text the filter box matches, the label when absent. disabled is the reason
+    // the item cannot be picked, shown beside its label.
+    items: { id: string; label: string; title?: string; search?: string; disabled?: string }[]
     activeId: string | null
     placeholder: string
     // Overrides what the closed trigger shows, such as an unsaved name; the list is unaffected.
@@ -20,13 +21,16 @@ const props = withDefaults(
     // Adds a filter box at the top of the dropdown.
     searchable?: boolean
     searchPlaceholder?: string
+    // Opens the dropdown upward, for a trigger near the bottom of the window.
+    above?: boolean
   }>(),
   {
     label: undefined,
     addLabel: undefined,
     framed: false,
     searchable: false,
-    searchPlaceholder: 'Search'
+    searchPlaceholder: 'Search',
+    above: false
   }
 )
 
@@ -59,7 +63,8 @@ async function toggleOpen(): Promise<void> {
 }
 
 function pickFirstShown(): void {
-  if (shownItems.value.length > 0) pick(shownItems.value[0].id)
+  const first = shownItems.value.find((item) => !item.disabled)
+  if (first) pick(first.id)
 }
 
 function pick(id: string): void {
@@ -109,7 +114,7 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
       </svg>
     </button>
 
-    <div v-if="open" class="dropdown">
+    <div v-if="open" class="dropdown" :class="{ above }">
       <input
         v-if="searchable"
         ref="searchRef"
@@ -128,10 +133,12 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
           type="button"
           class="item-row"
           :class="{ active: item.id === activeId }"
-          :title="item.title"
+          :title="item.disabled ?? item.title"
+          :disabled="!!item.disabled"
           @click="pick(item.id)"
         >
-          {{ item.label }}
+          <span class="item-label">{{ item.label }}</span>
+          <span v-if="item.disabled" class="item-reason">{{ item.disabled }}</span>
         </button>
         <p v-if="items.length === 0" class="empty">{{ emptyText }}</p>
         <p v-else-if="shownItems.length === 0" class="empty">No match.</p>
@@ -218,6 +225,11 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
   overflow: hidden;
 }
 
+.dropdown.above {
+  top: auto;
+  bottom: calc(100% + var(--space-2));
+}
+
 .search {
   margin: var(--space-2) var(--space-2) 0;
   padding: var(--space-2) var(--space-3);
@@ -247,6 +259,9 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
    squeezes its rows to fit max-height instead of scrolling. */
 .item-row {
   flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
   text-align: left;
   padding: var(--space-2) var(--space-3);
   background: transparent;
@@ -262,8 +277,25 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocumentClickOutsi
   transition: background var(--duration-fast) var(--ease-out);
 }
 
-.item-row:hover {
+.item-row:hover:not(:disabled) {
   background: var(--color-surface-2);
+}
+
+.item-row:disabled {
+  color: var(--color-fg-muted);
+  cursor: default;
+}
+
+.item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-reason {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--text-xs);
 }
 
 .item-row.active {
