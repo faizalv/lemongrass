@@ -26,6 +26,8 @@ export interface GitState {
   busy: 'commit' | 'push' | 'stash' | 'fetch' | 'branch' | null
   // The branch the merge confirm is open for.
   mergeSource: string | null
+  // The base the new-branch modal is open for.
+  branchBase: string | null
   // A branch and its upstream that both moved, for the dialog that offers the rebase.
   diverged: GitDiverged | null
   error: string | null
@@ -47,6 +49,7 @@ export function gitStateOf(projectId: string): GitState {
       foldedGroups: [],
       busy: null,
       mergeSource: null,
+      branchBase: null,
       diverged: null,
       error: null
     }

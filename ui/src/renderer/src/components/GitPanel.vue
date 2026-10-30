@@ -33,7 +33,6 @@ const props = defineProps<{
   project: ProjectRef
 }>()
 
-const creatingBranch = ref(false)
 const rowError = ref<string | null>(null)
 const state = computed(() => gitStateOf(props.project.id))
 const status = computed(() => state.value.status)
@@ -220,22 +219,17 @@ watch(() => props.project.id, refresh)
     </button>
 
     <div v-if="!state.folded" class="git-body">
-      <div v-if="status?.isRepo" class="branch-line">
-        <GitBranchMenu :project="project" :blocked-reason="switchBlockedReason">
-          <GitIcon class="row-icon" name="branch" />
-          <span class="row-name">{{ status.branch ?? 'detached HEAD' }}</span>
-        </GitBranchMenu>
-        <button
-          class="branch-new"
-          :disabled="switchBlockedReason !== null"
-          :title="switchBlockedReason ?? 'New branch'"
-          :aria-label="switchBlockedReason ?? 'New branch'"
-          @click="creatingBranch = true"
-        >
-          <GitIcon name="newBranch" />
-        </button>
-        <span class="branch-spacer" />
+      <GitBranchMenu v-if="status?.isRepo" :project="project" :blocked-reason="switchBlockedReason">
+        <GitIcon class="row-icon" name="branch" />
+        <span class="row-name">{{ status.branch ?? 'detached HEAD' }}</span>
         <GitCounts :ahead="status.ahead" :behind="status.behind" />
+      </GitBranchMenu>
+      <div v-if="status?.isRepo" class="remote-line">
+        <button class="history-open" @click="openHistory(project)">
+          <GitIcon class="row-icon" name="open" />
+          <span>History</span>
+        </button>
+        <span class="remote-spacer" />
         <button
           class="remote-icon fetch"
           :disabled="state.busy !== null"
@@ -259,10 +253,6 @@ watch(() => props.project.id, refresh)
       </div>
       <p v-if="rowError" class="git-error">{{ rowError }}</p>
       <GitOperationBox v-if="status?.isRepo" :project="project" />
-      <button v-if="status?.isRepo" class="history-open" @click="openHistory(project)">
-        <GitIcon class="row-icon" name="open" />
-        <span>History</span>
-      </button>
 
       <div class="changes-head">
         <AppCheckbox
@@ -362,10 +352,11 @@ watch(() => props.project.id, refresh)
     </div>
 
     <GitBranchCreateModal
-      v-if="creatingBranch"
+      v-if="state.branchBase"
       :project="project"
+      :initial-base="state.branchBase"
       :has-changes="files.length > 0"
-      @close="creatingBranch = false"
+      @close="state.branchBase = null"
     />
     <GitMergeModal
       v-if="state.mergeSource"
@@ -463,35 +454,14 @@ watch(() => props.project.id, refresh)
   padding: var(--space-2) var(--space-1) 0;
 }
 
-.branch-line {
+.remote-line {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
 }
 
-.branch-new {
-  display: flex;
-  flex-shrink: 0;
-  padding: 3px;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
-  cursor: pointer;
-}
-
-.branch-new:hover:not(:disabled),
-.branch-new:focus-visible:not(:disabled) {
-  color: var(--color-fg-accent);
-}
-
-.branch-new:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.branch-spacer {
+.remote-spacer {
   flex: 1;
 }
 
@@ -558,6 +528,7 @@ watch(() => props.project.id, refresh)
 }
 
 .row-name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

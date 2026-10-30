@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createBranch } from '../git'
 import type { ProjectRef } from '../workspace'
 import type { GitBranches } from '../../../preload/types'
@@ -12,6 +12,7 @@ import AppSwitcher from './AppSwitcher.vue'
 
 const props = defineProps<{
   project: ProjectRef
+  initialBase: string
   hasChanges: boolean
 }>()
 
@@ -20,11 +21,14 @@ const emit = defineEmits<{
 }>()
 
 const DETACHED = 'HEAD'
+const NAME_CHECK_DELAY_MS = 300
 
 const branches = ref<GitBranches | null>(null)
 const name = ref('')
 const base = ref<string | null>(null)
-const nameValid = ref(false)
+// The verdict of the last finished check and the name it was for, so a verdict for older text is
+// never shown while typing.
+const checked = ref<{ name: string; valid: boolean } | null>(null)
 const error = ref<string | null>(null)
 const busy = ref(false)
 const nameRef = ref<HTMLInputElement | null>(null)
@@ -45,10 +49,12 @@ const baseItems = computed(() => {
   return list.current ? items : [{ id: DETACHED, label: 'Detached HEAD' }, ...items]
 })
 
+const isChecked = computed(() => checked.value?.name === trimmed.value)
+
 const nameProblem = computed((): string | null => {
-  if (!trimmed.value) return null
+  if (!trimmed.value || !isChecked.value) return null
   if (exists.value) return 'A local branch already has this name.'
-  if (!nameValid.value) return 'This is not a valid branch name.'
+  if (!checked.value?.valid) return 'This is not a valid branch name.'
   return null
 })
 
@@ -60,21 +66,32 @@ onMounted(async () => {
   await nextTick()
   nameRef.value?.focus()
   branches.value = await window.api.git.branches(props.project.path)
-  base.value = branches.value.current ?? DETACHED
+  base.value = props.initialBase
 })
 
-// Main runs git check-ref-format, so only the answer for the latest text is kept.
+// Main runs git check-ref-format, so the check waits for typing to pause and only the answer for
+// the latest text is kept.
 let nameCheck = 0
-watch(trimmed, async (value) => {
+let checkTimer: ReturnType<typeof setTimeout> | undefined
+
+async function checkName(value: string): Promise<void> {
+  clearTimeout(checkTimer)
   const check = ++nameCheck
-  nameValid.value = false
-  if (!value) return
   const valid = await window.api.git.branchNameValid(props.project.path, value)
-  if (check === nameCheck) nameValid.value = valid
+  if (check === nameCheck) checked.value = { name: value, valid }
+}
+
+watch(trimmed, (value) => {
+  clearTimeout(checkTimer)
+  if (value) checkTimer = setTimeout(() => void checkName(value), NAME_CHECK_DELAY_MS)
 })
+
+onBeforeUnmount(() => clearTimeout(checkTimer))
 
 async function create(): Promise<void> {
-  if (!canCreate.value || !base.value) return
+  // Enter can come before the paused check has run.
+  if (trimmed.value && !isChecked.value) await checkName(trimmed.value)
+  if (!canCreate.value || !isChecked.value || !base.value) return
   error.value = null
   busy.value = true
   error.value = await createBranch(props.project, trimmed.value, base.value)

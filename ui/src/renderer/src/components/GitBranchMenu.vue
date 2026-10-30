@@ -10,7 +10,7 @@ import AppContextMenu, { type MenuItem } from './AppContextMenu.vue'
 import GitCounts from './GitCounts.vue'
 
 // blockedReason names why the current branch cannot be left now, such as a stopped rebase, which
-// blocks merge, checkout and deleting the checked-out branch. Update only fetches or fast-forwards,
+// blocks merge, checkout, new branch and deleting the checked-out branch. Update only fetches or fast-forwards,
 // so it stays available.
 const props = defineProps<{
   project: ProjectRef
@@ -120,6 +120,14 @@ const actions = computed((): MenuItem[] => {
         (target.remote ? 'Creates a local branch that tracks it' : `Check out ${target.name}`)
     })
   }
+  // Creating switches to the new branch, carrying changes like a checkout.
+  const newBlocked = busy ?? props.blockedReason
+  items.push({
+    key: 'new',
+    label: 'New branch',
+    disabled: !!newBlocked,
+    title: newBlocked ?? `Create a branch from ${target.name} and switch to it`
+  })
   if (!target.remote) {
     const deleteBlocked = busy ?? deleteBlockedReason(target)
     items.push({
@@ -219,6 +227,9 @@ async function act(key: string): Promise<void> {
   notice.value = null
   if (key === 'merge') {
     state.value.mergeSource = target.name
+    hide()
+  } else if (key === 'new') {
+    state.value.branchBase = target.name
     hide()
   } else if (key === 'checkout') {
     closeActions()
@@ -384,13 +395,15 @@ onBeforeUnmount(removeListeners)
 <style scoped>
 .branch-trigger {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
+  width: 100%;
   min-width: 0;
-  padding: 3px var(--space-2);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface-1);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
   color: var(--color-fg-primary);
   font-family: var(--font-body);
   font-size: var(--text-xs);
@@ -401,6 +414,10 @@ onBeforeUnmount(removeListeners)
 .branch-trigger:hover:not(:disabled),
 .branch-trigger.open {
   background: var(--color-surface-2);
+}
+
+.branch-trigger.open {
+  border-color: var(--color-amber);
 }
 
 .branch-trigger:disabled {
