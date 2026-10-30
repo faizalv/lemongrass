@@ -13,6 +13,19 @@ export function conflictScope(
   return `${CONFLICT_SCOPE_PREFIX}${operation}:${leftRef}:${rightRef}`
 }
 
+const OPERATIONS: readonly string[] = ['merge', 'rebase', 'stash']
+
+// Git refs cannot contain a colon, so the key splits back into exactly its three parts.
+export function parseConflictScope(
+  scope: string
+): { operation: GitConflictOperation; leftRef: string; rightRef: string } | null {
+  if (!scope.startsWith(CONFLICT_SCOPE_PREFIX)) return null
+  const parts = scope.slice(CONFLICT_SCOPE_PREFIX.length).split(':')
+  if (parts.length !== 3 || !OPERATIONS.includes(parts[0])) return null
+  const [operation, leftRef, rightRef] = parts
+  return { operation: operation as GitConflictOperation, leftRef, rightRef }
+}
+
 // undefined while the status is not loaded yet, so nothing is cleared on a guess. Conflicted
 // files with no stopped operation are a stash reapply, which GitStatus.operation leaves out.
 export function activeConflictKind(

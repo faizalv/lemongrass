@@ -3,7 +3,12 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { activeConflictKind, conflictScope, endedConflictScopes } from './conflictScopes.ts'
+import {
+  activeConflictKind,
+  conflictScope,
+  endedConflictScopes,
+  parseConflictScope
+} from './conflictScopes.ts'
 import type { GitFile, GitStatus } from '../../preload/types'
 
 function status(operation: GitStatus['operation'], conflicted: boolean): GitStatus {
@@ -26,4 +31,14 @@ test('scopes end when nothing is stopped or another kind is', () => {
   assert.deepEqual(endedConflictScopes(scopes, null), [merge, stash])
   assert.deepEqual(endedConflictScopes(scopes, 'merge'), [stash])
   assert.deepEqual(endedConflictScopes(scopes, 'rebase'), [merge, stash])
+})
+
+test('a scope key parses back to its operation and refs', () => {
+  assert.deepEqual(parseConflictScope(conflictScope('rebase', 'feature', 'origin/main')), {
+    operation: 'rebase',
+    leftRef: 'feature',
+    rightRef: 'origin/main'
+  })
+  assert.equal(parseConflictScope('web:page'), null)
+  assert.equal(parseConflictScope('conflict:pick:a:b'), null)
 })

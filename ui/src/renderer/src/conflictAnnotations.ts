@@ -8,12 +8,20 @@ import {
   clearReview,
   editAnnotation,
   projectsWithReviews,
+  registerReviewPreparer,
   removeAnnotation,
   reviewOf,
   scopesOf
 } from './annotations'
 import { annotationGutter, refreshAnnotations, type LineRange } from './annotationGutter'
-import { activeConflictKind, conflictScope, endedConflictScopes } from './conflictScopes'
+import { saveConflictWork } from './conflictSave'
+import {
+  CONFLICT_SCOPE_PREFIX,
+  activeConflictKind,
+  conflictScope,
+  endedConflictScopes,
+  parseConflictScope
+} from './conflictScopes'
 import { gitStateOf } from './git'
 import type { ProjectRef } from './workspace'
 import type { ConflictPane, GitConflictOperation } from '../../preload/types'
@@ -70,6 +78,16 @@ export function conflictCommentExtension(ctx: ConflictPaneContext): Extension {
     side: ctx.pane === 'right' ? 'after' : 'before'
   })
 }
+
+// The human's resolver work is saved to disk first, so the model reads the files as the review
+// describes them. Main adds every other conflicted file and reads the unresolved blocks itself.
+registerReviewPreparer(CONFLICT_SCOPE_PREFIX, async (project, scope) => {
+  const parsed = parseConflictScope(scope)
+  if (!parsed) return { ok: false, error: 'This review does not belong to a merge or rebase.' }
+  const saved = await saveConflictWork(project)
+  if (!saved.ok) return { ok: false, error: saved.error }
+  return { ok: true, scope: { kind: 'conflict', ...parsed, files: saved.files } }
+})
 
 // A conflict review ends with its merge, rebase or stash reapply, whichever screen is open.
 watch(

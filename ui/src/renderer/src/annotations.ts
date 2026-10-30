@@ -2,7 +2,8 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { reactive } from 'vue'
-import type { Annotation, AnnotationAnchor } from '../../preload/types'
+import type { Annotation, AnnotationAnchor, ReviewScope } from '../../preload/types'
+import type { ProjectRef } from './workspace'
 
 // Pending reviews, per project and then per scope. A scope names what the comments belong to,
 // such as one stopped merge, and its annotator clears it when that ends. Nothing here reads an
@@ -79,4 +80,22 @@ export function scopesOf(projectId: string): string[] {
 
 export function projectsWithReviews(): string[] {
   return Object.keys(reviews).filter((projectId) => Object.keys(reviews[projectId]).length > 0)
+}
+
+export type ReviewPrepared = { ok: true; scope: ReviewScope } | { ok: false; error: string }
+
+type ReviewPreparer = (project: ProjectRef, scope: string) => Promise<ReviewPrepared>
+
+const preparers: { prefix: string; prepare: ReviewPreparer }[] = []
+
+// Each annotator kind builds the scope its reviews are sent with, and may save work first, so the
+// bar sends a review without knowing what its scope holds.
+export function registerReviewPreparer(prefix: string, prepare: ReviewPreparer): void {
+  preparers.push({ prefix, prepare })
+}
+
+export function prepareReview(project: ProjectRef, scope: string): Promise<ReviewPrepared> {
+  const preparer = preparers.find((entry) => scope.startsWith(entry.prefix))
+  if (!preparer) return Promise.resolve({ ok: false, error: `No review is set up for ${scope}.` })
+  return preparer.prepare(project, scope)
 }

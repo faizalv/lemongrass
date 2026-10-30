@@ -5,7 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import AppButton from '../AppButton.vue'
 import AppSwitcher from '../AppSwitcher.vue'
-import { clearReview, reviewOf, setReviewMessage } from '../../annotations'
+import { clearReview, prepareReview, reviewOf, setReviewMessage } from '../../annotations'
 import { reviewTargetsOf } from '../../reviewTargets'
 import { plainCopy } from '../connector/rester/resterDraft'
 import type { ProjectRef } from '../../workspace'
@@ -39,7 +39,9 @@ const targets = computed(() =>
 const target = computed(() => targets.value.find((t) => t.id === targetId.value) ?? null)
 
 const blocker = computed(() => {
-  if (count.value === 0) return 'Add a comment first.'
+  if (count.value === 0 && !review.value.message.trim()) {
+    return 'Add a comment or an overall comment first.'
+  }
   if (!target.value) return 'Pick a tab to send the review to.'
   return target.value.disabled ?? null
 })
@@ -73,7 +75,13 @@ async function submit(): Promise<void> {
   sending.value = true
   error.value = null
   try {
+    const prepared = await prepareReview(props.project, props.scope)
+    if (!prepared.ok) {
+      error.value = prepared.error
+      return
+    }
     const result = await window.api.review.submit(props.project.path, targetId.value, {
+      scope: plainCopy(prepared.scope),
       annotations: plainCopy(review.value.annotations),
       message: review.value.message.trim()
     })
@@ -95,7 +103,7 @@ async function submit(): Promise<void> {
       class="message"
       type="text"
       spellcheck="false"
-      placeholder="Overall message (optional)"
+      placeholder="Overall comment"
       :disabled="sending"
     />
     <div class="picker">
