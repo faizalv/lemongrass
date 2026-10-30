@@ -4,7 +4,7 @@
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WRITE_TIMEOUT_MS, readEnv, run } from './gitRun.ts'
@@ -138,6 +138,35 @@ test('rebasing another branch checks it out first', async () => {
   assert.deepEqual(result, { ok: true })
   assert.equal(branch(local), 'feat')
   assert.equal(git(local, 'rev-parse', 'HEAD~1'), git(other, 'rev-parse', 'feat'))
+})
+
+test('a rebase with uncommitted changes carries them across', async () => {
+  const { local, other } = setup()
+  advance(other, 'main', 'm.txt')
+  commitFile(local, 'mine.txt', 'mine')
+  writeFileSync(join(local, 'a.txt'), 'dirty\n')
+  await updateLocal(runner(local), 'main')
+  const result = await rebaseOntoUpstream(runner(local), 'main')
+  assert.deepEqual(result, { ok: true })
+  assert.equal(git(local, 'rev-parse', 'HEAD~1'), git(other, 'rev-parse', 'main'))
+  assert.equal(readFileSync(join(local, 'a.txt'), 'utf8'), 'dirty\n')
+  assert.equal(git(local, 'stash', 'list'), '')
+})
+
+test('changes that conflict on reapply stay conflicted with the stash kept', async () => {
+  const { local, other } = setup()
+  git(other, 'switch', '-q', 'main')
+  commitFile(other, 'a.txt', 'upstream')
+  git(other, 'push', '-q', 'origin', 'main')
+  commitFile(local, 'mine.txt', 'mine')
+  writeFileSync(join(local, 'a.txt'), 'dirty\n')
+  await updateLocal(runner(local), 'main')
+  const result = await rebaseOntoUpstream(runner(local), 'main')
+  assert.deepEqual(result, { ok: true })
+  assert.equal(git(local, 'rev-parse', 'HEAD~1'), git(other, 'rev-parse', 'main'))
+  assert.equal(git(local, 'diff', '--name-only', '--diff-filter=U'), 'a.txt')
+  assert.equal(git(local, 'stash', 'list').split('\n').length, 1)
+  assert.equal(existsSync(join(local, '.git', 'rebase-merge')), false)
 })
 
 test('a remote branch deleted on the remote is dropped from the remote-tracking refs', async () => {

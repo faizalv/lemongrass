@@ -137,7 +137,9 @@ export async function updateRemote(git: GitRunner, remoteBranch: string): Promis
 }
 
 // Replays the branch's own commits on top of its upstream. A branch that is not checked out is
-// checked out first, since git rebases only the current branch.
+// checked out first, since git rebases only the current branch. --autostash carries uncommitted
+// changes across; when reapplying them conflicts, git still finishes the rebase, keeps the stash
+// and leaves the conflicts in the tree with no rebase stopped.
 export async function rebaseOntoUpstream(
   git: GitRunner,
   name: string
@@ -147,7 +149,9 @@ export async function rebaseOntoUpstream(
   if (!upstream) return { ok: false, error: `${name} has no upstream to rebase onto.` }
   const current = await currentBranch(git)
   const args =
-    name === current ? ['rebase', upstream.tracking] : ['rebase', upstream.tracking, name]
+    name === current
+      ? ['rebase', '--autostash', upstream.tracking]
+      : ['rebase', '--autostash', upstream.tracking, name]
   const result = await git.write(args)
   // A stop on conflicts exits non-zero too, and the panel then offers Continue and Abort.
   if (result.code !== 0) return { ok: false, error: errorText(result) }

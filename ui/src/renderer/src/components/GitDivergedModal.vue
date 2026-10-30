@@ -20,6 +20,7 @@ const emit = defineEmits<{
 
 const state = computed(() => gitStateOf(props.project.id))
 const isCurrent = computed(() => state.value.status?.branch === props.diverged.branch)
+const hasChanges = computed(() => (state.value.status?.files.length ?? 0) > 0)
 const error = ref<string | null>(null)
 
 function commits(count: number): string {
@@ -48,6 +49,11 @@ async function rebase(): Promise<void> {
     </p>
     <p v-if="!isCurrent" class="diverged-note">
       The rebase checks out {{ diverged.branch }} first.
+    </p>
+    <p v-if="hasChanges" class="diverged-note">
+      Your uncommitted changes come along. They are set aside before the rebase and put back after
+      it. If putting them back conflicts, the files show under Conflicts to resolve, and the set
+      aside copy stays in Stashes until you drop it.
     </p>
     <p class="diverged-warning">
       A rebase rewrites those commits. That is safe while they are not on {{ diverged.upstream }}
