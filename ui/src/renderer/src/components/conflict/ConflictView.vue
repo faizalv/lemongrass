@@ -4,6 +4,7 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef, watch } from 'vue'
 import { gitStateOf } from '../../git'
+import { dropDraft } from '../../conflictDrafts'
 import { conflictScope } from '../../conflictAnnotations'
 import type { ProjectRef } from '../../workspace'
 import type { GitConflictFile } from '../../../../preload/types'
@@ -28,6 +29,8 @@ async function load(): Promise<void> {
   try {
     const next = await window.api.git.conflict(props.project.path, props.path)
     if (JSON.stringify(next) !== JSON.stringify(file.value)) file.value = next
+    // A resolved file has no work left to keep for its tab.
+    if (next.status === 'notConflicted') dropDraft(props.project.id, props.path)
   } catch (err) {
     file.value = { status: 'error', error: err instanceof Error ? err.message : String(err) }
   } finally {

@@ -39,6 +39,9 @@ const setCurrent = StateEffect.define<number | null>()
 // empty conflict takes text typed at its position, since there is nowhere else for it to go.
 export const middleChunks = StateField.define<MiddleChunk[]>({
   create: () => [],
+  // Plain data, so a saved middle keeps its decisions.
+  toJSON: (chunks) => chunks,
+  fromJSON: (json) => json as MiddleChunk[],
   update(chunks, tr) {
     let next = chunks
     if (tr.docChanged) {
@@ -470,29 +473,54 @@ function base(extra: Extension[]): Extension[] {
   return [drawSelection(), currentChunk, theme, ...extra]
 }
 
+type OnMiddleUpdate = (state: EditorState, docChanged: boolean) => void
+
+function middleExtensions(onUpdate: OnMiddleUpdate, extra: Extension[]): Extension[] {
+  return base([
+    lineNumbers(),
+    middleChunks,
+    undoChunks,
+    middleDecorations,
+    history(),
+    keymap.of([...defaultKeymap, ...historyKeymap]),
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged || update.selectionSet || update.transactions.length) {
+        onUpdate(update.state, update.docChanged)
+      }
+    }),
+    extra
+  ])
+}
+
 export function middleState(
   doc: string,
   chunks: MiddleChunk[],
-  onUpdate: (state: EditorState, docChanged: boolean) => void,
+  onUpdate: OnMiddleUpdate,
   extra: Extension[]
 ): EditorState {
   return EditorState.create({
     doc,
-    extensions: base([
-      lineNumbers(),
-      middleChunks.init(() => chunks),
-      undoChunks,
-      middleDecorations,
-      history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged || update.selectionSet || update.transactions.length) {
-          onUpdate(update.state, update.docChanged)
-        }
-      }),
-      extra
-    ])
+    extensions: [middleExtensions(onUpdate, extra), middleChunks.init(() => chunks)]
   })
+}
+
+// Undo history is left out: its saved form drops the decision effects, so an undo after a restore
+// would change the text without its decisions.
+const savedFields = { chunks: middleChunks }
+
+// The middle as plain data, with its decisions, so it outlives its view.
+export function snapshotMiddle(state: EditorState): unknown {
+  return state.toJSON(savedFields)
+}
+
+// Rebuilds a saved middle with fresh extensions, since the saved one's callbacks belonged to a
+// view that is gone.
+export function restoreMiddle(
+  json: unknown,
+  onUpdate: OnMiddleUpdate,
+  extra: Extension[]
+): EditorState {
+  return EditorState.fromJSON(json, { extensions: middleExtensions(onUpdate, extra) }, savedFields)
 }
 
 export function sideState(

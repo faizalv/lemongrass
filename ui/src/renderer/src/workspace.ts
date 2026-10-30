@@ -538,6 +538,14 @@ export function openDiff(project: ProjectRef, path: string): void {
   commit(project, tree.addTab(root, focused.id, newDiffTab(path)), focused.id)
 }
 
+// A resolver tab saves its draft on unmount only while it is still open, so closing it drops it.
+export function hasConflictTab(projectId: string, path: string): boolean {
+  return (
+    !!workspaces[projectId] &&
+    tabsOf(projectId).some((tab) => tab.kind === 'conflict' && tab.path === path)
+  )
+}
+
 export function activeConflictPath(projectId: string): string | null {
   const layout = workspaces[projectId]?.layout
   if (!layout) return null

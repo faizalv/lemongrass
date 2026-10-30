@@ -5,7 +5,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { EditorState } from '@codemirror/state'
 import { undo } from '@codemirror/commands'
-import { chunkAtCursor, chunkReplacements, middleChunks, middleState } from './conflictEditor.ts'
+import {
+  chunkAtCursor,
+  chunkReplacements,
+  middleChunks,
+  middleState,
+  restoreMiddle,
+  snapshotMiddle
+} from './conflictEditor.ts'
 import type { MiddleChunk } from './conflictModel.ts'
 
 const open = { resolved: false, left: 'open', right: 'open', taken: [] } as const
@@ -83,4 +90,14 @@ test('undoing a decision puts the conflict back as it was', () => {
   undo({ state: current, dispatch: (tr) => (current = tr.state) })
   assert.equal(current.doc.toString(), 'a\nB1\nb\n')
   assert.deepEqual(chunk(current), { index: 1, from: 2, to: 5, ...open, taken: [] })
+})
+
+test('a saved middle comes back with its decisions', () => {
+  let current = state()
+  const decided: MiddleChunk = { ...chunk(current), left: 'taken', taken: ['left'] }
+  current = current.update(chunkReplacements(current, [{ chunk: decided, text: 'L1\n' }])!).state
+  const saved = JSON.parse(JSON.stringify(snapshotMiddle(current)))
+  const restored = restoreMiddle(saved, () => {}, [])
+  assert.equal(restored.doc.toString(), 'a\nL1\nb\n')
+  assert.deepEqual(chunk(restored), chunk(current))
 })

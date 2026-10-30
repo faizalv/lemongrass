@@ -3,9 +3,10 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import type { EditorState, Extension, Text } from '@codemirror/state'
+import { Text, type EditorState, type Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { applyConflict } from '../../git'
+import { dropDraft, saveDraft, stagesOf, takeDraft, type ConflictDraft } from '../../conflictDrafts'
 import { conflictCommentExtension, refreshConflictComments } from '../../conflictAnnotations'
 import { commentedLineRanges, isAnnotationChange } from '../../annotationGutter'
 import {
@@ -33,13 +34,15 @@ import {
   focusLines,
   middleChunks,
   middleState,
+  restoreMiddle,
   chunkReplacements,
   setFocusLines,
   showCurrent,
   showDecisions,
+  snapshotMiddle,
   sideState
 } from '../../conflictEditor'
-import type { ProjectRef } from '../../workspace'
+import { hasConflictTab, type ProjectRef } from '../../workspace'
 import type {
   ConflictPane,
   GitConflictChunk,
@@ -87,7 +90,11 @@ const focus = ref(false)
 const sizes = ref([1, 1, 1])
 const panesEl = ref<HTMLElement | null>(null)
 let workingSeen = props.file.working
-let source: { file: ConflictFile; fromWorking: boolean } = { file: props.file, fromWorking: false }
+type Source = { chunks: GitConflictChunk[]; finalNewline: boolean }
+// What the middle was loaded from, which Reset goes back to.
+let source: Source = { chunks: [], finalNewline: true }
+// Set once the work is written, so unmounting keeps no draft of it.
+let applied = false
 let left: EditorView | null = null
 let middle: EditorView | null = null
 let right: EditorView | null = null
@@ -109,13 +116,7 @@ function stageText(stage: GitConflictStage): string {
 
 // The middle starts from git's merge of the stages. After the file changed on disk it starts from
 // the file instead, whose remaining markers become its conflicts.
-function chunksOf(
-  file: ConflictFile,
-  fromWorking: boolean
-): {
-  chunks: GitConflictChunk[]
-  finalNewline: boolean
-} {
+function chunksOf(file: ConflictFile, fromWorking: boolean): Source {
   if (!fromWorking || file.working === null) {
     return { chunks: file.chunks ?? [], finalNewline: file.finalNewline }
   }
@@ -204,9 +205,9 @@ function pushDecisions(chunks: { index: number; left: SideDecision; right: SideD
   }
 }
 
-function load(file: ConflictFile, fromWorking: boolean): void {
-  source = { file, fromWorking }
-  const raw = chunksOf(file, fromWorking)
+// A draft restores the middle as it was left, decisions included; otherwise it is built from raw.
+function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = null): void {
+  source = raw
   const crlf = isCrlf(raw.chunks)
   const chunks = stripChunks(raw.chunks)
   const built = buildMiddle(chunks)
@@ -221,15 +222,15 @@ function load(file: ConflictFile, fromWorking: boolean): void {
     chunks.flatMap((chunk, index) =>
       chunk.kind === 'conflict' ? [{ index, range: located[pane][index] }] : []
     )
-  const middleDoc = middleState(built.text, built.chunks, onMiddleUpdate, [
-    reviewExtension('middle'),
-    focusExtension('middle')
-  ])
+  const middleExtras = [reviewExtension('middle'), focusExtension('middle')]
+  const middleDoc = draft
+    ? restoreMiddle(draft.middle, onMiddleUpdate, middleExtras)
+    : middleState(built.text, built.chunks, onMiddleUpdate, middleExtras)
   loaded.value = {
     chunks,
     finalNewline: raw.finalNewline,
     crlf,
-    doc: middleDoc.doc,
+    doc: draft ? Text.of(draft.loadedText.split('\n')) : middleDoc.doc,
     left: located.left,
     right: located.right
   }
@@ -267,7 +268,12 @@ function load(file: ConflictFile, fromWorking: boolean): void {
   error.value = null
   shownDecisions = ''
   onMiddleUpdate(middleDoc)
-  if (built.chunks.length > 0) goTo(built.chunks[0].index)
+  if (draft) {
+    current.value = draft.current
+    middle.dispatch({
+      effects: EditorView.scrollIntoView(middleDoc.selection.main.head, { y: 'center' })
+    })
+  } else if (built.chunks.length > 0) goTo(built.chunks[0].index)
 }
 
 watch(current, (index) => {
@@ -355,7 +361,7 @@ function startResize(at: number, event: PointerEvent): void {
 }
 
 function reset(): void {
-  load(source.file, source.fromWorking)
+  load(props.file, source)
 }
 
 async function apply(): Promise<void> {
@@ -367,31 +373,34 @@ async function apply(): Promise<void> {
     loaded.value.crlf
   )
   error.value = await applyConflict(props.project, props.path, content)
-  if (!error.value) dirty.value = false
+  if (!error.value) {
+    dirty.value = false
+    applied = true
+    dropDraft(props.project.id, props.path)
+  }
   applying.value = false
 }
 
 // A model or a shell changed the working file. With nothing unsaved in the middle it reloads at
 // once, otherwise the human chooses, so unsaved edits never silently replace the model's.
-watch(
-  () => props.file,
-  (file) => {
-    if (file.working === workingSeen) return
-    if (dirty.value) {
-      pendingReload.value = file
-      return
-    }
-    workingSeen = file.working
-    load(file, true)
+function onFileChange(file: ConflictFile): void {
+  if (file.working === workingSeen) return
+  if (dirty.value) {
+    pendingReload.value = file
+    return
   }
-)
+  workingSeen = file.working
+  load(file, chunksOf(file, true))
+}
+
+watch(() => props.file, onFileChange)
 
 function reloadPending(): void {
   const file = pendingReload.value
   pendingReload.value = null
   if (!file) return
   workingSeen = file.working
-  load(file, true)
+  load(file, chunksOf(file, true))
 }
 
 function keepEdits(): void {
@@ -438,9 +447,34 @@ function syncScroll(from: EditorView): void {
   }
 }
 
-onMounted(() => load(props.file, false))
+onMounted(() => {
+  const draft = takeDraft(props.project.id, props.path, stagesOf(props.file))
+  if (draft) {
+    workingSeen = draft.workingSeen
+    focus.value = draft.focus
+    sizes.value = draft.sizes
+  }
+  load(props.file, draft ?? chunksOf(props.file, false), draft)
+  // A working file that changed while the tab was away reloads or asks, as it would have.
+  if (draft && props.file.working !== workingSeen) onFileChange(props.file)
+})
 
+// The tab is unmounted when its project is switched away or it moves to another pane; it keeps
+// its work for the next mount unless it was closed or applied.
 onBeforeUnmount(() => {
+  if (middle && loaded.value && !applied && hasConflictTab(props.project.id, props.path)) {
+    saveDraft(props.project.id, props.path, {
+      stages: stagesOf(props.file),
+      chunks: source.chunks,
+      finalNewline: source.finalNewline,
+      loadedText: loaded.value.doc.toString(),
+      middle: snapshotMiddle(middle.state),
+      workingSeen,
+      focus: focus.value,
+      sizes: sizes.value,
+      current: current.value
+    })
+  }
   for (const view of [left, middle, right]) view?.destroy()
 })
 </script>
