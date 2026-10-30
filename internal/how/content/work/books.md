@@ -1,0 +1,1 @@
+**Books first.** Read `biblio/books/toc.md` and open every book whose name or tags relate to this work, then the chapters whose names fit, before reading source. Say which books you read. Go to the code only for what no book covers. Where the code and a book disagree, the code wins and the chapter is corrected at closing.

@@ -1,0 +1,1 @@
+1. {handover}Read `biblio/scratchpad/{slug}/prd.md` and `activities.md`. The PRD has no `- [ ]` Plans items yet: draft them from its Objective, following the plan rules below, and show them to the user.

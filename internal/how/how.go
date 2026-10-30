@@ -37,6 +37,12 @@ var domains = map[string]map[string]action{
 		"close":    {summary: "Close a finished scratchpad task: `lgrass how task close <slug>`", run: taskClose},
 		"handover": {summary: "Pause or hand over a task: `lgrass how task handover <slug>`", run: taskHandover},
 	},
+	"work": {
+		"debug":      {summary: "Chase a fault to its root cause: `lgrass how work debug <slug>`", run: workDebug},
+		"discussion": {summary: "An idea, a question or a design talk with no task file yet: `lgrass how work discussion`", run: static("work/discussion.md")},
+		"research":   {summary: "Investigate with no build: `lgrass how work research <slug>`", run: workResearch},
+		"task":       {summary: "Build something, new or resumed: `lgrass how work task <slug>`", run: workTask},
+	},
 	"thinker": {
 		"start": {summary: "Your role as a thinker in a workgroup: `lgrass how thinker start`", run: static("thinker/start.md")},
 	},

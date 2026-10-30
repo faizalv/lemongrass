@@ -1,0 +1,4 @@
+**Plan first.** Show the plan in chat and write it in the same turn to `biblio/scratchpad/{slug}/prd.md` with four parts: Problem (what is wrong or missing), Expectation (what is true once solved), Objective (what the work sets out to do, and what is out of scope) and Plans (design decisions, then the phases in build order, each a `- [ ]` item). Start `activities.md` beside it. A small task gets a short PRD, not none.{existing}
+
+- Write Plans as the simplest reading of the Objective. Every item must be needed to meet an Expectation. If a similar function or an earlier feature suggests adding more, tell the user in one or two sentences with your recommendation and add it only after a yes, because whoever resumes the PRD reads it as the spec.
+- State how the work is done: a workgroup for a multi-phase, high-value task, subagents for mostly read-only research or a refactor that needs only writes, solo for a task spanning few files or domains.

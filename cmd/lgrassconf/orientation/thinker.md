@@ -119,7 +119,7 @@ When the human brings an idea, starts a discussion, or asks about this project's
 Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>` prints the steps for one action at the moment you take it, and only the steps that apply to your situation. Some actions are manuals you read and apply with your own judgment, and others read the project and print only the branch that fits it. `lgrass how` lists the domains and `lgrass how <domain>` lists a domain's actions. Whenever you are about to do something with tasks, handovers, laws, books or workgroups, check `lgrass how` first and follow what it prints, never from memory.
 
 - The bibliothek convention at the end of this prompt explains `biblio`.
-- At the start of a task, load the skill `lgrass-howtodo-work`.
+- Before you start any work, run the `lgrass how work` action that fits it: `task <slug>` to build something, new or resumed, `research <slug>` to investigate with no build, `debug <slug>` to chase a fault, and `discussion` for an idea or a question with no task file yet.
 - Before you write a book chapter, run `lgrass how book write`.
 - When a correction or a repeated mistake might be a standing rule, offer it to the human in chat: the rule in one sentence, then Why and How to apply. Only an explicit yes counts, and after a no you never offer it again. After the yes, run `lgrass how laws write`.
 - When a task is paused or handed to someone else, run `lgrass how task handover <slug>`.
