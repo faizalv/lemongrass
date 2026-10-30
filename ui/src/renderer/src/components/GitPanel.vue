@@ -14,7 +14,14 @@ import {
   toggleFile,
   toggleGroupFold
 } from '../git'
-import { activeDiffPath, openDiff, openHistory, type ProjectRef } from '../workspace'
+import {
+  activeConflictPath,
+  activeDiffPath,
+  openConflict,
+  openDiff,
+  openHistory,
+  type ProjectRef
+} from '../workspace'
 import type { GitFile, GitFileGroup, GitFileKind } from '../../../preload/types'
 import AppButton from './AppButton.vue'
 import AppCheckbox from './AppCheckbox.vue'
@@ -38,7 +45,9 @@ const rowNotice = ref<string | null>(null)
 const state = computed(() => gitStateOf(props.project.id))
 const status = computed(() => state.value.status)
 const files = computed(() => status.value?.files ?? [])
-const selectedPath = computed(() => activeDiffPath(props.project.id))
+const selectedPath = computed(
+  () => activeDiffPath(props.project.id) ?? activeConflictPath(props.project.id)
+)
 const hasConflicts = computed(() => files.value.some((file) => file.kind === 'conflicted'))
 // Uncommitted changes, staged ones included, are carried by main, so only states a stash cannot
 // carry block the switcher.
@@ -132,6 +141,12 @@ const fetchTitle = computed(() =>
     ? `Fetch every remote and update ${status.value.branch}`
     : 'Fetch every remote'
 )
+
+// A conflicted file opens in the resolver, every other file in the diff tab.
+function openFile(file: GitFile): void {
+  if (file.kind === 'conflicted') openConflict(props.project, file.path)
+  else openDiff(props.project, file.path)
+}
 
 async function fetchRemotes(): Promise<void> {
   rowError.value = null
@@ -327,7 +342,7 @@ watch(() => props.project.id, refresh)
                   class="file-row"
                   :class="[file.group, { active: file.path === selectedPath }]"
                   :title="fileTitle(file)"
-                  @click="openDiff(project, file.path)"
+                  @click="openFile(file)"
                 >
                   <span class="file-name">{{ fileName(file) }}</span>
                   <span class="file-dir">{{ fileDir(file) }}</span>

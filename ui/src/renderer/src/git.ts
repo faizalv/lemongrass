@@ -3,6 +3,7 @@
 
 import { reactive } from 'vue'
 import type {
+  GitConflictChoice,
   GitFile,
   GitFileGroup,
   GitMoveResult,
@@ -249,6 +250,28 @@ export function finishOperation(
   action: 'continue' | 'abort'
 ): Promise<string | null> {
   return runBranchAction(project, 'branch', () => window.api.git.finish(project.path, action))
+}
+
+// Writes the resolver's result and stages it, so the file leaves the Conflicts group.
+export function applyConflict(
+  project: ProjectRef,
+  path: string,
+  content: string
+): Promise<string | null> {
+  return runBranchAction(project, 'branch', () =>
+    window.api.git.conflictApply(project.path, path, content)
+  )
+}
+
+// Keeps one side of a conflict that has no lines to merge, or deletes the file.
+export function pickConflict(
+  project: ProjectRef,
+  path: string,
+  choice: GitConflictChoice
+): Promise<string | null> {
+  return runBranchAction(project, 'branch', () =>
+    window.api.git.conflictPick(project.path, path, choice)
+  )
 }
 
 export function mergeInto(project: ProjectRef, source: string): Promise<string | null> {

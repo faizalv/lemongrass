@@ -2,6 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import type { Component } from 'vue'
+import ConflictView from './components/conflict/ConflictView.vue'
 import DeviceView from './components/DeviceView.vue'
 import DiffViewer from './components/DiffViewer.vue'
 import DocView from './components/DocView.vue'
@@ -87,6 +88,18 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     title: (tab) => `Diff: ${tab.path}`,
     body: DiffViewer,
     keepAlive: false,
+    bodyProps: (tab, ctx) => ({ project: ctx.project, path: tab.path })
+  },
+  conflict: {
+    icon: [
+      { tag: 'rect', attrs: { x: 1.5, y: 2, width: 11, height: 10, rx: 1.5 } },
+      { tag: 'path', attrs: { d: 'M5 2v10M9 2v10' } }
+    ],
+    label: (tab) => ({ prefix: 'conflict', text: tab.path.slice(tab.path.lastIndexOf('/') + 1) }),
+    title: (tab) => `Resolve conflict: ${tab.path}`,
+    body: ConflictView,
+    // Kept alive so an unsaved middle pane survives switching tabs.
+    keepAlive: true,
     bodyProps: (tab, ctx) => ({ project: ctx.project, path: tab.path })
   },
   history: {

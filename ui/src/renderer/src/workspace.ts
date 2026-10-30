@@ -61,6 +61,7 @@ interface Workspace {
 
 type DocTab = Extract<WorkspaceTab, { kind: 'doc' }>
 type DiffTab = Extract<WorkspaceTab, { kind: 'diff' }>
+type ConflictTab = Extract<WorkspaceTab, { kind: 'conflict' }>
 type HistoryTab = Extract<WorkspaceTab, { kind: 'history' }>
 type VaultTab = Extract<WorkspaceTab, { kind: 'connector' }>
 type ShellTab = Extract<WorkspaceTab, { kind: 'shell' }>
@@ -121,6 +122,10 @@ function newDocTab(path: string): DocTab {
 
 function newDiffTab(path: string): DiffTab {
   return { id: crypto.randomUUID(), kind: 'diff', path }
+}
+
+function newConflictTab(path: string): ConflictTab {
+  return { id: crypto.randomUUID(), kind: 'conflict', path }
 }
 
 function newHistoryTab(): HistoryTab {
@@ -531,6 +536,35 @@ export function openDiff(project: ProjectRef, path: string): void {
   }
   const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
   commit(project, tree.addTab(root, focused.id, newDiffTab(path)), focused.id)
+}
+
+export function activeConflictPath(projectId: string): string | null {
+  const layout = workspaces[projectId]?.layout
+  if (!layout) return null
+  const leaf = tree.findLeaf(layout.root, layout.focusedPaneId)
+  const tab = leaf?.tabs.find((t) => t.id === leaf.activeTabId)
+  return tab?.kind === 'conflict' ? tab.path : null
+}
+
+// One conflict tab per path, unlike the diff tab, so moving to another file never drops the
+// unsaved middle pane of the one before. Opening it again focuses it wherever it lives.
+export function openConflict(project: ProjectRef, path: string): void {
+  const layout = workspaces[project.id].layout
+  const root = layout.root
+  if (!root) {
+    const leaf = tree.createLeaf<WorkspaceTab>([newConflictTab(path)])
+    commit(project, leaf, leaf.id)
+    return
+  }
+  const leaves = tree.allLeaves(root)
+  for (const leaf of leaves) {
+    const existing = leaf.tabs.find((tab) => tab.kind === 'conflict' && tab.path === path)
+    if (!existing) continue
+    commit(project, tree.setActiveTab(root, leaf.id, existing.id), leaf.id)
+    return
+  }
+  const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
+  commit(project, tree.addTab(root, focused.id, newConflictTab(path)), focused.id)
 }
 
 // One history tab per project: opening it again focuses the existing tab wherever it lives.
