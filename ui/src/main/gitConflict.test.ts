@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WRITE_TIMEOUT_MS, readEnv, run } from './gitRun.ts'
 import type { GitRunner } from './gitMove.ts'
-import { applyResolution, pickSide, readConflict } from './gitConflict.ts'
+import { applyResolution, operationRefs, pickSide, readConflict } from './gitConflict.ts'
 
 // The machine's own git config, such as commit signing or a conflict style, must not reach these repos.
 process.env.GIT_CONFIG_GLOBAL = '/dev/null'
@@ -248,4 +248,14 @@ test('a working file written with diff3 markers places the base lines too', asyn
     base: { start: 6, end: 6 },
     right: { start: 8, end: 8 }
   })
+})
+
+test('a stopped merge and rebase are described by the same refs as the panes', async () => {
+  const merging = diverged()
+  gitMayFail(merging, 'merge', 'feat')
+  assert.deepEqual(await operationRefs(runner(merging), 'merge'), { from: 'feat', onto: 'main' })
+  const rebasing = diverged()
+  git(rebasing, 'switch', '-q', 'feat')
+  gitMayFail(rebasing, 'rebase', 'main')
+  assert.deepEqual(await operationRefs(runner(rebasing), 'rebase'), { from: 'feat', onto: 'main' })
 })

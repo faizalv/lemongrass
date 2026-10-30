@@ -40,8 +40,9 @@ test('a conflict review names the operation, then each comment with its place an
   assert.equal(
     text,
     [
-      'Review of the conflicts in the rebase of feat onto origin/main. Line numbers are of each ' +
-        'file as it is on disk, conflict markers included while it is unresolved.',
+      '[lg] The human reviewed the conflicts in the rebase of feat onto origin/main and left ' +
+        'these comments for you. Line numbers are of each file as it is on disk, conflict ' +
+        'markers included while it is unresolved.',
       'Keep both sides where you can.',
       '1. src/app.ts, lines 12 to 18, middle pane (the result):\n> const a = 1\n> const b = 2\nRename b to total.',
       '2. README.md, line 3, left pane (feat):\n> Old intro\nWhy?'
@@ -56,7 +57,9 @@ test('a merge and a stash read as such, and the right pane names the right ref',
       note('a', { operation: 'merge', leftRef: 'main', rightRef: 'feat', pane: 'right' }, 'x', 'y')
     ]
   })
-  assert.ok(merge.startsWith('Review of the conflicts in the merge of feat into main.'))
+  assert.ok(
+    merge.startsWith('[lg] The human reviewed the conflicts in the merge of feat into main ')
+  )
   assert.ok(merge.includes('right pane (feat)'))
   const stash = composeReview({
     message: '',
@@ -64,10 +67,13 @@ test('a merge and a stash read as such, and the right pane names the right ref',
       note('a', { operation: 'stash', leftRef: 'stashed changes', rightRef: 'main' }, 'x', 'y')
     ]
   })
-  assert.ok(stash.startsWith('Review of the conflicts in the stashed changes applied onto main.'))
+  assert.ok(stash.includes('the conflicts in the stashed changes applied onto main '))
 })
 
-test('blank comments are dropped, and nothing is left to send without a message', () => {
+test("blank comments are dropped, and a message alone is still marked as the human's", () => {
   assert.equal(composeReview({ message: '  ', annotations: [note('a', {}, 'x', '  ')] }), '')
-  assert.equal(composeReview({ message: 'Just this.', annotations: [] }), 'Just this.')
+  assert.equal(
+    composeReview({ message: 'Just this.', annotations: [] }),
+    '[lg] The human sent you this review.\n\nJust this.'
+  )
 })

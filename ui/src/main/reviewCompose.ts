@@ -30,8 +30,8 @@ const conflictFormatter: AnchorFormatter<ConflictAnchor> = {
           ? `the rebase of ${anchor.leftRef} onto ${anchor.rightRef}`
           : `the stashed changes applied onto ${anchor.rightRef}`
     return (
-      `Review of the conflicts in ${subject}. Line numbers are of each file as it is on disk, ` +
-      'conflict markers included while it is unresolved.'
+      `The human reviewed the conflicts in ${subject} and left these comments for you. Line ` +
+      'numbers are of each file as it is on disk, conflict markers included while it is unresolved.'
     )
   },
   location(anchor) {
@@ -68,8 +68,9 @@ function item(index: number, annotation: Annotation): string {
   return parts.join('\n')
 }
 
-// The review as the human's own prompt: what it is about, the overall message, then each comment
-// with where it sits and the text it is on. Empty when there is nothing to send.
+// Lemongrass composes this text, so it starts with [lg] like every line lemongrass types, and its
+// heading says the comments are the human's. Then come the overall message and each comment with
+// where it sits and the text it is on. Empty when there is nothing to send.
 export function composeReview(submission: ReviewSubmission): string {
   const annotations = submission.annotations.filter((annotation) => annotation.comment.trim())
   const message = submission.message.trim()
@@ -79,7 +80,11 @@ export function composeReview(submission: ReviewSubmission): string {
       annotations.map((annotation) => formatterOf(annotation.anchor).heading(annotation.anchor))
     )
   ]
-  return [...headings, message, ...annotations.map((annotation, index) => item(index, annotation))]
-    .filter(Boolean)
-    .join('\n\n')
+  if (headings.length === 0) headings.push('The human sent you this review.')
+  const body = [
+    ...headings,
+    message,
+    ...annotations.map((annotation, index) => item(index, annotation))
+  ]
+  return `[lg] ${body.filter(Boolean).join('\n\n')}`
 }

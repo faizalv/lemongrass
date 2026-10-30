@@ -13,7 +13,8 @@ import type {
   GitConflictFile,
   GitConflictOperation,
   GitConflictStage,
-  GitLineRange
+  GitLineRange,
+  GitOperationRefs
 } from '../preload/types'
 
 // Like gitMove.ts, this file has no value imports outside node builtins so node --test can load it
@@ -132,6 +133,17 @@ async function sideRefs(
     leftRef: headName?.startsWith('refs/heads/') ? headName.slice('refs/heads/'.length) : 'HEAD',
     rightRef: onto ? await shortName(git, onto) : 'upstream'
   }
+}
+
+// The names a stopped merge or rebase is described by, from the same refs as the pane headers.
+export async function operationRefs(
+  git: GitRunner,
+  operation: 'merge' | 'rebase'
+): Promise<GitOperationRefs> {
+  const { leftRef, rightRef } = await sideRefs(git, operation)
+  return operation === 'merge'
+    ? { from: rightRef, onto: leftRef }
+    : { from: leftRef, onto: rightRef }
 }
 
 function splitLines(text: string): { lines: string[]; finalNewline: boolean } {

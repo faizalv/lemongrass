@@ -253,6 +253,11 @@ export interface GitFile {
   staged: boolean
 }
 
+export interface GitOperationRefs {
+  from: string
+  onto: string
+}
+
 export interface GitStatus {
   isRepo: boolean
   branch: string | null
@@ -264,6 +269,9 @@ export interface GitStatus {
   pushTarget: string | null
   // A merge or rebase that stopped and waits to be continued or aborted.
   operation: 'merge' | 'rebase' | null
+  // Set while operation is: a merge brings from into onto (the current branch), a rebase replays
+  // from onto its upstream onto. The resolver's pane headers use the same names.
+  operationRefs: GitOperationRefs | null
   files: GitFile[]
 }
 

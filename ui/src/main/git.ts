@@ -7,6 +7,7 @@ import { registerGitHistoryHandlers } from './gitHistory'
 import { registerGitRevisionHandlers } from './gitRevision'
 import { registerGitSyncHandlers } from './gitSync'
 import { registerGitStashHandlers } from './gitStash'
+import { operationRefs } from './gitConflict'
 import { parseDiff, parseStatus } from './gitParse'
 import {
   WRITE_TIMEOUT_MS,
@@ -36,6 +37,7 @@ const notARepo: GitStatus = {
   hasCommits: false,
   pushTarget: null,
   operation: null,
+  operationRefs: null,
   files: []
 }
 
@@ -64,7 +66,17 @@ async function status(projectPath: string): Promise<GitStatus> {
     const remote = await pushRemote(root)
     pushTarget = remote ? `${remote}/${parsed.branch}` : null
   }
-  return { isRepo: true, ...parsed, pushTarget, operation: await stoppedOperation(root) }
+  const operation = await stoppedOperation(root)
+  const refs = operation
+    ? await operationRefs(
+        {
+          read: (args) => run(root, args, { env: readEnv }),
+          write: () => Promise.reject(new Error('status only reads'))
+        },
+        operation
+      )
+    : null
+  return { isRepo: true, ...parsed, pushTarget, operation, operationRefs: refs }
 }
 
 async function isUntracked(root: string, path: string): Promise<boolean> {
