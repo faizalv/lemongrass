@@ -236,6 +236,8 @@ const git = {
     ipcRenderer.invoke('git:conflict', projectPath, path),
   conflictApply: (projectPath: string, path: string, content: string): Promise<GitActionResult> =>
     ipcRenderer.invoke('git:conflictApply', projectPath, path, content),
+  conflictSave: (projectPath: string, path: string, content: string): Promise<GitActionResult> =>
+    ipcRenderer.invoke('git:conflictSave', projectPath, path, content),
   conflictPick: (
     projectPath: string,
     path: string,

@@ -202,6 +202,7 @@ interface Api {
     finish: (projectPath: string, action: 'continue' | 'abort') => Promise<GitActionResult>
     conflict: (projectPath: string, path: string) => Promise<GitConflictFile>
     conflictApply: (projectPath: string, path: string, content: string) => Promise<GitActionResult>
+    conflictSave: (projectPath: string, path: string, content: string) => Promise<GitActionResult>
     conflictPick: (
       projectPath: string,
       path: string,

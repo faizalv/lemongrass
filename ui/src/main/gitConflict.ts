@@ -377,16 +377,26 @@ export async function readConflict(
 // Counts the conflicts still marked in the working file, which drops as the human or a model
 // resolves them by hand before the file is staged.
 export function conflictBlocksLeft(root: string, path: string): number | null {
+  return conflictBlockRanges(root, path)?.length ?? null
+}
+
+// The line range of each conflict marker block left in the working file, markers included, or
+// null when the file is missing, binary or has a marker left open.
+export function conflictBlockRanges(root: string, path: string): GitLineRange[] | null {
   const working = readWorking(root, path)
   if (working === null) return null
   const parsed = parseMarkers(splitLines(working).lines, null)
-  return parsed ? parsed.filter((part) => !('kind' in part)).length : null
+  if (!parsed) return null
+  return parsed.flatMap((part) =>
+    'kind' in part ? [] : [{ start: part.disk.start, end: part.disk.end }]
+  )
 }
 
 const notConflicted = 'That file is no longer in conflict.'
 
-// Only a conflicted path may be written, so this call cannot overwrite any other file.
-export async function applyResolution(
+// Only a conflicted path may be written, so this call cannot overwrite any other file. The file
+// stays unmerged in the index, so a partial result with markers left in it is still a conflict.
+export async function saveWorking(
   git: GitRunner,
   root: string,
   path: string,
@@ -402,6 +412,17 @@ export async function applyResolution(
   } catch (err) {
     return { ok: false, error: `Could not write ${path}: ${(err as Error).message}` }
   }
+  return { ok: true }
+}
+
+export async function applyResolution(
+  git: GitRunner,
+  root: string,
+  path: string,
+  content: string
+): Promise<GitActionResult> {
+  const saved = await saveWorking(git, root, path, content)
+  if (!saved.ok) return saved
   const added = await git.write(['add', '--', path])
   return added.code === 0 ? { ok: true } : { ok: false, error: errorText(added) }
 }

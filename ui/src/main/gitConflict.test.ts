@@ -11,10 +11,12 @@ import { WRITE_TIMEOUT_MS, readEnv, run } from './gitRun.ts'
 import type { GitRunner } from './gitMove.ts'
 import {
   applyResolution,
+  conflictBlockRanges,
   conflictBlocksLeft,
   operationRefs,
   pickSide,
-  readConflict
+  readConflict,
+  saveWorking
 } from './gitConflict.ts'
 
 // The machine's own git config, such as commit signing or a conflict style, must not reach these repos.
@@ -275,4 +277,42 @@ test('the conflict blocks left are counted from the working file markers', () =>
   write(root, 'a.txt', ['<<<<<<< HEAD', 'open'])
   assert.equal(conflictBlocksLeft(root, 'a.txt'), null)
   assert.equal(conflictBlocksLeft(root, 'missing.txt'), null)
+})
+
+test('saving partial work writes the file and leaves it in conflict', async () => {
+  const root = diverged()
+  gitMayFail(root, 'merge', 'feat')
+  const content = ['l1', 'l2', 'partial3', ...LINES.slice(3)].join('\n') + '\n'
+  assert.deepEqual(await saveWorking(runner(root), root, 'a.txt', content), { ok: true })
+  assert.equal(readFileSync(join(root, 'a.txt'), 'utf8'), content)
+  assert.notEqual(unmerged(root), '')
+})
+
+test('saving refuses a path that is not in conflict', async () => {
+  const root = diverged()
+  const result = await saveWorking(runner(root), root, 'a.txt', 'x\n')
+  assert.equal(result.ok, false)
+  assert.equal(readFileSync(join(root, 'a.txt'), 'utf8').split('\n')[2], 'main3')
+})
+
+test('the marker blocks left are given with their line ranges', () => {
+  const root = diverged()
+  write(root, 'b.txt', [
+    'top',
+    '<<<<<<< HEAD',
+    'a',
+    '=======',
+    'b',
+    '>>>>>>> feat',
+    'middle',
+    '<<<<<<< HEAD',
+    '=======',
+    'c',
+    '>>>>>>> feat'
+  ])
+  assert.deepEqual(conflictBlockRanges(root, 'b.txt'), [
+    { start: 2, end: 6 },
+    { start: 8, end: 11 }
+  ])
+  assert.deepEqual(conflictBlockRanges(root, 'a.txt'), [])
 })

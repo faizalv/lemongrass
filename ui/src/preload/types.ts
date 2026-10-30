@@ -503,7 +503,27 @@ export interface Annotation {
   comment: string
 }
 
+// A block the human resolved in the resolver, in the lines of the file as saved before submit.
+export interface ConflictReviewFile {
+  path: string
+  resolved: GitLineRange[]
+}
+
+// What a review is about as a whole. Main adds the conflicted files the renderer leaves out and
+// reads the blocks still in conflict from each file on disk.
+export interface ConflictReviewScope {
+  kind: 'conflict'
+  operation: GitConflictOperation
+  leftRef: string
+  rightRef: string
+  files: ConflictReviewFile[]
+}
+
+// Later annotators add their own scope kinds here, each with its formatter in reviewCompose.ts.
+export type ReviewScope = ConflictReviewScope
+
 export interface ReviewSubmission {
+  scope: ReviewScope
   annotations: Annotation[]
   message: string
 }

@@ -12,7 +12,7 @@ import {
   run,
   stoppedOperation
 } from './gitRun'
-import { applyResolution, pickSide, readConflict } from './gitConflict'
+import { applyResolution, pickSide, readConflict, saveWorking } from './gitConflict'
 import type { GitRunner } from './gitMove'
 import type { GitActionResult, GitConflictChoice, GitConflictFile } from '../preload/types'
 
@@ -121,6 +121,17 @@ async function conflictApply(
   return applyResolution(conflictRunner(root), root, path, content)
 }
 
+async function conflictSave(
+  projectPath: string,
+  path: string,
+  content: string
+): Promise<GitActionResult> {
+  const root = await conflictRoot(projectPath, path)
+  if (typeof root !== 'string') return { ok: false, ...root }
+  if (typeof content !== 'string') return { ok: false, error: 'No content to write.' }
+  return saveWorking(conflictRunner(root), root, path, content)
+}
+
 async function conflictPick(
   projectPath: string,
   path: string,
@@ -153,6 +164,9 @@ export function registerGitSyncHandlers(): void {
     'git:conflictApply',
     (_event, projectPath: string, path: string, content: string) =>
       conflictApply(projectPath, path, content)
+  )
+  ipcMain.handle('git:conflictSave', (_event, projectPath: string, path: string, content: string) =>
+    conflictSave(projectPath, path, content)
   )
   ipcMain.handle(
     'git:conflictPick',
