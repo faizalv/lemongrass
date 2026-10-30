@@ -7,6 +7,7 @@ import type { GitConflictChunk } from '../../preload/types'
 import {
   applyText,
   buildMiddle,
+  collapseSpans,
   diskSegments,
   fromDisk,
   isCrlf,
@@ -141,4 +142,23 @@ test('scroll interpolates between chunk boundaries', () => {
   assert.equal(mapScroll(a, b, 4, 7, 1), 1)
   assert.equal(mapScroll(a, b, 4, 7, 1.5), 3)
   assert.equal(mapScroll(a, b, 4, 7, 3), 6)
+})
+
+test('focus hides clean lines beyond the context around conflicts', () => {
+  // Clean 1 to 10, a conflict at 11 to 12, clean 13 to 20, a conflict at 21, clean 22 to 23.
+  const clean = [
+    { start: 1, end: 10 },
+    { start: 13, end: 20 },
+    { start: 22, end: 23 }
+  ]
+  assert.deepEqual(collapseSpans(clean, [], 23), [
+    { start: 1, end: 7 },
+    { start: 16, end: 17 }
+  ])
+  // A commented line stays visible and splits the span around it.
+  assert.deepEqual(collapseSpans(clean, [{ start: 4, end: 4 }], 23), [
+    { start: 1, end: 3 },
+    { start: 5, end: 7 },
+    { start: 16, end: 17 }
+  ])
 })

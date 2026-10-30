@@ -14,6 +14,7 @@ function state(conflict = 'B1\n'): EditorState {
     `a\n${conflict}b\n`,
     [{ index: 1, from: 2, to, resolved: false }],
     () => {},
+    () => () => {},
     []
   )
 }

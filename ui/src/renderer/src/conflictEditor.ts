@@ -7,7 +7,9 @@ import {
   StateEffect,
   StateField,
   type Extension,
+  type Range,
   type Text,
+  type Transaction,
   type TransactionSpec
 } from '@codemirror/state'
 import {
@@ -109,6 +111,125 @@ class EmptyChunkWidget extends WidgetType {
   }
 }
 
+// Mounts the middle pane's bar for one conflict into dom and returns its unmount.
+export type MountChunkBar = (dom: HTMLElement, bar: ChunkBarProps) => () => void
+
+export interface ChunkBarProps {
+  index: number
+  label: string
+  resolved: boolean
+}
+
+const BAR_HEIGHT = 30
+
+const mountedBars = new WeakMap<HTMLElement, () => void>()
+
+// A bar above each conflict in all three panes, at the same height, so the panes stay aligned. The
+// middle's bar carries the take buttons, the side panes' bars only the label.
+class ChunkBarWidget extends WidgetType {
+  readonly bar: ChunkBarProps
+  readonly mount: MountChunkBar | null
+
+  constructor(bar: ChunkBarProps, mount: MountChunkBar | null) {
+    super()
+    this.bar = bar
+    this.mount = mount
+  }
+
+  eq(other: ChunkBarWidget): boolean {
+    return (
+      other.bar.index === this.bar.index &&
+      other.bar.label === this.bar.label &&
+      other.bar.resolved === this.bar.resolved
+    )
+  }
+
+  get estimatedHeight(): number {
+    return BAR_HEIGHT
+  }
+
+  toDOM(): HTMLElement {
+    const dom = document.createElement('div')
+    dom.className = 'cm-conflict-bar'
+    dom.contentEditable = 'false'
+    if (this.mount) mountedBars.set(dom, this.mount(dom, this.bar))
+    else dom.textContent = this.bar.label
+    return dom
+  }
+
+  destroy(dom: HTMLElement): void {
+    mountedBars.get(dom)?.()
+    mountedBars.delete(dom)
+  }
+
+  // The bar's buttons handle their own clicks, which the editor must not take.
+  ignoreEvent(): boolean {
+    return true
+  }
+}
+
+function barWidget(bar: ChunkBarProps, mount: MountChunkBar | null, at: number): Range<Decoration> {
+  return Decoration.widget({ widget: new ChunkBarWidget(bar, mount), block: true, side: -2 }).range(
+    at
+  )
+}
+
+class HiddenLinesWidget extends WidgetType {
+  readonly count: number
+
+  constructor(count: number) {
+    super()
+    this.count = count
+  }
+
+  eq(other: HiddenLinesWidget): boolean {
+    return other.count === this.count
+  }
+
+  toDOM(): HTMLElement {
+    const dom = document.createElement('div')
+    dom.className = 'cm-conflict-hidden'
+    dom.textContent = `${this.count} lines hidden`
+    return dom
+  }
+}
+
+const setFocus = StateEffect.define<boolean>()
+
+// Focus hides the clean lines far from any conflict. spans gives the lines to hide in a state, and
+// is asked again on every edit and on every change for which recompute says yes.
+export function focusLines(
+  spans: (state: EditorState) => GitLineRange[],
+  recompute: (tr: Transaction) => boolean
+): Extension {
+  const build = (state: EditorState): DecorationSet =>
+    Decoration.set(
+      spans(state)
+        .filter((span) => span.start >= 1 && span.end <= state.doc.lines && span.end > span.start)
+        .map((span) =>
+          Decoration.replace({
+            widget: new HiddenLinesWidget(span.end - span.start + 1),
+            block: true
+          }).range(state.doc.line(span.start).from, state.doc.line(span.end).to)
+        )
+    )
+  return StateField.define<{ on: boolean; lines: DecorationSet }>({
+    create: () => ({ on: false, lines: Decoration.none }),
+    update(value, tr) {
+      let on = value.on
+      for (const effect of tr.effects) if (effect.is(setFocus)) on = effect.value
+      if (!on) return value.on ? { on, lines: Decoration.none } : value
+      if (on === value.on && !tr.docChanged && !recompute(tr)) return value
+      return { on, lines: build(tr.state) }
+    },
+    provide: (field) => EditorView.decorations.from(field, (value) => value.lines)
+  })
+}
+
+export function setFocusLines(view: EditorView, on: boolean): void {
+  view.dispatch({ effects: setFocus.of(on) })
+}
+
 function lineClasses(
   doc: Text,
   ranges: { from: number; to: number; className: string }[]
@@ -134,9 +255,8 @@ function chunkClass(index: number, current: number | null, resolved: boolean): s
   return index === current ? `${state} cm-conflict-current` : state
 }
 
-const middleDecorations = EditorView.decorations.compute(
-  ['doc', middleChunks, currentChunk],
-  (state) => {
+function middleDecorations(mount: MountChunkBar): Extension {
+  return EditorView.decorations.compute(['doc', middleChunks, currentChunk], (state) => {
     const current = state.field(currentChunk)
     const chunks = state.field(middleChunks)
     const lines = lineClasses(
@@ -147,28 +267,34 @@ const middleDecorations = EditorView.decorations.compute(
         className: chunkClass(chunk.index, current, chunk.resolved)
       }))
     )
-    const widgets = chunks
-      .filter((chunk) => chunk.from === chunk.to)
-      .map((chunk) =>
-        Decoration.widget({
-          widget: new EmptyChunkWidget(chunk.resolved),
-          block: true,
-          side: -1
-        }).range(chunk.from)
+    const widgets = chunks.flatMap((chunk, at) => {
+      const bar = barWidget(
+        { index: chunk.index, label: `Conflict ${at + 1}`, resolved: chunk.resolved },
+        mount,
+        chunk.from
       )
-    return widgets.length ? lines.update({ add: widgets, sort: true }) : lines
-  }
-)
+      if (chunk.from !== chunk.to) return [bar]
+      const empty = Decoration.widget({
+        widget: new EmptyChunkWidget(chunk.resolved),
+        block: true,
+        side: -1
+      }).range(chunk.from)
+      return [bar, empty]
+    })
+    return lines.update({ add: widgets, sort: true })
+  })
+}
 
 const sideDecorations = EditorView.decorations.compute(
   ['doc', sideChunks, currentChunk],
   (state) => {
     const current = state.field(currentChunk)
     const doc = state.doc
-    return lineClasses(
+    const chunks = state.field(sideChunks).filter(({ range }) => range.start <= doc.lines)
+    const lines = lineClasses(
       doc,
-      state.field(sideChunks).flatMap(({ index, range }) => {
-        if (range.end < range.start || range.start > doc.lines) return []
+      chunks.flatMap(({ index, range }) => {
+        if (range.end < range.start) return []
         const last = doc.line(Math.min(range.end, doc.lines))
         return [
           {
@@ -180,6 +306,15 @@ const sideDecorations = EditorView.decorations.compute(
         ]
       })
     )
+    // An empty side sits after the line before it, which is the next line's start.
+    const bars = chunks.map(({ index, range }, at) =>
+      barWidget(
+        { index, label: `Conflict ${at + 1}`, resolved: false },
+        null,
+        range.start > doc.lines ? doc.length : doc.line(range.start).from
+      )
+    )
+    return lines.update({ add: bars, sort: true })
   }
 )
 
@@ -191,6 +326,8 @@ const theme = EditorView.theme({
     color: 'var(--color-fg-primary)'
   },
   '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.55' },
+  // Chromium paints the corner where both scrollbars meet white unless told otherwise.
+  '.cm-scroller::-webkit-scrollbar-corner': { background: 'transparent' },
   '.cm-gutters': {
     backgroundColor: 'var(--color-surface-0)',
     color: 'var(--color-fg-disabled)',
@@ -212,6 +349,23 @@ const theme = EditorView.theme({
     color: 'var(--color-fg-muted)',
     boxShadow: 'inset 2px 0 0 var(--color-amber)'
   },
+  '.cm-conflict-bar': {
+    height: `${BAR_HEIGHT}px`,
+    boxSizing: 'border-box',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0 var(--space-2)',
+    fontFamily: 'var(--font-body)',
+    color: 'var(--color-fg-secondary)',
+    borderTop: '1px solid var(--color-border-subtle)'
+  },
+  '.cm-conflict-hidden': {
+    padding: '0 var(--space-2)',
+    fontFamily: 'var(--font-body)',
+    fontStyle: 'italic',
+    color: 'var(--color-fg-muted)',
+    backgroundColor: 'var(--color-surface-1)'
+  },
   '.cm-conflict-empty.unresolved': { backgroundColor: 'var(--color-error-muted)' },
   '.cm-conflict-empty.resolved': { backgroundColor: 'var(--color-success-muted)' }
 })
@@ -224,6 +378,7 @@ export function middleState(
   doc: string,
   chunks: MiddleChunk[],
   onUpdate: (state: EditorState, docChanged: boolean) => void,
+  mountBar: MountChunkBar,
   extra: Extension[]
 ): EditorState {
   return EditorState.create({
@@ -231,7 +386,7 @@ export function middleState(
     extensions: base([
       middleChunks.init(() => chunks),
       undoChunks,
-      middleDecorations,
+      middleDecorations(mountBar),
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       EditorView.updateListener.of((update) => {

@@ -289,3 +289,36 @@ export function mapScroll(
   }
   return toTotal
 }
+
+// Lines Focus hides: each clean stretch less the context lines next to its conflicts and the lines
+// to keep, such as commented ones. A gap shorter than two lines stays, since hiding one line saves
+// nothing next to the line saying it is hidden.
+export function collapseSpans(
+  clean: GitLineRange[],
+  keep: GitLineRange[],
+  lineCount: number,
+  context = 3
+): GitLineRange[] {
+  const spans: GitLineRange[] = []
+  for (const range of clean) {
+    if (range.end < range.start) continue
+    let pieces = [
+      {
+        start: range.start === 1 ? 1 : range.start + context,
+        end: range.end >= lineCount ? range.end : range.end - context
+      }
+    ]
+    for (const kept of keep) {
+      pieces = pieces.flatMap((piece) =>
+        kept.end < piece.start || kept.start > piece.end
+          ? [piece]
+          : [
+              { start: piece.start, end: kept.start - 1 },
+              { start: kept.end + 1, end: piece.end }
+            ]
+      )
+    }
+    spans.push(...pieces.filter((piece) => piece.end - piece.start >= 1))
+  }
+  return spans
+}

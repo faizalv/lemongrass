@@ -2,14 +2,16 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, createApp, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { EditorState, Extension, Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { applyConflict } from '../../git'
 import { conflictCommentExtension, refreshConflictComments } from '../../conflictAnnotations'
+import { commentedLineRanges, isAnnotationChange } from '../../annotationGutter'
 import {
   applyText,
   buildMiddle,
+  collapseSpans,
   diskSegments,
   fromDisk,
   isCrlf,
@@ -25,11 +27,14 @@ import {
 import {
   chunkAtCursor,
   chunkLines,
+  focusLines,
   middleChunks,
   middleState,
   replaceChunk,
+  setFocusLines,
   showCurrent,
-  sideState
+  sideState,
+  type MountChunkBar
 } from '../../conflictEditor'
 import type { ProjectRef } from '../../workspace'
 import type {
@@ -42,6 +47,7 @@ import type {
 import AppButton from '../AppButton.vue'
 import AppConfirmButton from '../AppConfirmButton.vue'
 import AppModal from '../AppModal.vue'
+import ConflictChunkBar from './ConflictChunkBar.vue'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
 
@@ -74,6 +80,10 @@ const applying = ref(false)
 const error = ref<string | null>(null)
 // A newer working file that arrived while the middle had unsaved edits.
 const pendingReload = shallowRef<ConflictFile | null>(null)
+const focus = ref(false)
+// Flex weights of the three panes, changed by dragging the gutters between them.
+const sizes = ref([1, 1, 1])
+const panesEl = ref<HTMLElement | null>(null)
 let workingSeen = props.file.working
 let source: { file: ConflictFile; fromWorking: boolean } = { file: props.file, fromWorking: false }
 let left: EditorView | null = null
@@ -149,6 +159,35 @@ function reviewExtension(pane: ConflictPane): Extension {
   })
 }
 
+// Focus hides clean lines away from the conflicts, but never a line that carries a comment.
+function focusExtension(pane: ConflictPane): Extension {
+  return focusLines((state) => {
+    const chunks = loaded.value?.chunks ?? []
+    const ranges = pane === 'middle' ? middleLineRanges(state) : (loaded.value?.[pane] ?? [])
+    const clean = chunks.flatMap((chunk, index) => (chunk.kind === 'clean' ? [ranges[index]] : []))
+    const keep = commentedLineRanges(state).map((range) => ({
+      start: range.fromLine,
+      end: range.toLine
+    }))
+    return collapseSpans(clean, keep, state.doc.lines)
+  }, isAnnotationChange)
+}
+
+const mountBar: MountChunkBar = (dom, bar) => {
+  const app = createApp(ConflictChunkBar, {
+    label: bar.label,
+    resolved: bar.resolved,
+    onTake: (side: ConflictTake) => take(bar.index, side)
+  })
+  app.mount(dom)
+  return () => app.unmount()
+}
+
+function toggleFocus(): void {
+  focus.value = !focus.value
+  for (const view of [left, middle, right]) if (view) setFocusLines(view, focus.value)
+}
+
 function onMiddleUpdate(state: EditorState): void {
   const at = chunkAtCursor(state)
   if (at !== null) current.value = at
@@ -173,8 +212,9 @@ function load(file: ConflictFile, fromWorking: boolean): void {
     chunks.flatMap((chunk, index) =>
       chunk.kind === 'conflict' ? [{ index, range: located[pane][index] }] : []
     )
-  const middleDoc = middleState(built.text, built.chunks, onMiddleUpdate, [
-    reviewExtension('middle')
+  const middleDoc = middleState(built.text, built.chunks, onMiddleUpdate, mountBar, [
+    reviewExtension('middle'),
+    focusExtension('middle')
   ])
   loaded.value = {
     chunks,
@@ -184,8 +224,14 @@ function load(file: ConflictFile, fromWorking: boolean): void {
     left: located.left,
     right: located.right
   }
-  const leftDoc = sideState(leftText, sides('left'), [reviewExtension('left')])
-  const rightDoc = sideState(rightText, sides('right'), [reviewExtension('right')])
+  const leftDoc = sideState(leftText, sides('left'), [
+    reviewExtension('left'),
+    focusExtension('left')
+  ])
+  const rightDoc = sideState(rightText, sides('right'), [
+    reviewExtension('right'),
+    focusExtension('right')
+  ])
   if (left && middle && right) {
     left.setState(leftDoc)
     middle.setState(middleDoc)
@@ -199,6 +245,7 @@ function load(file: ConflictFile, fromWorking: boolean): void {
       view.scrollDOM.addEventListener('scroll', () => syncScroll(view))
     }
   }
+  if (focus.value) for (const view of [left, middle, right]) setFocusLines(view, true)
   current.value = null
   error.value = null
   onMiddleUpdate(middleDoc)
@@ -230,12 +277,44 @@ function step(direction: 1 | -1): void {
   goTo(list[(next + list.length) % list.length])
 }
 
-function take(side: ConflictTake): void {
-  const index = current.value ?? conflictIndexes.value[0]
+function take(index: number, side: ConflictTake): void {
   const chunk = loaded.value?.chunks[index]
   if (!middle || !chunk) return
+  current.value = index
   replaceChunk(middle, index, takeText(chunk, side), true)
   middle.focus()
+}
+
+// Dragging the gutter after pane `at` moves width between it and the next pane, each keeping at
+// least 15 percent, so a narrow window can still give one pane room.
+function startResize(at: number, event: PointerEvent): void {
+  const width = panesEl.value?.clientWidth ?? 0
+  if (!width) return
+  const total = sizes.value.reduce((sum, size) => sum + size, 0)
+  const start = [...sizes.value]
+  const startX = event.clientX
+  const min = total * 0.15
+  const target = event.currentTarget as HTMLElement
+  target.setPointerCapture(event.pointerId)
+  const move = (e: PointerEvent): void => {
+    const pair = start[at] + start[at + 1]
+    const next = Math.min(
+      pair - min,
+      Math.max(min, start[at] + ((e.clientX - startX) / width) * total)
+    )
+    const updated = [...start]
+    updated[at] = next
+    updated[at + 1] = pair - next
+    sizes.value = updated
+  }
+  const end = (): void => {
+    target.removeEventListener('pointermove', move)
+    target.removeEventListener('pointerup', end)
+    target.removeEventListener('pointercancel', end)
+  }
+  target.addEventListener('pointermove', move)
+  target.addEventListener('pointerup', end)
+  target.addEventListener('pointercancel', end)
 }
 
 function reset(): void {
@@ -348,10 +427,29 @@ onBeforeUnmount(() => {
         </template>
       </span>
       <span class="spacer" />
-      <AppButton :disabled="!conflictIndexes.length" @click="take('left')">Take left</AppButton>
-      <AppButton :disabled="!conflictIndexes.length" @click="take('right')">Take right</AppButton>
-      <AppButton title="Left, then right" :disabled="!conflictIndexes.length" @click="take('both')">
-        Take both
+      <AppButton
+        :variant="focus ? 'primary' : 'ghost'"
+        :aria-pressed="focus"
+        :title="focus ? 'Show every line' : 'Hide the lines that need no merging'"
+        @click="toggleFocus"
+      >
+        <span class="focus-label">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9" />
+            <circle cx="7" cy="7" r="1.6" />
+          </svg>
+          Focus
+        </span>
       </AppButton>
       <AppConfirmButton
         variant="ghost"
@@ -371,21 +469,23 @@ onBeforeUnmount(() => {
       </AppButton>
     </div>
     <p v-if="error" class="merge-error">{{ error }}</p>
-    <div class="panes">
-      <section class="pane">
+    <div ref="panesEl" class="panes">
+      <section class="pane" :style="{ flexGrow: sizes[0] }">
         <header class="pane-head" :title="file.leftRef">
           <span class="side">Left</span><span class="ref">{{ file.leftRef }}</span>
         </header>
         <div ref="leftHost" class="pane-body" />
       </section>
-      <section class="pane middle">
+      <div class="gutter" @pointerdown="startResize(0, $event)" />
+      <section class="pane middle" :style="{ flexGrow: sizes[1] }">
         <header class="pane-head">
           <span class="side">Result</span>
           <span v-if="dirty" class="ref">Unsaved</span>
         </header>
         <div ref="middleHost" class="pane-body" />
       </section>
-      <section class="pane">
+      <div class="gutter" @pointerdown="startResize(1, $event)" />
+      <section class="pane" :style="{ flexGrow: sizes[2] }">
         <header class="pane-head" :title="file.rightRef">
           <span class="side">Right</span><span class="ref">{{ file.rightRef }}</span>
         </header>
@@ -448,13 +548,27 @@ onBeforeUnmount(() => {
 .pane {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
-  border-right: 1px solid var(--color-border-subtle);
 }
 
-.pane:last-child {
-  border-right: none;
+.gutter {
+  flex-shrink: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: var(--color-border-subtle);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.gutter:hover,
+.gutter:active {
+  background: var(--color-amber);
+}
+
+.focus-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .pane-head {
