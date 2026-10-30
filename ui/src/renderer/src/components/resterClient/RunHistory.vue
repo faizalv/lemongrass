@@ -4,6 +4,8 @@
 <script setup lang="ts">
 import AppConfirmButton from '../AppConfirmButton.vue'
 import { statusClass } from '../../resterClientCall'
+import { formatAge } from '../../relativeAge'
+import { ageNow } from '../../ageClock'
 import type { ResterClientRun } from '../../../../preload/types'
 
 defineProps<{
@@ -20,14 +22,6 @@ function statusOf(run: ResterClientRun): { text: string; className: string } {
   if (run.error) return { text: 'Error', className: 'failed' }
   const status = run.result?.status ?? (run.download?.kind === 'saved' ? run.download.status : 0)
   return { text: String(status), className: statusClass(status) }
-}
-
-function timeAgo(at: string): string {
-  const seconds = Math.max(0, (Date.now() - new Date(at).getTime()) / 1000)
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`
-  return new Date(at).toLocaleDateString()
 }
 </script>
 
@@ -46,7 +40,7 @@ function timeAgo(at: string): string {
         <span class="method">{{ run.request.method }}</span>
         <span class="status" :class="statusOf(run).className">{{ statusOf(run).text }}</span>
         <span v-if="run.download?.kind === 'saved'" class="tag">Download</span>
-        <span class="when">{{ timeAgo(run.at) }}</span>
+        <span class="when">{{ formatAge(run.at, ageNow) }}</span>
         <AppConfirmButton
           class="remove"
           title="Delete run"

@@ -30,10 +30,6 @@
   overflow-y: auto;
 }
 
-.rester-client .client-sidebar > .segmented {
-  align-self: stretch;
-}
-
 .rester-client .sidebar-actions {
   display: flex;
   align-items: center;
@@ -206,8 +202,4 @@
 .rester-client .error-text {
   color: var(--color-error);
   font-size: var(--text-xs);
-}
-
-.rester-client .client-sidebar > .segmented button {
-  flex: 1;
 }

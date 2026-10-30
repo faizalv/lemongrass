@@ -5,10 +5,15 @@
 import { computed, provide, reactive, ref, watch } from 'vue'
 import AppSegmented from '../AppSegmented.vue'
 import JsonNode from './JsonNode.vue'
+import HistoryPopover from './HistoryPopover.vue'
 import { statusClass } from '../../resterClientCall'
 import { parseQuery, pathId, searchJson } from '../../responseSearch'
 import { treeSearchKey, type TreeSearch } from './searchContext'
-import type { ResterClientDownload, ResterClientResult } from '../../../../preload/types'
+import type {
+  ResterClientDownload,
+  ResterClientResult,
+  ResterClientRun
+} from '../../../../preload/types'
 
 const props = defineProps<{
   result: ResterClientResult | null
@@ -17,6 +22,16 @@ const props = defineProps<{
   sending: boolean
   // Set when the response comes from history and its body was cut when it was stored.
   bodyCut: boolean
+  // When the shown response came back, null before the first send.
+  at: string | null
+  runs: ResterClientRun[]
+  runId: string | null
+}>()
+
+const emit = defineEmits<{
+  pickRun: [run: ResterClientRun]
+  removeRun: [runId: string]
+  clearHistory: []
 }>()
 
 const view = ref<'tree' | 'raw' | 'headers'>('tree')
@@ -138,6 +153,7 @@ function formatSize(bytes: number): string {
         <span class="status" :class="statusClass(result.status)">{{ result.status }}</span>
         <span class="meta">{{ result.durationMs }} ms</span>
         <span class="meta">{{ formatSize(result.size) }}</span>
+        <span class="spacer" />
         <AppSegmented
           class="views"
           :model-value="activeView"
@@ -150,7 +166,18 @@ function formatSize(bytes: number): string {
         <span class="status" :class="statusClass(download.status)">{{ download.status }}</span>
         <span class="meta">{{ download.durationMs }} ms</span>
         <span class="meta">{{ formatSize(download.bytes) }}</span>
+        <span class="spacer" />
       </template>
+      <span v-else class="spacer" />
+      <HistoryPopover
+        v-if="at && !sending"
+        :at="at"
+        :runs="runs"
+        :run-id="runId"
+        @pick="emit('pickRun', $event)"
+        @remove="emit('removeRun', $event)"
+        @clear="emit('clearHistory')"
+      />
     </header>
     <div v-if="!sending && !error && result && parsed.ok" class="search-row">
       <input
@@ -232,8 +259,8 @@ function formatSize(bytes: number): string {
   font-size: var(--text-xs);
 }
 
-.views {
-  margin-left: auto;
+.spacer {
+  flex: 1;
 }
 
 .tree {
