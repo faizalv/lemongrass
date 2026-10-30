@@ -38,6 +38,11 @@ import type {
   GitRevFiles,
   GitRevision,
   GitStash,
+  GitConflictChoice,
+  GitConflictFile,
+  ReviewSubmission,
+  ReviewSubmitResult,
+  TabBusy,
   NodeIssued,
   ResterClientCall,
   ResterClientDownload,
@@ -106,7 +111,18 @@ const tabSessions = {
   title: (projectPath: string, tabId: string, title: string): Promise<void> =>
     ipcRenderer.invoke('tabSessions:title', { projectPath, tabId, title }),
   forget: (projectPath: string, tabId: string): Promise<void> =>
-    ipcRenderer.invoke('tabSessions:forget', { projectPath, tabId })
+    ipcRenderer.invoke('tabSessions:forget', { projectPath, tabId }),
+  states: (projectPath: string): Promise<Record<string, TabBusy>> =>
+    ipcRenderer.invoke('tabSessions:states', projectPath)
+}
+
+const review = {
+  submit: (
+    projectPath: string,
+    tabId: string,
+    submission: ReviewSubmission
+  ): Promise<ReviewSubmitResult> =>
+    ipcRenderer.invoke('review:submit', projectPath, tabId, submission)
 }
 
 const projects = {
@@ -216,6 +232,15 @@ const git = {
     ipcRenderer.invoke('git:merge', projectPath, source),
   finish: (projectPath: string, action: 'continue' | 'abort'): Promise<GitActionResult> =>
     ipcRenderer.invoke('git:finish', projectPath, action),
+  conflict: (projectPath: string, path: string): Promise<GitConflictFile> =>
+    ipcRenderer.invoke('git:conflict', projectPath, path),
+  conflictApply: (projectPath: string, path: string, content: string): Promise<GitActionResult> =>
+    ipcRenderer.invoke('git:conflictApply', projectPath, path, content),
+  conflictPick: (
+    projectPath: string,
+    path: string,
+    choice: GitConflictChoice
+  ): Promise<GitActionResult> => ipcRenderer.invoke('git:conflictPick', projectPath, path, choice),
   log: (
     projectPath: string,
     mode: GitLogSearchMode,
@@ -493,6 +518,7 @@ const api = {
   tabSessions,
   biblio,
   git,
+  review,
   device,
   resterClient,
   node,

@@ -406,6 +406,105 @@ export type GitMoveResult =
   | { ok: true; from: string; to: string; carry: GitCarry; notice?: string }
   | { ok: false; error: string }
 
+// A conflict with no merge or rebase stopped is 'stash': an --autostash reapply, a carried checkout
+// or a stash apply that conflicted. It has no Continue or Abort, and git keeps the stash.
+export type GitConflictOperation = 'merge' | 'rebase' | 'stash'
+
+// One version of a conflicted file from git's index. missing is a side that deleted the file, or
+// no base when both sides added it. A submodule counts as binary.
+export type GitConflictStage =
+  { state: 'text'; text: string } | { state: 'missing' } | { state: 'binary' }
+
+// 1-based and inclusive, so an empty range has end = start - 1.
+export interface GitLineRange {
+  start: number
+  end: number
+}
+
+// Where a conflict sits in the working file on disk, its markers included. base is set only when
+// the file was written with diff3 or zdiff3 markers.
+export interface GitConflictDisk extends GitLineRange {
+  left: GitLineRange
+  base: GitLineRange | null
+  right: GitLineRange
+}
+
+export type GitConflictChunk =
+  | { kind: 'clean'; lines: string[]; disk: GitLineRange | null }
+  | {
+      kind: 'conflict'
+      left: string[]
+      base: string[]
+      right: string[]
+      disk: GitConflictDisk | null
+    }
+
+export type GitConflictFile =
+  | {
+      status: 'ok'
+      path: string
+      operation: GitConflictOperation
+      // Ref names for the pane headers. Sides follow the operation, not the stage number: a merge
+      // has the current branch (:2:) left and the merged branch (:3:) right, a rebase has the
+      // branch being replayed (:3:) left and the upstream (:2:) right, and a stash has the stashed
+      // changes (:3:) left and the current branch (:2:) right.
+      leftRef: string
+      rightRef: string
+      base: GitConflictStage
+      left: GitConflictStage
+      right: GitConflictStage
+      // git merge-file's result on the three stages, or null when a side is missing or binary or
+      // there is no base, which is a pick-a-side case.
+      chunks: GitConflictChunk[] | null
+      finalNewline: boolean
+      // The working file as it is on disk, null when it is missing or binary.
+      working: string | null
+      // working parsed by its own markers, null when it has none. Every disk range is set.
+      workingChunks: GitConflictChunk[] | null
+    }
+  | { status: 'notConflicted' }
+  | { status: 'error'; error: string }
+
+export type GitConflictChoice = 'left' | 'right' | 'delete'
+
+export type ConflictPane = 'left' | 'middle' | 'right'
+
+// startLine and endLine are 1-based and inclusive, on the working file as it is on disk.
+export interface ConflictAnchor {
+  kind: 'conflict'
+  path: string
+  startLine: number
+  endLine: number
+  pane: ConflictPane
+  operation: GitConflictOperation
+  leftRef: string
+  rightRef: string
+}
+
+// Later annotators add their own anchor kinds here, each with its formatter in reviewCompose.ts.
+export type AnnotationAnchor = ConflictAnchor
+
+export interface Annotation {
+  id: string
+  anchor: AnnotationAnchor
+  // The commented text itself, so the model finds the spot even when the lines moved.
+  quote: string
+  comment: string
+}
+
+export interface ReviewSubmission {
+  annotations: Annotation[]
+  message: string
+}
+
+export type ReviewSubmitResult = { ok: true } | { ok: false; reason: string }
+
+// Text typed into a busy tab would land in the middle of its turn or answer its open prompt.
+export interface TabBusy {
+  busy: boolean
+  reason: string | null
+}
+
 export interface DeviceInfo {
   serial: string
   // adb's own state: 'device' when usable, otherwise e.g. 'unauthorized' or 'offline'.
@@ -507,6 +606,7 @@ export interface ResterClientRun {
 export type WorkspaceTab =
   | { id: string; kind: 'doc'; path: string }
   | { id: string; kind: 'diff'; path: string }
+  | { id: string; kind: 'conflict'; path: string }
   | { id: string; kind: 'history' }
   | { id: string; kind: 'connector' }
   | { id: string; kind: 'web'; shellTabId: string }

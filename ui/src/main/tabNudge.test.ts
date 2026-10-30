@@ -26,6 +26,7 @@ function fixture(
   writes: string[]
   timers: { callback: () => void; delay: number }[]
   composed: () => number
+  pastePrompt: (tabId: string, text: string) => Promise<string>
 } {
   const writes: string[] = []
   const timers: { callback: () => void; delay: number }[] = []
@@ -35,6 +36,7 @@ function fixture(
       path: string,
       tabId: string
     ) => Promise<{ ok: boolean; typed?: boolean; reason?: string }>
+    pastePrompt?: (tabId: string, text: string) => Promise<string>
   } = {}
   runInNewContext(compiled.outputText, {
     exports,
@@ -69,7 +71,13 @@ function fixture(
       timers.push({ callback, delay })
     }
   })
-  return { handleNudge: exports.handleNudge!, writes, timers, composed: () => composed }
+  return {
+    handleNudge: exports.handleNudge!,
+    writes,
+    timers,
+    composed: () => composed,
+    pastePrompt: exports.pastePrompt!
+  }
 }
 
 test('Codex writes the notice before a separately delayed Enter', async () => {
@@ -109,4 +117,20 @@ test('an empty ledger produces no text or Enter', async () => {
   assert.equal((await f.handleNudge('/tmp/lgrassd', TAB_ID)).reason, 'nothing pending')
   assert.deepEqual(f.writes, [])
   assert.equal(f.timers.length, 0)
+})
+
+test('a review is one bracketed paste with no control characters, then a delayed Enter', async () => {
+  const f = fixture('claude')
+  const result = f.pastePrompt(TAB_ID, 'line one\r\n\tline two\x1b[201~ end\x07\n')
+  await Promise.resolve()
+  assert.deepEqual(f.writes, ['\x1b[200~line one\n\tline two[201~ end\x1b[201~'])
+  f.timers[0].callback()
+  assert.equal(await result, 'typed')
+  assert.equal(f.writes[1], '\r')
+})
+
+test('a review is not pasted while the human types in that tab', async () => {
+  const f = fixture('codex', true)
+  assert.equal(await f.pastePrompt(TAB_ID, 'review'), 'typing')
+  assert.deepEqual(f.writes, [])
 })

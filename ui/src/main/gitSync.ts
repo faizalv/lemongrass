@@ -5,13 +5,16 @@ import { ipcMain } from 'electron'
 import {
   WRITE_TIMEOUT_MS,
   errorText,
+  isInside,
   pushEnv,
   readEnv,
   repoRoot,
   run,
   stoppedOperation
 } from './gitRun'
-import type { GitActionResult } from '../preload/types'
+import { applyResolution, pickSide, readConflict } from './gitConflict'
+import type { GitRunner } from './gitMove'
+import type { GitActionResult, GitConflictChoice, GitConflictFile } from '../preload/types'
 
 const notARepo = 'This project is not a git repository.'
 const FETCH_TIMEOUT_MS = 60_000
@@ -82,6 +85,55 @@ async function finish(projectPath: string, action: 'continue' | 'abort'): Promis
   return { ok: true }
 }
 
+// Writes take paths, so pathspec magic such as :(glob) must stay off for them too.
+function conflictRunner(root: string): GitRunner {
+  return {
+    read: (args) => run(root, args, { env: readEnv }),
+    write: (args) =>
+      run(root, args, { timeout: WRITE_TIMEOUT_MS, env: { GIT_LITERAL_PATHSPECS: '1' } })
+  }
+}
+
+async function conflictRoot(
+  projectPath: string,
+  path: string
+): Promise<string | { error: string }> {
+  const root = await repoRoot(projectPath)
+  if (!root) return { error: notARepo }
+  if (!isInside(root, path)) return { error: 'That path is outside the repository.' }
+  return root
+}
+
+async function conflict(projectPath: string, path: string): Promise<GitConflictFile> {
+  const root = await conflictRoot(projectPath, path)
+  if (typeof root !== 'string') return { status: 'error', ...root }
+  return readConflict(conflictRunner(root), root, path)
+}
+
+async function conflictApply(
+  projectPath: string,
+  path: string,
+  content: string
+): Promise<GitActionResult> {
+  const root = await conflictRoot(projectPath, path)
+  if (typeof root !== 'string') return { ok: false, ...root }
+  if (typeof content !== 'string') return { ok: false, error: 'No content to write.' }
+  return applyResolution(conflictRunner(root), root, path, content)
+}
+
+async function conflictPick(
+  projectPath: string,
+  path: string,
+  choice: GitConflictChoice
+): Promise<GitActionResult> {
+  const root = await conflictRoot(projectPath, path)
+  if (typeof root !== 'string') return { ok: false, ...root }
+  if (choice !== 'left' && choice !== 'right' && choice !== 'delete') {
+    return { ok: false, error: 'Unknown choice.' }
+  }
+  return pickSide(conflictRunner(root), path, choice)
+}
+
 export function registerGitSyncHandlers(): void {
   ipcMain.handle('git:fetch', (_event, projectPath: string) => fetchAll(projectPath))
   ipcMain.handle('git:mergeCount', (_event, projectPath: string, source: string) =>
@@ -94,4 +146,17 @@ export function registerGitSyncHandlers(): void {
     if (action !== 'continue' && action !== 'abort') return { ok: false, error: 'Unknown action.' }
     return finish(projectPath, action)
   })
+  ipcMain.handle('git:conflict', (_event, projectPath: string, path: string) =>
+    conflict(projectPath, path)
+  )
+  ipcMain.handle(
+    'git:conflictApply',
+    (_event, projectPath: string, path: string, content: string) =>
+      conflictApply(projectPath, path, content)
+  )
+  ipcMain.handle(
+    'git:conflictPick',
+    (_event, projectPath: string, path: string, choice: GitConflictChoice) =>
+      conflictPick(projectPath, path, choice)
+  )
 }

@@ -74,3 +74,34 @@ export async function typeSystemLine(tabId: string, text: string): Promise<boole
     await new Promise((resolve) => setTimeout(resolve, TYPING_POLL_MS))
   }
 }
+
+const PASTE_START = '\x1b[200~'
+const PASTE_END = '\x1b[201~'
+
+// Keeps line breaks and tabs and drops every other control character, ESC included, so the text
+// cannot end the bracketed paste early or send keys of its own.
+export function pasteable(text: string): string {
+  return [...text.replace(/\r\n?/g, '\n')]
+    .filter((ch) => {
+      const code = ch.charCodeAt(0)
+      return (
+        ch === '\n' || ch === '\t' || (code >= 32 && code !== 127 && !(code >= 128 && code < 160))
+      )
+    })
+    .join('')
+    .trim()
+}
+
+export type PasteOutcome = 'typed' | 'closed' | 'typing' | 'empty'
+
+// Types the human's own multi-line prompt into a tab as one bracketed paste followed by Enter, so
+// Claude and Codex take it as a single prompt instead of submitting at the first line break.
+export async function pastePrompt(tabId: string, text: string): Promise<PasteOutcome> {
+  const shell = findShellByTab(tabId)
+  if (!shell) return 'closed'
+  if (shell.humanIsTyping()) return 'typing'
+  const body = pasteable(text)
+  if (!body) return 'empty'
+  await submit(shell, PASTE_START + body + PASTE_END)
+  return 'typed'
+}

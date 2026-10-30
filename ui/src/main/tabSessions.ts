@@ -3,6 +3,7 @@
 
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
+import type { TabBusy } from '../preload/types'
 
 const LGRASS_TIMEOUT_MS = 5_000
 
@@ -32,6 +33,33 @@ export async function registerTab(
   }
 }
 
+const BUSY_REASONS: Record<string, string> = {
+  working: 'Mid-turn',
+  prompting: 'Permission prompt open'
+}
+let statesFailureLogged = false
+
+// Tabs with no recorded state are left out and count as not busy. An lgrassd built before
+// `tabs states` existed fails here, which also reads as nobody busy.
+export async function tabStates(projectPath: string): Promise<Record<string, TabBusy>> {
+  if (!registeredLgrassdPath) return {}
+  let states: Record<string, string>
+  try {
+    states = JSON.parse(await runLgrassd(registeredLgrassdPath, projectPath, ['states']))
+  } catch (err) {
+    // The picker polls this, so a lasting failure is logged once.
+    if (!statesFailureLogged) console.error('lgrassd tabs states failed:', err)
+    statesFailureLogged = true
+    return {}
+  }
+  const out: Record<string, TabBusy> = {}
+  for (const [tabId, state] of Object.entries(states ?? {})) {
+    const reason = BUSY_REASONS[state] ?? null
+    out[tabId] = { busy: reason !== null, reason }
+  }
+  return out
+}
+
 export function registerTabSessionHandlers(lgrassdPath: string | null): void {
   registeredLgrassdPath = lgrassdPath
   ipcMain.handle(
@@ -46,6 +74,8 @@ export function registerTabSessionHandlers(lgrassdPath: string | null): void {
       }
     }
   )
+
+  ipcMain.handle('tabSessions:states', (_event, projectPath: string) => tabStates(projectPath))
 
   ipcMain.handle('tabSessions:clear', async (_event, projectPath: string) => {
     if (!lgrassdPath) return

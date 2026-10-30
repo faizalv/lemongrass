@@ -24,3 +24,24 @@ func TestOnlyAnOpenPromptHoldsANudge(t *testing.T) {
 		t.Error("a cleared state should count as ready")
 	}
 }
+
+func TestTabStatesListsThisProjectsRegisteredTabs(t *testing.T) {
+	store := openTestStore(t)
+
+	store.RegisterTab(tabA, "claude")
+	store.RegisterTab(tabB, "codex")
+	store.SetTabState(tabA, StateWorking)
+	store.SetTabState("unregistered-tab", StatePrompting)
+	if _, err := store.db.Exec(`INSERT INTO lg_tabs (project_id, tab_id, vendor, updated_at) VALUES ('other-project', 'other-tab', 'codex', ?)`, now()); err != nil {
+		t.Fatalf("seeding other project: %v", err)
+	}
+	store.SetTabState("other-tab", StatePrompting)
+
+	states, err := store.TabStates()
+	if err != nil {
+		t.Fatalf("TabStates: %v", err)
+	}
+	if len(states) != 1 || states[tabA] != StateWorking {
+		t.Errorf("TabStates = %v, want only %s working", states, tabA)
+	}
+}

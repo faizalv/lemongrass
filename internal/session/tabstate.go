@@ -37,6 +37,29 @@ func (s *Store) TabState(tabID string) (string, error) {
 	return state, err
 }
 
+// Maps tab id to its recorded state for this project's registered tabs. A tab with no recorded state is left out.
+func (s *Store) TabStates() (map[string]string, error) {
+	rows, err := s.db.Query(`
+		SELECT st.tab_id, st.state FROM lg_tab_state st
+		JOIN lg_tabs t ON t.tab_id = st.tab_id
+		WHERE t.project_id = ?
+	`, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]string{}
+	for rows.Next() {
+		var tabID, state string
+		if err := rows.Scan(&tabID, &state); err != nil {
+			return nil, err
+		}
+		out[tabID] = state
+	}
+	return out, rows.Err()
+}
+
 // True unless a permission prompt or question picker is open, where a typed Enter would answer it. A busy agent queues typed input for its next tool call, so working does not block.
 func (s *Store) TabReadyForNudge(tabID string) (bool, error) {
 	state, err := s.TabState(tabID)

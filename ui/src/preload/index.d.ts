@@ -37,6 +37,11 @@ import type {
   GitRevFiles,
   GitRevision,
   GitStash,
+  GitConflictChoice,
+  GitConflictFile,
+  ReviewSubmission,
+  ReviewSubmitResult,
+  TabBusy,
   NodeIssued,
   NodeIssueRequest,
   ResterClientCall,
@@ -127,6 +132,7 @@ interface Api {
     clear: (projectPath: string) => Promise<void>
     title: (projectPath: string, tabId: string, title: string) => Promise<void>
     forget: (projectPath: string, tabId: string) => Promise<void>
+    states: (projectPath: string) => Promise<Record<string, TabBusy>>
   }
   workspaceLayouts: {
     load: (projectId: string) => Promise<WorkspaceLayoutState | null>
@@ -194,6 +200,13 @@ interface Api {
     mergeCount: (projectPath: string, source: string) => Promise<number>
     merge: (projectPath: string, source: string) => Promise<GitActionResult>
     finish: (projectPath: string, action: 'continue' | 'abort') => Promise<GitActionResult>
+    conflict: (projectPath: string, path: string) => Promise<GitConflictFile>
+    conflictApply: (projectPath: string, path: string, content: string) => Promise<GitActionResult>
+    conflictPick: (
+      projectPath: string,
+      path: string,
+      choice: GitConflictChoice
+    ) => Promise<GitActionResult>
     log: (
       projectPath: string,
       mode: GitLogSearchMode,
@@ -207,6 +220,13 @@ interface Api {
     resetPreview: (projectPath: string, hash: string) => Promise<GitResetPreview>
     resetSoft: (projectPath: string, hash: string) => Promise<GitActionResult>
     amendMessage: (projectPath: string, message: string) => Promise<GitActionResult>
+  }
+  review: {
+    submit: (
+      projectPath: string,
+      tabId: string,
+      submission: ReviewSubmission
+    ) => Promise<ReviewSubmitResult>
   }
   device: {
     list: () => Promise<DeviceListResult>
