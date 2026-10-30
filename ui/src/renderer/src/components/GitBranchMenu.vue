@@ -54,7 +54,12 @@ function matches(name: string): boolean {
   return name.toLowerCase().includes(filter.value.trim().toLowerCase())
 }
 
-const local = computed(() => (branches.value?.local ?? []).filter((branch) => matches(branch.name)))
+// The current branch leads, the rest keep main's alphabetical order.
+const local = computed(() =>
+  (branches.value?.local ?? [])
+    .filter((branch) => matches(branch.name))
+    .sort((a, b) => Number(b.name === current.value) - Number(a.name === current.value))
+)
 
 // A remote branch that already has a local twin is reached through the local one.
 const remote = computed(() => {
