@@ -202,6 +202,12 @@ watch(() => props.project.id, refresh)
       <span v-if="status?.branch" class="git-branch" :title="status.branch">{{
         status.branch
       }}</span>
+      <!-- Unfolded, the branch row below shows these beside Fetch and Push instead. -->
+      <GitCounts
+        v-if="state.folded && status?.isRepo"
+        :ahead="status.ahead"
+        :behind="status.behind"
+      />
       <span v-if="files.length" class="git-count">{{ files.length }}</span>
       <svg
         class="git-chevron"
