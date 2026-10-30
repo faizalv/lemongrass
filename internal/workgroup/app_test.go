@@ -155,3 +155,15 @@ func TestClaimSendsOnlyTheTokenAndReturnsTheGrant(t *testing.T) {
 		t.Errorf("a forged token = %v, want a refusal with the package prefix", err)
 	}
 }
+
+func TestEmptyCommandAndSkillListsReachTheAppAsArrays(t *testing.T) {
+	for _, c := range []Thinker{{Label: "a", Vendor: "claude"}, {Label: "b", Vendor: "codex"}} {
+		data, err := json.Marshal(SpawnMember{Label: c.Label, Vendor: c.Vendor, Commands: c.RequiredCommands(), Skills: c.RequiredSkills()})
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+		if strings.Contains(string(data), "null") {
+			t.Errorf("%s spawn member = %s, want arrays, since the app's bridge refuses null", c.Vendor, data)
+		}
+	}
+}

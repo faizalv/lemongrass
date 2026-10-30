@@ -399,7 +399,8 @@ func ThinkerStartsWithHow(vendor string) bool { return vendor == "claude" }
 
 // ThinkerSkills is the thinker skill first on a vendor that still loads it, then the skills the leader listed, each once, leaving out what the vendor's prompt already carries.
 func ThinkerSkills(vendor string, listed []string) []string {
-	var out []string
+	// Never nil: the list reaches the app's workgroup bridge as JSON, which refuses null where it expects an array.
+	out := []string{}
 	if !ThinkerStartsWithHow(vendor) {
 		out = append(out, ThinkerSkill)
 	}
@@ -413,7 +414,8 @@ func ThinkerSkills(vendor string, listed []string) []string {
 
 // ThinkerCommands is ThinkerStartCommand first on a vendor that starts with it, then the commands the leader listed, each once.
 func ThinkerCommands(vendor string, listed []string) []string {
-	var out []string
+	// Never nil, for the same reason as ThinkerSkills.
+	out := []string{}
 	if ThinkerStartsWithHow(vendor) {
 		out = append(out, ThinkerStartCommand)
 	}
