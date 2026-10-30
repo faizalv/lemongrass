@@ -6,7 +6,14 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { Text, type EditorState, type Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { applyConflict } from '../../git'
-import { dropDraft, saveDraft, stagesOf, takeDraft, type ConflictDraft } from '../../conflictDrafts'
+import {
+  dropDraft,
+  registerWork,
+  saveDraft,
+  stagesOf,
+  takeDraft,
+  type ConflictDraft
+} from '../../conflictDrafts'
 import { conflictCommentExtension, refreshConflictComments } from '../../conflictAnnotations'
 import { commentedLineRanges, isAnnotationChange } from '../../annotationGutter'
 import {
@@ -21,6 +28,7 @@ import {
   locateChunks,
   mapScroll,
   middleRanges,
+  savedText,
   splitLines,
   stripChunks,
   toDisk,
@@ -447,6 +455,27 @@ function syncScroll(from: EditorView): void {
   }
 }
 
+const refs = {
+  operation: props.file.operation,
+  leftRef: props.file.leftRef,
+  rightRef: props.file.rightRef
+}
+
+// A review saves this tab's work to disk first, but only once the middle differs from what it
+// loaded.
+const unregisterWork = registerWork(props.project.id, props.path, () => {
+  if (!middle || !loaded.value || middle.state.doc.eq(loaded.value.doc)) return null
+  const saved = savedText(
+    middle.state.doc.toString(),
+    middle.state.field(middleChunks),
+    loaded.value.chunks,
+    refs,
+    loaded.value.finalNewline,
+    loaded.value.crlf
+  )
+  return { ...saved, markSeen: (text: string) => (workingSeen = text) }
+})
+
 onMounted(() => {
   const draft = takeDraft(props.project.id, props.path, stagesOf(props.file))
   if (draft) {
@@ -462,12 +491,14 @@ onMounted(() => {
 // The tab is unmounted when its project is switched away or it moves to another pane; it keeps
 // its work for the next mount unless it was closed or applied.
 onBeforeUnmount(() => {
+  unregisterWork()
   if (middle && loaded.value && !applied && hasConflictTab(props.project.id, props.path)) {
     saveDraft(props.project.id, props.path, {
       stages: stagesOf(props.file),
       chunks: source.chunks,
       finalNewline: source.finalNewline,
       loadedText: loaded.value.doc.toString(),
+      refs,
       middle: snapshotMiddle(middle.state),
       workingSeen,
       focus: focus.value,

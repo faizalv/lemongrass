@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { diff } from '@codemirror/merge'
-import type { GitConflictChunk, GitLineRange } from '../../preload/types'
+import type { GitConflictChunk, GitConflictOperation, GitLineRange } from '../../preload/types'
 
 export type ConflictSide = 'left' | 'right'
 export type ConflictTake = ConflictSide | 'both'
@@ -132,6 +132,53 @@ export function buildMiddle(chunks: GitConflictChunk[]): { text: string; chunks:
 export function applyText(doc: string, finalNewline: boolean, crlf: boolean): string {
   const text = !finalNewline && doc.endsWith('\n') ? doc.slice(0, -1) : doc
   return crlf ? text.replace(/\n/g, '\r\n') : text
+}
+
+function lineCount(text: string): number {
+  let count = 0
+  for (const char of text) if (char === '\n') count++
+  return count
+}
+
+// The file the human's partial work is saved as before a review: resolved conflicts as their middle
+// text, every other conflict as markers again, so the model sees what is still open. Markers go in
+// git's order, stage 2 first, which is the right side in a rebase or a stash, so the marker parser
+// maps the sides back the same way. Resolved ranges are lines of the saved file.
+export function savedText(
+  doc: string,
+  middle: MiddleChunk[],
+  chunks: GitConflictChunk[],
+  refs: { operation: GitConflictOperation; leftRef: string; rightRef: string },
+  finalNewline: boolean,
+  crlf: boolean
+): { text: string; resolved: GitLineRange[] } {
+  const first: ConflictSide = refs.operation === 'merge' ? 'left' : 'right'
+  const second: ConflictSide = first === 'left' ? 'right' : 'left'
+  const refOf = (side: ConflictSide): string => (side === 'left' ? refs.leftRef : refs.rightRef)
+  let text = ''
+  let at = 0
+  const resolved: GitLineRange[] = []
+  for (const chunk of [...middle].sort((a, b) => a.from - b.from)) {
+    const conflict = chunks[chunk.index]
+    if (!conflict || conflict.kind !== 'conflict') continue
+    text += doc.slice(at, chunk.from)
+    at = chunk.to
+    if (chunk.resolved) {
+      const part = doc.slice(chunk.from, chunk.to)
+      const start = lineCount(text) + 1
+      resolved.push({ start, end: start + lineCount(part) - 1 })
+      text += part
+      continue
+    }
+    text +=
+      `<<<<<<< ${refOf(first)}\n` +
+      lineText(conflict[first]) +
+      '=======\n' +
+      lineText(conflict[second]) +
+      `>>>>>>> ${refOf(second)}\n`
+  }
+  text += doc.slice(at)
+  return { text: applyText(text, finalNewline, crlf), resolved }
 }
 
 // Each chunk's range in a document made of the chunks' lines laid end to end.

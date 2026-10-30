@@ -10,6 +10,7 @@ const draft: ConflictDraft = {
   chunks: [],
   finalNewline: true,
   loadedText: '',
+  refs: { operation: 'merge', leftRef: 'main', rightRef: 'feat' },
   middle: null,
   workingSeen: null,
   focus: true,

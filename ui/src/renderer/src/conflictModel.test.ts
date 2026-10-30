@@ -16,6 +16,7 @@ import {
   locateChunks,
   mapScroll,
   middleRanges,
+  savedText,
   toDisk
 } from './conflictModel.ts'
 
@@ -187,4 +188,43 @@ test('focus hides clean lines beyond the context around conflicts', () => {
     { start: 5, end: 7 },
     { start: 16, end: 17 }
   ])
+})
+
+test('saved work writes resolved conflicts as text and open ones as markers in git order', () => {
+  const two: GitConflictChunk[] = [
+    ...chunks,
+    { ...(chunks[1] as object), disk: null } as GitConflictChunk
+  ]
+  const built = buildMiddle(two)
+  const conflict = two[1] as Extract<GitConflictChunk, { kind: 'conflict' }>
+  const taken = decideAll(built.chunks[0], conflict, 'right')
+  // The first conflict takes the right side, R1 and R2 in place of B1.
+  const doc = 'a\nR1\nR2\nb\nc\nB1\n'
+  const middle = [
+    { ...taken.chunk, from: 2, to: 8 },
+    { ...built.chunks[1], from: 12, to: 15 }
+  ]
+  const merge = savedText(
+    doc,
+    middle,
+    two,
+    { operation: 'merge', leftRef: 'main', rightRef: 'feat' },
+    true,
+    false
+  )
+  assert.equal(merge.text, 'a\nR1\nR2\nb\nc\n<<<<<<< main\nL1\n=======\nR1\nR2\n>>>>>>> feat\n')
+  assert.deepEqual(merge.resolved, [{ start: 2, end: 3 }])
+  // A rebase has its left side at stage 3, so the right side comes first.
+  const rebase = savedText(
+    doc,
+    middle,
+    two,
+    { operation: 'rebase', leftRef: 'mine', rightRef: 'up' },
+    false,
+    false
+  )
+  assert.equal(
+    rebase.text.split('\n').slice(5).join('\n'),
+    '<<<<<<< up\nR1\nR2\n=======\nL1\n>>>>>>> mine'
+  )
 })
