@@ -224,19 +224,21 @@ const lineNumbersAfter = gutter({
 
 class EmptyChunkWidget extends WidgetType {
   readonly resolved: boolean
+  readonly picked: boolean
 
-  constructor(resolved: boolean) {
+  constructor(resolved: boolean, picked: boolean) {
     super()
     this.resolved = resolved
+    this.picked = picked
   }
 
   eq(other: EmptyChunkWidget): boolean {
-    return other.resolved === this.resolved
+    return other.resolved === this.resolved && other.picked === this.picked
   }
 
   toDOM(): HTMLElement {
     const el = document.createElement('div')
-    el.className = `cm-conflict-empty ${this.resolved ? 'resolved' : 'unresolved'}`
+    el.className = `cm-conflict-empty ${this.picked ? 'picked' : 'open'}`
     el.textContent = this.resolved
       ? 'Resolved as empty'
       : 'No lines here. Decide each side or type.'
@@ -320,9 +322,15 @@ function lineClasses(
   return builder.finish()
 }
 
-function chunkClass(index: number, current: number | null, resolved: boolean): string {
-  const state = resolved ? 'cm-conflict-resolved' : 'cm-conflict-unresolved'
-  return index === current ? `${state} cm-conflict-current` : state
+// A middle conflict is red until it holds something chosen: a taken side, a hand edit, or both
+// sides decided.
+function isPicked(chunk: MiddleChunk): boolean {
+  return chunk.resolved || chunk.taken.length > 0
+}
+
+function chunkClass(chunk: MiddleChunk, current: number | null): string {
+  const state = isPicked(chunk) ? 'cm-conflict-picked' : 'cm-conflict-open'
+  return chunk.index === current ? `${state} cm-conflict-current` : state
 }
 
 const middleDecorations = EditorView.decorations.compute(
@@ -335,14 +343,14 @@ const middleDecorations = EditorView.decorations.compute(
       chunks.map((chunk) => ({
         from: chunk.from,
         to: chunk.to,
-        className: chunkClass(chunk.index, current, chunk.resolved)
+        className: chunkClass(chunk, current)
       }))
     )
     const empty = chunks
       .filter((chunk) => chunk.from === chunk.to)
       .map((chunk) =>
         Decoration.widget({
-          widget: new EmptyChunkWidget(chunk.resolved),
+          widget: new EmptyChunkWidget(chunk.resolved, isPicked(chunk)),
           block: true,
           side: -1
         }).range(chunk.from)
@@ -351,10 +359,12 @@ const middleDecorations = EditorView.decorations.compute(
   }
 )
 
+// A side block is blue while that side is open and loses its color once decided, as used.
 const sideDecorations = EditorView.decorations.compute(
-  ['doc', sideChunks, currentChunk],
+  ['doc', sideChunks, sideDecisions, currentChunk],
   (state) => {
     const current = state.field(currentChunk)
+    const decisions = state.field(sideDecisions)
     const doc = state.doc
     const chunks = state.field(sideChunks).filter(({ range }) => range.start <= doc.lines)
     const lines = lineClasses(
@@ -366,8 +376,12 @@ const sideDecorations = EditorView.decorations.compute(
           {
             from: doc.line(range.start).from,
             to: Math.min(last.to + 1, doc.length),
-            className:
-              index === current ? 'cm-conflict-side cm-conflict-current' : 'cm-conflict-side'
+            className: [
+              (decisions[index] ?? 'open') === 'open' ? 'cm-conflict-side' : 'cm-conflict-used',
+              index === current ? 'cm-conflict-current' : ''
+            ]
+              .filter(Boolean)
+              .join(' ')
           }
         ]
       })
@@ -398,19 +412,20 @@ const theme = EditorView.theme({
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
     backgroundColor: 'var(--color-amber-muted) !important'
   },
-  // Conflicts are sapphire in the sides and jade in the middle, kept faint so syntax colors can
-  // come later, and never amber, which marks comments.
-  '.cm-conflict-unresolved': { backgroundColor: 'var(--color-jade-muted)' },
-  '.cm-conflict-resolved': { boxShadow: 'inset 1px 0 0 var(--color-jade-dim)' },
+  // Faint tints so syntax colors can come later, never amber, which marks comments: the middle is
+  // red until something is picked and jade after, an open side is sapphire.
+  '.cm-conflict-open': { backgroundColor: 'var(--color-error-muted)' },
+  '.cm-conflict-picked': { backgroundColor: 'var(--color-jade-muted)' },
   '.cm-conflict-side': { backgroundColor: 'var(--color-sapphire-muted)' },
-  '.cm-conflict-side.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-sapphire)' },
   '.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-jade)' },
+  '.cm-conflict-side.cm-conflict-current, .cm-conflict-used.cm-conflict-current': {
+    boxShadow: 'inset 2px 0 0 var(--color-sapphire)'
+  },
   '.cm-conflict-empty': {
     padding: '0 var(--space-2)',
     fontFamily: 'var(--font-body)',
     fontStyle: 'italic',
-    color: 'var(--color-fg-muted)',
-    boxShadow: 'inset 1px 0 0 var(--color-jade-dim)'
+    color: 'var(--color-fg-muted)'
   },
   '.cm-conflict-decide .cm-gutterElement': { display: 'flex', alignItems: 'center' },
   '.cm-decide': {
@@ -442,7 +457,8 @@ const theme = EditorView.theme({
     color: 'var(--color-fg-muted)',
     backgroundColor: 'var(--color-surface-1)'
   },
-  '.cm-conflict-empty.unresolved': { backgroundColor: 'var(--color-jade-muted)' }
+  '.cm-conflict-empty.open': { backgroundColor: 'var(--color-error-muted)' },
+  '.cm-conflict-empty.picked': { backgroundColor: 'var(--color-jade-muted)' }
 })
 
 function base(extra: Extension[]): Extension[] {
