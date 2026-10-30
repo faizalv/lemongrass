@@ -2,10 +2,12 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, provide, reactive, ref, watch } from 'vue'
 import AppSegmented from '../AppSegmented.vue'
 import JsonNode from './JsonNode.vue'
 import { statusClass } from '../../resterClientCall'
+import { parseQuery, pathId, searchJson } from '../../responseSearch'
+import { treeSearchKey, type TreeSearch } from './searchContext'
 import type { ResterClientDownload, ResterClientResult } from '../../../../preload/types'
 
 const props = defineProps<{
@@ -54,6 +56,73 @@ const headerRows = computed(() =>
   )
 )
 
+// A large body takes a moment to walk, so the search waits for typing to pause.
+const SEARCH_DELAY_MS = 150
+
+const query = ref('')
+const appliedQuery = ref('')
+const currentIndex = ref(0)
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+const filterOptions = [
+  { value: 'all' as const, label: 'All' },
+  { value: 'matches' as const, label: 'Matches' }
+]
+
+const tree = reactive<TreeSearch>({
+  active: false,
+  byPath: new Map(),
+  ancestors: new Set(),
+  currentId: null,
+  filter: false,
+  version: 0
+})
+provide(treeSearchKey, tree)
+
+const searchResult = computed(() => {
+  const parsedQuery = parseQuery(appliedQuery.value)
+  if (!parsedQuery || !parsed.value.ok) return null
+  return searchJson(parsed.value.value, parsedQuery)
+})
+
+const matchCount = computed(() => searchResult.value?.matches.length ?? 0)
+
+watch(query, (text) => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => (appliedQuery.value = text), SEARCH_DELAY_MS)
+  if (text.trim() && parsed.value.ok) view.value = 'tree'
+})
+
+watch(searchResult, (result) => {
+  currentIndex.value = 0
+  tree.active = !!result
+  tree.byPath = result?.byPath ?? new Map()
+  tree.ancestors = result?.ancestors ?? new Set()
+  tree.version++
+  updateCurrent()
+})
+
+function updateCurrent(): void {
+  const match = searchResult.value?.matches[currentIndex.value]
+  tree.currentId = match ? pathId(match.path) : null
+}
+
+function step(delta: number): void {
+  if (matchCount.value === 0) return
+  currentIndex.value = (currentIndex.value + delta + matchCount.value) % matchCount.value
+  updateCurrent()
+}
+
+function onSearchKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    step(event.shiftKey ? -1 : 1)
+  } else if (event.key === 'Escape') {
+    query.value = ''
+    appliedQuery.value = ''
+  }
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -83,6 +152,44 @@ function formatSize(bytes: number): string {
         <span class="meta">{{ formatSize(download.bytes) }}</span>
       </template>
     </header>
+    <div v-if="!sending && !error && result && parsed.ok" class="search-row">
+      <input
+        v-model="query"
+        class="search-input"
+        type="text"
+        spellcheck="false"
+        placeholder="Search, key:value, a.b.*.c or price>100"
+        title="Plain text matches keys and values. key:value matches under a key. A dotted path picks fields, * for any key or index. Compare with > >= < <= = !=. Quotes force plain text."
+        @keydown="onSearchKeydown"
+      />
+      <span v-if="searchResult" class="count">
+        {{ matchCount === 0 ? 'No match' : `${currentIndex + 1} of ${matchCount}` }}
+      </span>
+      <button
+        type="button"
+        class="step"
+        title="Previous match (Shift+Enter)"
+        :disabled="matchCount === 0"
+        @click="step(-1)"
+      >
+        ↑
+      </button>
+      <button
+        type="button"
+        class="step"
+        title="Next match (Enter)"
+        :disabled="matchCount === 0"
+        @click="step(1)"
+      >
+        ↓
+      </button>
+      <AppSegmented
+        :model-value="tree.filter ? 'matches' : 'all'"
+        :options="filterOptions"
+        aria-label="Show"
+        @update:model-value="tree.filter = $event === 'matches'"
+      />
+    </div>
 
     <div class="box-body">
       <p v-if="sending" class="box-placeholder">Sending...</p>
@@ -109,7 +216,7 @@ function formatSize(bytes: number): string {
         </p>
         <p v-else-if="!result.body" class="box-placeholder">The response has no body.</p>
         <div v-else-if="activeView === 'tree'" class="tree">
-          <JsonNode :value="parsed.value" :depth="0" :last="true" />
+          <JsonNode :value="parsed.value" :depth="0" :last="true" :path="[]" />
         </div>
         <pre v-else class="raw">{{ rawText }}</pre>
       </template>
@@ -131,6 +238,49 @@ function formatSize(bytes: number): string {
 
 .tree {
   padding-left: var(--space-3);
+}
+
+.search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.count {
+  flex-shrink: 0;
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.step {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+}
+
+.step:hover:not(:disabled) {
+  background: var(--color-surface-3);
+  color: var(--color-fg-primary);
+}
+
+.step:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .raw {
