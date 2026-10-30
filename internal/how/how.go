@@ -20,24 +20,39 @@ type action struct {
 }
 
 var domains = map[string]map[string]action{
+	"book": {
+		"write": {summary: "Decide where a chapter goes and how to write it: `lgrass how book write`", run: static("book/where.md", "book/rules.md")},
+	},
 	"collaborator": {
 		"join": {summary: "What to do after the human adds your tab to a workgroup: `lgrass how collaborator join`", run: static("collaborator/join.md")},
 	},
 	"leader": {
 		"addmember": {summary: "Add thinkers to your live workgroup: `lgrass how leader addmember`", run: static("leader/addmember.md")},
+		"create":    {summary: "Declare and lead a workgroup: `lgrass how leader create`", run: static("leader/create.md")},
+	},
+	"laws": {
+		"write": {summary: "Write a law the user approved: `lgrass how laws write`", run: static("laws/write.md")},
 	},
 	"task": {
-		"close": {summary: "Close a finished scratchpad task: `lgrass how task close <slug>`", run: taskClose},
+		"close":    {summary: "Close a finished scratchpad task: `lgrass how task close <slug>`", run: taskClose},
+		"handover": {summary: "Pause or hand over a task: `lgrass how task handover <slug>`", run: taskHandover},
+	},
+	"thinker": {
+		"start": {summary: "Your role as a thinker in a workgroup: `lgrass how thinker start`", run: static("thinker/start.md")},
 	},
 }
 
-// static serves an action that has one branch and takes no arguments.
-func static(path string) func(root string, args []string) (string, error) {
+// static serves a manual: fixed text with one branch and no arguments, joined from its fragments in order.
+func static(paths ...string) func(root string, args []string) (string, error) {
 	return func(_ string, args []string) (string, error) {
 		if len(args) > 0 {
-			return "", fmt.Errorf("how: %s takes no arguments", strings.TrimSuffix(path, ".md"))
+			return "", fmt.Errorf("how: %s takes no arguments", strings.TrimSuffix(paths[0], ".md"))
 		}
-		return fragment(path, nil) + "\n", nil
+		parts := make([]string, len(paths))
+		for i, p := range paths {
+			parts[i] = fragment(p, nil)
+		}
+		return strings.Join(parts, "\n\n") + "\n", nil
 	}
 }
 

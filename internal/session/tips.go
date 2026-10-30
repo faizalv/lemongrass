@@ -19,6 +19,7 @@ var bibliothekTips = []string{
 	"bibliothek tip: once a handover's work is done, archive it -- biblio/handover/ should only ever hold what's still in flight.",
 	"bibliothek tip: tags are one word each -- a compound idea is multiple tags, not one hyphenated tag.",
 	"bibliothek tip: a plan for work that hasn't started lives in scratchpad -- a handover's Status section tracks an already-open task, not a future one.",
+	"lgrass tip: about to do something with a task, a handover, a law, a book or a workgroup? Check `lgrass how` first and follow what it prints.",
 	"bibliothek tip: scratchpad is editable by the model too, not just the user. It is the working space for planning, debugging and every work file, not only somewhere the user drops notes.",
 }
 

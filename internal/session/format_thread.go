@@ -185,10 +185,15 @@ func FormatPrefixNote() string {
 	return Prefix + " marks text from lemongrass or other models, never your user. lgrass thread read <id> reads a thread. lgrass session list shows tabs."
 }
 
+// The start-of-session reminder that procedures live in lgrass how, repeated after every compaction.
+func FormatHowReminder() string {
+	return Prefix + " reminder: for anything about tasks, handovers, laws, books or workgroups, check `lgrass how` first and follow what it prints."
+}
+
 // What the caller is in its group, with its assignment and required skills, so a resumed thinker gets its role back.
 func FormatMemberHeader(m Member) string {
 	if m.Role == RoleLeader {
-		return "You are the leader of this workgroup. Load the lgrass-howtobe-leader skill if you have not."
+		return "You are the leader of this workgroup. Run `lgrass how leader create` if you have not in this session."
 	}
 	if m.Role == RoleCollaborator {
 		return fmt.Sprintf("You are the collaborator %q. Run `%s` if you have not in this session.", m.Label, CollaboratorJoinCommand)

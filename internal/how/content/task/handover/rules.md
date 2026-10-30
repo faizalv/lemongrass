@@ -1,0 +1,1 @@
+A handover is for one paused or delegated task, picked up cold by another session. Its Status holds current state only: where to resume, what is next and what is blocked. What is done lives in the PRD's marks, the plan in the PRD, and the history in `activities.md`, so Status never restates them. No dates, no branch names or deploy state.

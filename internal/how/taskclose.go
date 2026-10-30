@@ -37,7 +37,7 @@ func (f closeFacts) full() bool {
 }
 
 func taskClose(root string, args []string) (string, error) {
-	slug, err := parseCloseArgs(args)
+	slug, err := parseSlug(args, "lgrass how task close <slug>")
 	if err != nil {
 		return "", err
 	}
@@ -75,18 +75,19 @@ func taskClose(root string, args []string) (string, error) {
 		fmt.Fprintf(&b, "%d. %s\n", i+1, fragment("task/close/"+step, vars))
 	}
 	b.WriteString("\n## Books\n\n")
-	b.WriteString(fragment("task/close/books.md", vars))
+	b.WriteString(fragment("book/rules.md", vars))
 	b.WriteString("\n")
 	return b.String(), nil
 }
 
-func parseCloseArgs(args []string) (string, error) {
+// parseSlug accepts a task slug or a path to its directory.
+func parseSlug(args []string, usage string) (string, error) {
 	if len(args) != 1 || strings.HasPrefix(args[0], "-") {
-		return "", fmt.Errorf("how: usage: lgrass how task close <slug>")
+		return "", fmt.Errorf("how: usage: %s", usage)
 	}
 	slug := filepath.Base(strings.TrimRight(args[0], "/"))
 	if slug == "." || slug == "archive" {
-		return "", fmt.Errorf("how: usage: lgrass how task close <slug>")
+		return "", fmt.Errorf("how: usage: %s", usage)
 	}
 	return slug, nil
 }

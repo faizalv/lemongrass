@@ -1,0 +1,1 @@
+{slug} has every Plans item marked `[x]`. A handover is never written for finished work: close the task with `lgrass how task close {slug}`, which decides whether it needs a book chapter. If work is still left, add it to Plans as `- [ ]` first.

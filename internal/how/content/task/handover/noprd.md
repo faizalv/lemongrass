@@ -1,0 +1,1 @@
+{slug} has no `biblio/scratchpad/{slug}/prd.md`. A handover points at a PRD only, so write the PRD first (Problem, Expectation, Objective, Plans with `- [ ]` items, the done ones marked `[x]`), then run `lgrass how task handover {slug}` again.

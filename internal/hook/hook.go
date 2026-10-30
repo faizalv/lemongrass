@@ -145,6 +145,9 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	}
 	if payload.TabID != "" {
 		parts = append(parts, session.FormatPrefixNote())
+		if hasBiblio(projectPath) {
+			parts = append(parts, session.FormatHowReminder())
+		}
 	}
 	if member, group, ok := liveThinker(store, payload.TabID); ok {
 		parts = append(parts, session.FormatThinkerStart(member, group))

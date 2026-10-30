@@ -1,1 +1,1 @@
-**Laws.** A correction in the activity log that may be a standing rule is offered with `lgrass-howtodo-newlaws` and written only once the user approves. A rule never goes to memory.
+**Laws.** A correction in the activity log that may be a standing rule is offered to the user in chat, and written with `lgrass how laws write` only after an explicit yes. A rule never goes to memory.
