@@ -468,8 +468,8 @@ watch(() => props.project.id, refresh)
 
 .git-item.conflict,
 .git-item.conflict:hover {
-  background: color-mix(in srgb, var(--color-error) 32%, var(--color-surface-1));
-  color: var(--color-fg-primary);
+  background: var(--color-error-muted);
+  color: var(--color-error);
 }
 
 .git-item.conflict .git-count {
