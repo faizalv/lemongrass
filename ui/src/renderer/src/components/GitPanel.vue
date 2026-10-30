@@ -26,12 +26,12 @@ import type { GitFile, GitFileGroup, GitFileKind } from '../../../preload/types'
 import AppButton from './AppButton.vue'
 import AppCheckbox from './AppCheckbox.vue'
 import GitIcon from './GitIcon.vue'
+import GitConflictPanel from './GitConflictPanel.vue'
 import GitBranchCreateModal from './GitBranchCreateModal.vue'
 import GitBranchMenu from './GitBranchMenu.vue'
 import GitCounts from './GitCounts.vue'
 import GitDivergedModal from './GitDivergedModal.vue'
 import GitMergeModal from './GitMergeModal.vue'
-import GitOperationBox from './GitOperationBox.vue'
 import GitStashSection from './GitStashSection.vue'
 
 const POLL_MS = 5000
@@ -49,10 +49,9 @@ const selectedPath = computed(
   () => activeDiffPath(props.project.id) ?? activeConflictPath(props.project.id)
 )
 const hasConflicts = computed(() => files.value.some((file) => file.kind === 'conflicted'))
-// A stopped merge or rebase turns the panel into its conflict view: only the conflicted files and
-// the operation box remain, since nothing else in the panel can be done until it ends.
+// A stopped merge or rebase swaps the body for the conflict panel, since nothing else in the panel
+// can be done until it is continued or aborted.
 const conflictMode = computed(() => !!status.value?.operation)
-const conflictedFiles = computed(() => files.value.filter((file) => file.group === 'conflicted'))
 // Uncommitted changes, staged ones included, are carried by main, so only states a stash cannot
 // carry block the switcher.
 const switchBlockedReason = computed((): string | null => {
@@ -254,17 +253,16 @@ watch(() => props.project.id, refresh)
       </svg>
     </button>
 
-    <div v-if="!state.folded" class="git-body">
-      <GitBranchMenu
-        v-if="status?.isRepo && !conflictMode"
-        :project="project"
-        :blocked-reason="switchBlockedReason"
-      >
+    <div v-if="!state.folded && conflictMode" class="git-body">
+      <GitConflictPanel :project="project" />
+    </div>
+    <div v-else-if="!state.folded" class="git-body">
+      <GitBranchMenu v-if="status?.isRepo" :project="project" :blocked-reason="switchBlockedReason">
         <GitIcon class="row-icon" name="branch" />
         <span class="row-name">{{ status.branch ?? 'detached HEAD' }}</span>
         <GitCounts :ahead="status.ahead" :behind="status.behind" />
       </GitBranchMenu>
-      <div v-if="status?.isRepo && !conflictMode" class="remote-line">
+      <div v-if="status?.isRepo" class="remote-line">
         <button class="history-open" @click="openHistory(project)">
           <GitIcon class="row-icon" name="open" />
           <span>History</span>
@@ -293,26 +291,7 @@ watch(() => props.project.id, refresh)
       </div>
       <p v-if="rowError" class="git-error">{{ rowError }}</p>
       <p v-if="rowNotice" class="git-notice">{{ rowNotice }}</p>
-      <GitOperationBox v-if="status?.isRepo" :project="project" />
-
-      <template v-if="conflictMode">
-        <p v-if="conflictedFiles.length === 0" class="git-empty">All conflicts are resolved.</p>
-        <ul v-else class="conflict-files">
-          <li v-for="file in conflictedFiles" :key="file.path">
-            <button
-              class="file-row conflicted"
-              :class="{ active: file.path === selectedPath }"
-              :title="fileTitle(file)"
-              @click="openFile(file)"
-            >
-              <span class="file-name">{{ fileName(file) }}</span>
-              <span class="file-dir">{{ fileDir(file) }}</span>
-            </button>
-          </li>
-        </ul>
-      </template>
-
-      <div v-else class="changes-head">
+      <div class="changes-head">
         <AppCheckbox
           v-if="files.length > 0"
           class="file-check"
@@ -329,7 +308,7 @@ watch(() => props.project.id, refresh)
       </div>
       <p v-if="!status" class="git-empty">Loading...</p>
       <p v-else-if="!status.isRepo" class="git-empty">Not a git repository.</p>
-      <template v-else-if="!conflictMode">
+      <template v-else>
         <p v-if="files.length === 0" class="git-empty">No changes</p>
         <div v-else class="file-list">
           <section v-for="group in groups" :key="group.id" class="file-group">
@@ -644,19 +623,6 @@ watch(() => props.project.id, refresh)
   padding: 0 var(--space-2);
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
-}
-
-.conflict-files {
-  flex-shrink: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.conflict-files .file-row {
-  width: 100%;
 }
 
 .file-list {
