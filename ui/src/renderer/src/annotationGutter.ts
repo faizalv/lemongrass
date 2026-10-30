@@ -3,11 +3,13 @@
 
 import { createApp, watch, type App } from 'vue'
 import {
+  Facet,
   StateEffect,
   StateField,
   type EditorState,
   type Extension,
-  type Range
+  type Range,
+  type Transaction
 } from '@codemirror/state'
 import {
   Decoration,
@@ -43,6 +45,10 @@ export interface AnnotationGutterConfig {
   onEdit: (id: string, comment: string) => void
   onRemove: (id: string) => void
 }
+
+const configFacet = Facet.define<AnnotationGutterConfig, AnnotationGutterConfig | null>({
+  combine: (values) => values[0] ?? null
+})
 
 const refreshEffect = StateEffect.define<null>()
 
@@ -162,41 +168,60 @@ const commentMarker = new CommentMarker()
 const addMarker = new AddMarker(false)
 const targetMarker = new AddMarker(true)
 
-export function annotationGutter(config: AnnotationGutterConfig): Extension {
-  function readInfo(state: EditorState): Info {
-    const ranges = config.ranges().filter((range) => validRange(state, range))
-    const targets = config.targets().filter((range) => validRange(state, range))
-    const commentedLines = new Set<number>()
-    for (const range of ranges) {
-      for (let line = range.fromLine; line <= range.toLine; line++) commentedLines.add(line)
-    }
-    return {
-      ranges,
-      targets,
-      commentedLines,
-      targetStarts: new Set(targets.map((t) => t.fromLine))
-    }
+function readInfo(state: EditorState): Info {
+  const config = state.facet(configFacet)
+  if (!config)
+    return { ranges: [], targets: [], commentedLines: new Set(), targetStarts: new Set() }
+  const ranges = config.ranges().filter((range) => validRange(state, range))
+  const targets = config.targets().filter((range) => validRange(state, range))
+  const commentedLines = new Set<number>()
+  for (const range of ranges) {
+    for (let line = range.fromLine; line <= range.toLine; line++) commentedLines.add(line)
   }
+  return {
+    ranges,
+    targets,
+    commentedLines,
+    targetStarts: new Set(targets.map((t) => t.fromLine))
+  }
+}
 
-  const infoField = StateField.define<Info>({
-    create: readInfo,
-    update(info, tr) {
-      if (tr.docChanged || tr.effects.some((e) => e.is(refreshEffect))) return readInfo(tr.state)
-      return info
+const infoField = StateField.define<Info>({
+  create: readInfo,
+  update(info, tr) {
+    if (tr.docChanged || tr.effects.some((e) => e.is(refreshEffect))) return readInfo(tr.state)
+    return info
+  }
+})
+
+const draftField = StateField.define<Draft | null>({
+  create: () => null,
+  update(draft, tr) {
+    for (const effect of tr.effects) if (effect.is(setDraft)) return effect.value
+    if (draft && tr.docChanged) {
+      return { from: tr.changes.mapPos(draft.from, -1), to: tr.changes.mapPos(draft.to, 1) }
     }
-  })
+    return draft
+  }
+})
 
-  const draftField = StateField.define<Draft | null>({
-    create: () => null,
-    update(draft, tr) {
-      for (const effect of tr.effects) if (effect.is(setDraft)) return effect.value
-      if (draft && tr.docChanged) {
-        return { from: tr.changes.mapPos(draft.from, -1), to: tr.changes.mapPos(draft.to, 1) }
-      }
-      return draft
-    }
-  })
+// The commented lines and an open draft, for an extension that hides lines, such as a collapse
+// of unchanged lines, which must keep these shown.
+export function commentedLineRanges(state: EditorState): LineRange[] {
+  const info = state.field(infoField, false)
+  if (!info) return []
+  const ranges: LineRange[] = info.ranges.map(({ fromLine, toLine }) => ({ fromLine, toLine }))
+  const draft = state.field(draftField, false)
+  if (draft) ranges.push(selectionLines(state, draft.from, draft.to))
+  return ranges
+}
 
+// True when a transaction may have changed commentedLineRanges without changing the document.
+export function isAnnotationChange(tr: Transaction): boolean {
+  return tr.effects.some((e) => e.is(refreshEffect) || e.is(setDraft))
+}
+
+export function annotationGutter(config: AnnotationGutterConfig): Extension {
   const handlers = (id: string): CardWidget['handlers'] => ({
     save: (view, comment) => {
       if (id !== '') return config.onEdit(id, comment)
@@ -306,8 +331,39 @@ export function annotationGutter(config: AnnotationGutterConfig): Extension {
     }
   })
 
-  return [infoField, draftField, decorationField, markers, storeWatcher, theme]
+  return [
+    configFacet.of(config),
+    infoField,
+    draftField,
+    decorationField,
+    markers,
+    storeWatcher,
+    cardWidth,
+    theme
+  ]
 }
+
+// A block widget is as wide as the longest line, so on a long line the card would run out of
+// view. It sticks after the gutters instead, as wide as the visible text area.
+const cardWidth = ViewPlugin.define((view) => {
+  const measure = {
+    read: () => {
+      const gutters = view.dom.querySelector<HTMLElement>('.cm-gutters')
+      const left = gutters?.offsetWidth ?? 0
+      return { left, width: Math.max(view.scrollDOM.clientWidth - left, 0) }
+    },
+    write: ({ left, width }: { left: number; width: number }) => {
+      view.dom.style.setProperty('--cm-annotation-left', `${left}px`)
+      view.dom.style.setProperty('--cm-annotation-width', `${width}px`)
+    }
+  }
+  view.requestMeasure(measure)
+  return {
+    update(update) {
+      if (update.geometryChanged) view.requestMeasure(measure)
+    }
+  }
+})
 
 const commentedLine = Decoration.line({ class: 'cm-annotation-line' })
 const draftLine = Decoration.line({ class: 'cm-annotation-line draft' })
@@ -342,5 +398,12 @@ const theme = EditorView.baseTheme({
   },
   '.cm-annotation-line': { background: 'var(--color-amber-muted)' },
   '.cm-annotation-line.draft': { outline: '1px dashed var(--color-amber)' },
-  '.cm-annotation-card': { cursor: 'auto', whiteSpace: 'normal' }
+  '.cm-annotation-card': {
+    position: 'sticky',
+    left: 'var(--cm-annotation-left, 0)',
+    boxSizing: 'border-box',
+    width: 'var(--cm-annotation-width, 100%)',
+    cursor: 'auto',
+    whiteSpace: 'normal'
+  }
 })
