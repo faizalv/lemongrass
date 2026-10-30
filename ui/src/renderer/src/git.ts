@@ -219,8 +219,29 @@ async function runBranchAction(
   return done.ok ? null : done.error
 }
 
-export function fetchAll(project: ProjectRef): Promise<string | null> {
-  return runBranchAction(project, 'fetch', () => window.api.git.fetch(project.path))
+// Fetch is also the way to update the checked-out branch: it fast-forwards it or opens the diverged
+// dialog, as the branch menu's Update does for other branches. Uncommitted changes leave it
+// fetch-only with a notice, and status is read again here because the polled one can be 5s old.
+export async function fetchAll(
+  project: ProjectRef
+): Promise<{ error: string | null; notice: string | null }> {
+  let notice: string | null = null
+  const error = await runBranchAction(project, 'fetch', async () => {
+    const fetched = await window.api.git.fetch(project.path)
+    if (!fetched.ok) return fetched
+    const status = await window.api.git.status(project.path)
+    const branch = status.branch
+    if (!branch || !status.upstream || status.operation) return { ok: true }
+    if (status.files.length > 0) {
+      notice = `Fetched. Commit or stash your changes to update ${branch}.`
+      return { ok: true }
+    }
+    const updated = await window.api.git.updateBranch(project.path, branch, false)
+    if (updated.status === 'diverged') gitStateOf(project.id).diverged = updated
+    if (updated.status === 'gone') notice = updated.message
+    return updated.status === 'error' ? { ok: false, error: updated.error } : { ok: true }
+  })
+  return { error, notice }
 }
 
 export function finishOperation(

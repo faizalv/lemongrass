@@ -10,8 +10,9 @@ import AppContextMenu, { type MenuItem } from './AppContextMenu.vue'
 import GitCounts from './GitCounts.vue'
 
 // blockedReason names why the current branch cannot be left now, such as a stopped rebase, which
-// blocks merge, checkout, new branch and deleting the checked-out branch. Update only fetches or fast-forwards,
-// so it stays available.
+// blocks merge, checkout, new branch and deleting the checked-out branch. Update only fetches or
+// fast-forwards, so it stays available. The checked-out branch has no Update here, since the
+// panel's Fetch updates it.
 const props = defineProps<{
   project: ProjectRef
   blockedReason: string | null
@@ -90,19 +91,19 @@ const actions = computed((): MenuItem[] => {
   if (!target) return []
   const busy = state.value.busy ? 'An operation is running' : null
   const items: MenuItem[] = []
-  const noUpstream = !target.remote && !target.local?.upstream ? 'No upstream' : null
-  items.push({
-    key: 'update',
-    label: 'Update',
-    disabled: !!(busy ?? noUpstream),
-    title:
-      busy ??
-      noUpstream ??
-      (target.remote
-        ? `Fetch ${target.name}`
-        : `Fetch ${target.local?.upstream} and fast-forward ${target.name}`)
-  })
   if (target.remote || target.name !== current.value) {
+    const noUpstream = !target.remote && !target.local?.upstream ? 'No upstream' : null
+    items.push({
+      key: 'update',
+      label: 'Update',
+      disabled: !!(busy ?? noUpstream),
+      title:
+        busy ??
+        noUpstream ??
+        (target.remote
+          ? `Fetch ${target.name}`
+          : `Fetch ${target.local?.upstream} and fast-forward ${target.name}`)
+    })
     const mergeBlocked = busy ?? props.blockedReason ?? (current.value ? null : 'HEAD is detached')
     items.push({
       key: 'merge',

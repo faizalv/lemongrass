@@ -34,6 +34,7 @@ const props = defineProps<{
 }>()
 
 const rowError = ref<string | null>(null)
+const rowNotice = ref<string | null>(null)
 const state = computed(() => gitStateOf(props.project.id))
 const status = computed(() => state.value.status)
 const files = computed(() => status.value?.files ?? [])
@@ -126,13 +127,23 @@ const pushOnlyTitle = computed(
   () => pushOnlyBlockedReason.value ?? `Push ${status.value?.branch} to ${status.value?.pushTarget}`
 )
 
+const fetchTitle = computed(() =>
+  status.value?.branch && status.value.upstream
+    ? `Fetch every remote and update ${status.value.branch}`
+    : 'Fetch every remote'
+)
+
 async function fetchRemotes(): Promise<void> {
   rowError.value = null
-  rowError.value = await fetchAll(props.project)
+  rowNotice.value = null
+  const fetched = await fetchAll(props.project)
+  rowError.value = fetched.error
+  rowNotice.value = fetched.notice
 }
 
 async function push(): Promise<void> {
   rowError.value = null
+  rowNotice.value = null
   rowError.value = await pushBranch(props.project)
 }
 
@@ -239,8 +250,8 @@ watch(() => props.project.id, refresh)
         <button
           class="remote-icon fetch"
           :disabled="state.busy !== null"
-          title="Fetch every remote"
-          aria-label="Fetch every remote"
+          :title="fetchTitle"
+          :aria-label="fetchTitle"
           @click="fetchRemotes"
         >
           <GitIcon v-if="state.busy === 'fetch'" class="spin" name="spinner" />
@@ -258,6 +269,7 @@ watch(() => props.project.id, refresh)
         </button>
       </div>
       <p v-if="rowError" class="git-error">{{ rowError }}</p>
+      <p v-if="rowNotice" class="git-notice">{{ rowNotice }}</p>
       <GitOperationBox v-if="status?.isRepo" :project="project" />
 
       <div class="changes-head">
@@ -734,6 +746,14 @@ watch(() => props.project.id, refresh)
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.git-notice {
+  padding: var(--space-2);
+  background: var(--color-surface-2);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
 }
 
 .git-hint {
