@@ -251,6 +251,9 @@ export interface GitFile {
   group: GitFileGroup
   // The index differs from HEAD for this file, or it is in conflict.
   staged: boolean
+  // Only on a conflicted file: the conflict marker blocks left in its working file, or null when
+  // that file is missing, binary or has a marker left open.
+  conflictBlocks?: number | null
 }
 
 export interface GitOperationRefs {

@@ -7,7 +7,7 @@ import { registerGitHistoryHandlers } from './gitHistory'
 import { registerGitRevisionHandlers } from './gitRevision'
 import { registerGitSyncHandlers } from './gitSync'
 import { registerGitStashHandlers } from './gitStash'
-import { operationRefs } from './gitConflict'
+import { conflictBlocksLeft, operationRefs } from './gitConflict'
 import { parseDiff, parseStatus } from './gitParse'
 import {
   WRITE_TIMEOUT_MS,
@@ -76,7 +76,12 @@ async function status(projectPath: string): Promise<GitStatus> {
         operation
       )
     : null
-  return { isRepo: true, ...parsed, pushTarget, operation, operationRefs: refs }
+  const files = parsed.files.map((file) =>
+    file.kind === 'conflicted'
+      ? { ...file, conflictBlocks: conflictBlocksLeft(root, file.path) }
+      : file
+  )
+  return { isRepo: true, ...parsed, files, pushTarget, operation, operationRefs: refs }
 }
 
 async function isUntracked(root: string, path: string): Promise<boolean> {

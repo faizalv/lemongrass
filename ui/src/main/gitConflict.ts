@@ -374,6 +374,15 @@ export async function readConflict(
   }
 }
 
+// Counts the conflicts still marked in the working file, which drops as the human or a model
+// resolves them by hand before the file is staged.
+export function conflictBlocksLeft(root: string, path: string): number | null {
+  const working = readWorking(root, path)
+  if (working === null) return null
+  const parsed = parseMarkers(splitLines(working).lines, null)
+  return parsed ? parsed.filter((part) => !('kind' in part)).length : null
+}
+
 const notConflicted = 'That file is no longer in conflict.'
 
 // Only a conflicted path may be written, so this call cannot overwrite any other file.

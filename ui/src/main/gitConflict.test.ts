@@ -9,7 +9,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WRITE_TIMEOUT_MS, readEnv, run } from './gitRun.ts'
 import type { GitRunner } from './gitMove.ts'
-import { applyResolution, operationRefs, pickSide, readConflict } from './gitConflict.ts'
+import {
+  applyResolution,
+  conflictBlocksLeft,
+  operationRefs,
+  pickSide,
+  readConflict
+} from './gitConflict.ts'
 
 // The machine's own git config, such as commit signing or a conflict style, must not reach these repos.
 process.env.GIT_CONFIG_GLOBAL = '/dev/null'
@@ -258,4 +264,15 @@ test('a stopped merge and rebase are described by the same refs as the panes', a
   git(rebasing, 'switch', '-q', 'feat')
   gitMayFail(rebasing, 'rebase', 'main')
   assert.deepEqual(await operationRefs(runner(rebasing), 'rebase'), { from: 'feat', onto: 'main' })
+})
+
+test('the conflict blocks left are counted from the working file markers', () => {
+  const root = diverged()
+  gitMayFail(root, 'merge', 'feat')
+  assert.equal(conflictBlocksLeft(root, 'a.txt'), 1)
+  write(root, 'a.txt', LINES)
+  assert.equal(conflictBlocksLeft(root, 'a.txt'), 0)
+  write(root, 'a.txt', ['<<<<<<< HEAD', 'open'])
+  assert.equal(conflictBlocksLeft(root, 'a.txt'), null)
+  assert.equal(conflictBlocksLeft(root, 'missing.txt'), null)
 })
