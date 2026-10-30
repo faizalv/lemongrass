@@ -16,8 +16,10 @@ const (
 	// A collaborator is an open tab the human added to a live group. It keeps its own context, and the human directs it in its own tab, so it takes no assignment and no leader's go for its own work.
 	RoleCollaborator = "collaborator"
 
-	// Every thinker loads this skill.
+	// Every thinker on a vendor that does not start with ThinkerStartCommand loads this skill.
 	ThinkerSkill = "lgrass-howtobe-thinker"
+	// A Claude thinker reads its role with this command instead of loading ThinkerSkill. Codex thinkers still load the skill.
+	ThinkerStartCommand = "lgrass how thinker start"
 	// BibliothekSkill is never required of a Claude thinker, whose system prompt already carries it.
 	BibliothekSkill = "bibliothek"
 )
@@ -374,15 +376,44 @@ func (s *Store) Labels(tabIDs []string) map[string]string {
 	return out
 }
 
-// The thinker skill first, then the skills the leader listed, each once.
-func (m Member) RequiredSkills() []string {
-	out := []string{ThinkerSkill}
-	for _, name := range m.Skills {
-		if !containsString(out, name) && !CarriedInPrompt(m.Vendor, name) {
+func (m Member) RequiredSkills() []string { return ThinkerSkills(m.Vendor, m.Skills) }
+
+// RetiredClaudeSkills maps each lemongrass skill no longer installed for Claude to the lgrass how action that replaced it.
+var RetiredClaudeSkills = map[string]string{
+	"lgrass-howtodo-work":        "lgrass how work",
+	"lgrass-howtodo-taskclosing": "lgrass how task close",
+	"lgrass-howtodo-newlaws":     "lgrass how laws write",
+	"lgrass-howtobe-keeper":      "lgrass how keeper sweep",
+	"lgrass-howtobe-leader":      "lgrass how leader create",
+	ThinkerSkill:                 ThinkerStartCommand,
+}
+
+func ThinkerStartsWithHow(vendor string) bool { return vendor == "claude" }
+
+// ThinkerSkills is the thinker skill first on a vendor that still loads it, then the skills the leader listed, each once, leaving out what the vendor's prompt already carries.
+func ThinkerSkills(vendor string, listed []string) []string {
+	var out []string
+	if !ThinkerStartsWithHow(vendor) {
+		out = append(out, ThinkerSkill)
+	}
+	for _, name := range listed {
+		if name != ThinkerSkill && !containsString(out, name) && !CarriedInPrompt(vendor, name) {
 			out = append(out, name)
 		}
 	}
 	return out
+}
+
+// ThinkerStartSteps says what a thinker of this vendor does before any other tool call.
+func ThinkerStartSteps(vendor string, skills []string) string {
+	var steps []string
+	if ThinkerStartsWithHow(vendor) {
+		steps = append(steps, "run `"+ThinkerStartCommand+"`")
+	}
+	if len(skills) > 0 {
+		steps = append(steps, "load these skills: "+strings.Join(skills, ", "))
+	}
+	return strings.Join(steps, ", then ")
 }
 
 func CarriedInPrompt(vendor, skill string) bool {

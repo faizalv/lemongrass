@@ -56,24 +56,33 @@ func TestOnlyThinkersAreGated(t *testing.T) {
 		}
 	}
 	result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
-	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-howtobe-thinker") {
+	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass how thinker start") {
 		t.Errorf("thinker was not gated: %+v", result)
 	}
 }
 
-func TestLoadingTheSkillLiftsGateOneAndSurvivesToLaterCalls(t *testing.T) {
+func TestThinkerStartLiftsTheClaudeGateAndSurvivesToLaterCalls(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
 	dir := t.TempDir()
 
-	load := hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-howtobe-thinker"}), dir)
+	load := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "lgrass how thinker start"}), dir)
 	if load.PermissionDecision == "deny" {
-		t.Fatalf("the skill load was denied: %s", load.PermissionDecisionReason)
+		t.Fatalf("the thinker start read was denied: %s", load.PermissionDecisionReason)
 	}
 	for _, command := range []string{"ls", "go test ./..."} {
 		result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": command}), dir)
 		if result.PermissionDecision == "deny" {
-			t.Errorf("%q denied after the skill was loaded: %s", command, result.PermissionDecisionReason)
+			t.Errorf("%q denied after the role was read: %s", command, result.PermissionDecisionReason)
 		}
+	}
+}
+
+func TestTheRetiredThinkerSkillDoesNotOpenTheClaudeGate(t *testing.T) {
+	store, _ := storeWithGroup(t, nil)
+	dir := t.TempDir()
+	hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-howtobe-thinker"}), dir)
+	if result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir); result.PermissionDecision != "deny" {
+		t.Error("a Claude thinker passed the gate with the skill instead of lgrass how thinker start")
 	}
 }
 
@@ -81,9 +90,9 @@ func TestAThinkerWithARequiredSkillListMustLoadThemAll(t *testing.T) {
 	store, _ := storeWithGroup(t, []string{"lgrass-connector"})
 	dir := t.TempDir()
 
-	hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-howtobe-thinker"}), dir)
+	hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "lgrass how thinker start"}), dir)
 	result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
-	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-connector") {
+	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-connector") || strings.Contains(result.PermissionDecisionReason, "thinker start") {
 		t.Fatalf("the second required skill was not enforced: %+v", result)
 	}
 	hookPreToolUse(store, preTool(gateTabClaude, "Skill", map[string]string{"skill": "lgrass-connector"}), dir)
@@ -123,7 +132,7 @@ func TestDisbandingFreesTheThinkers(t *testing.T) {
 func TestBibliothekIsNeverRequiredOfAClaudeThinker(t *testing.T) {
 	store, _ := storeWithGroup(t, []string{"bibliothek"})
 	dir := projectWithBiblio(t)
-	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-howtobe-thinker"))
+	store.MarkReady(gateTabClaude, session.ThinkerStartMark)
 	if result := hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir); result.PermissionDecision == "deny" {
 		t.Errorf("a Claude thinker was held to load bibliothek: %s", result.PermissionDecisionReason)
 	}
@@ -140,7 +149,7 @@ func TestPlainTabNeedsNoBibliothekSkill(t *testing.T) {
 func TestFoundationalRulesStillApplyToThinkers(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
 	dir := projectWithBiblio(t)
-	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-howtobe-thinker"))
+	store.MarkReady(gateTabClaude, session.ThinkerStartMark)
 
 	result := hookPreToolUse(store, preTool(gateTabClaude, "EnterPlanMode", map[string]string{}), dir)
 	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "EnterPlanMode") {
@@ -154,10 +163,10 @@ func TestSessionStartSendsLawsAndTheStartLineAndResetsMarks(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "biblio", "laws"), 0o755)
 	os.WriteFile(filepath.Join(dir, "biblio", "laws", "summary.md"), []byte("# Laws summary\n- a law"), 0o600)
-	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-howtobe-thinker"))
+	store.MarkReady(gateTabClaude, session.ThinkerStartMark)
 
 	result := hookSessionStart(store, hookEvent{SessionID: "s1", TabID: gateTabClaude}, dir)
-	for _, want := range []string{"a law", `thinker "reviewer"`, "lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread"} {
+	for _, want := range []string{"a law", `thinker "reviewer"`, "run `lgrass how thinker start`, then load these skills: lgrass-connector", "lgrass workgroup thread"} {
 		if !strings.Contains(result.AdditionalContext, want) {
 			t.Errorf("start context missing %q:\n%s", want, result.AdditionalContext)
 		}

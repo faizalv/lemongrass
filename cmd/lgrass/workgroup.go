@@ -76,7 +76,7 @@ func cmdWorkgroupCreate(args []string) {
 			Label:  c.Label,
 			Vendor: c.Vendor,
 			Model:  c.Model,
-			Prompt: workgroup.ComposePrompt(c.Label, cfg.Name, cfg.LeaderLabel, c.RequiredSkills(), c.Prompt),
+			Prompt: workgroup.ComposePrompt(c.Label, cfg.Name, cfg.LeaderLabel, c.Vendor, c.RequiredSkills(), c.Prompt),
 			Skills: c.RequiredSkills(),
 		}
 	}
@@ -151,7 +151,7 @@ func cmdWorkgroupAdd(args []string) {
 			Label:  c.Label,
 			Vendor: c.Vendor,
 			Model:  c.Model,
-			Prompt: workgroup.ComposeAddedPrompt(c.Label, group.Name, me.Label, c.RequiredSkills(), c.Prompt),
+			Prompt: workgroup.ComposeAddedPrompt(c.Label, group.Name, me.Label, c.Vendor, c.RequiredSkills(), c.Prompt),
 			Skills: c.RequiredSkills(),
 		}
 	}

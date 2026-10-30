@@ -44,7 +44,7 @@ func TestCollaboratorIsHeldToLgrassUntilItReadsItsRole(t *testing.T) {
 
 func TestThinkersAndPlainTabsAreNotHeldByTheCollaboratorGate(t *testing.T) {
 	store, _ := storeWithGroup(t, nil)
-	store.MarkReady(gateTabClaude, session.SkillMark("lgrass-howtobe-thinker"))
+	store.MarkReady(gateTabClaude, session.ThinkerStartMark)
 	for _, tab := range []string{gateTabClaude, gateTabLeader, gateTabOutside} {
 		if deny := collaboratorGateDeny(store, preTool(tab, "Read", map[string]string{"file_path": "/etc/hostname"})); deny != "" {
 			t.Errorf("tab %s held by the collaborator gate: %s", tab, deny)

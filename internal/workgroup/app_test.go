@@ -104,8 +104,8 @@ func TestNewTabIDIsAVersion4UUID(t *testing.T) {
 }
 
 func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
-	prompt := ComposePrompt("reviewer", "schema-review", "lead", []string{"lgrass-howtobe-thinker", "lgrass-connector"}, "Review the diff.")
-	for _, want := range []string{`thinker "reviewer"`, `workgroup "schema-review"`, `leader "lead"`, "lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the leader's go", "Review the diff."} {
+	prompt := ComposePrompt("reviewer", "schema-review", "lead", "codex", []string{"lgrass-howtobe-thinker", "lgrass-connector"}, "Review the diff.")
+	for _, want := range []string{`thinker "reviewer"`, `workgroup "schema-review"`, `leader "lead"`, "load these skills: lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the leader's go", "Review the diff."} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt missing %q", want)
 		}
@@ -115,9 +115,16 @@ func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
 	}
 }
 
+func TestComposePromptStartsAClaudeThinkerWithHow(t *testing.T) {
+	prompt := ComposePrompt("reviewer", "schema-review", "lead", "claude", []string{"lgrass-connector"}, "Review the diff.")
+	if !strings.Contains(prompt, "run `lgrass how thinker start`, then load these skills: lgrass-connector") {
+		t.Errorf("prompt = %q", prompt)
+	}
+}
+
 func TestComposeAddedPromptTellsTheThinkerToCatchUp(t *testing.T) {
-	added := ComposeAddedPrompt("docs", "schema-review", "lead", []string{"lgrass-howtobe-thinker"}, "Write docs.")
-	plain := ComposePrompt("docs", "schema-review", "lead", []string{"lgrass-howtobe-thinker"}, "Write docs.")
+	added := ComposeAddedPrompt("docs", "schema-review", "lead", "codex", []string{"lgrass-howtobe-thinker"}, "Write docs.")
+	plain := ComposePrompt("docs", "schema-review", "lead", "codex", []string{"lgrass-howtobe-thinker"}, "Write docs.")
 	for _, want := range []string{"already working before you joined", "lgrass workgroup thread --all", "wait for the leader's go", "Write docs."} {
 		if !strings.Contains(added, want) {
 			t.Errorf("added prompt missing %q", want)

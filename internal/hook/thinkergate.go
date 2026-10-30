@@ -24,7 +24,9 @@ type thinkerGateInput struct {
 	ToolName  string
 	ToolInput json.RawMessage
 	Required  []string
-	Marks     map[string]bool
+	// HowStart holds the thinker until it has run ThinkerStartCommand.
+	HowStart bool
+	Marks    map[string]bool
 }
 
 // Returns the deny message, "" to allow, and the required skill this call loads, "" if none. The caller records that skill's mark.
@@ -37,13 +39,14 @@ func thinkerGate(in thinkerGateInput) (deny, loaded string) {
 			missing = append(missing, name)
 		}
 	}
-	if len(missing) == 0 {
+	needStart := in.HowStart && !in.Marks[session.ThinkerStartMark]
+	if len(missing) == 0 && !needStart {
 		return "", loaded
 	}
 	if loaded != "" || isLgrassCommand(shellCommand(in.ToolName, in.ToolInput)) {
 		return "", loaded
 	}
-	return session.FormatThinkerSkillsDeny(missing), ""
+	return session.FormatThinkerGateDeny(needStart, missing), ""
 }
 
 // The command string of a shell tool call, "" for any other tool. Codex passes an argv array, whose last element is the script after a -c style flag.

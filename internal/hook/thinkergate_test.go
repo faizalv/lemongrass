@@ -143,7 +143,7 @@ func TestLoadedSkillsAllowToolsWithoutAListener(t *testing.T) {
 func TestMissingSkillsStillDenyTools(t *testing.T) {
 	tool, input := bash("ls")
 	deny, _ := gateFor(tool, input, nil)
-	if !strings.Contains(deny, "load these skills first") {
+	if !strings.Contains(deny, "load these skills: lgrass-howtobe-thinker") {
 		t.Errorf("deny = %q, want the skills message", deny)
 	}
 }

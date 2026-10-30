@@ -107,13 +107,23 @@ func TestSkillsAreDedupedAndTheThinkerSkillIsImplicit(t *testing.T) {
 	if got := c.RequiredSkills(); len(got) != 3 || got[0] != "lgrass-howtobe-thinker" || got[1] != "lgrass-connector" || got[2] != "bibliothek" {
 		t.Errorf("RequiredSkills = %v, want the thinker skill first then the listed ones once each", got)
 	}
-	claude, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [bibliothek, lgrass-howtodo-work]}"), t.TempDir())
-	if got := claude.Thinkers[0].RequiredSkills(); len(got) != 2 || got[1] != "lgrass-howtodo-work" {
-		t.Errorf("RequiredSkills of a Claude thinker = %v, want bibliothek left out since its prompt carries it", got)
+	claude, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [bibliothek, lgrass-howtobe-thinker, extra-skill]}"), t.TempDir())
+	if got := claude.Thinkers[0].RequiredSkills(); len(got) != 1 || got[0] != "extra-skill" {
+		t.Errorf("RequiredSkills of a Claude thinker = %v, want bibliothek and the thinker skill left out, since its prompt carries one and lgrass how thinker start replaces the other", got)
 	}
-	plain, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x}"), t.TempDir())
+	plain, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: codex, prompt: x}"), t.TempDir())
 	if got := plain.Thinkers[0].RequiredSkills(); len(got) != 1 || got[0] != "lgrass-howtobe-thinker" {
-		t.Errorf("RequiredSkills without a list = %v", got)
+		t.Errorf("RequiredSkills of a Codex thinker without a list = %v", got)
+	}
+}
+
+func TestARetiredSkillIsRefusedForClaudeOnly(t *testing.T) {
+	_, err := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [lgrass-howtodo-work]}"), t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "lgrass how work") || !strings.HasPrefix(err.Error(), "workgroup: ") {
+		t.Errorf("err = %v, want a refusal naming lgrass how work", err)
+	}
+	if _, err := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: codex, prompt: x, skills: [lgrass-howtodo-work]}"), t.TempDir()); err != nil {
+		t.Errorf("a Codex thinker was refused a skill it still has: %v", err)
 	}
 }
 
@@ -150,8 +160,11 @@ func TestCheckSkillsInstalledPerVendor(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `"bibliothek"`) || !strings.Contains(err.Error(), "lgrass-howtobe-thinker") {
 		t.Errorf("error = %v, want the missing codex skill named and the installed ones listed", err)
 	}
-	if err := (Config{Thinkers: []Thinker{{Label: "a", Vendor: "claude"}}}).CheckSkillsInstalled(t.TempDir()); err == nil {
-		t.Error("a home with no skills passed the check")
+	if err := (Config{Thinkers: []Thinker{{Label: "a", Vendor: "codex"}}}).CheckSkillsInstalled(t.TempDir()); err == nil {
+		t.Error("a home with no skills passed the check for a Codex thinker")
+	}
+	if err := (Config{Thinkers: []Thinker{{Label: "a", Vendor: "claude"}}}).CheckSkillsInstalled(t.TempDir()); err != nil {
+		t.Errorf("a Claude thinker with no listed skills needs nothing installed: %v", err)
 	}
 }
 

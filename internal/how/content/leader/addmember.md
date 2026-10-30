@@ -8,7 +8,6 @@ Add a thinker when the work needs an area or a view that no current thinker owns
    thinkers:
      - label: docs
        vendor: claude
-       skills: [lgrass-connector]
        prompt: |
          Own the user docs for the new export command. The CLI shape is settled in the group thread.
    ```
@@ -17,6 +16,6 @@ Add a thinker when the work needs an area or a view that no current thinker owns
 
 2. Run `lgrass workgroup add <path-to-config>` from your tab. It checks the config, then waits while the human reads the new thinkers' full starting text in the app. A decline prints the human's reason when there is one, so revise and propose again. A withdrawal means nobody answered, so ask the human before trying again.
 
-3. On approval the new tabs open beside yours and lgrass posts a join message to the group thread, so every member knows who arrived. Each new thinker is told the group was already working, reads the whole thread, loads its skills and posts its plan.
+3. On approval the new tabs open beside yours and lgrass posts a join message to the group thread, so every member knows who arrived. Each new thinker is told the group was already working, reads the whole thread, reads its role and loads any listed skills, and posts its plan.
 
 4. Brief the new thinker in the group thread with a mention: what it owns, which files are its own, and what the group has already decided that its assignment does not say. Then answer its plan with go or with what to change, the same as any thinker.

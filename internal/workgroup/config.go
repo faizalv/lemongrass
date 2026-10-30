@@ -22,7 +22,7 @@ import (
 const (
 	MaxSkills = 8
 
-	// Every thinker loads this skill, so a config never has to list it.
+	// Every thinker reads its role on its own, so a config never has to list this skill.
 	ThinkerSkill      = session.ThinkerSkill
 	MaxPromptRunes    = 3000
 	MaxNameRunes      = 120
@@ -154,6 +154,9 @@ func validateThinkers(thinkers []Thinker, taken []string, baseDir string) error 
 			if !skillPattern.MatchString(name) {
 				return fmt.Errorf("workgroup: thinker %q skill %q is not a valid skill name", c.Label, name)
 			}
+			if action, retired := session.RetiredClaudeSkills[name]; retired && name != ThinkerSkill && c.Vendor == "claude" {
+				return fmt.Errorf("workgroup: thinker %q skill %q is not installed for claude anymore, its procedure is `%s`, which the thinker runs itself when it needs it. Drop it from skills", c.Label, name, action)
+			}
 			if name != ThinkerSkill && !containsString(skills, name) {
 				skills = append(skills, name)
 			}
@@ -193,16 +196,8 @@ func containsString(list []string, v string) bool {
 	return false
 }
 
-// Every skill a thinker must load: the thinker skill first, then the ones the leader listed.
-func (c Thinker) RequiredSkills() []string {
-	out := []string{ThinkerSkill}
-	for _, name := range c.Skills {
-		if !session.CarriedInPrompt(c.Vendor, name) {
-			out = append(out, name)
-		}
-	}
-	return out
-}
+// Every skill a thinker must load, in the order it loads them.
+func (c Thinker) RequiredSkills() []string { return session.ThinkerSkills(c.Vendor, c.Skills) }
 
 var skillDirs = map[string]string{"claude": ".claude", "codex": ".codex"}
 

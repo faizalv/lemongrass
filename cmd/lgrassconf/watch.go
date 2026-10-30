@@ -30,7 +30,7 @@ func (k *keeper) skillDirs() []string {
 	for _, v := range vendors {
 		add(filepath.Join(k.home, v.configDir))
 		add(k.skillsRoot(v))
-		for _, name := range legacySkillNames {
+		for _, name := range v.removedSkills() {
 			add(k.legacySkillDir(v, name))
 		}
 	}
@@ -72,7 +72,7 @@ func (k *keeper) relevant() map[string]bool {
 		set[f.path] = true
 	}
 	for _, v := range vendors {
-		for _, name := range legacySkillNames {
+		for _, name := range v.removedSkills() {
 			set[filepath.Join(k.legacySkillDir(v, name), "SKILL.md")] = true
 		}
 	}

@@ -60,7 +60,7 @@ When a task fits a workgroup, offer it to the human: say which thinkers you woul
 - `lgrass workgroup list` shows the live workgroups in this project with their leaders, thinkers and tab ids.
 - `lgrass workgroup disband <id>` ends the group. Only the leader or the human can. The tabs stay open and the thread stays readable.
 
-If you were started as a thinker, load the skill `lgrass-howtobe-thinker`.
+If you were started as a thinker, run `lgrass how thinker start`.
 
 ## Connectors
 

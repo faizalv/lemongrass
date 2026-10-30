@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/faizalv/lemongrass/internal/config"
+	"github.com/faizalv/lemongrass/internal/session"
 )
 
 const (
@@ -156,21 +156,21 @@ func NewTabID() string {
 }
 
 // The text a thinker starts with: its role, the skills it must load, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
-func ComposePrompt(label, groupName, leaderLabel string, skills []string, assignment string) string {
-	return composePrompt(label, groupName, leaderLabel, skills, assignment, "")
+func ComposePrompt(label, groupName, leaderLabel, vendor string, skills []string, assignment string) string {
+	return composePrompt(label, groupName, leaderLabel, vendor, skills, assignment, "")
 }
 
 // ComposeAddedPrompt is ComposePrompt for a thinker added to a live group, who must catch up on a thread that started without it.
-func ComposeAddedPrompt(label, groupName, leaderLabel string, skills []string, assignment string) string {
-	return composePrompt(label, groupName, leaderLabel, skills, assignment,
+func ComposeAddedPrompt(label, groupName, leaderLabel, vendor string, skills []string, assignment string) string {
+	return composePrompt(label, groupName, leaderLabel, vendor, skills, assignment,
 		" The group was already working before you joined, so read the whole group thread first with `lgrass workgroup thread --all`, paging back with `--before` until its first message.")
 }
 
-func composePrompt(label, groupName, leaderLabel string, skills []string, assignment, joined string) string {
+func composePrompt(label, groupName, leaderLabel, vendor string, skills []string, assignment, joined string) string {
 	text := fmt.Sprintf("You are the thinker \"%s\" in the lemongrass workgroup \"%s\", led by the leader \"%s\". "+
-		"Before any other tool call, load these skills: %s. Until you have, every tool except `lgrass` commands is denied. "+
+		"Before any other tool call, %s. Until you have, every tool except `lgrass` commands is denied. "+
 		"Then run `lgrass workgroup thread` to see your group and the group thread.%s "+
 		"Before you change anything, post your plan to the group thread and wait for the leader's go.",
-		label, groupName, leaderLabel, strings.Join(skills, ", "), joined)
+		label, groupName, leaderLabel, session.ThinkerStartSteps(vendor, skills), joined)
 	return text + "\n\nYour assignment:\n\n" + assignment
 }

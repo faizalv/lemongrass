@@ -9,6 +9,9 @@ func SkillMark(skill string) string { return "skill:" + skill }
 // A mark that a collaborator has read its role with `lgrass how collaborator join`.
 const CollaboratorMark = "how:collaborator-join"
 
+// A mark that a Claude thinker has read its role with ThinkerStartCommand.
+const ThinkerStartMark = "how:thinker-start"
+
 // A mark that a tab has read the close instructions for a scratchpad task.
 func TaskCloseMark(slug string) string { return "task-close:" + slug }
 

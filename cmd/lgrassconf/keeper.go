@@ -9,10 +9,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/faizalv/lemongrass/internal/agentconf"
 	"github.com/faizalv/lemongrass/internal/claudeaccount"
+	"github.com/faizalv/lemongrass/internal/session"
 )
 
 //go:embed skills
@@ -23,13 +25,29 @@ var legacySkillNames = []string{"lemongrass", "lgrass-staleness", "lgrass-closin
 type vendor struct {
 	embedRoot string
 	configDir string
+	// retired are lemongrass skills this vendor no longer installs, removed like the legacy ones.
+	retired []string
 }
 
 var (
-	claude  = vendor{embedRoot: "skills/claude", configDir: ".claude"}
+	claude  = vendor{embedRoot: "skills/claude", configDir: ".claude", retired: retiredClaudeSkills()}
 	codex   = vendor{embedRoot: "skills/codex", configDir: ".codex"}
 	vendors = []vendor{claude, codex}
 )
+
+func retiredClaudeSkills() []string {
+	names := make([]string, 0, len(session.RetiredClaudeSkills))
+	for name := range session.RetiredClaudeSkills {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// removedSkills are the skill directories the keeper deletes for this vendor.
+func (v vendor) removedSkills() []string {
+	return append(append([]string{}, legacySkillNames...), v.retired...)
+}
 
 type skillFile struct {
 	root    string
@@ -62,6 +80,9 @@ func (k *keeper) loadSkills() []skillFile {
 	var files []skillFile
 	for _, v := range vendors {
 		root := k.skillsRoot(v)
+		if _, err := fs.Stat(skillsFS, v.embedRoot); err != nil {
+			continue
+		}
 		err := fs.WalkDir(skillsFS, v.embedRoot, func(p string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() {
 				return err
@@ -135,7 +156,7 @@ func (k *keeper) reconcile() error {
 		}
 	}
 	for _, v := range vendors {
-		for _, name := range legacySkillNames {
+		for _, name := range v.removedSkills() {
 			if err := removeLegacySkill(k.legacySkillDir(v, name)); err != nil {
 				errs = append(errs, err)
 			}
