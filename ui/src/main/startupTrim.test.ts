@@ -24,11 +24,13 @@ test('a Claude tab gets the trim env', () => {
   })
 })
 
-test('a Claude tab gets the denied tools and the plugin when it is installed', () => {
+test('a Claude tab gets the denied tools, no claude.ai skill sync and the plugin when it is installed', () => {
   const dir = home(true)
   assert.deepEqual(startupTrimArgs('claude', dir), [
     '--disallowedTools',
     'SendFeedback ShareOnboardingGuide ReportFindings EnterPlanMode ExitPlanMode',
+    '--settings',
+    '{"syncClaudeAiSkills":false}',
     '--plugin-dir',
     join(dir, '.lemongrass', 'plugin', 'lemongrass-tools')
   ])
@@ -37,7 +39,9 @@ test('a Claude tab gets the denied tools and the plugin when it is installed', (
 test('a missing plugin adds no plugin flag', () => {
   assert.deepEqual(startupTrimArgs('claude', home(false)), [
     '--disallowedTools',
-    'SendFeedback ShareOnboardingGuide ReportFindings EnterPlanMode ExitPlanMode'
+    'SendFeedback ShareOnboardingGuide ReportFindings EnterPlanMode ExitPlanMode',
+    '--settings',
+    '{"syncClaudeAiSkills":false}'
   ])
 })
 

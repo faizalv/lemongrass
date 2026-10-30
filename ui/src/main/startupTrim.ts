@@ -23,6 +23,10 @@ export function startupTrimEnv(command: string): Record<string, string> {
   return command === 'claude' ? { ...TRIM_ENV } : {}
 }
 
+// The skills synced from the user's claude.ai account are written into every tab's first turn, past the
+// system prompt's cache marker; a launch flag drops them without touching any settings file.
+const TRIM_SETTINGS = JSON.stringify({ syncClaudeAiSkills: false })
+
 // lgrassconf installs the plugin that moves rarely used tools behind ToolSearch.
 export function startupTrimArgs(command: string, home: string): string[] {
   if (command !== 'claude') return []
@@ -30,6 +34,8 @@ export function startupTrimArgs(command: string, home: string): string[] {
   return [
     '--disallowedTools',
     TRIM_TOOLS.join(' '),
+    '--settings',
+    TRIM_SETTINGS,
     ...(existsSync(plugin) ? ['--plugin-dir', plugin] : [])
   ]
 }
