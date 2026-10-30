@@ -123,18 +123,23 @@ function iconButton(className: string, path: string, label: string, action: stri
 
 // The chevron takes this pane's side into the middle and the cross rejects it. The decided one
 // stays lit.
+// branch names the side in titles, since left and right are never shown to the human.
 class DecideMarker extends GutterMarker {
   readonly side: ConflictSide
+  readonly branch: string
   readonly decision: SideDecision
 
-  constructor(side: ConflictSide, decision: SideDecision) {
+  constructor(side: ConflictSide, branch: string, decision: SideDecision) {
     super()
     this.side = side
+    this.branch = branch
     this.decision = decision
   }
 
   eq(other: DecideMarker): boolean {
-    return other.side === this.side && other.decision === this.decision
+    return (
+      other.side === this.side && other.branch === this.branch && other.decision === this.decision
+    )
   }
 
   toDOM(): Node {
@@ -145,13 +150,13 @@ class DecideMarker extends GutterMarker {
     const take = iconButton(
       `take${lit('taken')}`,
       CHEVRONS[this.side],
-      `Take the ${this.side} side`,
+      `Take ${this.branch}`,
       'taken'
     )
     const reject = iconButton(
       `reject${lit('rejected')}`,
       CROSS,
-      `Reject the ${this.side} side`,
+      `Reject ${this.branch}`,
       'rejected'
     )
     // The chevron points into the middle, so it sits on the middle's side of the cross.
@@ -170,18 +175,18 @@ function sideChunkAt(state: EditorState, lineNumber: number): SideChunk | undefi
 
 // The decision gutter sits next to the middle: after the text in the left pane, before it in the
 // right pane, so the two side panes mirror each other.
-function decisionGutter(side: ConflictSide, onDecide: OnDecide): Extension {
+function decisionGutter(side: ConflictSide, branch: string, onDecide: OnDecide): Extension {
   return gutter({
     class: 'cm-conflict-decide',
     side: side === 'left' ? 'after' : 'before',
     lineMarker(view, line) {
       const chunk = sideChunkAt(view.state, view.state.doc.lineAt(line.from).number)
       if (!chunk) return null
-      return new DecideMarker(side, view.state.field(sideDecisions)[chunk.index] ?? 'open')
+      return new DecideMarker(side, branch, view.state.field(sideDecisions)[chunk.index] ?? 'open')
     },
     lineMarkerChange: (update) =>
       update.startState.field(sideDecisions) !== update.state.field(sideDecisions),
-    initialSpacer: () => new DecideMarker(side, 'open'),
+    initialSpacer: () => new DecideMarker(side, branch, 'open'),
     domEventHandlers: {
       mousedown(view, line, event) {
         const action = (event.target as HTMLElement).closest('[data-decide]')
@@ -494,6 +499,7 @@ export function sideState(
   doc: string,
   chunks: SideChunk[],
   side: ConflictSide,
+  branch: string,
   onDecide: OnDecide,
   extra: Extension[]
 ): EditorState {
@@ -508,8 +514,8 @@ export function sideState(
       // Gutters on one side line up in extension order, so the decision gutter comes nearest the
       // middle and the extras' gutters, such as the comment one, end up on the outer edge.
       side === 'left'
-        ? [extra, lineNumbersAfter, decisionGutter(side, onDecide)]
-        : [decisionGutter(side, onDecide), lineNumbers(), extra]
+        ? [extra, lineNumbersAfter, decisionGutter(side, branch, onDecide)]
+        : [decisionGutter(side, branch, onDecide), lineNumbers(), extra]
     ])
   })
 }

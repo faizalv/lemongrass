@@ -237,6 +237,7 @@ function load(file: ConflictFile, fromWorking: boolean): void {
     leftText,
     sides('left'),
     'left',
+    file.leftRef,
     (index, d) => decideSide(index, 'left', d),
     [reviewExtension('left'), focusExtension('left')]
   )
@@ -244,6 +245,7 @@ function load(file: ConflictFile, fromWorking: boolean): void {
     rightText,
     sides('right'),
     'right',
+    file.rightRef,
     (index, d) => decideSide(index, 'right', d),
     [reviewExtension('right'), focusExtension('right')]
   )
@@ -463,7 +465,7 @@ onBeforeUnmount(() => {
       </span>
       <span class="spacer" />
       <AppButton
-        title="Take the left side of every conflict in this file"
+        :title="`Take ${file.leftRef} in every conflict in this file`"
         :disabled="!conflictIndexes.length"
         @click="takeAll('left')"
       >
@@ -481,11 +483,11 @@ onBeforeUnmount(() => {
           >
             <path d="M3 3.5l3.5 3.5L3 10.5M7.5 3.5L11 7l-3.5 3.5" />
           </svg>
-          Take left
+          Take <span class="branch">{{ file.leftRef }}</span>
         </span>
       </AppButton>
       <AppButton
-        title="Take the right side of every conflict in this file"
+        :title="`Take ${file.rightRef} in every conflict in this file`"
         :disabled="!conflictIndexes.length"
         @click="takeAll('right')"
       >
@@ -503,11 +505,11 @@ onBeforeUnmount(() => {
           >
             <path d="M11 3.5L7.5 7l3.5 3.5M6.5 3.5L3 7l3.5 3.5" />
           </svg>
-          Take right
+          Take <span class="branch">{{ file.rightRef }}</span>
         </span>
       </AppButton>
       <AppButton
-        title="Take both sides of every conflict in this file, left then right"
+        :title="`Take both in every conflict in this file, ${file.leftRef} then ${file.rightRef}`"
         :disabled="!conflictIndexes.length"
         @click="takeAll('both')"
       >
@@ -573,7 +575,7 @@ onBeforeUnmount(() => {
     <div ref="panesEl" class="panes">
       <section class="pane" :style="{ flexGrow: sizes[0] }">
         <header class="pane-head" :title="file.leftRef">
-          <span class="side">Left</span><span class="ref">{{ file.leftRef }}</span>
+          <span class="side ref">{{ file.leftRef }}</span>
         </header>
         <div ref="leftHost" class="pane-body" />
       </section>
@@ -588,7 +590,7 @@ onBeforeUnmount(() => {
       <div class="gutter" @pointerdown="startResize(1, $event)" />
       <section class="pane" :style="{ flexGrow: sizes[2] }">
         <header class="pane-head" :title="file.rightRef">
-          <span class="side">Right</span><span class="ref">{{ file.rightRef }}</span>
+          <span class="side ref">{{ file.rightRef }}</span>
         </header>
         <div ref="rightHost" class="pane-body" />
       </section>
@@ -666,6 +668,12 @@ onBeforeUnmount(() => {
   background: var(--color-amber);
 }
 
+.branch {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .icon-label {
   display: inline-flex;
   align-items: center;
@@ -691,6 +699,10 @@ onBeforeUnmount(() => {
   color: var(--color-fg-muted);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.side.ref {
+  color: var(--color-fg-primary);
 }
 
 .pane-body {

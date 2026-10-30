@@ -28,11 +28,9 @@ const error = ref<string | null>(null)
 // A conflict with no lines to merge: one side deleted the file, both added it with no base, or
 // a side is binary.
 const reason = computed(() => {
-  const { left, right, base } = props.file
-  if (left.state === 'missing')
-    return 'The left side deleted this file and the right side changed it.'
-  if (right.state === 'missing')
-    return 'The right side deleted this file and the left side changed it.'
+  const { left, right, base, leftRef, rightRef } = props.file
+  if (left.state === 'missing') return `${leftRef} deleted this file and ${rightRef} changed it.`
+  if (right.state === 'missing') return `${rightRef} deleted this file and ${leftRef} changed it.`
   if (left.state === 'binary' || right.state === 'binary')
     return 'This file is binary, so there are no lines to merge.'
   if (base.state === 'missing')
@@ -45,12 +43,11 @@ const sides = computed(() =>
     const stage = props.file[side]
     return {
       side,
-      label: side === 'left' ? 'Left' : 'Right',
       ref: side === 'left' ? props.file.leftRef : props.file.rightRef,
       state: describe(stage),
       preview: stage.state === 'text' ? preview(stage.text) : null,
       choice: (stage.state === 'missing' ? 'delete' : side) as GitConflictChoice,
-      action: stage.state === 'missing' ? 'Delete the file' : `Keep ${side}`
+      keep: stage.state !== 'missing'
     }
   })
 )
@@ -76,13 +73,12 @@ async function pick(choice: GitConflictChoice): Promise<void> {
 
 <template>
   <div class="conflict-sides">
-    <p class="reason">{{ reason }} Pick the side to keep.</p>
+    <p class="reason">{{ reason }} Pick the version to keep.</p>
     <p v-if="error" class="sides-error">{{ error }}</p>
     <div class="cards">
       <section v-for="entry in sides" :key="entry.side" class="card">
         <header class="card-head">
-          <span class="side">{{ entry.label }}</span>
-          <span class="ref" :title="entry.ref">{{ entry.ref }}</span>
+          <span class="side ref" :title="entry.ref">{{ entry.ref }}</span>
           <span class="state">{{ entry.state }}</span>
         </header>
         <pre v-if="entry.preview !== null" class="preview">{{ entry.preview }}</pre>
@@ -92,7 +88,10 @@ async function pick(choice: GitConflictChoice): Promise<void> {
           :disabled="busy"
           @click="pick(entry.choice)"
         >
-          {{ entry.action }}
+          <span v-if="entry.keep" class="keep" :title="entry.ref">
+            Keep <span class="branch">{{ entry.ref }}</span>
+          </span>
+          <template v-else>Delete the file</template>
         </AppButton>
       </section>
     </div>
@@ -152,6 +151,22 @@ async function pick(choice: GitConflictChoice): Promise<void> {
 
 .ref {
   color: var(--color-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side.ref {
+  color: var(--color-fg-primary);
+}
+
+.keep {
+  display: inline-flex;
+  gap: 0.3em;
+  min-width: 0;
+}
+
+.branch {
+  max-width: 24ch;
   overflow: hidden;
   text-overflow: ellipsis;
 }
