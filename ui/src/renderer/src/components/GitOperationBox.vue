@@ -18,16 +18,17 @@ const firstConflict = computed(
   () => (status.value?.files ?? []).find((file) => file.group === 'conflicted') ?? null
 )
 
+// The refs are split out so the line can show them as chips; without refs it is a plain sentence.
 const message = computed(() => {
-  const refs = status.value?.operationRefs
+  const refs = status.value?.operationRefs ?? null
   if (status.value?.operation === 'merge') {
     return refs
-      ? `Conflict while trying to merge ${refs.from} into ${refs.onto}.`
-      : 'Conflict while merging.'
+      ? { lead: 'Conflict while trying to merge', from: refs.from, join: 'into', onto: refs.onto }
+      : { lead: 'Conflict while merging.' }
   }
   return refs
-    ? `Conflict while rebasing ${refs.from} onto ${refs.onto}.`
-    : 'Conflict while rebasing.'
+    ? { lead: 'Conflict while rebasing', from: refs.from, join: 'onto', onto: refs.onto }
+    : { lead: 'Conflict while rebasing.' }
 })
 
 function resolve(): void {
@@ -41,7 +42,14 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 
 <template>
   <div v-if="status?.operation" class="operation-box">
-    <p>{{ message }}</p>
+    <p class="operation-message">
+      {{ message.lead }}
+      <template v-if="message.from">
+        <span class="operation-ref">{{ message.from }}</span>
+        {{ message.join }}
+        <span class="operation-ref">{{ message.onto }}</span>
+      </template>
+    </p>
     <p v-if="error" class="operation-error">{{ error }}</p>
     <div class="operation-buttons">
       <AppButton
@@ -85,6 +93,20 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
   border-radius: var(--radius-md);
   color: var(--color-fg-primary);
   font-size: var(--text-xs);
+}
+
+.operation-message {
+  line-height: 1.8;
+}
+
+.operation-ref {
+  padding: 1px var(--space-2);
+  background: var(--color-surface-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-accent);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+  word-break: break-all;
 }
 
 .operation-error {

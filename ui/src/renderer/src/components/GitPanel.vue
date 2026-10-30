@@ -206,7 +206,7 @@ watch(() => props.project.id, refresh)
 </script>
 
 <template>
-  <div class="git-panel" :class="{ conflict: conflictMode }">
+  <div class="git-panel">
     <button
       class="git-item"
       :class="{ open: !state.folded, conflict: conflictMode }"
@@ -464,10 +464,6 @@ watch(() => props.project.id, refresh)
 .git-item.open {
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
-}
-
-.git-panel.conflict {
-  background: color-mix(in srgb, var(--color-error) 10%, var(--color-surface-0));
 }
 
 .git-item.conflict,
