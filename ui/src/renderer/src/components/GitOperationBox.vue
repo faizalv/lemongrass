@@ -4,7 +4,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { finishOperation, gitStateOf } from '../git'
-import type { ProjectRef } from '../workspace'
+import { openConflict, type ProjectRef } from '../workspace'
 import AppButton from './AppButton.vue'
 
 const props = defineProps<{
@@ -14,10 +14,25 @@ const props = defineProps<{
 const state = computed(() => gitStateOf(props.project.id))
 const status = computed(() => state.value.status)
 const error = ref<string | null>(null)
-const label = computed(() => (status.value?.operation === 'merge' ? 'Merge' : 'Rebase'))
-const hasConflicts = computed(() =>
-  (status.value?.files ?? []).some((file) => file.group === 'conflicted')
+const firstConflict = computed(
+  () => (status.value?.files ?? []).find((file) => file.group === 'conflicted') ?? null
 )
+
+const message = computed(() => {
+  const refs = status.value?.operationRefs
+  if (status.value?.operation === 'merge') {
+    return refs
+      ? `Conflict while trying to merge ${refs.from} into ${refs.onto}.`
+      : 'Conflict while merging.'
+  }
+  return refs
+    ? `Conflict while rebasing ${refs.from} onto ${refs.onto}.`
+    : 'Conflict while rebasing.'
+})
+
+function resolve(): void {
+  if (firstConflict.value) openConflict(props.project, firstConflict.value.path)
+}
 
 async function finish(action: 'continue' | 'abort'): Promise<void> {
   error.value = await finishOperation(props.project, action)
@@ -26,13 +41,23 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 
 <template>
   <div v-if="status?.operation" class="operation-box">
-    <p>{{ label }} in progress. Resolve the conflicts, then continue or abort.</p>
+    <p>{{ message }}</p>
     <p v-if="error" class="operation-error">{{ error }}</p>
     <div class="operation-buttons">
       <AppButton
+        v-if="firstConflict"
         variant="primary"
         class="operation-action"
-        :disabled="state.busy !== null || hasConflicts"
+        :disabled="state.busy !== null"
+        @click="resolve"
+      >
+        Resolve
+      </AppButton>
+      <AppButton
+        v-else
+        variant="primary"
+        class="operation-action"
+        :disabled="state.busy !== null"
         @click="finish('continue')"
       >
         Continue
@@ -58,7 +83,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
   padding: var(--space-2);
   background: var(--color-surface-2);
   border-radius: var(--radius-md);
-  color: var(--color-warning);
+  color: var(--color-fg-primary);
   font-size: var(--text-xs);
 }
 

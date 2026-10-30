@@ -49,6 +49,10 @@ const selectedPath = computed(
   () => activeDiffPath(props.project.id) ?? activeConflictPath(props.project.id)
 )
 const hasConflicts = computed(() => files.value.some((file) => file.kind === 'conflicted'))
+// A stopped merge or rebase turns the panel into its conflict view: only the conflicted files and
+// the operation box remain, since nothing else in the panel can be done until it ends.
+const conflictMode = computed(() => !!status.value?.operation)
+const conflictedFiles = computed(() => files.value.filter((file) => file.group === 'conflicted'))
 // Uncommitted changes, staged ones included, are carried by main, so only states a stash cannot
 // carry block the switcher.
 const switchBlockedReason = computed((): string | null => {
@@ -202,10 +206,10 @@ watch(() => props.project.id, refresh)
 </script>
 
 <template>
-  <div class="git-panel">
+  <div class="git-panel" :class="{ conflict: conflictMode }">
     <button
       class="git-item"
-      :class="{ open: !state.folded }"
+      :class="{ open: !state.folded, conflict: conflictMode }"
       :aria-expanded="!state.folded"
       @click="state.folded = !state.folded"
     >
@@ -251,12 +255,16 @@ watch(() => props.project.id, refresh)
     </button>
 
     <div v-if="!state.folded" class="git-body">
-      <GitBranchMenu v-if="status?.isRepo" :project="project" :blocked-reason="switchBlockedReason">
+      <GitBranchMenu
+        v-if="status?.isRepo && !conflictMode"
+        :project="project"
+        :blocked-reason="switchBlockedReason"
+      >
         <GitIcon class="row-icon" name="branch" />
         <span class="row-name">{{ status.branch ?? 'detached HEAD' }}</span>
         <GitCounts :ahead="status.ahead" :behind="status.behind" />
       </GitBranchMenu>
-      <div v-if="status?.isRepo" class="remote-line">
+      <div v-if="status?.isRepo && !conflictMode" class="remote-line">
         <button class="history-open" @click="openHistory(project)">
           <GitIcon class="row-icon" name="open" />
           <span>History</span>
@@ -287,7 +295,24 @@ watch(() => props.project.id, refresh)
       <p v-if="rowNotice" class="git-notice">{{ rowNotice }}</p>
       <GitOperationBox v-if="status?.isRepo" :project="project" />
 
-      <div class="changes-head">
+      <template v-if="conflictMode">
+        <p v-if="conflictedFiles.length === 0" class="git-empty">All conflicts are resolved.</p>
+        <ul v-else class="conflict-files">
+          <li v-for="file in conflictedFiles" :key="file.path">
+            <button
+              class="file-row conflicted"
+              :class="{ active: file.path === selectedPath }"
+              :title="fileTitle(file)"
+              @click="openFile(file)"
+            >
+              <span class="file-name">{{ fileName(file) }}</span>
+              <span class="file-dir">{{ fileDir(file) }}</span>
+            </button>
+          </li>
+        </ul>
+      </template>
+
+      <div v-else class="changes-head">
         <AppCheckbox
           v-if="files.length > 0"
           class="file-check"
@@ -304,7 +329,7 @@ watch(() => props.project.id, refresh)
       </div>
       <p v-if="!status" class="git-empty">Loading...</p>
       <p v-else-if="!status.isRepo" class="git-empty">Not a git repository.</p>
-      <template v-else>
+      <template v-else-if="!conflictMode">
         <p v-if="files.length === 0" class="git-empty">No changes</p>
         <div v-else class="file-list">
           <section v-for="group in groups" :key="group.id" class="file-group">
@@ -439,6 +464,20 @@ watch(() => props.project.id, refresh)
 .git-item.open {
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
+}
+
+.git-panel.conflict {
+  background: color-mix(in srgb, var(--color-error) 10%, var(--color-surface-0));
+}
+
+.git-item.conflict,
+.git-item.conflict:hover {
+  background: color-mix(in srgb, var(--color-error) 32%, var(--color-surface-1));
+  color: var(--color-fg-primary);
+}
+
+.git-item.conflict .git-count {
+  background: var(--color-error);
 }
 
 .git-label {
@@ -609,6 +648,19 @@ watch(() => props.project.id, refresh)
   padding: 0 var(--space-2);
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
+}
+
+.conflict-files {
+  flex-shrink: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.conflict-files .file-row {
+  width: 100%;
 }
 
 .file-list {
