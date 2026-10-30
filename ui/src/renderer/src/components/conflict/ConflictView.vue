@@ -45,7 +45,7 @@ watch(() => gitStateOf(props.project.id).revision, load)
 <template>
   <div class="conflict-view">
     <div v-if="!file" class="notice">Loading {{ path }}</div>
-    <div v-else-if="file.status === 'notConflicted'" class="notice">
+    <div v-else-if="file.status === 'notConflicted'" class="notice done">
       {{ path }} is not in conflict. You can close this tab.
     </div>
     <div v-else-if="file.status === 'error'" class="notice error">{{ file.error }}</div>
@@ -73,6 +73,16 @@ watch(() => gitStateOf(props.project.id).revision, load)
   padding: var(--space-6);
   font-size: var(--text-sm);
   color: var(--color-fg-secondary);
+}
+
+/* The last thing a resolved file shows, so it sits in the middle of the tab where it is seen. */
+.notice.done {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--color-fg-primary);
 }
 
 .notice.error {
