@@ -10,6 +10,8 @@ export interface TreeSearch {
   active: boolean
   byPath: Map<string, SearchMatch>
   ancestors: Set<string>
+  // The qualifying records of a chained query; empty for a single term.
+  records: Set<string>
   currentId: string | null
   filter: boolean
   version: number

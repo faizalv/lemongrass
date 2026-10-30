@@ -28,6 +28,7 @@ const id = computed(() => pathId(props.path))
 const match = computed(() => (search?.active ? search.byPath.get(id.value) : undefined))
 const current = computed(() => !!search?.active && search.currentId === id.value)
 const onMatchPath = computed(() => !!search?.active && search.ancestors.has(id.value))
+const record = computed(() => !!search?.active && search.records.has(id.value))
 
 const userOpen = ref(props.depth < 2)
 // A click during a search wins over the search's own opening until the next search.
@@ -79,10 +80,13 @@ const entries = computed<Child[]>(() => {
 
 function onPath(child: Child): boolean {
   const childId = pathId(child.path)
-  return !!search && (search.ancestors.has(childId) || search.byPath.has(childId))
+  return (
+    !!search &&
+    (search.ancestors.has(childId) || search.byPath.has(childId) || search.records.has(childId))
+  )
 }
 
-const keepChildren = computed(() => !!props.keepAll || !!match.value)
+const keepChildren = computed(() => !!props.keepAll || !!match.value || record.value)
 
 // The filter keeps only children on a match's path, and paging always reaches the last of those.
 const visible = computed(() => {
@@ -117,7 +121,7 @@ const comma = computed(() => (props.last ? '' : ','))
 <template>
   <div class="json-node">
     <template v-if="isBranch">
-      <button ref="row" type="button" class="branch" :class="{ current }" @click="toggle">
+      <button ref="row" type="button" class="branch" :class="{ current, record }" @click="toggle">
         <svg
           class="caret"
           :class="{ open }"
@@ -269,6 +273,23 @@ const comma = computed(() => (props.last ? '' : ','))
 .current .hit {
   background: var(--color-amber);
   box-shadow: 0 0 0 1px var(--color-amber);
+  color: var(--color-black);
+}
+.branch.record {
+  padding: 0 var(--space-1);
+  margin-left: calc(-1 * var(--space-1));
+  border-radius: var(--radius-sm);
+  background: var(--color-amber-muted);
+}
+
+.branch.record.current {
+  background: var(--color-amber);
+  color: var(--color-black);
+}
+
+.branch.record.current .punct,
+.branch.record.current .summary,
+.branch.record.current .caret {
   color: var(--color-black);
 }
 </style>

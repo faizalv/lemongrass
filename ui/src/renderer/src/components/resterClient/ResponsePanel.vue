@@ -7,7 +7,7 @@ import AppSegmented from '../AppSegmented.vue'
 import JsonNode from './JsonNode.vue'
 import HistoryPopover from './HistoryPopover.vue'
 import { statusClass } from '../../resterClientCall'
-import { parseQuery, pathId, searchJson } from '../../responseSearch'
+import { pathId, runSearch } from '../../responseSearch'
 import { treeSearchKey, type TreeSearch } from './searchContext'
 import type {
   ResterClientDownload,
@@ -88,19 +88,33 @@ const tree = reactive<TreeSearch>({
   active: false,
   byPath: new Map(),
   ancestors: new Set(),
+  records: new Set(),
   currentId: null,
   filter: false,
   version: 0
 })
 provide(treeSearchKey, tree)
 
-const searchResult = computed(() => {
-  const parsedQuery = parseQuery(appliedQuery.value)
-  if (!parsedQuery || !parsed.value.ok) return null
-  return searchJson(parsed.value.value, parsedQuery)
-})
+const searchOutcome = computed(() =>
+  parsed.value.ok ? runSearch(parsed.value.value, appliedQuery.value) : null
+)
+const searchResult = computed(() =>
+  searchOutcome.value && 'result' in searchOutcome.value ? searchOutcome.value.result : null
+)
+const searchError = computed(() =>
+  searchOutcome.value && 'error' in searchOutcome.value ? searchOutcome.value.error : ''
+)
 
-const matchCount = computed(() => searchResult.value?.matches.length ?? 0)
+const stepCount = computed(() => searchResult.value?.steps.length ?? 0)
+
+const countText = computed(() => {
+  const result = searchResult.value
+  if (!result) return searchError.value
+  const records = result.unit === 'record'
+  if (stepCount.value === 0) return records ? 'No record' : 'No match'
+  const noun = records ? (stepCount.value === 1 ? ' record' : ' records') : ''
+  return `${currentIndex.value + 1} of ${stepCount.value}${noun}`
+})
 
 watch(query, (text) => {
   if (searchTimer) clearTimeout(searchTimer)
@@ -113,18 +127,19 @@ watch(searchResult, (result) => {
   tree.active = !!result
   tree.byPath = result?.byPath ?? new Map()
   tree.ancestors = result?.ancestors ?? new Set()
+  tree.records = result?.records ?? new Set()
   tree.version++
   updateCurrent()
 })
 
 function updateCurrent(): void {
-  const match = searchResult.value?.matches[currentIndex.value]
-  tree.currentId = match ? pathId(match.path) : null
+  const step = searchResult.value?.steps[currentIndex.value]
+  tree.currentId = step ? pathId(step) : null
 }
 
 function step(delta: number): void {
-  if (matchCount.value === 0) return
-  currentIndex.value = (currentIndex.value + delta + matchCount.value) % matchCount.value
+  if (stepCount.value === 0) return
+  currentIndex.value = (currentIndex.value + delta + stepCount.value) % stepCount.value
   updateCurrent()
 }
 
@@ -185,18 +200,18 @@ function formatSize(bytes: number): string {
         class="search-input"
         type="text"
         spellcheck="false"
-        placeholder="Search, key:value, a.b.*.c or price>100"
-        title="Plain text matches keys and values. key:value matches under a key. A dotted path picks fields, * for any key or index. Compare with > >= < <= = !=. Quotes force plain text."
+        placeholder="Search, key:value, a.b.*.c, price>100, AND OR NOT"
+        title="Plain text matches keys and values. key:value matches under a key. A dotted path picks fields, * for any key or index. Compare with > >= < <= = !=. Quotes force plain text. Chain terms with AND, OR, NOT and parentheses to find records, objects in a list, where all of it holds."
         @keydown="onSearchKeydown"
       />
-      <span v-if="searchResult" class="count">
-        {{ matchCount === 0 ? 'No match' : `${currentIndex + 1} of ${matchCount}` }}
+      <span v-if="countText" class="count" :class="{ invalid: searchError }">
+        {{ countText }}
       </span>
       <button
         type="button"
         class="step"
         title="Previous match (Shift+Enter)"
-        :disabled="matchCount === 0"
+        :disabled="stepCount === 0"
         @click="step(-1)"
       >
         ↑
@@ -205,7 +220,7 @@ function formatSize(bytes: number): string {
         type="button"
         class="step"
         title="Next match (Enter)"
-        :disabled="matchCount === 0"
+        :disabled="stepCount === 0"
         @click="step(1)"
       >
         ↓
@@ -287,6 +302,10 @@ function formatSize(bytes: number): string {
   color: var(--color-fg-secondary);
   font-size: var(--text-xs);
   white-space: nowrap;
+}
+
+.count.invalid {
+  color: var(--color-error);
 }
 
 .step {
