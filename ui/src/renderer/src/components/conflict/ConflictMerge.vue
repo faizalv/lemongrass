@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, createApp, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { EditorState, Extension, Text } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { applyConflict } from '../../git'
@@ -12,6 +12,8 @@ import {
   applyText,
   buildMiddle,
   collapseSpans,
+  decide,
+  decideAll,
   diskSegments,
   fromDisk,
   isCrlf,
@@ -20,9 +22,10 @@ import {
   middleRanges,
   splitLines,
   stripChunks,
-  takeText,
   toDisk,
-  type ConflictTake
+  type ConflictSide,
+  type ConflictTake,
+  type SideDecision
 } from '../../conflictModel'
 import {
   chunkAtCursor,
@@ -30,11 +33,11 @@ import {
   focusLines,
   middleChunks,
   middleState,
-  replaceChunk,
+  chunkReplacements,
   setFocusLines,
   showCurrent,
-  sideState,
-  type MountChunkBar
+  showDecisions,
+  sideState
 } from '../../conflictEditor'
 import type { ProjectRef } from '../../workspace'
 import type {
@@ -47,7 +50,6 @@ import type {
 import AppButton from '../AppButton.vue'
 import AppConfirmButton from '../AppConfirmButton.vue'
 import AppModal from '../AppModal.vue'
-import ConflictChunkBar from './ConflictChunkBar.vue'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
 
@@ -173,16 +175,6 @@ function focusExtension(pane: ConflictPane): Extension {
   }, isAnnotationChange)
 }
 
-const mountBar: MountChunkBar = (dom, bar) => {
-  const app = createApp(ConflictChunkBar, {
-    label: bar.label,
-    resolved: bar.resolved,
-    onTake: (side: ConflictTake) => take(bar.index, side)
-  })
-  app.mount(dom)
-  return () => app.unmount()
-}
-
 function toggleFocus(): void {
   focus.value = !focus.value
   for (const view of [left, middle, right]) if (view) setFocusLines(view, focus.value)
@@ -191,8 +183,25 @@ function toggleFocus(): void {
 function onMiddleUpdate(state: EditorState): void {
   const at = chunkAtCursor(state)
   if (at !== null) current.value = at
-  unresolved.value = state.field(middleChunks).filter((chunk) => !chunk.resolved).length
+  const chunks = state.field(middleChunks)
+  unresolved.value = chunks.filter((chunk) => !chunk.resolved).length
   dirty.value = loaded.value !== null && !state.doc.eq(loaded.value.doc)
+  pushDecisions(chunks)
+}
+
+let shownDecisions = ''
+
+// The side panes draw the middle's decisions on their chevrons, so they hear about every change.
+function pushDecisions(chunks: { index: number; left: SideDecision; right: SideDecision }[]): void {
+  const key = JSON.stringify(chunks.map(({ index, left, right }) => [index, left, right]))
+  if (key === shownDecisions || !left || !right) return
+  shownDecisions = key
+  for (const [view, side] of [
+    [left, 'left'],
+    [right, 'right']
+  ] as const) {
+    showDecisions(view, Object.fromEntries(chunks.map((chunk) => [chunk.index, chunk[side]])))
+  }
 }
 
 function load(file: ConflictFile, fromWorking: boolean): void {
@@ -212,7 +221,7 @@ function load(file: ConflictFile, fromWorking: boolean): void {
     chunks.flatMap((chunk, index) =>
       chunk.kind === 'conflict' ? [{ index, range: located[pane][index] }] : []
     )
-  const middleDoc = middleState(built.text, built.chunks, onMiddleUpdate, mountBar, [
+  const middleDoc = middleState(built.text, built.chunks, onMiddleUpdate, [
     reviewExtension('middle'),
     focusExtension('middle')
   ])
@@ -224,14 +233,20 @@ function load(file: ConflictFile, fromWorking: boolean): void {
     left: located.left,
     right: located.right
   }
-  const leftDoc = sideState(leftText, sides('left'), [
-    reviewExtension('left'),
-    focusExtension('left')
-  ])
-  const rightDoc = sideState(rightText, sides('right'), [
-    reviewExtension('right'),
-    focusExtension('right')
-  ])
+  const leftDoc = sideState(
+    leftText,
+    sides('left'),
+    'left',
+    (index, d) => decideSide(index, 'left', d),
+    [reviewExtension('left'), focusExtension('left')]
+  )
+  const rightDoc = sideState(
+    rightText,
+    sides('right'),
+    'right',
+    (index, d) => decideSide(index, 'right', d),
+    [reviewExtension('right'), focusExtension('right')]
+  )
   if (left && middle && right) {
     left.setState(leftDoc)
     middle.setState(middleDoc)
@@ -248,6 +263,7 @@ function load(file: ConflictFile, fromWorking: boolean): void {
   if (focus.value) for (const view of [left, middle, right]) setFocusLines(view, true)
   current.value = null
   error.value = null
+  shownDecisions = ''
   onMiddleUpdate(middleDoc)
   if (built.chunks.length > 0) goTo(built.chunks[0].index)
 }
@@ -277,12 +293,31 @@ function step(direction: 1 | -1): void {
   goTo(list[(next + list.length) % list.length])
 }
 
-function take(index: number, side: ConflictTake): void {
+function conflictAt(index: number): Extract<GitConflictChunk, { kind: 'conflict' }> | null {
   const chunk = loaded.value?.chunks[index]
-  if (!middle || !chunk) return
+  return chunk?.kind === 'conflict' ? chunk : null
+}
+
+// A chevron or cross in a side pane decides that side of one conflict.
+function decideSide(index: number, side: ConflictSide, decision: 'taken' | 'rejected'): void {
+  const chunk = middle?.state.field(middleChunks).find((c) => c.index === index)
+  const conflict = conflictAt(index)
+  if (!middle || !chunk || !conflict) return
+  const spec = chunkReplacements(middle.state, [decide(chunk, conflict, side, decision)])
+  if (!spec) return
   current.value = index
-  replaceChunk(middle, index, takeText(chunk, side), true)
-  middle.focus()
+  middle.dispatch(spec)
+}
+
+// The toolbar's takes decide every conflict in the file at once.
+function takeAll(take: ConflictTake): void {
+  if (!middle) return
+  const updates = middle.state.field(middleChunks).flatMap((chunk) => {
+    const conflict = conflictAt(chunk.index)
+    return conflict ? [decideAll(chunk, conflict, take)] : []
+  })
+  const spec = chunkReplacements(middle.state, updates)
+  if (spec) middle.dispatch(spec)
 }
 
 // Dragging the gutter after pane `at` moves width between it and the next pane, each keeping at
@@ -427,6 +462,27 @@ onBeforeUnmount(() => {
         </template>
       </span>
       <span class="spacer" />
+      <AppButton
+        title="Take the left side of every conflict in this file"
+        :disabled="!conflictIndexes.length"
+        @click="takeAll('left')"
+      >
+        Take left
+      </AppButton>
+      <AppButton
+        title="Take the right side of every conflict in this file"
+        :disabled="!conflictIndexes.length"
+        @click="takeAll('right')"
+      >
+        Take right
+      </AppButton>
+      <AppButton
+        title="Take both sides of every conflict in this file, left then right"
+        :disabled="!conflictIndexes.length"
+        @click="takeAll('both')"
+      >
+        Take both
+      </AppButton>
       <AppButton
         :variant="focus ? 'primary' : 'ghost'"
         :aria-pressed="focus"

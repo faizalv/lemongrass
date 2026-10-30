@@ -7,7 +7,6 @@ import {
   StateEffect,
   StateField,
   type Extension,
-  type Range,
   type Text,
   type Transaction,
   type TransactionSpec
@@ -15,7 +14,9 @@ import {
 import {
   Decoration,
   EditorView,
+  GutterMarker,
   WidgetType,
+  gutter,
   drawSelection,
   keymap,
   lineNumbers,
@@ -23,7 +24,7 @@ import {
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, invertedEffects } from '@codemirror/commands'
 import type { GitLineRange } from '../../preload/types'
-import type { MiddleChunk } from './conflictModel'
+import type { ConflictSide, MiddleChunk, SideDecision } from './conflictModel'
 
 // A conflict's place in a side pane, which never changes since the side panes are read only.
 export interface SideChunk {
@@ -91,6 +92,104 @@ const sideChunks = StateField.define<SideChunk[]>({
   update: (value) => value
 })
 
+const setDecisions = StateEffect.define<Record<number, SideDecision>>()
+
+// What the middle decided for this pane's side of each conflict, pushed in from the middle.
+const sideDecisions = StateField.define<Record<number, SideDecision>>({
+  create: () => ({}),
+  update(value, tr) {
+    for (const effect of tr.effects) if (effect.is(setDecisions)) value = effect.value
+    return value
+  }
+})
+
+export type OnDecide = (index: number, decision: 'taken' | 'rejected') => void
+
+const CHEVRONS = {
+  left: 'M3 3.5l3.5 3.5L3 10.5M7.5 3.5L11 7l-3.5 3.5',
+  right: 'M11 3.5L7.5 7l3.5 3.5M6.5 3.5L3 7l3.5 3.5'
+}
+const CROSS = 'M4 4l6 6M10 4l-6 6'
+
+function iconButton(className: string, path: string, label: string, action: string): HTMLElement {
+  const button = document.createElement('button')
+  button.className = `cm-decide-button ${className}`
+  button.title = label
+  button.setAttribute('aria-label', label)
+  button.dataset.decide = action
+  button.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`
+  return button
+}
+
+// The chevron takes this pane's side into the middle and the cross rejects it. The decided one
+// stays lit.
+class DecideMarker extends GutterMarker {
+  readonly side: ConflictSide
+  readonly decision: SideDecision
+
+  constructor(side: ConflictSide, decision: SideDecision) {
+    super()
+    this.side = side
+    this.decision = decision
+  }
+
+  eq(other: DecideMarker): boolean {
+    return other.side === this.side && other.decision === this.decision
+  }
+
+  toDOM(): Node {
+    const dom = document.createElement('span')
+    dom.className = 'cm-decide'
+    const take = iconButton(
+      this.decision === 'taken' ? 'take on' : 'take',
+      CHEVRONS[this.side],
+      `Take the ${this.side} side`,
+      'taken'
+    )
+    const reject = iconButton(
+      this.decision === 'rejected' ? 'reject on' : 'reject',
+      CROSS,
+      `Reject the ${this.side} side`,
+      'rejected'
+    )
+    // The chevron points into the middle, so it sits on the middle's side of the cross.
+    if (this.side === 'left') dom.append(reject, take)
+    else dom.append(take, reject)
+    return dom
+  }
+}
+
+// The conflict whose first line is this one, counting an empty side at the line after it.
+function sideChunkAt(state: EditorState, lineNumber: number): SideChunk | undefined {
+  return state
+    .field(sideChunks)
+    .find(({ range }) => Math.min(range.start, state.doc.lines) === lineNumber)
+}
+
+function decisionGutter(side: ConflictSide, onDecide: OnDecide): Extension {
+  return gutter({
+    class: 'cm-conflict-decide',
+    lineMarker(view, line) {
+      const chunk = sideChunkAt(view.state, view.state.doc.lineAt(line.from).number)
+      if (!chunk) return null
+      return new DecideMarker(side, view.state.field(sideDecisions)[chunk.index] ?? 'open')
+    },
+    lineMarkerChange: (update) =>
+      update.startState.field(sideDecisions) !== update.state.field(sideDecisions),
+    initialSpacer: () => new DecideMarker(side, 'open'),
+    domEventHandlers: {
+      mousedown(view, line, event) {
+        const action = (event.target as HTMLElement).closest('[data-decide]')
+        if (!action) return false
+        const chunk = sideChunkAt(view.state, view.state.doc.lineAt(line.from).number)
+        if (chunk) onDecide(chunk.index, action.getAttribute('data-decide') as 'taken' | 'rejected')
+        event.preventDefault()
+        return true
+      }
+    }
+  })
+}
+
 class EmptyChunkWidget extends WidgetType {
   readonly resolved: boolean
 
@@ -106,72 +205,11 @@ class EmptyChunkWidget extends WidgetType {
   toDOM(): HTMLElement {
     const el = document.createElement('div')
     el.className = `cm-conflict-empty ${this.resolved ? 'resolved' : 'unresolved'}`
-    el.textContent = this.resolved ? 'Resolved as empty' : 'No lines here. Take a side or type.'
+    el.textContent = this.resolved
+      ? 'Resolved as empty'
+      : 'No lines here. Decide each side or type.'
     return el
   }
-}
-
-// Mounts the middle pane's bar for one conflict into dom and returns its unmount.
-export type MountChunkBar = (dom: HTMLElement, bar: ChunkBarProps) => () => void
-
-export interface ChunkBarProps {
-  index: number
-  label: string
-  resolved: boolean
-}
-
-const BAR_HEIGHT = 30
-
-const mountedBars = new WeakMap<HTMLElement, () => void>()
-
-// A bar above each conflict in all three panes, at the same height, so the panes stay aligned. The
-// middle's bar carries the take buttons, the side panes' bars only the label.
-class ChunkBarWidget extends WidgetType {
-  readonly bar: ChunkBarProps
-  readonly mount: MountChunkBar | null
-
-  constructor(bar: ChunkBarProps, mount: MountChunkBar | null) {
-    super()
-    this.bar = bar
-    this.mount = mount
-  }
-
-  eq(other: ChunkBarWidget): boolean {
-    return (
-      other.bar.index === this.bar.index &&
-      other.bar.label === this.bar.label &&
-      other.bar.resolved === this.bar.resolved
-    )
-  }
-
-  get estimatedHeight(): number {
-    return BAR_HEIGHT
-  }
-
-  toDOM(): HTMLElement {
-    const dom = document.createElement('div')
-    dom.className = 'cm-conflict-bar'
-    dom.contentEditable = 'false'
-    if (this.mount) mountedBars.set(dom, this.mount(dom, this.bar))
-    else dom.textContent = this.bar.label
-    return dom
-  }
-
-  destroy(dom: HTMLElement): void {
-    mountedBars.get(dom)?.()
-    mountedBars.delete(dom)
-  }
-
-  // The bar's buttons handle their own clicks, which the editor must not take.
-  ignoreEvent(): boolean {
-    return true
-  }
-}
-
-function barWidget(bar: ChunkBarProps, mount: MountChunkBar | null, at: number): Range<Decoration> {
-  return Decoration.widget({ widget: new ChunkBarWidget(bar, mount), block: true, side: -2 }).range(
-    at
-  )
 }
 
 class HiddenLinesWidget extends WidgetType {
@@ -255,8 +293,9 @@ function chunkClass(index: number, current: number | null, resolved: boolean): s
   return index === current ? `${state} cm-conflict-current` : state
 }
 
-function middleDecorations(mount: MountChunkBar): Extension {
-  return EditorView.decorations.compute(['doc', middleChunks, currentChunk], (state) => {
+const middleDecorations = EditorView.decorations.compute(
+  ['doc', middleChunks, currentChunk],
+  (state) => {
     const current = state.field(currentChunk)
     const chunks = state.field(middleChunks)
     const lines = lineClasses(
@@ -267,23 +306,18 @@ function middleDecorations(mount: MountChunkBar): Extension {
         className: chunkClass(chunk.index, current, chunk.resolved)
       }))
     )
-    const widgets = chunks.flatMap((chunk, at) => {
-      const bar = barWidget(
-        { index: chunk.index, label: `Conflict ${at + 1}`, resolved: chunk.resolved },
-        mount,
-        chunk.from
+    const empty = chunks
+      .filter((chunk) => chunk.from === chunk.to)
+      .map((chunk) =>
+        Decoration.widget({
+          widget: new EmptyChunkWidget(chunk.resolved),
+          block: true,
+          side: -1
+        }).range(chunk.from)
       )
-      if (chunk.from !== chunk.to) return [bar]
-      const empty = Decoration.widget({
-        widget: new EmptyChunkWidget(chunk.resolved),
-        block: true,
-        side: -1
-      }).range(chunk.from)
-      return [bar, empty]
-    })
-    return lines.update({ add: widgets, sort: true })
-  })
-}
+    return empty.length ? lines.update({ add: empty, sort: true }) : lines
+  }
+)
 
 const sideDecorations = EditorView.decorations.compute(
   ['doc', sideChunks, currentChunk],
@@ -306,15 +340,7 @@ const sideDecorations = EditorView.decorations.compute(
         ]
       })
     )
-    // An empty side sits after the line before it, which is the next line's start.
-    const bars = chunks.map(({ index, range }, at) =>
-      barWidget(
-        { index, label: `Conflict ${at + 1}`, resolved: false },
-        null,
-        range.start > doc.lines ? doc.length : doc.line(range.start).from
-      )
-    )
-    return lines.update({ add: bars, sort: true })
+    return lines
   }
 )
 
@@ -338,27 +364,39 @@ const theme = EditorView.theme({
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
     backgroundColor: 'var(--color-amber-muted) !important'
   },
-  '.cm-conflict-unresolved': { backgroundColor: 'var(--color-error-muted)' },
-  '.cm-conflict-resolved': { backgroundColor: 'var(--color-success-muted)' },
-  '.cm-conflict-side': { backgroundColor: 'var(--color-amber-muted)' },
-  '.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-amber)' },
+  // Conflicts are sapphire in the sides and jade in the middle, kept faint so syntax colors can
+  // come later, and never amber, which marks comments.
+  '.cm-conflict-unresolved': { backgroundColor: 'var(--color-jade-muted)' },
+  '.cm-conflict-resolved': { boxShadow: 'inset 1px 0 0 var(--color-jade-dim)' },
+  '.cm-conflict-side': { backgroundColor: 'var(--color-sapphire-muted)' },
+  '.cm-conflict-side.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-sapphire)' },
+  '.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-jade)' },
   '.cm-conflict-empty': {
     padding: '0 var(--space-2)',
     fontFamily: 'var(--font-body)',
     fontStyle: 'italic',
     color: 'var(--color-fg-muted)',
-    boxShadow: 'inset 2px 0 0 var(--color-amber)'
+    boxShadow: 'inset 1px 0 0 var(--color-jade-dim)'
   },
-  '.cm-conflict-bar': {
-    height: `${BAR_HEIGHT}px`,
-    boxSizing: 'border-box',
+  '.cm-conflict-decide .cm-gutterElement': { display: 'flex', alignItems: 'center' },
+  '.cm-decide': {
     display: 'flex',
     alignItems: 'center',
-    padding: '0 var(--space-2)',
-    fontFamily: 'var(--font-body)',
-    color: 'var(--color-fg-secondary)',
-    borderTop: '1px solid var(--color-border-subtle)'
+    gap: '2px',
+    padding: '0 2px'
   },
+  '.cm-decide-button': {
+    display: 'flex',
+    padding: '1px',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    background: 'none',
+    color: 'var(--color-fg-disabled)',
+    cursor: 'pointer'
+  },
+  '.cm-decide-button.take:hover, .cm-decide-button.take.on': { color: 'var(--color-jade)' },
+  '.cm-decide-button.reject:hover, .cm-decide-button.reject.on': { color: 'var(--color-error)' },
+  '.cm-decide-button.on': { backgroundColor: 'var(--color-surface-2)' },
   '.cm-conflict-hidden': {
     padding: '0 var(--space-2)',
     fontFamily: 'var(--font-body)',
@@ -366,8 +404,7 @@ const theme = EditorView.theme({
     color: 'var(--color-fg-muted)',
     backgroundColor: 'var(--color-surface-1)'
   },
-  '.cm-conflict-empty.unresolved': { backgroundColor: 'var(--color-error-muted)' },
-  '.cm-conflict-empty.resolved': { backgroundColor: 'var(--color-success-muted)' }
+  '.cm-conflict-empty.unresolved': { backgroundColor: 'var(--color-jade-muted)' }
 })
 
 function base(extra: Extension[]): Extension[] {
@@ -378,7 +415,6 @@ export function middleState(
   doc: string,
   chunks: MiddleChunk[],
   onUpdate: (state: EditorState, docChanged: boolean) => void,
-  mountBar: MountChunkBar,
   extra: Extension[]
 ): EditorState {
   return EditorState.create({
@@ -386,7 +422,7 @@ export function middleState(
     extensions: base([
       middleChunks.init(() => chunks),
       undoChunks,
-      middleDecorations(mountBar),
+      middleDecorations,
       history(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       EditorView.updateListener.of((update) => {
@@ -399,47 +435,59 @@ export function middleState(
   })
 }
 
-export function sideState(doc: string, chunks: SideChunk[], extra: Extension[]): EditorState {
+export function sideState(
+  doc: string,
+  chunks: SideChunk[],
+  side: ConflictSide,
+  onDecide: OnDecide,
+  extra: Extension[]
+): EditorState {
   return EditorState.create({
     doc,
     extensions: base([
       sideChunks.init(() => chunks),
+      sideDecisions,
       sideDecorations,
       // Read only but still editable as a view, so lines can be selected to comment on them.
       EditorState.readOnly.of(true),
-      extra
+      extra,
+      // After the extras, so this gutter sits after the comment gutter, closest to the text.
+      decisionGutter(side, onDecide)
     ])
   })
 }
 
-// Replaces a conflict in the middle with one side, both, or its text from before, as one undoable
-// step that leaves the cursor at its start.
-export function chunkReplacement(
-  state: EditorState,
-  index: number,
-  text: string,
-  resolved: boolean
-): TransactionSpec | null {
-  const chunk = state.field(middleChunks).find((c) => c.index === index)
-  if (!chunk) return null
-  return {
-    changes: { from: chunk.from, to: chunk.to, insert: text },
-    effects: [
-      setChunk.of({ index, from: chunk.from, to: chunk.from + text.length, resolved }),
-      EditorView.scrollIntoView(chunk.from, { y: 'center' })
-    ],
-    selection: { anchor: chunk.from }
-  }
+export function showDecisions(view: EditorView, decisions: Record<number, SideDecision>): void {
+  view.dispatch({ effects: setDecisions.of(decisions) })
 }
 
-export function replaceChunk(
-  view: EditorView,
-  index: number,
-  text: string,
-  resolved: boolean
-): void {
-  const spec = chunkReplacement(view.state, index, text, resolved)
-  if (spec) view.dispatch(spec)
+// Rewrites conflicts in the middle after a decision, as one undoable step. Each update carries the
+// chunk's new decisions and its new text; positions are worked out here.
+export function chunkReplacements(
+  state: EditorState,
+  updates: { chunk: MiddleChunk; text: string }[]
+): TransactionSpec | null {
+  const current = state.field(middleChunks)
+  const sorted = updates
+    .map((update) => ({ ...update, old: current.find((c) => c.index === update.chunk.index) }))
+    .filter((update): update is typeof update & { old: MiddleChunk } => update.old !== undefined)
+    .sort((a, b) => a.old.from - b.old.from)
+  if (sorted.length === 0) return null
+  let shift = 0
+  const effects = sorted.map(({ chunk, text, old }) => {
+    const from = old.from + shift
+    shift += text.length - (old.to - old.from)
+    return setChunk.of({ ...chunk, from, to: from + text.length })
+  })
+  const first = sorted[0].old.from
+  return {
+    changes: sorted.map(({ text, old }) => ({ from: old.from, to: old.to, insert: text })),
+    effects:
+      sorted.length === 1
+        ? [...effects, EditorView.scrollIntoView(first, { y: 'center' })]
+        : effects,
+    selection: sorted.length === 1 ? { anchor: first } : undefined
+  }
 }
 
 export function showCurrent(view: EditorView, index: number | null): void {

@@ -6,14 +6,21 @@ import type { GitConflictChunk, GitLineRange } from '../../preload/types'
 
 export type ConflictSide = 'left' | 'right'
 export type ConflictTake = ConflictSide | 'both'
+export type SideDecision = 'open' | 'taken' | 'rejected'
+
+type ConflictChunk = Extract<GitConflictChunk, { kind: 'conflict' }>
 
 // A conflict chunk's place in the middle document, as character offsets. Every line in the middle
-// ends with a newline, so a chunk covers whole lines and an empty chunk has from === to.
+// ends with a newline, so a chunk covers whole lines and an empty chunk has from === to. Each side
+// is decided on its own, and taken keeps the order the sides were taken in.
 export interface MiddleChunk {
   index: number
   from: number
   to: number
   resolved: boolean
+  left: SideDecision
+  right: SideDecision
+  taken: ConflictSide[]
 }
 
 // One stretch of a pane mapped to the working file. exact means line n of the pane is line n of the
@@ -61,10 +68,41 @@ export function stripChunks(chunks: GitConflictChunk[]): GitConflictChunk[] {
   )
 }
 
-export function takeText(chunk: GitConflictChunk, take: ConflictTake): string {
-  if (chunk.kind === 'clean') return lineText(chunk.lines)
-  if (take === 'both') return lineText([...chunk.left, ...chunk.right])
-  return lineText(chunk[take])
+function decidedText(conflict: ConflictChunk, taken: ConflictSide[]): string {
+  return lineText(taken.length ? taken.flatMap((side) => conflict[side]) : conflict.base)
+}
+
+// Takes or rejects one side of a conflict. The middle holds the taken sides in the order taken, or
+// the base once none is, and the conflict is resolved when both sides are decided.
+export function decide(
+  chunk: MiddleChunk,
+  conflict: ConflictChunk,
+  side: ConflictSide,
+  decision: 'taken' | 'rejected'
+): { chunk: MiddleChunk; text: string } {
+  const others = chunk.taken.filter((entry) => entry !== side)
+  const taken =
+    decision === 'rejected' ? others : chunk.taken.includes(side) ? chunk.taken : [...others, side]
+  const next = { ...chunk, [side]: decision, taken }
+  next.resolved = next.left !== 'open' && next.right !== 'open'
+  return { chunk: next, text: decidedText(conflict, next.taken) }
+}
+
+// The toolbar's take for a whole file: both sides decided at once, left before right for both.
+export function decideAll(
+  chunk: MiddleChunk,
+  conflict: ConflictChunk,
+  take: ConflictTake
+): { chunk: MiddleChunk; text: string } {
+  const taken: ConflictSide[] = take === 'both' ? ['left', 'right'] : [take]
+  const next: MiddleChunk = {
+    ...chunk,
+    left: taken.includes('left') ? 'taken' : 'rejected',
+    right: taken.includes('right') ? 'taken' : 'rejected',
+    taken,
+    resolved: true
+  }
+  return { chunk: next, text: decidedText(conflict, taken) }
 }
 
 // The middle starts as git's clean text with each conflict holding its base lines, unresolved.
@@ -74,7 +112,15 @@ export function buildMiddle(chunks: GitConflictChunk[]): { text: string; chunks:
   chunks.forEach((chunk, index) => {
     const part = lineText(chunk.kind === 'clean' ? chunk.lines : chunk.base)
     if (chunk.kind === 'conflict') {
-      middle.push({ index, from: text.length, to: text.length + part.length, resolved: false })
+      middle.push({
+        index,
+        from: text.length,
+        to: text.length + part.length,
+        resolved: false,
+        left: 'open',
+        right: 'open',
+        taken: []
+      })
     }
     text += part
   })

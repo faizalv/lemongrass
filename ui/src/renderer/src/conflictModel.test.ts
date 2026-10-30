@@ -8,13 +8,14 @@ import {
   applyText,
   buildMiddle,
   collapseSpans,
+  decide,
+  decideAll,
   diskSegments,
   fromDisk,
   isCrlf,
   locateChunks,
   mapScroll,
   middleRanges,
-  takeText,
   toDisk
 } from './conflictModel.ts'
 
@@ -28,6 +29,8 @@ import {
 //  7 >>>>>>> theirs
 //  8 b
 //  9 c
+const open = { resolved: false, left: 'open', right: 'open', taken: [] }
+
 const chunks: GitConflictChunk[] = [
   { kind: 'clean', lines: ['a'], disk: { start: 1, end: 1 } },
   {
@@ -49,19 +52,42 @@ const chunks: GitConflictChunk[] = [
 test('the middle holds the base of each conflict, unresolved', () => {
   const middle = buildMiddle(chunks)
   assert.equal(middle.text, 'a\nB1\nb\nc\n')
-  assert.deepEqual(middle.chunks, [{ index: 1, from: 2, to: 5, resolved: false }])
+  assert.deepEqual(middle.chunks, [{ index: 1, from: 2, to: 5, ...open }])
 })
 
-test('take both puts left then right', () => {
-  assert.equal(takeText(chunks[1], 'both'), 'L1\nR1\nR2\n')
-  assert.equal(takeText(chunks[1], 'right'), 'R1\nR2\n')
+test('each side is decided on its own, taken sides in the order taken', () => {
+  const conflict = chunks[1] as Extract<GitConflictChunk, { kind: 'conflict' }>
+  const start = buildMiddle(chunks).chunks[0]
+  const right = decide(start, conflict, 'right', 'taken')
+  assert.equal(right.text, 'R1\nR2\n')
+  assert.equal(right.chunk.resolved, false)
+  const both = decide(right.chunk, conflict, 'left', 'taken')
+  assert.equal(both.text, 'R1\nR2\nL1\n')
+  assert.equal(both.chunk.resolved, true)
+  const rejected = decide(both.chunk, conflict, 'right', 'rejected')
+  assert.equal(rejected.text, 'L1\n')
+  // Rejecting both sides leaves the base.
+  assert.equal(decide(rejected.chunk, conflict, 'left', 'rejected').text, 'B1\n')
+})
+
+test('a file-wide take decides both sides of a conflict', () => {
+  const conflict = chunks[1] as Extract<GitConflictChunk, { kind: 'conflict' }>
+  const start = buildMiddle(chunks).chunks[0]
+  assert.equal(decideAll(start, conflict, 'both').text, 'L1\nR1\nR2\n')
+  assert.deepEqual(decideAll(start, conflict, 'right').chunk, {
+    ...start,
+    resolved: true,
+    left: 'rejected',
+    right: 'taken',
+    taken: ['right']
+  })
 })
 
 test('a conflict with no base starts empty in the middle', () => {
   const middle = buildMiddle([
     { kind: 'conflict', left: ['x'], base: [], right: ['y'], disk: null }
   ])
-  assert.deepEqual(middle, { text: '', chunks: [{ index: 0, from: 0, to: 0, resolved: false }] })
+  assert.deepEqual(middle, { text: '', chunks: [{ index: 0, from: 0, to: 0, ...open }] })
 })
 
 test('apply drops the newline the file did not have and restores CRLF', () => {
