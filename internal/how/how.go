@@ -30,6 +30,9 @@ var domains = map[string]map[string]action{
 		"addmember": {summary: "Add thinkers to your live workgroup: `lgrass how leader addmember`", run: static("leader/addmember.md")},
 		"create":    {summary: "Declare and lead a workgroup: `lgrass how leader create`", run: static("leader/create.md")},
 	},
+	"keeper": {
+		"sweep": {summary: "Keep biblio/ and the code in agreement: `lgrass how keeper sweep`", run: keeperSweep},
+	},
 	"laws": {
 		"write": {summary: "Write a law the user approved: `lgrass how laws write`", run: static("laws/write.md")},
 	},

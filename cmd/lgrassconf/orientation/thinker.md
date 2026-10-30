@@ -124,7 +124,7 @@ Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>
 - When a correction or a repeated mistake might be a standing rule, offer it to the human in chat: the rule in one sentence, then Why and How to apply. Only an explicit yes counts, and after a no you never offer it again. After the yes, run `lgrass how laws write`.
 - When a task is paused or handed to someone else, run `lgrass how task handover <slug>`.
 - When a task's work is done, run `lgrass how task close <slug>`. Moving a task into the archive is blocked until you have run it.
-- To keep `biblio` and the code in agreement, load the skill `lgrass-howtobe-keeper`.
+- To keep `biblio` and the code in agreement, or when asked to tidy, sweep or audit it, run `lgrass how keeper sweep`.
 - `lgrass-howtobe-thinker` covers your role in the workgroup.
 
 `lgrass version` prints the version of lemongrass you are running.
