@@ -140,14 +140,16 @@ class DecideMarker extends GutterMarker {
   toDOM(): Node {
     const dom = document.createElement('span')
     dom.className = 'cm-decide'
+    const lit = (own: SideDecision): string =>
+      this.decision === 'open' ? '' : this.decision === own ? ' on' : ' off'
     const take = iconButton(
-      this.decision === 'taken' ? 'take on' : 'take',
+      `take${lit('taken')}`,
       CHEVRONS[this.side],
       `Take the ${this.side} side`,
       'taken'
     )
     const reject = iconButton(
-      this.decision === 'rejected' ? 'reject on' : 'reject',
+      `reject${lit('rejected')}`,
       CROSS,
       `Reject the ${this.side} side`,
       'rejected'
@@ -166,9 +168,12 @@ function sideChunkAt(state: EditorState, lineNumber: number): SideChunk | undefi
     .find(({ range }) => Math.min(range.start, state.doc.lines) === lineNumber)
 }
 
+// The decision gutter sits next to the middle: after the text in the left pane, before it in the
+// right pane, so the two side panes mirror each other.
 function decisionGutter(side: ConflictSide, onDecide: OnDecide): Extension {
   return gutter({
     class: 'cm-conflict-decide',
+    side: side === 'left' ? 'after' : 'before',
     lineMarker(view, line) {
       const chunk = sideChunkAt(view.state, view.state.doc.lineAt(line.from).number)
       if (!chunk) return null
@@ -189,6 +194,33 @@ function decisionGutter(side: ConflictSide, onDecide: OnDecide): Extension {
     }
   })
 }
+
+class LineNumberMarker extends GutterMarker {
+  readonly number: number
+
+  constructor(number: number) {
+    super()
+    this.number = number
+  }
+
+  eq(other: LineNumberMarker): boolean {
+    return other.number === this.number
+  }
+
+  toDOM(): Node {
+    return document.createTextNode(String(this.number))
+  }
+}
+
+// lineNumbers() can only sit before the text, and the left pane shows its numbers after it, next
+// to the middle. The cm-lineNumbers class gives it the same look.
+const lineNumbersAfter = gutter({
+  class: 'cm-lineNumbers cm-lineNumbers-after',
+  side: 'after',
+  lineMarker: (view, line) => new LineNumberMarker(view.state.doc.lineAt(line.from).number),
+  lineMarkerChange: (update) => update.docChanged,
+  initialSpacer: (view) => new LineNumberMarker(view.state.doc.lines)
+})
 
 class EmptyChunkWidget extends WidgetType {
   readonly resolved: boolean
@@ -359,6 +391,8 @@ const theme = EditorView.theme({
     color: 'var(--color-fg-disabled)',
     border: 'none'
   },
+  // The base theme draws a light border between the text and a gutter after it.
+  '.cm-gutters.cm-gutters-after': { border: 'none !important' },
   '&.cm-focused': { outline: 'none' },
   '.cm-cursor': { borderLeftColor: 'var(--color-amber)' },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
@@ -391,12 +425,16 @@ const theme = EditorView.theme({
     border: 'none',
     borderRadius: 'var(--radius-sm)',
     background: 'none',
-    color: 'var(--color-fg-disabled)',
     cursor: 'pointer'
   },
-  '.cm-decide-button.take:hover, .cm-decide-button.take.on': { color: 'var(--color-jade)' },
-  '.cm-decide-button.reject:hover, .cm-decide-button.reject.on': { color: 'var(--color-error)' },
+  // Both controls are drawn in full until a side is decided, then the one not chosen dims.
+  '.cm-decide-button.take': { color: 'var(--color-jade)' },
+  '.cm-decide-button.reject': { color: 'var(--color-error)' },
   '.cm-decide-button.on': { backgroundColor: 'var(--color-surface-2)' },
+  '.cm-decide-button.off': { color: 'var(--color-fg-disabled)' },
+  '.cm-decide-button.take.off:hover': { color: 'var(--color-jade)' },
+  '.cm-decide-button.reject.off:hover': { color: 'var(--color-error)' },
+  '.cm-lineNumbers-after .cm-gutterElement': { textAlign: 'left', padding: '0 5px 0 3px' },
   '.cm-conflict-hidden': {
     padding: '0 var(--space-2)',
     fontFamily: 'var(--font-body)',
@@ -408,7 +446,7 @@ const theme = EditorView.theme({
 })
 
 function base(extra: Extension[]): Extension[] {
-  return [lineNumbers(), drawSelection(), currentChunk, theme, ...extra]
+  return [drawSelection(), currentChunk, theme, ...extra]
 }
 
 export function middleState(
@@ -420,6 +458,7 @@ export function middleState(
   return EditorState.create({
     doc,
     extensions: base([
+      lineNumbers(),
       middleChunks.init(() => chunks),
       undoChunks,
       middleDecorations,
@@ -450,9 +489,11 @@ export function sideState(
       sideDecorations,
       // Read only but still editable as a view, so lines can be selected to comment on them.
       EditorState.readOnly.of(true),
-      extra,
-      // After the extras, so this gutter sits after the comment gutter, closest to the text.
-      decisionGutter(side, onDecide)
+      // Gutters on one side line up in extension order, so the decision gutter comes nearest the
+      // middle and the extras' gutters, such as the comment one, end up on the outer edge.
+      side === 'left'
+        ? [extra, lineNumbersAfter, decisionGutter(side, onDecide)]
+        : [decisionGutter(side, onDecide), lineNumbers(), extra]
     ])
   })
 }

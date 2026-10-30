@@ -467,21 +467,66 @@ onBeforeUnmount(() => {
         :disabled="!conflictIndexes.length"
         @click="takeAll('left')"
       >
-        Take left
+        <span class="icon-label">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 3.5l3.5 3.5L3 10.5M7.5 3.5L11 7l-3.5 3.5" />
+          </svg>
+          Take left
+        </span>
       </AppButton>
       <AppButton
         title="Take the right side of every conflict in this file"
         :disabled="!conflictIndexes.length"
         @click="takeAll('right')"
       >
-        Take right
+        <span class="icon-label">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M11 3.5L7.5 7l3.5 3.5M6.5 3.5L3 7l3.5 3.5" />
+          </svg>
+          Take right
+        </span>
       </AppButton>
       <AppButton
         title="Take both sides of every conflict in this file, left then right"
         :disabled="!conflictIndexes.length"
         @click="takeAll('both')"
       >
-        Take both
+        <span class="icon-label">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M2 3.5L5.5 7 2 10.5M12 3.5L8.5 7l3.5 3.5" />
+          </svg>
+          Take both
+        </span>
       </AppButton>
       <AppButton
         :variant="focus ? 'primary' : 'ghost'"
@@ -489,7 +534,7 @@ onBeforeUnmount(() => {
         :title="focus ? 'Show every line' : 'Hide the lines that need no merging'"
         @click="toggleFocus"
       >
-        <span class="focus-label">
+        <span class="icon-label">
           <svg
             width="12"
             height="12"
@@ -621,7 +666,7 @@ onBeforeUnmount(() => {
   background: var(--color-amber);
 }
 
-.focus-label {
+.icon-label {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
