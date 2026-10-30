@@ -66,7 +66,8 @@ export function conflictCommentExtension(ctx: ConflictPaneContext): Extension {
       addAnnotation(ctx.project.id, scope, anchor, quote, comment)
     },
     onEdit: (id, comment) => editAnnotation(ctx.project.id, scope, id, comment),
-    onRemove: (id) => removeAnnotation(ctx.project.id, scope, id)
+    onRemove: (id) => removeAnnotation(ctx.project.id, scope, id),
+    side: ctx.pane === 'right' ? 'after' : 'before'
   })
 }
 

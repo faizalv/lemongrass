@@ -44,6 +44,8 @@ export interface AnnotationGutterConfig {
   onAdd: (range: LineRange, quote: string, comment: string) => void
   onEdit: (id: string, comment: string) => void
   onRemove: (id: string) => void
+  // Which side of the text the "+" column sits on; side panes put it on their outer edge.
+  side?: 'before' | 'after'
 }
 
 const configFacet = Facet.define<AnnotationGutterConfig, AnnotationGutterConfig | null>({
@@ -296,6 +298,7 @@ export function annotationGutter(config: AnnotationGutterConfig): Extension {
 
   const markers = gutter({
     class: 'cm-annotation-gutter',
+    side: config.side ?? 'before',
     lineMarker(view, line) {
       const info = view.state.field(infoField)
       const number = view.state.doc.lineAt(line.from).number
@@ -348,9 +351,11 @@ export function annotationGutter(config: AnnotationGutterConfig): Extension {
 const cardWidth = ViewPlugin.define((view) => {
   const measure = {
     read: () => {
-      const gutters = view.dom.querySelector<HTMLElement>('.cm-gutters')
-      const left = gutters?.offsetWidth ?? 0
-      return { left, width: Math.max(view.scrollDOM.clientWidth - left, 0) }
+      const before = view.dom.querySelector<HTMLElement>('.cm-gutters-before')
+      const after = view.dom.querySelector<HTMLElement>('.cm-gutters-after')
+      const left = before?.offsetWidth ?? 0
+      const right = after?.offsetWidth ?? 0
+      return { left, width: Math.max(view.scrollDOM.clientWidth - left - right, 0) }
     },
     write: ({ left, width }: { left: number; width: number }) => {
       view.dom.style.setProperty('--cm-annotation-left', `${left}px`)
