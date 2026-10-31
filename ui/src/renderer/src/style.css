@@ -123,9 +123,9 @@
   --radius-pill: 999px;
 
   /* Type */
-  --font-display: 'Comfortaa', sans-serif;
-  --font-body:    'DM Sans', sans-serif;
-  --font-mono:    'JetBrains Mono', 'Courier Prime', monospace;
+  --font-display: 'Comfortaa Variable', sans-serif;
+  --font-body:    'DM Sans Variable', sans-serif;
+  --font-mono:    'JetBrains Mono Variable', 'Courier Prime', monospace;
 
   --text-xs: 12px; --text-sm: 14px; --text-base: 16px; --text-md: 18px;
   --text-lg: 20px; --text-xl: 24px; --text-2xl: 32px; --text-3xl: 40px;

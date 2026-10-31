@@ -15,6 +15,7 @@ import {
   shellHasSelection,
   shellRestoreFailures,
   startFreshShell,
+  terminalFontReady,
   type ShellSpec
 } from '../shellRegistry'
 import AppButton from './AppButton.vue'
@@ -46,14 +47,20 @@ function onMenuSelect(key: string): void {
   focusShell(props.spec.id)
 }
 
-onMounted(() => {
-  if (!containerEl.value) return
+let unmounted = false
+
+onMounted(async () => {
+  await terminalFontReady()
+  if (unmounted || !containerEl.value) return
   attachShell(props.spec, containerEl.value)
   resizeObserver = new ResizeObserver(() => fitShell(props.spec.id))
   resizeObserver.observe(containerEl.value)
 })
 
-onBeforeUnmount(() => resizeObserver?.disconnect())
+onBeforeUnmount(() => {
+  unmounted = true
+  resizeObserver?.disconnect()
+})
 </script>
 
 <template>

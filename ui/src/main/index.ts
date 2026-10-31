@@ -20,7 +20,12 @@ import { registerProjectHandlers } from './projects'
 import { setTrustBinary } from './projectTrust'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerUiStateHandlers } from './uiState'
-import { rememberWindowState, restoreWindowMode, savedWindowBounds } from './windowState'
+import {
+  rememberWindowState,
+  restoreWindowMode,
+  savedWindowBounds,
+  savedZoomFactor
+} from './windowState'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
 import { registerGitHandlers } from './git'
 import { registerReviewHandlers } from './review'
@@ -41,15 +46,17 @@ let mainWindow: BrowserWindow | undefined
 
 function createWindow(): void {
   let closing = false
+  const bounds = savedWindowBounds()
   const win = new BrowserWindow({
-    ...savedWindowBounds(),
+    ...bounds,
     show: false,
     frame: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      zoomFactor: savedZoomFactor(bounds)
     }
   })
   mainWindow = win

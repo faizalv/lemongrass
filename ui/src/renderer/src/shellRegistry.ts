@@ -49,6 +49,8 @@ interface ShellSession {
 }
 
 const sessions = new Map<string, ShellSession>()
+// Tabs asked to take focus before their terminal was opened, focused once it opens.
+const pendingFocus = new Set<string>()
 const byShellId = new Map<string, ShellSession>()
 const bufferedData = new Map<string, string[]>()
 const earlyExits = new Map<string, number>()
@@ -101,9 +103,43 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
+const FONT_SIZE = 13
+const FONT_WAIT_MS = 3000
+let fontReady: Promise<unknown> | undefined
+
+// xterm measures its cell once, at open, from whichever face is available then, and never again
+// when a font finishes loading. A terminal opened on the fallback face keeps a row count that no
+// longer fits once the real one draws. The timeout keeps a font that fails to load from blocking
+// every terminal.
+export function terminalFontReady(): Promise<unknown> {
+  fontReady ??= Promise.race([
+    document.fonts.load(`${FONT_SIZE}px ${cssVar('--font-mono')}`),
+    new Promise((resolve) => setTimeout(resolve, FONT_WAIT_MS))
+  ])
+  return fontReady
+}
+
+// A zoom changes devicePixelRatio, and xterm re-measures its cells on its own matchMedia listener.
+// A ResizeObserver refit can run before that, leaving a row count for the old cell size with no
+// later size change to correct it, so every shell refits a frame after the ratio changes.
+function watchPixelRatio(): void {
+  const query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+  query.addEventListener(
+    'change',
+    () => {
+      requestAnimationFrame(() => {
+        for (const tabId of sessions.keys()) fitShell(tabId)
+      })
+      watchPixelRatio()
+    },
+    { once: true }
+  )
+}
+
 function listen(): void {
   if (listening) return
   listening = true
+  watchPixelRatio()
   window.api.pty.onData(({ id, data }) => {
     const session = byShellId.get(id)
     if (session) {
@@ -128,7 +164,7 @@ function listen(): void {
 function createSession(spec: ShellSpec): ShellSession {
   const term = new Terminal({
     fontFamily: cssVar('--font-mono'),
-    fontSize: 13,
+    fontSize: FONT_SIZE,
     fontWeight: 400,
     fontWeightBold: 600,
     cursorStyle: 'bar',
@@ -301,7 +337,9 @@ export async function pasteIntoShell(tabId: string): Promise<void> {
 }
 
 export function focusShell(tabId: string): void {
-  sessions.get(tabId)?.term.focus()
+  const session = sessions.get(tabId)
+  if (session?.opened) session.term.focus()
+  else pendingFocus.add(tabId)
 }
 
 // Starts a shell's process before its tab is shown, because only the active project's tabs are mounted and a workgroup thinker must run whichever project is on screen.
@@ -325,6 +363,7 @@ export function attachShell(spec: ShellSpec, container: HTMLElement): void {
   if (!session.opened) {
     session.opened = true
     session.term.open(session.host)
+    if (pendingFocus.delete(spec.id)) session.term.focus()
     if (session.started) return fitShell(spec.id)
     session.started = true
     session.fit.fit()
@@ -336,6 +375,7 @@ export function attachShell(spec: ShellSpec, container: HTMLElement): void {
 }
 
 export function disposeShell(tabId: string): void {
+  pendingFocus.delete(tabId)
   const session = sessions.get(tabId)
   if (!session) return
   sessions.delete(tabId)

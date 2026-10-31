@@ -20,8 +20,9 @@ export async function refreshZoomPresets(): Promise<void> {
   zoom.presets = await window.api.uiState.zoomPresets()
 }
 
-// A saved zoom above this screen's largest preset is shown at that preset but stays saved, so it
-// comes back on a wider screen.
+// Main already opened the page at this zoom (savedZoomFactor), so this syncs the state. A saved
+// zoom above this screen's largest preset is shown at that preset but stays saved, so it comes
+// back on a wider screen.
 export async function restoreZoom(saved: number | undefined): Promise<void> {
   await refreshZoomPresets()
   apply(Math.min(saved ?? 1, zoom.presets[zoom.presets.length - 1]))
