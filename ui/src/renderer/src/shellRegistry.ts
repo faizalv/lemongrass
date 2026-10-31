@@ -225,6 +225,7 @@ async function start(session: ShellSession): Promise<void> {
   initialArgs.delete(spec.id)
   const args = spawnArgs(spec.command, spec.id, initial)
   if (resumeAttempts.delete(spec.id)) session.resumeDeadline = Date.now() + RESUME_FAILURE_WINDOW_MS
+  const { cols, rows } = term
   const { id } = await window.api.pty.spawn({
     command: spec.command,
     args,
@@ -232,8 +233,8 @@ async function start(session: ShellSession): Promise<void> {
     account: spec.account,
     orientation: spec.thinker ? 'thinker' : 'tab',
     tabId: isResumableCommand(spec.command) ? spec.id : undefined,
-    cols: term.cols,
-    rows: term.rows
+    cols,
+    rows
   })
   if (session.disposed) {
     window.api.pty.kill(id)
@@ -241,6 +242,9 @@ async function start(session: ShellSession): Promise<void> {
   }
   session.shellId = id
   byShellId.set(id, session)
+  // fitShell drops the PTY resize while shellId is unset, so a refit during the spawn would leave
+  // the agent drawing for fewer rows than xterm shows.
+  if (term.cols !== cols || term.rows !== rows) window.api.pty.resize(id, term.cols, term.rows)
   for (const chunk of bufferedData.get(id) ?? []) term.write(chunk)
   bufferedData.delete(id)
   const earlyExitCode = earlyExits.get(id)
