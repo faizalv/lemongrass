@@ -8,6 +8,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import type { WorkgroupSpawnMember, WorkgroupSpawnResult } from '../preload/types'
+import { handleConflictOp, isConflictOp, type ConflictOpRequest } from './conflictAgent'
 import { handleNudge } from './tabNudge'
 import { handleWebOp, registerWebHandlers } from './web'
 import {
@@ -79,6 +80,7 @@ interface Reply {
   join?: { project_path: string; group_id: number; tab_id: string }
   text?: string
   data?: string
+  conflict?: Record<string, unknown>
 }
 
 const approvals = new Map<string, Approved>()
@@ -378,6 +380,8 @@ async function respond(
     if (request.op === 'nudge')
       return await handleNudge(nudgeLgrassdPath, String(request.tab_id ?? ''))
     if (request.op === 'web') return await handleWebOp(request)
+    if (isConflictOp(request.op))
+      return await handleConflictOp(request as unknown as ConflictOpRequest)
     return { ok: false, error: `unknown op ${String(request.op)}` }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }

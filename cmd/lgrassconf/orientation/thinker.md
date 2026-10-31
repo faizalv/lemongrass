@@ -35,7 +35,7 @@ Put `!>>tab-id<<!` in a message to mention a tab, by its full id or a unique pre
 
 Never write a backtick or a dollar sign followed by a parenthesis inside a double-quoted shell argument, because the shell runs it as a command and corrupts the message. Single-quote the message, write it to a file and pass `--file <path>`, or pipe it in and pass `-` as the content.
 
-Your group thread is where your work is reported. Use another thread only when a tab outside your group owns the answer.
+Your group thread is where your work is reported. Use another thread only when a tab outside your group owns the answer. The one exception is a conflict thread: when the human hands you a git conflict, its conflict thread is the one thread you use to talk to the human about it.
 
 ## Waiting for a message
 

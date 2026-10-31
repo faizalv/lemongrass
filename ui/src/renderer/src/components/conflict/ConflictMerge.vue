@@ -17,8 +17,18 @@ import {
 import { conflictCommentExtension, refreshConflictComments } from '../../conflictAnnotations'
 import { commentedLineRanges, isAnnotationChange } from '../../annotationGutter'
 import {
+  isNoteChange,
+  notedLineRanges,
+  noteCards,
+  refreshNotes,
+  type NoteMark
+} from '../../noteCards'
+import {
   applyText,
   buildMiddle,
+  buildProposal,
+  proposedIndexes,
+  type MiddleProposal,
   collapseSpans,
   decide,
   decideAll,
@@ -37,6 +47,8 @@ import {
   type SideDecision
 } from '../../conflictModel'
 import {
+  acceptAction,
+  acceptChunks,
   chunkAtCursor,
   chunkLines,
   focusLines,
@@ -56,19 +68,29 @@ import type {
   GitConflictChunk,
   GitConflictFile,
   GitConflictStage,
-  GitLineRange
+  GitLineRange,
+  WorkgroupThreadMessage
 } from '../../../../preload/types'
 import AppButton from '../AppButton.vue'
-import AppConfirmButton from '../AppConfirmButton.vue'
+import AppMenuButton from '../AppMenuButton.vue'
 import AppModal from '../AppModal.vue'
+import ConflictIcon from './ConflictIcon.vue'
+import type { MenuItem } from '../AppContextMenu.vue'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
 
-const props = defineProps<{
-  project: ProjectRef
-  path: string
-  file: ConflictFile
-}>()
+const props = withDefaults(
+  defineProps<{
+    project: ProjectRef
+    path: string
+    file: ConflictFile
+    // The model's latest submit message that lists this file, which puts the middle in proposed
+    // mode, and the model's notes on the file from the conflict thread.
+    submitId?: number | null
+    notes?: WorkgroupThreadMessage[]
+  }>(),
+  { submitId: null, notes: () => [] }
+)
 
 interface Loaded {
   chunks: GitConflictChunk[]
@@ -87,6 +109,8 @@ const conflictIndexes = computed(() =>
   (loaded.value?.chunks ?? []).flatMap((chunk, index) => (chunk.kind === 'conflict' ? [index] : []))
 )
 const unresolved = ref(0)
+// Proposals still waiting for the human.
+const proposedLeft = ref(0)
 const dirty = ref(false)
 const current = ref<number | null>(null)
 const applying = ref(false)
@@ -98,9 +122,16 @@ const focus = ref(false)
 const sizes = ref([1, 1, 1])
 const panesEl = ref<HTMLElement | null>(null)
 let workingSeen = props.file.working
-type Source = { chunks: GitConflictChunk[]; finalNewline: boolean }
+type Source = {
+  chunks: GitConflictChunk[]
+  finalNewline: boolean
+  proposal?: MiddleProposal | null
+}
 // What the middle was loaded from, which Reset goes back to.
 let source: Source = { chunks: [], finalNewline: true }
+// The chunk indexes holding the model's proposal in what is loaded.
+let proposed = new Set<number>()
+const proposalMode = ref(false)
 // Set once the work is written, so unmounting keeps no draft of it.
 let applied = false
 let left: EditorView | null = null
@@ -114,17 +145,95 @@ const position = computed(() => {
 
 const applyBlocked = computed((): string | null => {
   if (applying.value) return 'Applying'
-  if (unresolved.value > 0) return 'Resolve every conflict first'
-  return null
+  if (unresolved.value === 0) return null
+  const left = unresolved.value === 1 ? '1 conflict left' : `${unresolved.value} conflicts left`
+  const proposedPart =
+    proposedLeft.value === 0
+      ? ''
+      : proposedLeft.value === unresolved.value
+        ? ', proposed by the model'
+        : `, ${proposedLeft.value} of them proposed`
+  return `${left}${proposedPart}. Settle each one first.`
 })
+
+// The toolbar is status, not controls: a short counter, then what is left as plain text.
+const counterText = computed(() => {
+  const total = conflictIndexes.value.length
+  if (total === 0) return 'No conflicts left'
+  return position.value ? `${position.value} of ${total}` : `${total} conflicts`
+})
+
+const statusText = computed(() => {
+  if (conflictIndexes.value.length === 0) return ''
+  const open = unresolved.value - proposedLeft.value
+  const parts = [
+    ...(proposedLeft.value > 0 ? [`${proposedLeft.value} proposed`] : []),
+    ...(open > 0 ? [`${open} open`] : [])
+  ]
+  return parts.length ? parts.join(', ') : 'all settled'
+})
+
+const statusTitle = computed(() => {
+  const total = conflictIndexes.value.length
+  if (total === 0) return 'No conflicts left in this file'
+  const at = position.value ? `Conflict ${position.value} of ${total}. ` : ''
+  return `${at}${unresolved.value} unresolved, ${proposedLeft.value} of them proposed by the model.`
+})
+
+// The whole-file actions replace every conflict at once, so they sit behind the overflow icon,
+// and confirm with a second click whenever a waiting proposal or the human's edits would go.
+const menuItems = computed((): MenuItem[] => {
+  const none = conflictIndexes.value.length === 0
+  const atRisk = proposedLeft.value > 0 || dirty.value
+  return [
+    {
+      key: 'left',
+      label: `Take ${props.file.leftRef} for every conflict`,
+      disabled: none,
+      confirm: atRisk
+    },
+    {
+      key: 'right',
+      label: `Take ${props.file.rightRef} for every conflict`,
+      disabled: none,
+      confirm: atRisk
+    },
+    { key: 'both', label: 'Take both for every conflict', disabled: none, confirm: atRisk },
+    {
+      key: 'reset',
+      label: proposalMode.value ? 'Reset to proposal' : 'Reset',
+      title: proposalMode.value
+        ? 'Put the middle back as the model proposed it'
+        : 'Put the middle back as it was loaded',
+      disabled: !dirty.value,
+      confirm: true
+    }
+  ]
+})
+
+function onMenu(key: string): void {
+  if (key === 'left' || key === 'right' || key === 'both') takeAll(key)
+  else if (key === 'reset') reset()
+}
+
+// Below this toolbar width Accept all gives way; each proposed block still has its own Accept.
+const NARROW_TOOLBAR = 320
+const toolbarEl = ref<HTMLElement | null>(null)
+const narrow = ref(false)
+let toolbarObserver: ResizeObserver | null = null
 
 function stageText(stage: GitConflictStage): string {
   return stage.state === 'text' ? stage.text.replace(/\r\n/g, '\n') : ''
 }
 
 // The middle starts from git's merge of the stages. After the file changed on disk it starts from
-// the file instead, whose remaining markers become its conflicts.
+// the file instead, whose remaining markers become its conflicts. Once the model submitted this
+// file, it starts from the model's file with git's conflicts mapped into it as proposals.
 function chunksOf(file: ConflictFile, fromWorking: boolean): Source {
+  if (props.submitId !== null && file.chunks && file.working !== null) {
+    const built = buildProposal(file.chunks, file.working, file.workingChunks)
+    if (built) return built
+  }
   if (!fromWorking || file.working === null) {
     return { chunks: file.chunks ?? [], finalNewline: file.finalNewline }
   }
@@ -149,7 +258,18 @@ function rangesOf(pane: ConflictPane): GitLineRange[] {
 }
 
 function segmentsOf(pane: ConflictPane): ReturnType<typeof diskSegments> {
-  return diskSegments(loaded.value?.chunks ?? [], rangesOf(pane), pane)
+  return diskSegments(loaded.value?.chunks ?? [], rangesOf(pane), pane, proposed)
+}
+
+// The model's notes, shown only on its proposal, since their lines are the model's file.
+function notesIn(state: EditorState): NoteMark[] {
+  if (!proposalMode.value || !loaded.value) return []
+  const segments = diskSegments(loaded.value.chunks, middleLineRanges(state), 'middle', proposed)
+  return props.notes.flatMap((note) => {
+    if (!note.anchor) return []
+    const range = fromDisk(segments, note.anchor.startLine, note.anchor.endLine)
+    return range ? [{ id: note.id, ...range, author: note.label, body: note.body }] : []
+  })
 }
 
 function reviewExtension(pane: ConflictPane): Extension {
@@ -172,16 +292,21 @@ function reviewExtension(pane: ConflictPane): Extension {
 
 // Focus hides clean lines away from the conflicts, but never a line that carries a comment.
 function focusExtension(pane: ConflictPane): Extension {
-  return focusLines((state) => {
-    const chunks = loaded.value?.chunks ?? []
-    const ranges = pane === 'middle' ? middleLineRanges(state) : (loaded.value?.[pane] ?? [])
-    const clean = chunks.flatMap((chunk, index) => (chunk.kind === 'clean' ? [ranges[index]] : []))
-    const keep = commentedLineRanges(state).map((range) => ({
-      start: range.fromLine,
-      end: range.toLine
-    }))
-    return collapseSpans(clean, keep, state.doc.lines)
-  }, isAnnotationChange)
+  return focusLines(
+    (state) => {
+      const chunks = loaded.value?.chunks ?? []
+      const ranges = pane === 'middle' ? middleLineRanges(state) : (loaded.value?.[pane] ?? [])
+      const clean = chunks.flatMap((chunk, index) =>
+        chunk.kind === 'clean' ? [ranges[index]] : []
+      )
+      const keep = [...commentedLineRanges(state), ...notedLineRanges(state)].map((range) => ({
+        start: range.fromLine,
+        end: range.toLine
+      }))
+      return collapseSpans(clean, keep, state.doc.lines)
+    },
+    (tr) => isAnnotationChange(tr) || isNoteChange(tr)
+  )
 }
 
 function toggleFocus(): void {
@@ -194,7 +319,12 @@ function onMiddleUpdate(state: EditorState): void {
   if (at !== null) current.value = at
   const chunks = state.field(middleChunks)
   unresolved.value = chunks.filter((chunk) => !chunk.resolved).length
-  dirty.value = loaded.value !== null && !state.doc.eq(loaded.value.doc)
+  const waiting = chunks.filter((chunk) => chunk.proposed && !chunk.resolved)
+  proposedLeft.value = waiting.length
+  // An accepted proposal changes no text but is still work a reload would lose.
+  dirty.value =
+    loaded.value !== null &&
+    (!state.doc.eq(loaded.value.doc) || (proposalMode.value && chunks.some((c) => c.resolved)))
   pushDecisions(chunks)
 }
 
@@ -216,9 +346,11 @@ function pushDecisions(chunks: { index: number; left: SideDecision; right: SideD
 // A draft restores the middle as it was left, decisions included; otherwise it is built from raw.
 function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = null): void {
   source = raw
+  proposed = proposedIndexes(raw.proposal ?? null)
+  proposalMode.value = !!raw.proposal
   const crlf = isCrlf(raw.chunks)
   const chunks = stripChunks(raw.chunks)
-  const built = buildMiddle(chunks)
+  const built = buildMiddle(chunks, raw.proposal ?? null)
   const leftText = stageText(file.left)
   const rightText = stageText(file.right)
   const empty = chunks.map(() => ({ start: 1, end: 0 }))
@@ -230,10 +362,15 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     chunks.flatMap((chunk, index) =>
       chunk.kind === 'conflict' ? [{ index, range: located[pane][index] }] : []
     )
-  const middleExtras = [reviewExtension('middle'), focusExtension('middle')]
+  const middleExtras = [
+    reviewExtension('middle'),
+    focusExtension('middle'),
+    noteCards(notesIn),
+    acceptAction((index) => accept([index]))
+  ]
   const middleDoc = draft
     ? restoreMiddle(draft.middle, onMiddleUpdate, middleExtras)
-    : middleState(built.text, built.chunks, onMiddleUpdate, middleExtras)
+    : middleState(built.text, built.chunks, onMiddleUpdate, middleExtras, built.edits)
   loaded.value = {
     chunks,
     finalNewline: raw.finalNewline,
@@ -336,6 +473,16 @@ function takeAll(take: ConflictTake): void {
   if (spec) middle.dispatch(spec)
 }
 
+// Accept keeps the model's text for the current conflict, Accept all for every proposal left.
+// Accept keeps the model's text: one block from its own Accept, or every proposal left.
+function accept(indexes: number[] | 'all'): void {
+  if (!middle) return
+  const chosen =
+    indexes === 'all' ? middle.state.field(middleChunks).map((chunk) => chunk.index) : indexes
+  const spec = acceptChunks(middle.state, chosen)
+  if (spec) middle.dispatch(spec)
+}
+
 // Dragging the gutter after pane `at` moves width between it and the next pane, each keeping at
 // least 15 percent, so a narrow window can still give one pane room.
 function startResize(at: number, event: PointerEvent): void {
@@ -402,6 +549,26 @@ function onFileChange(file: ConflictFile): void {
 }
 
 watch(() => props.file, onFileChange)
+
+// A new submission reloads the proposal, or asks first when the middle holds the human's work.
+watch(
+  () => props.submitId,
+  () => {
+    if (dirty.value) {
+      pendingReload.value = props.file
+      return
+    }
+    workingSeen = props.file.working
+    load(props.file, chunksOf(props.file, true))
+  }
+)
+
+watch(
+  () => props.notes,
+  () => {
+    if (middle) refreshNotes(middle)
+  }
+)
 
 function reloadPending(): void {
   const file = pendingReload.value
@@ -477,6 +644,10 @@ const unregisterWork = registerWork(props.project.id, props.path, () => {
 })
 
 onMounted(() => {
+  toolbarObserver = new ResizeObserver(([entry]) => {
+    narrow.value = entry.contentRect.width < NARROW_TOOLBAR
+  })
+  if (toolbarEl.value) toolbarObserver.observe(toolbarEl.value)
   const draft = takeDraft(props.project.id, props.path, stagesOf(props.file))
   if (draft) {
     workingSeen = draft.workingSeen
@@ -491,12 +662,14 @@ onMounted(() => {
 // The tab is unmounted when its project is switched away or it moves to another pane; it keeps
 // its work for the next mount unless it was closed or applied.
 onBeforeUnmount(() => {
+  toolbarObserver?.disconnect()
   unregisterWork()
   if (middle && loaded.value && !applied && hasConflictTab(props.project.id, props.path)) {
     saveDraft(props.project.id, props.path, {
       stages: stagesOf(props.file),
       chunks: source.chunks,
       finalNewline: source.finalNewline,
+      proposal: source.proposal ?? null,
       loadedText: loaded.value.doc.toString(),
       refs,
       middle: snapshotMiddle(middle.state),
@@ -512,123 +685,60 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="conflict-merge">
-    <div class="toolbar">
-      <AppButton title="Previous conflict" :disabled="!conflictIndexes.length" @click="step(-1)">
-        Previous
-      </AppButton>
-      <AppButton title="Next conflict" :disabled="!conflictIndexes.length" @click="step(1)">
-        Next
-      </AppButton>
-      <span class="count">
-        <template v-if="conflictIndexes.length === 0">No conflicts left</template>
-        <template v-else>
-          <template v-if="position"
-            >Conflict {{ position }} of {{ conflictIndexes.length }}.</template
-          >
-          {{ unresolved }} unresolved
-        </template>
-      </span>
+    <!-- Apply is the only button with a frame: navigation and Focus are bare icons, what is left
+         is plain text, and the whole-file takes wait behind the overflow icon. -->
+    <div ref="toolbarEl" class="toolbar">
+      <div class="nav">
+        <button
+          type="button"
+          class="bar-icon"
+          title="Previous conflict"
+          aria-label="Previous conflict"
+          :disabled="!conflictIndexes.length"
+          @click="step(-1)"
+        >
+          <ConflictIcon name="prev" />
+        </button>
+        <span class="counter">{{ counterText }}</span>
+        <button
+          type="button"
+          class="bar-icon"
+          title="Next conflict"
+          aria-label="Next conflict"
+          :disabled="!conflictIndexes.length"
+          @click="step(1)"
+        >
+          <ConflictIcon name="next" />
+        </button>
+      </div>
+      <span v-if="statusText" class="status" :title="statusTitle">{{ statusText }}</span>
+      <button
+        v-if="proposalMode && proposedLeft > 0 && !narrow"
+        type="button"
+        class="accept-all"
+        title="Keep the model's text for every conflict it proposed in this file"
+        @click="accept('all')"
+      >
+        Accept all
+      </button>
       <span class="spacer" />
-      <AppButton
-        :title="`Take ${file.leftRef} in every conflict in this file`"
-        :disabled="!conflictIndexes.length"
-        @click="takeAll('left')"
-      >
-        <span class="icon-label">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M3 3.5l3.5 3.5L3 10.5M7.5 3.5L11 7l-3.5 3.5" />
-          </svg>
-          Take <span class="branch">{{ file.leftRef }}</span>
-        </span>
-      </AppButton>
-      <AppButton
-        :title="`Take ${file.rightRef} in every conflict in this file`"
-        :disabled="!conflictIndexes.length"
-        @click="takeAll('right')"
-      >
-        <span class="icon-label">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M11 3.5L7.5 7l3.5 3.5M6.5 3.5L3 7l3.5 3.5" />
-          </svg>
-          Take <span class="branch">{{ file.rightRef }}</span>
-        </span>
-      </AppButton>
-      <AppButton
-        :title="`Take both in every conflict in this file, ${file.leftRef} then ${file.rightRef}`"
-        :disabled="!conflictIndexes.length"
-        @click="takeAll('both')"
-      >
-        <span class="icon-label">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M2 3.5L5.5 7 2 10.5M12 3.5L8.5 7l3.5 3.5" />
-          </svg>
-          Take both
-        </span>
-      </AppButton>
-      <AppButton
-        :variant="focus ? 'primary' : 'ghost'"
+      <button
+        type="button"
+        class="bar-icon"
+        :class="{ on: focus }"
         :aria-pressed="focus"
         :title="focus ? 'Show every line' : 'Hide the lines that need no merging'"
+        :aria-label="focus ? 'Show every line' : 'Hide the lines that need no merging'"
         @click="toggleFocus"
       >
-        <span class="icon-label">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M2 5V2h3M9 2h3v3M12 9v3H9M5 12H2V9" />
-            <circle cx="7" cy="7" r="1.6" />
-          </svg>
-          Focus
-        </span>
-      </AppButton>
-      <AppConfirmButton
-        variant="ghost"
-        title="Put the middle back as it was loaded"
-        :disabled="!dirty"
-        @confirm="reset"
-      >
-        Reset
-      </AppConfirmButton>
+        <ConflictIcon name="focus" />
+      </button>
+      <AppMenuButton :items="menuItems" label="Whole-file actions" @select="onMenu">
+        <ConflictIcon name="more" />
+      </AppMenuButton>
       <AppButton
         variant="primary"
+        class="apply"
         :title="applyBlocked ?? 'Write the middle to the file and mark it resolved'"
         :disabled="applyBlocked !== null"
         @click="apply"
@@ -685,15 +795,93 @@ onBeforeUnmount(() => {
 .toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--space-2);
+  min-width: 0;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.count {
+.nav {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.counter {
+  min-width: 4ch;
   font-size: var(--text-xs);
   color: var(--color-fg-secondary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Status, not a control: the only part of the bar that gives way when it is narrow. */
+.status {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+/* Bare icons, as in the git panel: muted, accent on hover and keyboard focus, lit while on. */
+.bar-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-muted);
+  cursor: pointer;
+}
+
+.bar-icon:hover:not(:disabled),
+.bar-icon:focus-visible,
+.bar-icon.on {
+  color: var(--color-fg-accent);
+}
+
+.bar-icon:focus-visible {
+  outline: 1px solid var(--color-amber);
+}
+
+.bar-icon:disabled {
+  color: var(--color-fg-disabled);
+  cursor: default;
+}
+
+/* Frameless jade text, the go action for every proposal at once. */
+.accept-all {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-jade);
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.accept-all:hover,
+.accept-all:focus-visible {
+  background: var(--color-jade-muted);
+}
+
+.accept-all:focus-visible {
+  outline: 1px solid var(--color-amber);
+}
+
+.toolbar .apply {
+  flex-shrink: 0;
 }
 
 .spacer {
@@ -731,18 +919,6 @@ onBeforeUnmount(() => {
 .gutter:hover,
 .gutter:active {
   background: var(--color-amber);
-}
-
-.branch {
-  max-width: 16ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.icon-label {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
 }
 
 .pane-head {

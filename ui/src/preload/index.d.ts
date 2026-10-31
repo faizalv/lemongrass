@@ -42,6 +42,12 @@ import type {
   GitStash,
   GitConflictChoice,
   GitConflictFile,
+  ConflictActionResult,
+  ConflictHumanMessage,
+  ConflictReviewFile,
+  ConflictStartResult,
+  ConflictSubmitted,
+  ConflictThreadStatus,
   ReviewSubmission,
   ReviewSubmitResult,
   TabBusy,
@@ -242,6 +248,21 @@ interface Api {
       tabId: string,
       submission: ReviewSubmission
     ) => Promise<ReviewSubmitResult>
+  }
+  conflictAgent: {
+    status: (projectPath: string) => Promise<ConflictThreadStatus | null>
+    start: (
+      projectPath: string,
+      tabId: string,
+      resolved: ConflictReviewFile[]
+    ) => Promise<ConflictStartResult>
+    post: (
+      projectPath: string,
+      messages: ConflictHumanMessage[],
+      resolved: ConflictReviewFile[]
+    ) => Promise<ConflictActionResult>
+    close: (projectPath: string) => Promise<ConflictActionResult>
+    onSubmitted: (callback: (submitted: ConflictSubmitted) => void) => () => void
   }
   device: {
     list: () => Promise<DeviceListResult>

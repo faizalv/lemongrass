@@ -7,7 +7,7 @@ import AppButton from './AppButton.vue'
 import { CONFIRM_DELAY_MS, createClickConfirm, type ConfirmState } from '../clickConfirm'
 
 // Every click-again confirm in the app goes through this button, so the wait, the progress bar
-// and the armed red stay the same everywhere. The caller's class still sets size and layout.
+// and the armed colour stay the same everywhere. The caller's class still sets size and layout.
 defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(
@@ -15,8 +15,10 @@ const props = withDefaults(
     confirmLabel?: string
     // Renders through AppButton in that variant; without it the root is a bare button.
     variant?: 'primary' | 'ghost' | 'danger'
+    // error for a destructive action; jade for a go action such as handing work to a tab.
+    tone?: 'error' | 'jade'
   }>(),
-  { confirmLabel: 'Click again', variant: undefined }
+  { confirmLabel: 'Click again', variant: undefined, tone: 'error' }
 )
 
 const emit = defineEmits<{ confirm: [] }>()
@@ -58,6 +60,7 @@ onBeforeUnmount(() => confirm.reset())
     v-bind="{ ...attrs, ...(root.variant ? { variant: root.variant } : {}) }"
     class="app-confirm"
     :data-confirm="state"
+    :data-tone="tone"
     :title="armed ? confirmLabel : attrs.title"
     :aria-label="armed ? confirmLabel : attrs['aria-label']"
     :style="{ '--confirm-delay': `${CONFIRM_DELAY_MS}ms` }"
@@ -72,8 +75,15 @@ onBeforeUnmount(() => confirm.reset())
 
 <style scoped>
 .app-confirm {
+  --confirm-color: var(--color-error);
+  --confirm-muted: var(--color-error-muted);
   position: relative;
   overflow: hidden;
+}
+
+.app-confirm[data-tone='jade'] {
+  --confirm-color: var(--color-jade);
+  --confirm-muted: var(--color-jade-muted);
 }
 
 .app-confirm[data-confirm='pending'] {
@@ -87,7 +97,7 @@ onBeforeUnmount(() => confirm.reset())
   right: 0;
   bottom: 0;
   height: 2px;
-  background: var(--color-error);
+  background: var(--confirm-color);
   transform-origin: left;
   animation: confirm-fill var(--confirm-delay) linear forwards;
 }
@@ -103,9 +113,9 @@ onBeforeUnmount(() => confirm.reset())
 
 /* !important because the armed look must win over any caller's hover, focus or colour rule. */
 .app-confirm[data-confirm='armed'] {
-  background: var(--color-error-muted) !important;
-  border-color: var(--color-error) !important;
-  color: var(--color-error) !important;
+  background: var(--confirm-muted) !important;
+  border-color: var(--confirm-color) !important;
+  color: var(--confirm-color) !important;
 }
 
 .app-confirm[data-confirm='armed'] :deep(*) {

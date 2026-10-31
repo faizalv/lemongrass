@@ -15,6 +15,7 @@ import {
 import { applyResolution, pickSide, readConflict, saveWorking } from './gitConflict'
 import { forecastMerge } from './gitForecast'
 import type { GitRunner } from './gitMove'
+import { endConflictThreadIfOver } from './conflictAgent'
 import type {
   GitActionResult,
   GitConflictChoice,
@@ -170,24 +171,38 @@ export function registerGitSyncHandlers(): void {
   ipcMain.handle('git:merge', (_event, projectPath: string, source: string) =>
     merge(projectPath, source)
   )
-  ipcMain.handle('git:finish', (_event, projectPath: string, action: 'continue' | 'abort') => {
-    if (action !== 'continue' && action !== 'abort') return { ok: false, error: 'Unknown action.' }
-    return finish(projectPath, action)
-  })
+  // Continue, abort, apply and pick are the git calls that can end a conflict, so each one lets the
+  // conflict thread close when its scope is over.
+  ipcMain.handle(
+    'git:finish',
+    async (_event, projectPath: string, action: 'continue' | 'abort') => {
+      if (action !== 'continue' && action !== 'abort')
+        return { ok: false, error: 'Unknown action.' }
+      const result = await finish(projectPath, action)
+      endConflictThreadIfOver(projectPath)
+      return result
+    }
+  )
   ipcMain.handle('git:conflict', (_event, projectPath: string, path: string) =>
     conflict(projectPath, path)
   )
   ipcMain.handle(
     'git:conflictApply',
-    (_event, projectPath: string, path: string, content: string) =>
-      conflictApply(projectPath, path, content)
+    async (_event, projectPath: string, path: string, content: string) => {
+      const result = await conflictApply(projectPath, path, content)
+      endConflictThreadIfOver(projectPath)
+      return result
+    }
   )
   ipcMain.handle('git:conflictSave', (_event, projectPath: string, path: string, content: string) =>
     conflictSave(projectPath, path, content)
   )
   ipcMain.handle(
     'git:conflictPick',
-    (_event, projectPath: string, path: string, choice: GitConflictChoice) =>
-      conflictPick(projectPath, path, choice)
+    async (_event, projectPath: string, path: string, choice: GitConflictChoice) => {
+      const result = await conflictPick(projectPath, path, choice)
+      endConflictThreadIfOver(projectPath)
+      return result
+    }
   )
 }

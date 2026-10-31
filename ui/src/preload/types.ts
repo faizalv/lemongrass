@@ -555,6 +555,41 @@ export interface TabBusy {
   reason: string | null
 }
 
+// The project's open conflict thread as `lgrass git conflict status --json` prints it. scope is the
+// conflict scope key and assignee the tab the human handed the conflict to.
+export interface ConflictThreadStatus {
+  threadId: string
+  scope: string
+  assignee: string
+}
+
+// Where a conflict thread message sits: lines 1-based and inclusive in the working file as it was
+// when posted, and quote those lines, so the spot is found again after edits.
+export interface ConflictMessageAnchor {
+  path: string
+  startLine: number
+  endLine: number
+  quote: string
+}
+
+// One message the human posts into the conflict thread, a line comment when anchored.
+export interface ConflictHumanMessage {
+  body: string
+  anchor: ConflictMessageAnchor | null
+}
+
+export type ConflictStartResult = { ok: true; threadId: string } | { ok: false; reason: string }
+
+export type ConflictActionResult = { ok: true } | { ok: false; reason: string }
+
+// Pushed to the renderer when the picked tab runs `lgrass git conflict submit`. files are relative
+// to the repository's top level.
+export interface ConflictSubmitted {
+  projectPath: string
+  tabId: string
+  files: string[]
+}
+
 export interface DeviceInfo {
   serial: string
   // adb's own state: 'device' when usable, otherwise e.g. 'unauthorized' or 'offline'.
@@ -748,18 +783,33 @@ export interface WorkgroupPending {
   createdAt: number
 }
 
+export type ThreadKind = 'adhoc' | 'workgroup' | 'conflict'
+
+export type ThreadMessageKind = 'message' | 'note' | 'submit'
+
 export interface WorkgroupThreadMessage {
   id: number
+  // Empty for a human message, whose label is "You".
   tabId: string
   label: string
   body: string
   createdAt: string
+  author: 'tab' | 'human'
+  kind: ThreadMessageKind
+  anchor: ConflictMessageAnchor | null
+  // The paths a submit message lists, empty for every other kind.
+  files: string[]
 }
 
 export interface WorkgroupThread {
-  id: number
+  id: string
   title: string
   groupId: number
+  kind: ThreadKind
+  // scope and assignee are empty unless kind is conflict.
+  scope: string
+  assignee: string
+  closed: boolean
   messages: WorkgroupThreadMessage[]
   more: boolean
 }

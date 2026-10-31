@@ -13,8 +13,13 @@ const openDrawers = reactive(new Set<string>())
 import { computed, ref } from 'vue'
 import { finishOperation, gitStateOf } from '../git'
 import { openConflict, type ProjectRef } from '../workspace'
+import { handConflictTo, useConflictThread } from '../conflictThread'
+import { fileStatus, type ConflictFileStatus } from '../conflictThreadModel'
+import { shellTitles } from '../shellRegistry'
 import type { GitFile } from '../../../preload/types'
 import AppButton from './AppButton.vue'
+import AppSplitButton from './AppSplitButton.vue'
+import ResolveWithMenu from './ResolveWithMenu.vue'
 
 const props = defineProps<{
   project: ProjectRef
@@ -27,6 +32,45 @@ const conflicted = computed(() =>
   (status.value?.files ?? []).filter((file) => file.group === 'conflicted')
 )
 const drawerOpen = computed(() => openDrawers.has(props.project.id))
+const thread = useConflictThread(() => props.project)
+const handing = ref(false)
+const menu = ref<InstanceType<typeof ResolveWithMenu> | null>(null)
+const split = ref<InstanceType<typeof AppSplitButton> | null>(null)
+const manualItems = [{ key: 'manual', label: 'Resolve manually' }]
+
+// The tab list hangs off the whole split button, not only its main part.
+function openTabs(): void {
+  menu.value?.toggle(split.value?.el ?? null)
+}
+
+function onManual(key: string): void {
+  if (key === 'manual') resolve()
+}
+
+// The tab the conflict is handed to, by its live title, while its thread is open.
+const assignee = computed(() => {
+  const tabId = thread.value.status?.assignee
+  return tabId ? (shellTitles[tabId] ?? 'a tab that is closed') : null
+})
+
+function statusOf(file: GitFile): ConflictFileStatus | null {
+  return fileStatus(thread.value.messages, file.path, file.conflictBlocks)
+}
+
+function statusText(status: ConflictFileStatus): string {
+  if (status.kind === 'markers') return 'markers left'
+  if (status.notes === 0) return 'proposed'
+  return status.notes === 1 ? 'proposed, 1 note' : `proposed, ${status.notes} notes`
+}
+
+async function handOver(tabId: string): Promise<void> {
+  handing.value = true
+  error.value = null
+  const refused = await handConflictTo(props.project, tabId)
+  handing.value = false
+  if (refused) error.value = refused
+  else menu.value?.hide()
+}
 
 // The refs are split out so the sentence can set them apart; without refs it is a plain sentence.
 const message = computed(() => {
@@ -83,15 +127,23 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
     </p>
     <p v-if="error" class="conflict-error">{{ error }}</p>
     <div class="conflict-buttons">
-      <AppButton
-        v-if="conflicted.length > 0"
-        variant="primary"
-        class="conflict-action"
-        :disabled="state.busy !== null"
-        @click="resolve"
-      >
-        Resolve
-      </AppButton>
+      <template v-if="conflicted.length > 0">
+        <AppSplitButton
+          ref="split"
+          variant="primary"
+          class="conflict-split"
+          :disabled="state.busy !== null"
+          :items="manualItems"
+          menu-label="Other ways to resolve"
+          title="Hand the whole conflict to a Claude or Codex tab"
+          @click="openTabs"
+          @menu="menu?.hide()"
+          @select="onManual"
+        >
+          Resolve with model
+        </AppSplitButton>
+        <ResolveWithMenu ref="menu" :project="project" :sending="handing" @pick="handOver" />
+      </template>
       <AppButton
         v-else
         variant="primary"
@@ -103,13 +155,16 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
       </AppButton>
       <AppButton
         variant="danger"
-        class="conflict-action"
+        class="conflict-abort"
         :disabled="state.busy !== null"
         @click="finish('abort')"
       >
         Abort
       </AppButton>
     </div>
+    <p v-if="assignee" class="conflict-assignee">
+      Handed to <span class="assignee-name">{{ assignee }}</span>
+    </p>
 
     <p v-if="conflicted.length === 0" class="conflict-empty">All conflicts are resolved.</p>
     <section v-else>
@@ -140,6 +195,9 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
           >
             <span class="file-name">{{ fileName(file) }}</span>
             <span class="file-dir">{{ fileDir(file) }}</span>
+            <span v-if="statusOf(file)" class="file-status" :class="statusOf(file)!.kind">{{
+              statusText(statusOf(file)!)
+            }}</span>
             <span v-if="file.conflictBlocks != null" class="file-blocks">{{
               file.conflictBlocks
             }}</span>
@@ -181,13 +239,35 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 
 .conflict-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   padding: 0 var(--space-2);
+}
+
+/* On one line the split button takes nearly all the free width, its grow factor dwarfing Abort's.
+   At the column's narrowest width the two do not fit, so Abort wraps below and, alone on its line,
+   grows to the full width as the split button above it. */
+.conflict-buttons .conflict-split {
+  flex: 1000 1 160px;
 }
 
 .conflict-buttons .conflict-action {
   flex: 1;
   padding: var(--space-1) var(--space-2);
+}
+
+.conflict-buttons .conflict-abort {
+  flex: 1 0 auto;
+  padding: var(--space-1) var(--space-3);
+}
+
+.conflict-assignee {
+  padding: 0 var(--space-2);
+  color: var(--color-fg-muted);
+}
+
+.assignee-name {
+  color: var(--color-fg-primary);
 }
 
 .conflict-empty {
@@ -257,7 +337,8 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 }
 
 .file-name {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
   max-width: 60%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -271,6 +352,24 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-fg-muted);
+}
+
+.file-status {
+  flex-shrink: 0;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+/* Violet is the model's work, as in the resolver. */
+.file-status.proposed {
+  background: var(--color-violet-muted);
+  color: var(--color-violet);
+}
+
+.file-status.markers {
+  background: var(--color-error-muted);
+  color: var(--color-error);
 }
 
 .file-blocks {

@@ -47,6 +47,8 @@ func main() {
 		cmdDevice(os.Args[2:])
 	case "flutter":
 		cmdFlutter(os.Args[2:])
+	case "git":
+		cmdGit(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		usage()
@@ -129,6 +131,13 @@ COMMANDS
   flutter <run|status|reload|restart|stop|test|report|http> ...
                                      Runs a Flutter project's app on the phone and its tests, from inside
                                      the project; lgrass flutter alone prints each command
+
+  git conflict show                 Model-facing, for the tab the human handed a conflict to: the operation,
+                                     refs, files and blocks, and both sides' commit intent
+  git conflict note <path> <N|N-M> "<why>"
+                                     Explains a choice for those lines of a conflicted file in the conflict thread
+  git conflict submit               Hands the resolution back; the human reviews it in the resolver
+  git conflict status [--json]      The project's open conflict thread and the tab it is handed to
 
   version                           Print version
 `)

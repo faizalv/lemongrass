@@ -26,6 +26,7 @@ import {
   type ProjectRef
 } from '../workspace'
 import { tabKindOf, type TabContext } from '../tabKinds'
+import { tabGlow } from '../tabGlow'
 import { joinVendor, liveGroupsOf, openJoin } from '../workgroups'
 import type { WorkgroupInfo } from '../../../preload/types'
 import type { DropZone, EdgeZone } from '../layoutTree'
@@ -335,7 +336,10 @@ onBeforeUnmount(() => {
           v-for="tab in leaf.tabs"
           :key="tab.id"
           class="tab"
-          :class="{ active: tab.id === leaf.activeTabId }"
+          :class="{
+            active: tab.id === leaf.activeTabId,
+            glow: tabGlow.tabId === tab.id && tab.id !== leaf.activeTabId
+          }"
           :data-tab-id="tab.id"
           :title="tabKindOf(tab).title(tab, tabContext(tab))"
           draggable="true"
@@ -483,6 +487,7 @@ onBeforeUnmount(() => {
     <div
       ref="bodyEl"
       class="pane-body"
+      :class="{ glow: !!tabGlow.tabId && tabGlow.tabId === leaf.activeTabId }"
       @dragover.capture="onBodyDragOver"
       @dragleave="onBodyDragLeave"
       @drop.capture="onBodyDrop"
@@ -893,6 +898,24 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* A picker row is pointing at this pane's tab. Drawn over the body, since a terminal fills it.
+   Jade, as the go action it leads to; amber stays for focus. */
+.pane-body.glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 2px var(--color-jade),
+    inset 0 0 24px var(--color-jade-muted);
+}
+
+.tab.glow {
+  background: var(--color-jade-muted);
+  box-shadow: inset 0 0 0 1px var(--color-jade);
 }
 
 .pane-body > .tab-behind {

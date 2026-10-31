@@ -575,6 +575,37 @@ export function openConflict(project: ProjectRef, path: string): void {
   commit(project, tree.addTab(root, focused.id, newConflictTab(path)), focused.id)
 }
 
+// Opens a model's submitted file without taking the human's place: the resolver becomes the active
+// tab of the model's own pane, or of wherever its tab already is, and the focused pane, and so the
+// keyboard focus, stay where they are. The human may be typing elsewhere.
+export function openConflictBeside(project: ProjectRef, path: string, besideTabId: string): void {
+  const layout = workspaces[project.id]?.layout
+  const root = layout?.root
+  if (!root) {
+    if (layout) commit(project, tree.createLeaf<WorkspaceTab>([newConflictTab(path)]))
+    return
+  }
+  const leaves = tree.allLeaves(root)
+  for (const leaf of leaves) {
+    const existing = leaf.tabs.find((tab) => tab.kind === 'conflict' && tab.path === path)
+    if (existing) {
+      commit(project, tree.setActiveTab(root, leaf.id, existing.id))
+      return
+    }
+  }
+  const home =
+    tree.findLeafByTab(root, besideTabId) ??
+    leaves.find((leaf) => leaf.id === layout.focusedPaneId) ??
+    leaves[0]
+  commit(project, tree.addTab(root, home.id, newConflictTab(path)))
+}
+
+// The loaded project at a path, for events from main that name a project only by its path.
+export function projectRefByPath(path: string): ProjectRef | null {
+  for (const project of projectRefs.values()) if (project.path === path) return project
+  return null
+}
+
 // One history tab per project: opening it again focuses the existing tab wherever it lives.
 export function openHistory(project: ProjectRef): void {
   const layout = workspaces[project.id].layout

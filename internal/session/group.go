@@ -143,7 +143,7 @@ func (s *Store) CreateGroup(name string, leader Member, thinkers []Member) (Grou
 	if err != nil {
 		return Group{}, err
 	}
-	if _, err := tx.Exec(`INSERT INTO lg_threads (id, project_id, title, group_id, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)`, threadID, s.projectID, name, groupID, leader.TabID, ts); err != nil {
+	if _, err := tx.Exec(`INSERT INTO lg_threads (id, project_id, title, group_id, created_by, created_at, kind) VALUES (?, ?, ?, ?, ?, ?, ?)`, threadID, s.projectID, name, groupID, leader.TabID, ts, ThreadWorkgroup); err != nil {
 		return Group{}, err
 	}
 	if err := tx.Commit(); err != nil {

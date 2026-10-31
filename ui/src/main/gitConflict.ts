@@ -116,7 +116,7 @@ function readGitFile(dir: string, ...names: string[]): string | null {
   return null
 }
 
-async function sideRefs(
+export async function sideRefs(
   git: GitRunner,
   operation: GitConflictOperation
 ): Promise<{ leftRef: string; rightRef: string }> {

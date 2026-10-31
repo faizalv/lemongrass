@@ -30,6 +30,7 @@ import {
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
 import { registerGitHandlers } from './git'
 import { registerReviewHandlers } from './review'
+import { registerConflictAgentHandlers } from './conflictAgent'
 import { flushBranchNotices } from './gitBranch'
 import { registerDeviceHandlers, stopAllDevices } from './device'
 import { registerVaultHandlers } from './vault'
@@ -139,6 +140,7 @@ app.whenReady().then(async () => {
   registerWindowControlHandlers(() => mainWindow)
   startWorkgroupBridge(() => mainWindow, lgrassdPath)
   registerWorkgroupHandlers(lgrassPath)
+  registerConflictAgentHandlers(lgrassPath, () => mainWindow)
 
   createWindow()
 

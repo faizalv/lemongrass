@@ -88,7 +88,7 @@ test('a conflict with no base starts empty in the middle', () => {
   const middle = buildMiddle([
     { kind: 'conflict', left: ['x'], base: [], right: ['y'], disk: null }
   ])
-  assert.deepEqual(middle, { text: '', chunks: [{ index: 0, from: 0, to: 0, ...open }] })
+  assert.deepEqual(middle, { text: '', chunks: [{ index: 0, from: 0, to: 0, ...open }], edits: [] })
 })
 
 test('apply drops the newline the file did not have and restores CRLF', () => {

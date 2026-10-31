@@ -21,6 +21,7 @@ var migrations = []func(execer) error{
 	migrateV1,
 	migrateV2,
 	migrateV3,
+	migrateV4,
 }
 
 // Version 1 is the schema as it stood before the store was versioned, applied idempotently so a store from any earlier release lands on the same tables.
@@ -65,6 +66,26 @@ CREATE INDEX idx_lg_notifications_source ON lg_notifications(source, ref);
 // Version 3 gives a workgroup member the lgrass commands its config requires it to run.
 func migrateV3(db execer) error {
 	_, err := db.ExecContext(context.Background(), `ALTER TABLE lg_group_members ADD COLUMN commands TEXT NOT NULL DEFAULT ''`)
+	return err
+}
+
+// Version 4 adds conflict threads, one open per project and handed to one tab, and messages with a kind, a line anchor and the files a submission names.
+func migrateV4(db execer) error {
+	_, err := db.ExecContext(context.Background(), `
+ALTER TABLE lg_threads ADD COLUMN kind TEXT NOT NULL DEFAULT 'adhoc';
+ALTER TABLE lg_threads ADD COLUMN scope TEXT NOT NULL DEFAULT '';
+ALTER TABLE lg_threads ADD COLUMN assignee TEXT NOT NULL DEFAULT '';
+ALTER TABLE lg_threads ADD COLUMN closed_at TEXT;
+ALTER TABLE lg_threads ADD COLUMN baseline TEXT NOT NULL DEFAULT '';
+UPDATE lg_threads SET kind = 'workgroup' WHERE group_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_lg_threads_open_conflict ON lg_threads(project_id) WHERE kind = 'conflict' AND closed_at IS NULL;
+ALTER TABLE lg_messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'message';
+ALTER TABLE lg_messages ADD COLUMN anchor_path TEXT;
+ALTER TABLE lg_messages ADD COLUMN anchor_start INTEGER;
+ALTER TABLE lg_messages ADD COLUMN anchor_end INTEGER;
+ALTER TABLE lg_messages ADD COLUMN anchor_quote TEXT;
+ALTER TABLE lg_messages ADD COLUMN files TEXT NOT NULL DEFAULT '';
+`)
 	return err
 }
 

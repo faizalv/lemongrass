@@ -6,6 +6,7 @@ import type {
   AnnotationAnchor,
   ConflictAnchor,
   ConflictReviewScope,
+  GitConflictOperation,
   GitLineRange,
   ReviewScope,
   ReviewSubmission
@@ -43,17 +44,27 @@ function rangeList(ranges: GitLineRange[]): string {
   return `${single ? 'line' : 'lines'} ${spans.join(', ')}`
 }
 
+interface ConflictSides {
+  operation: GitConflictOperation
+  leftRef: string
+  rightRef: string
+}
+
+// Sides follow the resolver's panes, so a merge brings the right into the left and a rebase
+// replays the left onto the right.
+function conflictSubject({ operation, leftRef, rightRef }: ConflictSides): string {
+  return operation === 'merge'
+    ? `the merge of ${rightRef} into ${leftRef}`
+    : operation === 'rebase'
+      ? `the rebase of ${leftRef} onto ${rightRef}`
+      : `the stashed changes applied onto ${rightRef}`
+}
+
 const conflictScopeFormatter: ScopeFormatter<ConflictReviewScope> = {
   heading(scope) {
-    const subject =
-      scope.operation === 'merge'
-        ? `the merge of ${scope.rightRef} into ${scope.leftRef}`
-        : scope.operation === 'rebase'
-          ? `the rebase of ${scope.leftRef} onto ${scope.rightRef}`
-          : `the stashed changes applied onto ${scope.rightRef}`
     return (
-      `The human reviewed the conflicts in ${subject} and left this review for you. Line ` +
-      'numbers are of each file as it is on disk now.'
+      `The human reviewed the conflicts in ${conflictSubject(scope)} and left this review for ` +
+      'you. Line numbers are of each file as it is on disk now.'
     )
   },
   details({ files }) {
@@ -134,4 +145,85 @@ export function composeReview(submission: ReviewSubmission, details: ReviewDetai
       `Comments:\n${annotations.map((annotation, index) => item(index, annotation)).join('\n\n')}`
   ]
   return `[lg] ${body.filter(Boolean).join('\n\n')}`
+}
+
+// The line typed into the tab the human hands a conflict to. It names only refs, which pass git's
+// ref format check and so hold no spaces or control characters; everything else the model pulls
+// itself through `lgrass git conflict show`.
+export function composeStartLine(sides: ConflictSides): string {
+  return `[lg] the human handed you the conflicts in ${conflictSubject(sides)}. Run lgrass how git resolve.`
+}
+
+export interface CommitIntent {
+  hash: string
+  subject: string
+  body: string
+}
+
+// The commits one side brings that touched the conflicted files, newest first. more counts the
+// ones left out, and missing says why git could not tell.
+export interface SideIntent {
+  commits: CommitIntent[]
+  more: number
+  missing: string | null
+}
+
+export interface ConflictIntent {
+  left: SideIntent
+  right: SideIntent
+}
+
+export interface ConflictShow extends ConflictSides {
+  threadId: string
+  files: ConflictFileState[]
+  intent: ConflictIntent
+}
+
+function sideTitles(sides: ConflictSides): { left: string; right: string } {
+  const { operation, leftRef, rightRef } = sides
+  if (operation === 'merge') {
+    return {
+      left: `${leftRef}, the current branch, commits that touched these files since the merge base`,
+      right: `${rightRef}, the branch being merged, commits that touched these files since the merge base`
+    }
+  }
+  if (operation === 'rebase') {
+    return {
+      left: `${leftRef}, the branch being rebased, the commit being replayed now`,
+      right:
+        `${rightRef}, the upstream, commits that touched these files since ${leftRef} branched ` +
+        `off, the commits of ${leftRef} already replayed included`
+    }
+  }
+  return {
+    left: 'the stashed changes, the newest stash, which is most likely the one applied',
+    right: `${rightRef}, the current branch, commits that touched these files since the stash was made`
+  }
+}
+
+function sideSection(title: string, side: SideIntent): string {
+  const lines = [`Intent of ${title}:`]
+  if (side.missing) lines.push(`  unknown, ${side.missing}`)
+  else if (side.commits.length === 0) lines.push('  none')
+  for (const commit of side.commits) {
+    lines.push(`- ${commit.hash} ${commit.subject}`)
+    if (commit.body) lines.push(...commit.body.split('\n').map((line) => `    ${line}`.trimEnd()))
+  }
+  if (side.more > 0) lines.push(`  and ${side.more} more`)
+  return lines.join('\n')
+}
+
+// What `lgrass git conflict show` prints for the tab the human handed the conflict to: the same
+// files section a review carries, the conflict thread, and what each side meant.
+export function composeShow(show: ConflictShow): string {
+  const titles = sideTitles(show)
+  const body = [
+    `The human handed you the conflicts in ${conflictSubject(show)}. Line numbers are of each ` +
+      'file as it is on disk now.',
+    `Conflict thread: ${show.threadId}`,
+    conflictScopeFormatter.details({ kind: 'conflict', files: show.files }),
+    sideSection(titles.left, show.intent.left),
+    sideSection(titles.right, show.intent.right)
+  ]
+  return body.filter(Boolean).join('\n\n')
 }

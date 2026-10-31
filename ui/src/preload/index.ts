@@ -43,6 +43,12 @@ import type {
   GitStash,
   GitConflictChoice,
   GitConflictFile,
+  ConflictActionResult,
+  ConflictHumanMessage,
+  ConflictReviewFile,
+  ConflictStartResult,
+  ConflictSubmitted,
+  ConflictThreadStatus,
   ReviewSubmission,
   ReviewSubmitResult,
   TabBusy,
@@ -126,6 +132,33 @@ const review = {
     submission: ReviewSubmission
   ): Promise<ReviewSubmitResult> =>
     ipcRenderer.invoke('review:submit', projectPath, tabId, submission)
+}
+
+// Handing a conflict to an agent tab. resolved is what saveConflictWork returns, so main can tell
+// the model which blocks the human already resolved.
+const conflictAgent = {
+  status: (projectPath: string): Promise<ConflictThreadStatus | null> =>
+    ipcRenderer.invoke('conflict:status', projectPath),
+  start: (
+    projectPath: string,
+    tabId: string,
+    resolved: ConflictReviewFile[]
+  ): Promise<ConflictStartResult> =>
+    ipcRenderer.invoke('conflict:start', projectPath, tabId, resolved),
+  post: (
+    projectPath: string,
+    messages: ConflictHumanMessage[],
+    resolved: ConflictReviewFile[]
+  ): Promise<ConflictActionResult> =>
+    ipcRenderer.invoke('conflict:post', projectPath, messages, resolved),
+  close: (projectPath: string): Promise<ConflictActionResult> =>
+    ipcRenderer.invoke('conflict:close', projectPath),
+  onSubmitted: (callback: (submitted: ConflictSubmitted) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, submitted: ConflictSubmitted): void =>
+      callback(submitted)
+    ipcRenderer.on('conflict:submitted', listener)
+    return () => ipcRenderer.removeListener('conflict:submitted', listener)
+  }
 }
 
 const projects = {
@@ -541,6 +574,7 @@ const api = {
   biblio,
   git,
   review,
+  conflictAgent,
   device,
   resterClient,
   node,

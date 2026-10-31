@@ -12,6 +12,7 @@ func TestManualsRender(t *testing.T) {
 	root := t.TempDir()
 	cases := map[string][]string{
 		"book write":    {"Split.", "never how it broke", "toc.md"},
+		"git resolve":   {"lgrass git conflict show", "lgrass git conflict note", "lgrass git conflict submit", "never stage"},
 		"laws write":    {"explicit yes", "biblio/laws/summary.md", "Never write a law to memory"},
 		"leader create": {"lgrass workgroup create <config>", "lgrass how thinker start"},
 		"thinker start": {"lgrass workgroup thread", "wait for the leader's go"},

@@ -19,14 +19,38 @@ const (
 
 var ErrNoSuchThread = errors.New("session: no such thread in this project")
 
+const (
+	ThreadAdHoc     = "adhoc"
+	ThreadWorkgroup = "workgroup"
+	ThreadConflict  = "conflict"
+
+	MessagePlain  = "message"
+	MessageNote   = "note"
+	MessageSubmit = "submit"
+)
+
 type Thread struct {
 	ID             string
 	Title          string
 	GroupID        int64 // 0 for an ad hoc thread
+	Kind           string
+	Scope          string // conflict threads only
+	Assignee       string // conflict threads only, the tab the human handed the conflict to
+	ClosedAt       string // empty while open
 	CreatedBy      string
 	CreatedAt      string
 	LastActivityAt string
 	MessageCount   int
+}
+
+func (t Thread) Closed() bool { return t.ClosedAt != "" }
+
+// Anchor ties a message to lines of a working file as it was when the message was posted. Lines are 1-based and inclusive; the quote lets a reader find the spot after the file changed.
+type Anchor struct {
+	Path      string
+	StartLine int
+	EndLine   int
+	Quote     string
 }
 
 type Message struct {
@@ -36,6 +60,16 @@ type Message struct {
 	Body      string
 	CreatedAt string
 	Mentions  []string
+	Kind      string
+	Anchor    *Anchor
+	Files     []string // submit messages only
+}
+
+// The parts of a message beyond its author and body, zero for a plain message.
+type messageMeta struct {
+	kind   string
+	anchor *Anchor
+	files  []string
 }
 
 func validateMessage(body string) error {
@@ -86,7 +120,7 @@ func (s *Store) CreateThread(tabID, title, content string) (string, error) {
 	if _, err := tx.Exec(`INSERT INTO lg_threads (id, project_id, title, created_by, created_at) VALUES (?, ?, ?, ?, ?)`, threadID, s.projectID, title, tabID, ts); err != nil {
 		return "", err
 	}
-	if _, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, mentions, ts); err != nil {
+	if _, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, mentions, messageMeta{}, ts); err != nil {
 		return "", err
 	}
 	return threadID, tx.Commit()
@@ -129,7 +163,7 @@ func (s *Store) PostSystemMessage(threadID string, content string) (Message, err
 	}
 	defer tx.Rollback()
 
-	msg, err := insertMessage(tx, s.projectID, threadID, SystemAuthor, content, nil, notify, now())
+	msg, err := insertMessage(tx, s.projectID, threadID, SystemAuthor, content, nil, notify, messageMeta{}, now())
 	if err != nil {
 		return Message{}, err
 	}
@@ -143,6 +177,9 @@ func (s *Store) PostMessage(tabID string, threadID string, content string) (Mess
 	thread, err := s.ThreadByID(threadID)
 	if err != nil {
 		return Message{}, err
+	}
+	if thread.Kind == ThreadConflict {
+		return s.postToConflict(tabID, thread, content)
 	}
 	mentions, err := s.ResolveMentions(ParseMentions(content))
 	if err != nil {
@@ -164,7 +201,7 @@ func (s *Store) PostMessage(tabID string, threadID string, content string) (Mess
 	}
 	defer tx.Rollback()
 
-	msg, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, notify, now())
+	msg, err := insertMessage(tx, s.projectID, threadID, tabID, content, mentions, notify, messageMeta{}, now())
 	if err != nil {
 		return Message{}, err
 	}
@@ -184,8 +221,20 @@ func notificationKind(target string, mentions []string) string {
 }
 
 // Every tab in notify except the author gets a pending notification, and mentions are recorded on the message.
-func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body string, mentions, notify []string, ts string) (Message, error) {
-	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at) VALUES (?, ?, ?, ?)`, threadID, tabID, body, ts)
+func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body string, mentions, notify []string, meta messageMeta, ts string) (Message, error) {
+	if meta.kind == "" {
+		meta.kind = MessagePlain
+	}
+	var path, quote sql.NullString
+	var start, end sql.NullInt64
+	if a := meta.anchor; a != nil {
+		path = sql.NullString{String: a.Path, Valid: true}
+		quote = sql.NullString{String: a.Quote, Valid: true}
+		start = sql.NullInt64{Int64: int64(a.StartLine), Valid: true}
+		end = sql.NullInt64{Int64: int64(a.EndLine), Valid: true}
+	}
+	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		threadID, tabID, body, ts, meta.kind, path, start, end, quote, strings.Join(meta.files, "\n"))
 	if err != nil {
 		return Message{}, err
 	}
@@ -209,7 +258,7 @@ func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body st
 			return Message{}, err
 		}
 	}
-	return Message{ID: id, ThreadID: threadID, TabID: tabID, Body: body, CreatedAt: ts, Mentions: mentions}, nil
+	return Message{ID: id, ThreadID: threadID, TabID: tabID, Body: body, CreatedAt: ts, Mentions: mentions, Kind: meta.kind, Anchor: meta.anchor, Files: meta.files}, nil
 }
 
 // An ad hoc thread notifies the mentioned tabs plus every registered tab that has posted to it or been mentioned in it, so a reply reaches the tab it answers without a mention.
@@ -277,23 +326,30 @@ func (s *Store) groupRecipients(groupID int64, author string, mentions []string)
 	return out, nil
 }
 
-func (s *Store) ThreadByID(id string) (Thread, error) {
+const threadColumns = `t.id, t.title, t.group_id, t.kind, t.scope, t.assignee, COALESCE(t.closed_at, ''), t.created_by, t.created_at`
+
+// Scans threadColumns followed by the last activity time and the message count.
+func scanThread(row rowScanner) (Thread, error) {
 	var t Thread
 	var group sql.NullInt64
-	err := s.db.QueryRow(`
-		SELECT t.id, t.title, t.group_id, t.created_by, t.created_at,
-			COALESCE((SELECT created_at FROM lg_messages WHERE thread_id = t.id ORDER BY id DESC LIMIT 1), t.created_at),
-			(SELECT COUNT(*) FROM lg_messages WHERE thread_id = t.id)
-		FROM lg_threads t WHERE t.project_id = ? AND t.id = ?
-	`, s.projectID, id).Scan(&t.ID, &t.Title, &group, &t.CreatedBy, &t.CreatedAt, &t.LastActivityAt, &t.MessageCount)
-	if err == sql.ErrNoRows {
-		return Thread{}, ErrNoSuchThread
-	}
-	if err != nil {
+	if err := row.Scan(&t.ID, &t.Title, &group, &t.Kind, &t.Scope, &t.Assignee, &t.ClosedAt, &t.CreatedBy, &t.CreatedAt, &t.LastActivityAt, &t.MessageCount); err != nil {
 		return Thread{}, err
 	}
 	t.GroupID = group.Int64
 	return t, nil
+}
+
+func (s *Store) ThreadByID(id string) (Thread, error) {
+	t, err := scanThread(s.db.QueryRow(`
+		SELECT `+threadColumns+`,
+			COALESCE((SELECT created_at FROM lg_messages WHERE thread_id = t.id ORDER BY id DESC LIMIT 1), t.created_at),
+			(SELECT COUNT(*) FROM lg_messages WHERE thread_id = t.id)
+		FROM lg_threads t WHERE t.project_id = ? AND t.id = ?
+	`, s.projectID, id))
+	if err == sql.ErrNoRows {
+		return Thread{}, ErrNoSuchThread
+	}
+	return t, err
 }
 
 // Newest first, at most limit messages older than beforeID (0 for the newest page); more reports whether older ones remain.
@@ -310,7 +366,7 @@ func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTa
 	if limit < 1 {
 		limit = 1
 	}
-	query := `SELECT id, thread_id, tab_id, body, created_at FROM lg_messages WHERE thread_id = ?`
+	query := `SELECT id, thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files FROM lg_messages WHERE thread_id = ?`
 	args := []interface{}{threadID}
 	if beforeID > 0 {
 		query += ` AND id < ?`
@@ -334,8 +390,17 @@ func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTa
 	defer rows.Close()
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.ThreadID, &m.TabID, &m.Body, &m.CreatedAt); err != nil {
+		var path, quote sql.NullString
+		var start, end sql.NullInt64
+		var files string
+		if err := rows.Scan(&m.ID, &m.ThreadID, &m.TabID, &m.Body, &m.CreatedAt, &m.Kind, &path, &start, &end, &quote, &files); err != nil {
 			return nil, false, err
+		}
+		if path.Valid {
+			m.Anchor = &Anchor{Path: path.String, StartLine: int(start.Int64), EndLine: int(end.Int64), Quote: quote.String}
+		}
+		if files != "" {
+			m.Files = strings.Split(files, "\n")
 		}
 		msgs = append(msgs, m)
 	}
@@ -377,7 +442,7 @@ func (s *Store) messageMentions(messageID int64) ([]string, error) {
 // Most recently active first.
 func (s *Store) ListThreads(limit int) ([]Thread, error) {
 	rows, err := s.db.Query(`
-		SELECT t.id, t.title, t.group_id, t.created_by, t.created_at,
+		SELECT `+threadColumns+`,
 			COALESCE(MAX(m.created_at), t.created_at), COUNT(m.id)
 		FROM lg_threads t LEFT JOIN lg_messages m ON m.thread_id = t.id
 		WHERE t.project_id = ?
@@ -391,12 +456,10 @@ func (s *Store) ListThreads(limit int) ([]Thread, error) {
 	defer rows.Close()
 	var out []Thread
 	for rows.Next() {
-		var t Thread
-		var group sql.NullInt64
-		if err := rows.Scan(&t.ID, &t.Title, &group, &t.CreatedBy, &t.CreatedAt, &t.LastActivityAt, &t.MessageCount); err != nil {
+		t, err := scanThread(rows)
+		if err != nil {
 			return nil, err
 		}
-		t.GroupID = group.Int64
 		out = append(out, t)
 	}
 	return out, rows.Err()

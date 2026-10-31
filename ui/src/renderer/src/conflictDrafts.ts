@@ -7,6 +7,7 @@ import type {
   GitConflictOperation,
   GitLineRange
 } from '../../preload/types'
+import type { MiddleProposal } from './conflictModel'
 
 // Only the active project's workspace is mounted, so switching projects unmounts a resolver tab.
 // Its work in progress is kept here by project and path, the one resolver tab per path, and handed
@@ -17,6 +18,8 @@ export interface ConflictDraft {
   // The chunks the middle was loaded from, which Reset goes back to.
   chunks: GitConflictChunk[]
   finalNewline: boolean
+  // The model's submission the chunks were mapped from, when the middle was a proposal.
+  proposal?: MiddleProposal | null
   loadedText: string
   refs: ConflictRefs
   middle: unknown

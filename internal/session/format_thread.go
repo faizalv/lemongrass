@@ -64,6 +64,15 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool, labels map[st
 	fmt.Fprintf(&b, "%s thread %s [%s], opened by %s %s, %d msgs%s, newest first, times UTC\n", Prefix, t.ID, t.Title, labelOf(labels, t.CreatedBy), formatDate(t.CreatedAt), t.MessageCount, scope)
 	for _, m := range msgs {
 		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatMessageTime(m.CreatedAt, msgs[0].CreatedAt), labelOf(labels, m.TabID))
+		switch m.Kind {
+		case MessageNote:
+			b.WriteString(" note")
+		case MessageSubmit:
+			fmt.Fprintf(&b, " submitted %s", strings.Join(m.Files, ", "))
+		}
+		if a := m.Anchor; a != nil {
+			fmt.Fprintf(&b, " on %s %s", a.Path, lineSpan(a.StartLine, a.EndLine))
+		}
 		if len(m.Mentions) > 0 {
 			names := make([]string, len(m.Mentions))
 			for i, id := range m.Mentions {
@@ -71,12 +80,25 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool, labels map[st
 			}
 			fmt.Fprintf(&b, " (mentions %s)", strings.Join(names, ", "))
 		}
-		fmt.Fprintf(&b, ":\n%s\n", m.Body)
+		b.WriteString(":\n")
+		if a := m.Anchor; a != nil && a.Quote != "" {
+			for _, line := range strings.Split(strings.TrimRight(a.Quote, "\n"), "\n") {
+				fmt.Fprintf(&b, "> %s\n", line)
+			}
+		}
+		fmt.Fprintf(&b, "%s\n", m.Body)
 	}
 	if more && len(msgs) > 0 {
 		fmt.Fprintf(&b, "\nolder messages: lgrass thread read %s --before %d\n", t.ID, msgs[len(msgs)-1].ID)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+func lineSpan(start, end int) string {
+	if start == end {
+		return fmt.Sprintf("line %d", start)
+	}
+	return fmt.Sprintf("lines %d-%d", start, end)
 }
 
 func FormatThreadList(threads []Thread, labels map[string]string) string {

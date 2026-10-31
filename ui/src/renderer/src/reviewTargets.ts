@@ -2,6 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { allLeaves } from './layoutTree'
+import { orderTargets, type ResolveTarget } from './resolveTargets'
 import { shellTitles } from './shellRegistry'
 import { workspaceOf } from './workspace'
 
@@ -22,4 +23,9 @@ export function reviewTargetsOf(projectId: string): ReviewTarget[] {
         ? [{ tabId: tab.id, label: shellTitles[tab.id] ?? tab.label }]
         : []
     )
+}
+
+// The Claude and Codex tabs in picker order, the ones each pane shows first.
+export function resolveTargetsOf(projectId: string): ResolveTarget[] {
+  return orderTargets(allLeaves(workspaceOf(projectId)?.layout.root ?? null), shellTitles)
 }

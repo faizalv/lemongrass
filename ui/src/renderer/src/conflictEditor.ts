@@ -3,6 +3,7 @@
 
 import {
   EditorState,
+  Facet,
   RangeSetBuilder,
   StateEffect,
   StateField,
@@ -59,7 +60,14 @@ export const middleChunks = StateField.define<MiddleChunk[]>({
         })
         const from = tr.changes.mapPos(chunk.from, -1)
         const to = tr.changes.mapPos(chunk.to, chunk.from === chunk.to ? 1 : -1)
-        return { ...chunk, from, to: Math.max(from, to), resolved: chunk.resolved || touched }
+        // A hand edit settles a proposal as much as an unresolved conflict.
+        return {
+          ...chunk,
+          from,
+          to: Math.max(from, to),
+          resolved: chunk.resolved || touched,
+          ...(chunk.proposed && touched ? { proposed: false } : {})
+        }
       })
     }
     for (const effect of tr.effects) {
@@ -81,6 +89,40 @@ const undoChunks = invertedEffects.of((tr) => {
     return old ? [setChunk.of(old)] : []
   })
 })
+
+// Clean lines the model changed in its submission, as character ranges that follow every edit, so
+// the human sees what the model touched outside the conflicts.
+const modelEdits = StateField.define<{ from: number; to: number }[]>({
+  create: () => [],
+  toJSON: (ranges) => ranges,
+  fromJSON: (json) => json as { from: number; to: number }[],
+  update(ranges, tr) {
+    if (!tr.docChanged) return ranges
+    return ranges
+      .map((range) => ({
+        from: tr.changes.mapPos(range.from, 1),
+        to: tr.changes.mapPos(range.to, -1)
+      }))
+      .filter((range) => range.to > range.from)
+  }
+})
+
+const modelEditDecorations = EditorView.decorations.compute(['doc', modelEdits], (state) =>
+  lineClasses(
+    state.doc,
+    state.field(modelEdits).map((range) => ({ ...range, className: 'cm-model-edit' }))
+  )
+)
+
+// Accept keeps the model's text for these conflicts and resolves them. Only the decisions change,
+// through the same effect as a take, so undo brings the proposals back.
+export function acceptChunks(state: EditorState, indexes: number[]): TransactionSpec | null {
+  const effects = state
+    .field(middleChunks)
+    .filter((chunk) => indexes.includes(chunk.index) && chunk.proposed && !chunk.resolved)
+    .map((chunk) => setChunk.of({ ...chunk, proposed: false, resolved: true }))
+  return effects.length ? { effects } : null
+}
 
 const currentChunk = StateField.define<number | null>({
   create: () => null,
@@ -230,27 +272,94 @@ const lineNumbersAfter = gutter({
   initialSpacer: (view) => new LineNumberMarker(view.state.doc.lines)
 })
 
-class EmptyChunkWidget extends WidgetType {
-  readonly resolved: boolean
-  readonly picked: boolean
+type OnAccept = (index: number) => void
 
-  constructor(resolved: boolean, picked: boolean) {
+// What Accept on a proposed block runs, given by the resolver that owns the middle.
+const acceptHandler = Facet.define<OnAccept, OnAccept | null>({
+  combine: (values) => values[0] ?? null
+})
+
+export function acceptAction(onAccept: OnAccept): Extension {
+  return acceptHandler.of(onAccept)
+}
+
+// The frameless jade Accept on a proposed block, so the decision sits where the eye already is.
+function acceptButton(index: number, onAccept: OnAccept): HTMLElement {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'cm-accept'
+  button.textContent = 'Accept'
+  button.title = "Keep the model's text for this conflict"
+  // mousedown, not click, so the editor never moves its cursor or selection under the press.
+  button.addEventListener('mousedown', (event) => {
+    event.preventDefault()
+    onAccept(index)
+  })
+  return button
+}
+
+class AcceptWidget extends WidgetType {
+  readonly index: number
+  readonly onAccept: OnAccept
+
+  constructor(index: number, onAccept: OnAccept) {
     super()
+    this.index = index
+    this.onAccept = onAccept
+  }
+
+  eq(other: AcceptWidget): boolean {
+    return other.index === this.index && other.onAccept === this.onAccept
+  }
+
+  toDOM(): HTMLElement {
+    return acceptButton(this.index, this.onAccept)
+  }
+
+  ignoreEvent(): boolean {
+    return true
+  }
+}
+
+class EmptyChunkWidget extends WidgetType {
+  readonly index: number
+  readonly resolved: boolean
+  readonly look: ChunkLook
+  readonly onAccept: OnAccept | null
+
+  constructor(index: number, resolved: boolean, look: ChunkLook, onAccept: OnAccept | null) {
+    super()
+    this.index = index
     this.resolved = resolved
-    this.picked = picked
+    this.look = look
+    this.onAccept = onAccept
   }
 
   eq(other: EmptyChunkWidget): boolean {
-    return other.resolved === this.resolved && other.picked === this.picked
+    return (
+      other.index === this.index &&
+      other.resolved === this.resolved &&
+      other.look === this.look &&
+      other.onAccept === this.onAccept
+    )
   }
 
   toDOM(): HTMLElement {
     const el = document.createElement('div')
-    el.className = `cm-conflict-empty ${this.picked ? 'picked' : 'open'}`
+    el.className = `cm-conflict-empty ${this.look}`
     el.textContent = this.resolved
       ? 'Resolved as empty'
-      : 'No lines here. Decide each side or type.'
+      : this.look === 'proposed'
+        ? 'The model removed these lines.'
+        : 'No lines here. Decide each side or type.'
+    if (this.look === 'proposed' && this.onAccept) {
+      el.append(acceptButton(this.index, this.onAccept))
+    }
     return el
+  }
+
+  ignoreEvent(): boolean {
+    return true
   }
 }
 
@@ -330,22 +439,26 @@ function lineClasses(
   return builder.finish()
 }
 
+type ChunkLook = 'open' | 'picked' | 'proposed'
+
 // A middle conflict is red until it holds something chosen: a taken side, a hand edit, or both
-// sides decided.
-function isPicked(chunk: MiddleChunk): boolean {
-  return chunk.resolved || chunk.taken.length > 0
+// sides decided. The model's proposal is violet until the human settles it.
+function lookOf(chunk: MiddleChunk): ChunkLook {
+  if (chunk.proposed && !chunk.resolved) return 'proposed'
+  return chunk.resolved || chunk.taken.length > 0 ? 'picked' : 'open'
 }
 
 function chunkClass(chunk: MiddleChunk, current: number | null): string {
-  const state = isPicked(chunk) ? 'cm-conflict-picked' : 'cm-conflict-open'
+  const state = `cm-conflict-${lookOf(chunk)}`
   return chunk.index === current ? `${state} cm-conflict-current` : state
 }
 
 const middleDecorations = EditorView.decorations.compute(
-  ['doc', middleChunks, currentChunk],
+  ['doc', middleChunks, currentChunk, acceptHandler],
   (state) => {
     const current = state.field(currentChunk)
     const chunks = state.field(middleChunks)
+    const onAccept = state.facet(acceptHandler)
     const lines = lineClasses(
       state.doc,
       chunks.map((chunk) => ({
@@ -358,12 +471,22 @@ const middleDecorations = EditorView.decorations.compute(
       .filter((chunk) => chunk.from === chunk.to)
       .map((chunk) =>
         Decoration.widget({
-          widget: new EmptyChunkWidget(chunk.resolved, isPicked(chunk)),
+          widget: new EmptyChunkWidget(chunk.index, chunk.resolved, lookOf(chunk), onAccept),
           block: true,
           side: -1
         }).range(chunk.from)
       )
-    return empty.length ? lines.update({ add: empty, sort: true }) : lines
+    const accepts = onAccept
+      ? chunks
+          .filter((chunk) => chunk.from < chunk.to && lookOf(chunk) === 'proposed')
+          .map((chunk) =>
+            Decoration.widget({ widget: new AcceptWidget(chunk.index, onAccept), side: 1 }).range(
+              state.doc.lineAt(chunk.from).to
+            )
+          )
+      : []
+    const add = [...empty, ...accepts]
+    return add.length ? lines.update({ add, sort: true }) : lines
   }
 )
 
@@ -424,6 +547,9 @@ const theme = EditorView.theme({
   // red until something is picked and jade after, an open side is sapphire.
   '.cm-conflict-open': { backgroundColor: 'var(--color-error-muted)' },
   '.cm-conflict-picked': { backgroundColor: 'var(--color-jade-muted)' },
+  // Violet is the model's: a proposal waiting for the human, and its edits outside the conflicts.
+  '.cm-conflict-proposed': { backgroundColor: 'var(--color-violet-muted)' },
+  '.cm-model-edit': { boxShadow: 'inset 3px 0 0 var(--color-violet-dim)' },
   '.cm-conflict-side': { backgroundColor: 'var(--color-sapphire-muted)' },
   '.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-jade)' },
   '.cm-conflict-side.cm-conflict-current, .cm-conflict-used.cm-conflict-current': {
@@ -466,7 +592,26 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--color-surface-1)'
   },
   '.cm-conflict-empty.open': { backgroundColor: 'var(--color-error-muted)' },
-  '.cm-conflict-empty.picked': { backgroundColor: 'var(--color-jade-muted)' }
+  '.cm-conflict-empty.picked': { backgroundColor: 'var(--color-jade-muted)' },
+  '.cm-conflict-empty.proposed': { backgroundColor: 'var(--color-violet-muted)' },
+  // Frameless jade text, the go action for one block. Sticky to the right edge, so on a line wider
+  // than the pane it stays in view instead of scrolling away with the end of the line.
+  '.cm-accept': {
+    position: 'sticky',
+    right: '8px',
+    marginLeft: '2ch',
+    padding: '0 2px',
+    background: 'none',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    color: 'var(--color-jade)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 'var(--text-xs)',
+    fontStyle: 'normal',
+    fontWeight: 'var(--weight-medium)',
+    cursor: 'pointer'
+  },
+  '.cm-accept:hover': { backgroundColor: 'var(--color-jade-muted)' }
 })
 
 function base(extra: Extension[]): Extension[] {
@@ -479,8 +624,10 @@ function middleExtensions(onUpdate: OnMiddleUpdate, extra: Extension[]): Extensi
   return base([
     lineNumbers(),
     middleChunks,
+    modelEdits,
     undoChunks,
     middleDecorations,
+    modelEditDecorations,
     history(),
     keymap.of([...defaultKeymap, ...historyKeymap]),
     EditorView.updateListener.of((update) => {
@@ -496,17 +643,30 @@ export function middleState(
   doc: string,
   chunks: MiddleChunk[],
   onUpdate: OnMiddleUpdate,
-  extra: Extension[]
+  extra: Extension[],
+  edits: GitLineRange[] = []
 ): EditorState {
+  const state = EditorState.create({ doc })
+  const ranges = edits
+    .filter((range) => range.start >= 1 && range.end >= range.start && range.end <= state.doc.lines)
+    .map((range) => ({
+      from: state.doc.line(range.start).from,
+      // Past the newline, so an edited empty line still has a range to mark.
+      to: Math.min(state.doc.line(range.end).to + 1, state.doc.length)
+    }))
   return EditorState.create({
     doc,
-    extensions: [middleExtensions(onUpdate, extra), middleChunks.init(() => chunks)]
+    extensions: [
+      middleExtensions(onUpdate, extra),
+      middleChunks.init(() => chunks),
+      modelEdits.init(() => ranges)
+    ]
   })
 }
 
 // Undo history is left out: its saved form drops the decision effects, so an undo after a restore
 // would change the text without its decisions.
-const savedFields = { chunks: middleChunks }
+const savedFields = { chunks: middleChunks, edits: modelEdits }
 
 // The middle as plain data, with its decisions, so it outlives its view.
 export function snapshotMiddle(state: EditorState): unknown {
