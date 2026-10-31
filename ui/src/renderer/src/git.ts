@@ -316,6 +316,8 @@ export async function updateBranch(
 export async function pushBranch(project: ProjectRef): Promise<string | null> {
   const state = gitStateOf(project.id)
   if (state.busy) return 'Another git operation is running.'
+  // A failed commit-and-push left its error in state.error, which this push supersedes.
+  state.error = null
   state.busy = 'push'
   const pushed = await window.api.git.push(project.path)
   const error = pushed.ok || (pushed.diverged && (await offerRebase(project))) ? null : pushed.error
