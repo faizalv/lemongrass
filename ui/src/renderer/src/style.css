@@ -192,6 +192,23 @@ body {
   background-clip: padding-box;
 }
 
+/* Once scrollbars are styled, Chromium paints the corner where they meet a resize handle white. */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Styling the resizer replaces Chromium's grip, so two muted diagonal strokes redraw it. */
+::-webkit-resizer {
+  background: linear-gradient(
+    135deg,
+    transparent 0 55%,
+    var(--color-fg-muted) 55% 61%,
+    transparent 61% 72%,
+    var(--color-fg-muted) 72% 78%,
+    transparent 78%
+  );
+}
+
 ::selection { background: rgba(245,197,24,0.30); color: var(--color-fg-primary); }
 
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
