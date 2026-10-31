@@ -17,6 +17,7 @@ import type {
   PtyDataPayload,
   PtyExitPayload,
   Project,
+  UiState,
   BiblioTree,
   BiblioFileResult,
   ScratchpadImageResult,
@@ -137,6 +138,11 @@ interface Api {
   workspaceLayouts: {
     load: (projectId: string) => Promise<WorkspaceLayoutState | null>
     save: (projectId: string, layout: WorkspaceLayoutState | null) => void
+  }
+  uiState: {
+    load: () => Promise<UiState>
+    save: (patch: UiState) => void
+    zoomPresets: () => Promise<number[]>
   }
   biblio: {
     tree: (projectPath: string) => Promise<BiblioTree | null>

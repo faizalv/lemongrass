@@ -12,7 +12,9 @@ import GuideModal from './components/GuideModal.vue'
 import WorkgroupApprovalModal from './components/WorkgroupApprovalModal.vue'
 import WorkgroupJoinModal from './components/WorkgroupJoinModal.vue'
 import ProjectTrustModal from './components/ProjectTrustModal.vue'
+import ZoomIndicator from './components/ZoomIndicator.vue'
 import { loadAccounts } from './accounts'
+import { restoreZoom, setZoom, stepZoom } from './zoom'
 import {
   cancelShellPicker,
   ensureLoaded,
@@ -47,17 +49,25 @@ const biblioTree = computed((): BiblioTree | null =>
   activeProjectId.value ? (biblioByProject[activeProjectId.value] ?? null) : null
 )
 
-async function loadProjects(): Promise<void> {
+async function loadProjects(lastProjectId: string | undefined): Promise<void> {
   projects.value = await window.api.projects.list()
   if (!activeProjectId.value && projects.value.length > 0) {
-    await selectProject(projects.value[0].id)
+    const last = projects.value.find((p) => p.id === lastProjectId)
+    await selectProject((last ?? projects.value[0]).id)
   }
+}
+
+async function restoreUiState(): Promise<void> {
+  const saved = await window.api.uiState.load()
+  void restoreZoom(saved.zoomFactor)
+  await loadProjects(saved.lastProjectId)
 }
 
 async function selectProject(id: string): Promise<void> {
   // shellPicker.placement pins the project it was opened for, so a project switch while it is open must cancel it.
   if (shellPicker.open) cancelShellPicker()
   activeProjectId.value = id
+  window.api.uiState.save({ lastProjectId: id })
   const project = projects.value.find((p) => p.id === id)
   if (project && project.trusted === undefined) trustPrompt.value = project
   if (!project || loadedProjects[id]) return
@@ -103,16 +113,6 @@ async function addProject(): Promise<void> {
   await selectProject(project.id)
 }
 
-const ZOOM_STEP = 0.5
-const ZOOM_MIN = -5
-const ZOOM_MAX = 5
-const zoomLevel = ref(0)
-
-function setZoom(level: number): void {
-  zoomLevel.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, level))
-  window.electron.webFrame.setZoomLevel(zoomLevel.value)
-}
-
 // Captured, not bubbled -- xterm treats some Ctrl+key combos (Ctrl+- among
 // them) as shell input and cancels the browser event on its own element
 // before it would ever bubble up to a window-level listener.
@@ -121,15 +121,15 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === '=' || event.key === '+') {
     event.preventDefault()
     event.stopPropagation()
-    setZoom(zoomLevel.value + ZOOM_STEP)
+    void stepZoom(1)
   } else if (event.key === '-') {
     event.preventDefault()
     event.stopPropagation()
-    setZoom(zoomLevel.value - ZOOM_STEP)
+    void stepZoom(-1)
   } else if (event.key === '0') {
     event.preventDefault()
     event.stopPropagation()
-    setZoom(0)
+    setZoom(1)
   }
 }
 
@@ -137,7 +137,7 @@ let unsubscribeBiblio: (() => void) | undefined
 let unsubscribeClosing: (() => void) | undefined
 
 onMounted(() => {
-  loadProjects()
+  void restoreUiState()
   void loadAccounts()
   window.addEventListener('keydown', onKeydown, { capture: true })
   unsubscribeBiblio = window.api.biblio.onChanged(onBiblioChanged)
@@ -213,6 +213,7 @@ onBeforeUnmount(() => {
     <GuideModal v-if="guideOpen" @close="guideOpen = false" />
     <WorkgroupApprovalModal />
     <WorkgroupJoinModal />
+    <ZoomIndicator />
     <ProjectTrustModal
       v-if="trustPrompt"
       :project="trustPrompt"

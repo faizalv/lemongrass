@@ -15,6 +15,7 @@ import AppButton from './AppButton.vue'
 import AppConfirmButton from './AppConfirmButton.vue'
 import PolicySection from './safety/PolicySection.vue'
 import UpdatesSection from './updates/UpdatesSection.vue'
+import GeneralSection from './general/GeneralSection.vue'
 import type { Project } from '../../../preload/types'
 
 const props = defineProps<{
@@ -26,7 +27,7 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const section = ref<'accounts' | 'safety' | 'updates'>('accounts')
+const section = ref<'general' | 'accounts' | 'safety' | 'updates'>('general')
 
 const newName = ref('')
 const addError = ref('')
@@ -59,6 +60,14 @@ async function onRemove(name: string): Promise<void> {
         <button
           type="button"
           class="settings-nav-item"
+          :class="{ selected: section === 'general' }"
+          @click="section = 'general'"
+        >
+          General
+        </button>
+        <button
+          type="button"
+          class="settings-nav-item"
           :class="{ selected: section === 'accounts' }"
           @click="section = 'accounts'"
         >
@@ -82,7 +91,12 @@ async function onRemove(name: string): Promise<void> {
         </button>
       </aside>
 
-      <section v-if="section === 'safety'" class="settings-section settings-section--fixed">
+      <section v-if="section === 'general'" class="settings-section">
+        <h4 class="settings-title">General</h4>
+        <GeneralSection />
+      </section>
+
+      <section v-else-if="section === 'safety'" class="settings-section settings-section--fixed">
         <h4 class="settings-title">Safety</h4>
         <PolicySection :projects="props.projects" :active-project-id="props.activeProjectId" />
       </section>

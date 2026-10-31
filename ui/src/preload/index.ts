@@ -18,6 +18,7 @@ import type {
   PtyDataPayload,
   PtyExitPayload,
   Project,
+  UiState,
   BiblioTree,
   BiblioFileResult,
   ScratchpadImageResult,
@@ -137,6 +138,12 @@ const workspaceLayouts = {
     ipcRenderer.invoke('workspaceLayouts:load', projectId),
   save: (projectId: string, layout: WorkspaceLayoutState | null): void =>
     ipcRenderer.send('workspaceLayouts:save', { projectId, layout })
+}
+
+const uiState = {
+  load: (): Promise<UiState> => ipcRenderer.invoke('uiState:load'),
+  save: (patch: UiState): void => ipcRenderer.send('uiState:save', patch),
+  zoomPresets: (): Promise<number[]> => ipcRenderer.invoke('uiState:zoomPresets')
 }
 
 const biblio = {
@@ -517,6 +524,7 @@ const api = {
   update,
   projects,
   workspaceLayouts,
+  uiState,
   tabSessions,
   biblio,
   git,

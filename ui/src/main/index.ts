@@ -19,6 +19,7 @@ import { registerUpdateHandlers } from './updater'
 import { registerProjectHandlers } from './projects'
 import { setTrustBinary } from './projectTrust'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
+import { registerUiStateHandlers } from './uiState'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
 import { registerGitHandlers } from './git'
 import { registerReviewHandlers } from './review'
@@ -115,6 +116,7 @@ app.whenReady().then(async () => {
   setTrustBinary(lgrassdPath)
   registerProjectHandlers(() => mainWindow)
   registerWorkspaceLayoutHandlers()
+  registerUiStateHandlers(() => mainWindow)
   registerTabSessionHandlers(lgrassdPath)
   registerBiblioHandlers(() => mainWindow?.webContents)
   registerGitHandlers(lgrassdPath)

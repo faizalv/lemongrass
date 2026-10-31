@@ -35,6 +35,11 @@ export interface Project {
   trusted?: boolean
 }
 
+export interface UiState {
+  lastProjectId?: string
+  zoomFactor?: number
+}
+
 export interface BiblioNode {
   name: string
   path: string
