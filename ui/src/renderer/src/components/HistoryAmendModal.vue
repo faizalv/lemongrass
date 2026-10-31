@@ -6,6 +6,7 @@ import { onMounted, ref } from 'vue'
 import type { ProjectRef } from '../workspace'
 import type { GitCommit } from '../../../preload/types'
 import AppButton from './AppButton.vue'
+import AppTextarea from './AppTextarea.vue'
 import AppModal from './AppModal.vue'
 
 const props = defineProps<{
@@ -41,9 +42,8 @@ async function save(): Promise<void> {
 
 <template>
   <AppModal title="Amend commit message" @close="emit('close')">
-    <textarea
+    <AppTextarea
       v-model="message"
-      class="amend-input"
       rows="6"
       aria-label="Commit message"
       :disabled="!loaded || busy"
@@ -67,24 +67,6 @@ async function save(): Promise<void> {
 </template>
 
 <style scoped>
-.amend-input {
-  box-sizing: border-box;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  resize: vertical;
-}
-
-.amend-input:focus {
-  outline: none;
-  border-color: var(--color-amber);
-}
-
 .amend-warning {
   margin-top: var(--space-3);
   color: var(--color-warning);

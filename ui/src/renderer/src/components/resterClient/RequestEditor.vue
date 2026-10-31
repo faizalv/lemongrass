@@ -4,6 +4,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import AppButton from '../AppButton.vue'
+import AppTextarea from '../AppTextarea.vue'
 import AppSegmented from '../AppSegmented.vue'
 import AppSwitcher from '../AppSwitcher.vue'
 import PairRows from './PairRows.vue'
@@ -67,9 +68,12 @@ function formatJson(): void {
           This request sends no body.
         </p>
         <template v-else-if="request.bodyKind === 'json'">
-          <textarea
+          <AppTextarea
             v-model="request.json"
             class="json-input"
+            size="sm"
+            resize="none"
+            mono
             spellcheck="false"
             placeholder="{ }"
             @input="formatError = ''"
@@ -101,9 +105,6 @@ function formatJson(): void {
 .json-input {
   flex: 1;
   min-height: 220px;
-  resize: none;
-  font-size: var(--text-xs);
-  line-height: 1.6;
   tab-size: 2;
 }
 </style>

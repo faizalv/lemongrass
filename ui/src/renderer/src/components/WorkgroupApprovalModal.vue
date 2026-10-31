@@ -10,10 +10,11 @@ import { shellAccountOf } from '../workspace'
 import { renderSafeMarkdown } from '../safeMarkdown'
 import type { WorkgroupPending } from '../../../preload/types'
 import AppButton from './AppButton.vue'
+import AppTextarea from './AppTextarea.vue'
 import AppSegmented from './AppSegmented.vue'
 
 const declineButton = ref<InstanceType<typeof AppButton> | null>(null)
-const reasonInput = ref<HTMLTextAreaElement | null>(null)
+const reasonInput = ref<InstanceType<typeof AppTextarea> | null>(null)
 
 // The primary account is the empty name.
 const accountOptions = computed(() => [
@@ -182,11 +183,11 @@ watch(
           <label class="reason-label" :for="`reason-${selected.requestId}`">
             Reason for declining, optional. Press Decline again to send it.
           </label>
-          <textarea
+          <AppTextarea
             :id="`reason-${selected.requestId}`"
             ref="reasonInput"
             v-model="approvals.reasons[selected.requestId]"
-            class="reason-input"
+            resize="none"
             rows="2"
             maxlength="500"
             placeholder="The agent that proposed this group will read it."
@@ -550,23 +551,6 @@ watch(
 .reason-label {
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
-}
-
-.reason-input {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  resize: none;
-}
-
-.reason-input:focus {
-  outline: none;
-  border-color: var(--color-amber);
 }
 
 .action-bar {

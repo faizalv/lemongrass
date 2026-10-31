@@ -24,6 +24,7 @@ import {
 } from '../workspace'
 import type { GitFile, GitFileGroup, GitFileKind } from '../../../preload/types'
 import AppButton from './AppButton.vue'
+import AppTextarea from './AppTextarea.vue'
 import AppCheckbox from './AppCheckbox.vue'
 import GitIcon from './GitIcon.vue'
 import GitConflictPanel from './GitConflictPanel.vue'
@@ -358,9 +359,9 @@ watch(() => props.project.id, refresh)
 
         <GitStashSection :project="project" :has-changes="files.length > 0" />
 
-        <textarea
+        <AppTextarea
           v-model="state.message"
-          class="message-input"
+          size="sm"
           rows="3"
           placeholder="Commit message"
           :disabled="state.busy !== null"
@@ -745,24 +746,6 @@ watch(() => props.project.id, refresh)
   white-space: nowrap;
   color: var(--color-fg-muted);
   text-align: left;
-}
-
-.message-input {
-  box-sizing: border-box;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  resize: vertical;
-}
-
-.message-input:focus {
-  outline: none;
-  border-color: var(--color-amber);
 }
 
 .git-error {

@@ -172,8 +172,7 @@
   color: var(--color-error);
 }
 
-.rester-client input,
-.rester-client textarea {
+.rester-client input {
   padding: var(--space-2) var(--space-3);
   background: var(--color-surface-0);
   border: 1px solid var(--color-border-default);
@@ -183,12 +182,7 @@
   font-size: var(--text-sm);
 }
 
-.rester-client textarea {
-  font-family: var(--font-mono);
-}
-
-.rester-client input:focus,
-.rester-client textarea:focus {
+.rester-client input:focus {
   outline: none;
   border-color: var(--color-amber);
 }

@@ -4,6 +4,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import AppButton from '../AppButton.vue'
+import AppTextarea from '../AppTextarea.vue'
 
 // A draft has no saved comment yet, so cancelling it discards it instead of returning to view.
 const props = defineProps<{
@@ -19,7 +20,7 @@ const emit = defineEmits<{
 
 const editing = ref(props.draft)
 const text = ref(props.comment)
-const inputRef = ref<HTMLTextAreaElement | null>(null)
+const inputRef = ref<InstanceType<typeof AppTextarea> | null>(null)
 
 async function startEditing(): Promise<void> {
   text.value = props.comment
@@ -48,10 +49,10 @@ onMounted(() => {
 <template>
   <div class="annotation-card">
     <template v-if="editing">
-      <textarea
+      <AppTextarea
         ref="inputRef"
         v-model="text"
-        class="input"
+        size="sm"
         rows="3"
         placeholder="Leave a comment"
         @keydown.escape.stop.prevent="cancel"
@@ -87,24 +88,6 @@ onMounted(() => {
   border-left: 3px solid var(--color-amber);
   border-radius: var(--radius-md);
   font-family: var(--font-body);
-}
-
-.input {
-  box-sizing: border-box;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  resize: vertical;
-}
-
-.input:focus {
-  outline: none;
-  border-color: var(--color-amber);
 }
 
 .comment {
