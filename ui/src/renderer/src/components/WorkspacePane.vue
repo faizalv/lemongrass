@@ -491,7 +491,8 @@ onBeforeUnmount(() => {
         <component
           :is="tabKindOf(tab).body"
           v-if="tabKindOf(tab).keepAlive || tab.id === leaf.activeTabId"
-          v-show="tab.id === leaf.activeTabId"
+          v-show="tab.id === leaf.activeTabId || tabKindOf(tab).keepLayout"
+          :class="{ 'tab-behind': tabKindOf(tab).keepLayout && tab.id !== leaf.activeTabId }"
           v-bind="tabKindOf(tab).bodyProps(tab, tabContext(tab))"
         />
       </template>
@@ -892,6 +893,13 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.pane-body > .tab-behind {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .drop-overlay {
