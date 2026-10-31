@@ -13,6 +13,7 @@ import WorkgroupApprovalModal from './components/WorkgroupApprovalModal.vue'
 import WorkgroupJoinModal from './components/WorkgroupJoinModal.vue'
 import ProjectTrustModal from './components/ProjectTrustModal.vue'
 import ZoomIndicator from './components/ZoomIndicator.vue'
+import ProjectSelector from './components/ProjectSelector.vue'
 import { loadAccounts } from './accounts'
 import { restoreZoom, setZoom, stepZoom } from './zoom'
 import {
@@ -49,18 +50,15 @@ const biblioTree = computed((): BiblioTree | null =>
   activeProjectId.value ? (biblioByProject[activeProjectId.value] ?? null) : null
 )
 
-async function loadProjects(lastProjectId: string | undefined): Promise<void> {
-  projects.value = await window.api.projects.list()
-  if (!activeProjectId.value && projects.value.length > 0) {
-    const last = projects.value.find((p) => p.id === lastProjectId)
-    await selectProject((last ?? projects.value[0]).id)
-  }
-}
-
+// With the project selector chosen for start-up, nothing is selected, so no workspace loads and no
+// shell spawns until the human picks a project.
 async function restoreUiState(): Promise<void> {
   const saved = await window.api.uiState.load()
   void restoreZoom(saved.zoomFactor)
-  await loadProjects(saved.lastProjectId)
+  projects.value = await window.api.projects.list()
+  if (saved.startup === 'projectSelector' || projects.value.length === 0) return
+  const last = projects.value.find((p) => p.id === saved.lastProjectId)
+  await selectProject((last ?? projects.value[0]).id)
 }
 
 async function selectProject(id: string): Promise<void> {
@@ -199,8 +197,8 @@ onBeforeUnmount(() => {
         <WorkspaceView :project="activeRef" />
       </div>
 
-      <div v-else-if="!activeProject" class="main empty-state">
-        <p class="empty">Add a project to get started.</p>
+      <div v-else-if="!activeProject" class="main">
+        <ProjectSelector :projects="projects" @select="selectProject" @add="addProject" />
       </div>
     </div>
 
@@ -330,16 +328,5 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   gap: var(--space-2);
-}
-
-.main.empty-state {
-  align-items: center;
-  justify-content: center;
-}
-
-.empty {
-  color: var(--color-fg-muted);
-  font-size: var(--text-sm);
-  padding: var(--space-4);
 }
 </style>

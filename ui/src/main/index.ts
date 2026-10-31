@@ -20,6 +20,7 @@ import { registerProjectHandlers } from './projects'
 import { setTrustBinary } from './projectTrust'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerUiStateHandlers } from './uiState'
+import { rememberWindowState, restoreWindowMode, savedWindowBounds } from './windowState'
 import { registerBiblioHandlers, registerBiblioImageScheme, closeBiblioWatchers } from './biblio'
 import { registerGitHandlers } from './git'
 import { registerReviewHandlers } from './review'
@@ -41,8 +42,7 @@ let mainWindow: BrowserWindow | undefined
 function createWindow(): void {
   let closing = false
   const win = new BrowserWindow({
-    width: 900,
-    height: 670,
+    ...savedWindowBounds(),
     show: false,
     frame: false,
     autoHideMenuBar: true,
@@ -56,11 +56,13 @@ function createWindow(): void {
   wireMaximizeEvents(win)
 
   win.on('ready-to-show', () => {
+    restoreWindowMode(win)
     win.show()
   })
 
   win.on('close', (event) => {
     if (closing) return
+    rememberWindowState(win)
     event.preventDefault()
     closing = true
     beginShutdown()

@@ -38,6 +38,7 @@ export interface Project {
 export interface UiState {
   lastProjectId?: string
   zoomFactor?: number
+  startup?: 'lastProject' | 'projectSelector'
 }
 
 export interface BiblioNode {
