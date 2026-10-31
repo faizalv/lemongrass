@@ -36,6 +36,7 @@ import type {
   GitDeleteResult,
   GitPushResult,
   GitUpdateResult,
+  GitForecast,
   GitRevFiles,
   GitRevision,
   GitStash,
@@ -187,6 +188,7 @@ interface Api {
     branchNameValid: (projectPath: string, name: string) => Promise<boolean>
     updateBranch: (projectPath: string, name: string, remote: boolean) => Promise<GitUpdateResult>
     rebaseOntoUpstream: (projectPath: string, name: string) => Promise<GitActionResult>
+    rebaseForecast: (projectPath: string, name: string) => Promise<GitForecast>
     deleteBranch: (projectPath: string, name: string) => Promise<GitDeleteResult>
     commitsOnlyOn: (projectPath: string, name: string) => Promise<number | null>
     revFiles: (projectPath: string, rev: GitRevision) => Promise<GitRevFiles>
@@ -209,6 +211,7 @@ interface Api {
     ) => Promise<GitActionResult>
     fetch: (projectPath: string) => Promise<GitActionResult>
     mergeCount: (projectPath: string, source: string) => Promise<number>
+    mergeForecast: (projectPath: string, source: string) => Promise<GitForecast>
     merge: (projectPath: string, source: string) => Promise<GitActionResult>
     finish: (projectPath: string, action: 'continue' | 'abort') => Promise<GitActionResult>
     conflict: (projectPath: string, path: string) => Promise<GitConflictFile>

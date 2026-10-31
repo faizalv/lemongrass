@@ -401,6 +401,19 @@ export type GitUpdateResult =
   | { status: 'gone'; message: string }
   | { status: 'error'; error: string }
 
+// Where a forecast rebase stops: the commit's place among those replayed, both 1-based.
+export interface GitForecastStop {
+  index: number
+  total: number
+  subject: string
+}
+
+// What a merge or a rebase would do, worked out in memory before it runs. stop is null for a merge.
+export type GitForecast =
+  | { status: 'clean' }
+  | { status: 'conflict'; paths: string[]; stop: GitForecastStop | null }
+  | { status: 'unavailable'; error: string }
+
 // The switch to main made before deleting the checked-out branch. It stands even when the delete
 // itself then fails.
 export interface GitDeleteMove {

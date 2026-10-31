@@ -13,8 +13,14 @@ import {
   stoppedOperation
 } from './gitRun'
 import { applyResolution, pickSide, readConflict, saveWorking } from './gitConflict'
+import { forecastMerge } from './gitForecast'
 import type { GitRunner } from './gitMove'
-import type { GitActionResult, GitConflictChoice, GitConflictFile } from '../preload/types'
+import type {
+  GitActionResult,
+  GitConflictChoice,
+  GitConflictFile,
+  GitForecast
+} from '../preload/types'
 
 const notARepo = 'This project is not a git repository.'
 const FETCH_TIMEOUT_MS = 60_000
@@ -53,6 +59,14 @@ async function mergeCount(projectPath: string, source: string): Promise<number> 
   if (!root || !(await isBranch(root, source))) return 0
   const result = await run(root, ['rev-list', '--count', `HEAD..${source}`], { env: readEnv })
   return result.code === 0 ? Number(result.stdout.trim()) : 0
+}
+
+async function mergeForecast(projectPath: string, source: string): Promise<GitForecast> {
+  const root = await repoRoot(projectPath)
+  if (!root) return { status: 'unavailable', error: notARepo }
+  if (!(await isBranch(root, source)))
+    return { status: 'unavailable', error: 'That is not a branch.' }
+  return forecastMerge(conflictRunner(root), source)
 }
 
 // A conflict stops the merge for the human, and the panel then offers Continue and Abort. There is
@@ -149,6 +163,9 @@ export function registerGitSyncHandlers(): void {
   ipcMain.handle('git:fetch', (_event, projectPath: string) => fetchAll(projectPath))
   ipcMain.handle('git:mergeCount', (_event, projectPath: string, source: string) =>
     mergeCount(projectPath, source)
+  )
+  ipcMain.handle('git:mergeForecast', (_event, projectPath: string, source: string) =>
+    mergeForecast(projectPath, source)
   )
   ipcMain.handle('git:merge', (_event, projectPath: string, source: string) =>
     merge(projectPath, source)

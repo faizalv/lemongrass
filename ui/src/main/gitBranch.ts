@@ -27,12 +27,14 @@ import {
   updateLocal,
   updateRemote
 } from './gitBranchOps'
+import { forecastRebase } from './gitForecast'
 import { createNoticeQueue, type BranchNotice, type BranchNoticeQueue } from './gitNotice'
 import { parseTrack } from './gitParse'
 import type {
   GitActionResult,
   GitBranches,
   GitDeleteResult,
+  GitForecast,
   GitMoveResult,
   GitUpdateResult
 } from '../preload/types'
@@ -156,6 +158,12 @@ async function rebase(projectPath: string, name: string): Promise<GitActionResul
   return result
 }
 
+async function rebaseForecast(projectPath: string, name: string): Promise<GitForecast> {
+  const root = await repoRoot(projectPath)
+  if (!root) return { status: 'unavailable', error: notARepo }
+  return forecastRebase(runner(root), name)
+}
+
 // Only a stopped merge or rebase blocks every delete. Conflicts matter only to the switch to main
 // that deleting the checked-out branch makes, and that switch checks them itself.
 async function remove(projectPath: string, name: string): Promise<GitDeleteResult> {
@@ -212,6 +220,9 @@ export function registerGitBranchHandlers(lgrassdPath: string | null): void {
   )
   ipcMain.handle('git:rebaseOntoUpstream', (_event, projectPath: string, name: string) =>
     rebase(projectPath, name)
+  )
+  ipcMain.handle('git:rebaseForecast', (_event, projectPath: string, name: string) =>
+    rebaseForecast(projectPath, name)
   )
   ipcMain.handle('git:deleteBranch', (_event, projectPath: string, name: string) =>
     remove(projectPath, name)

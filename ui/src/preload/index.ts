@@ -37,6 +37,7 @@ import type {
   GitDeleteResult,
   GitPushResult,
   GitUpdateResult,
+  GitForecast,
   GitRevFiles,
   GitRevision,
   GitStash,
@@ -207,6 +208,8 @@ const git = {
     ipcRenderer.invoke('git:updateBranch', projectPath, name, remote),
   rebaseOntoUpstream: (projectPath: string, name: string): Promise<GitActionResult> =>
     ipcRenderer.invoke('git:rebaseOntoUpstream', projectPath, name),
+  rebaseForecast: (projectPath: string, name: string): Promise<GitForecast> =>
+    ipcRenderer.invoke('git:rebaseForecast', projectPath, name),
   deleteBranch: (projectPath: string, name: string): Promise<GitDeleteResult> =>
     ipcRenderer.invoke('git:deleteBranch', projectPath, name),
   commitsOnlyOn: (projectPath: string, name: string): Promise<number | null> =>
@@ -236,6 +239,8 @@ const git = {
     ipcRenderer.invoke('git:fetch', projectPath),
   mergeCount: (projectPath: string, source: string): Promise<number> =>
     ipcRenderer.invoke('git:mergeCount', projectPath, source),
+  mergeForecast: (projectPath: string, source: string): Promise<GitForecast> =>
+    ipcRenderer.invoke('git:mergeForecast', projectPath, source),
   merge: (projectPath: string, source: string): Promise<GitActionResult> =>
     ipcRenderer.invoke('git:merge', projectPath, source),
   finish: (projectPath: string, action: 'continue' | 'abort'): Promise<GitActionResult> =>

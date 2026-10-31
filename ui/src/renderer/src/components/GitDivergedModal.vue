@@ -2,12 +2,14 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { gitStateOf, rebaseOntoUpstream, type GitDiverged } from '../git'
 import type { ProjectRef } from '../workspace'
+import type { GitForecast } from '../../../preload/types'
 import AppButton from './AppButton.vue'
 import AppModal from './AppModal.vue'
 import GitCounts from './GitCounts.vue'
+import GitForecastNotice from './GitForecastNotice.vue'
 
 const props = defineProps<{
   project: ProjectRef
@@ -22,6 +24,12 @@ const state = computed(() => gitStateOf(props.project.id))
 const isCurrent = computed(() => state.value.status?.branch === props.diverged.branch)
 const hasChanges = computed(() => (state.value.status?.files.length ?? 0) > 0)
 const error = ref<string | null>(null)
+const forecast = ref<GitForecast | null>(null)
+
+// The forecast only informs, so the rebase never waits on it.
+onMounted(async () => {
+  forecast.value = await window.api.git.rebaseForecast(props.project.path, props.diverged.branch)
+})
 
 function commits(count: number): string {
   return count === 1 ? '1 commit' : `${count} commits`
@@ -47,6 +55,7 @@ async function rebase(): Promise<void> {
       not. A rebase replays the {{ diverged.branch }} commits on top of {{ diverged.upstream }},
       after which it can be pushed.
     </p>
+    <GitForecastNotice :forecast="forecast" kind="rebase" />
     <p v-if="!isCurrent" class="diverged-note">
       The rebase checks out {{ diverged.branch }} first.
     </p>

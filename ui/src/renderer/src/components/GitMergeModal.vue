@@ -5,8 +5,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { gitStateOf, mergeInto } from '../git'
 import type { ProjectRef } from '../workspace'
+import type { GitForecast } from '../../../preload/types'
 import AppButton from './AppButton.vue'
 import AppModal from './AppModal.vue'
+import GitForecastNotice from './GitForecastNotice.vue'
 
 const props = defineProps<{
   project: ProjectRef
@@ -20,9 +22,14 @@ const emit = defineEmits<{
 const state = computed(() => gitStateOf(props.project.id))
 const target = computed(() => state.value.status?.branch ?? 'HEAD')
 const count = ref<number | null>(null)
+const forecast = ref<GitForecast | null>(null)
 const error = ref<string | null>(null)
 
+// The forecast only informs, so Merge never waits on it.
 onMounted(async () => {
+  void window.api.git
+    .mergeForecast(props.project.path, props.source)
+    .then((result) => (forecast.value = result))
   count.value = await window.api.git.mergeCount(props.project.path, props.source)
 })
 
@@ -43,6 +50,7 @@ async function merge(): Promise<void> {
 <template>
   <AppModal :title="`Merge ${source} into ${target}`" @close="emit('close')">
     <p class="merge-note">{{ summary }}</p>
+    <GitForecastNotice v-if="count" :forecast="forecast" kind="merge" />
     <p v-if="error" class="merge-error">{{ error }}</p>
 
     <template #footer>
