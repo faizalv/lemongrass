@@ -15,6 +15,7 @@ import AppButton from './AppButton.vue'
 import AppConfirmButton from './AppConfirmButton.vue'
 import PolicySection from './safety/PolicySection.vue'
 import UpdatesSection from './updates/UpdatesSection.vue'
+import CreditsSection from './credits/CreditsSection.vue'
 import GeneralSection from './general/GeneralSection.vue'
 import type { Project } from '../../../preload/types'
 
@@ -27,7 +28,7 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const section = ref<'general' | 'accounts' | 'safety' | 'updates'>('general')
+const section = ref<'general' | 'accounts' | 'safety' | 'updates' | 'credits'>('general')
 
 const newName = ref('')
 const addError = ref('')
@@ -89,6 +90,14 @@ async function onRemove(name: string): Promise<void> {
         >
           Updates
         </button>
+        <button
+          type="button"
+          class="settings-nav-item"
+          :class="{ selected: section === 'credits' }"
+          @click="section = 'credits'"
+        >
+          Credits
+        </button>
       </aside>
 
       <section v-if="section === 'general'" class="settings-section">
@@ -104,6 +113,11 @@ async function onRemove(name: string): Promise<void> {
       <section v-else-if="section === 'updates'" class="settings-section">
         <h4 class="settings-title">Updates</h4>
         <UpdatesSection />
+      </section>
+
+      <section v-else-if="section === 'credits'" class="settings-section">
+        <h4 class="settings-title">Credits</h4>
+        <CreditsSection />
       </section>
 
       <section v-else class="settings-section">

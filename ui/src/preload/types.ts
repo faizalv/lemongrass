@@ -903,3 +903,22 @@ export interface WebState {
   user: string
   open: boolean
 }
+
+export type CreditGroup = 'fonts' | 'app' | 'tools' | 'electron'
+
+// One bundled third-party component, as written by ui/scripts/licenses.ts.
+export interface CreditEntry {
+  group: CreditGroup
+  name: string
+  version: string
+  // An SPDX expression.
+  license: string
+  homepage?: string
+  text: string
+}
+
+export interface CreditsResult {
+  entries: CreditEntry[]
+  // Set when licenses.json is absent, as under `npm run dev`, which never runs the generator.
+  missing: boolean
+}

@@ -4,16 +4,17 @@
 import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
+import { bundledPackages } from './scripts/bundledPackages'
 
 export default defineConfig({
-  main: {},
-  preload: {},
+  main: { plugins: [bundledPackages()] },
+  preload: { plugins: [bundledPackages()] },
   renderer: {
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [vue()]
+    plugins: [vue(), bundledPackages()]
   }
 })

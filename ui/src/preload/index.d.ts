@@ -7,6 +7,7 @@ import type {
   AccountInfo,
   AccountRemoveResult,
   UpdateState,
+  CreditsResult,
   DeviceEnd,
   DeviceListResult,
   DevicePacket,
@@ -113,6 +114,10 @@ interface Api {
     install: () => Promise<void>
     restart: () => Promise<void>
     onState: (callback: (state: UpdateState) => void) => () => void
+  }
+  credits: {
+    list: () => Promise<CreditsResult>
+    openChromiumLicenses: () => Promise<string>
   }
   pty: {
     spawn: (opts: PtySpawnOptions) => Promise<{ id: string }>

@@ -17,7 +17,10 @@ rm -rf "$stage"
 
 # The snapshot sits inside ui/ so node_modules (node-pty is native) still resolves by walking up.
 # name and version come from ui/package.json so Electron keeps the same userData directory as before.
+# The credits run in warn mode so a dependency with an unaccepted license never blocks a dev launch;
+# the packaged build is where that fails.
 if (cd "$ui" && npx electron-vite build --outDir "$stage/out") &&
+	(cd "$ui" && npm run --silent licenses -- --out "$stage/out" --warn) &&
 	node -e '
 		const p = require(process.argv[1])
 		process.stdout.write(JSON.stringify({ name: p.name, version: p.version, main: "./out/main/index.js" }))

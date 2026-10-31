@@ -8,6 +8,7 @@ import type {
   AccountInfo,
   AccountRemoveResult,
   UpdateState,
+  CreditsResult,
   DeviceEnd,
   DeviceListResult,
   DevicePacket,
@@ -504,6 +505,11 @@ const update = {
   }
 }
 
+const credits = {
+  list: (): Promise<CreditsResult> => ipcRenderer.invoke('credits:list'),
+  openChromiumLicenses: (): Promise<string> => ipcRenderer.invoke('credits:openChromiumLicenses')
+}
+
 const web = {
   attach: (tabId: string, bounds: WebBounds): Promise<void> =>
     ipcRenderer.invoke('web:attach', tabId, bounds),
@@ -522,6 +528,7 @@ const api = {
   pty,
   accounts,
   update,
+  credits,
   projects,
   workspaceLayouts,
   uiState,
