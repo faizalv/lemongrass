@@ -34,10 +34,15 @@ const (
 	CodeSudoPassword = "sudoPassword"
 	CodeNoSftpServer = "noSftpServer"
 	CodeSudoRefused  = "sudoRefused"
+	// Editor: the file is not UTF-8 text, is over maxEditBytes, or moved on the server since read.
+	CodeBinary   = "binary"
+	CodeTooLarge = "tooLarge"
+	CodeChanged  = "changed"
 )
 
-// A request line can carry a long path but never this much; the cap bounds memory on a bad line.
-const maxLineBytes = 1 << 20
+// A request line carries at most an edited file (maxEditBytes) after JSON escaping; the cap bounds
+// memory on a bad line.
+const maxLineBytes = 16 << 20
 
 // dialTimeout bounds the SFTP handshake, so a hung ssh does not hold every request.
 const dialTimeout = 20 * time.Second
@@ -85,6 +90,9 @@ type request struct {
 	Local    string          `json:"local"`
 	Transfer string          `json:"transfer"`
 	Replace  bool            `json:"replace"`
+	Content  string          `json:"content"`
+	Mtime    int64           `json:"mtime"`
+	Force    bool            `json:"force"`
 }
 
 type reply struct {
@@ -227,6 +235,10 @@ func (s *Session) op(c *sftp.Client, home string, req request) (any, error) {
 		return nil, rename(c, resolve(home, req.From), resolve(home, req.To))
 	case "remove":
 		return nil, remove(c, resolve(home, req.Path))
+	case "read":
+		return readText(c, resolve(home, req.Path))
+	case "write":
+		return writeText(c, resolve(home, req.Path), req.Content, req.Mtime, req.Force)
 	case "touch":
 		return nil, touch(c, resolve(home, req.Path))
 	case "move":

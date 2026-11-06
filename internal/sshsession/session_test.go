@@ -103,7 +103,7 @@ func (h *harness) start(dial Dialer) {
 	}()
 	go func() {
 		sc := bufio.NewScanner(outR)
-		sc.Buffer(make([]byte, 1<<20), 1<<20)
+		sc.Buffer(make([]byte, 1<<20), 32<<20)
 		for sc.Scan() {
 			var m msg
 			if err := json.Unmarshal(sc.Bytes(), &m); err != nil {
