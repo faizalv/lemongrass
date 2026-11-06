@@ -3,9 +3,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import AppButton from '../AppButton.vue'
+import { AppButton, AppEmptyState } from '@sankasten'
 import type { CreditEntry, CreditGroup, CreditsResult } from '../../../../preload/types'
-import AppEmptyState from '../AppEmptyState.vue'
 
 const GROUPS: { id: CreditGroup; label: string }[] = [
   { id: 'fonts', label: 'Fonts' },

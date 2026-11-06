@@ -2,9 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppButton from '../AppButton.vue'
-import AppInput from '../AppInput.vue'
-import AppSegmented from '../AppSegmented.vue'
+import { AppButton, AppInput, AppSegmented } from '@sankasten'
 import FilePick from './FilePick.vue'
 import type { ResterClientPart, ResterClientPickedFile } from '../../../../preload/types'
 

@@ -5,14 +5,13 @@
 import { onMounted, ref, toRef } from 'vue'
 import { vaultSession, describeError } from '../../../vaultSession'
 import type { VaultRester } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
+import { AppButton, AppEmptyState } from '@sankasten'
 import EnvironmentsStrip from './EnvironmentsStrip.vue'
 import ApiSection from './ApiSection.vue'
 import WebSection from './WebSection.vue'
 import AppSection from './AppSection.vue'
 import UserCenter from './UserCenter.vue'
 import { plainCopy } from './resterDraft'
-import AppEmptyState from '../../AppEmptyState.vue'
 
 const props = defineProps<{
   name: string

@@ -2,12 +2,11 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppConfirmButton from '../AppConfirmButton.vue'
+import { AppConfirmButton, AppEmptyState } from '@sankasten'
 import { statusClass } from '../../resterClientCall'
 import { formatAge } from '../../relativeAge'
 import { ageNow } from '../../ageClock'
 import type { ResterClientRun } from '../../../../preload/types'
-import AppEmptyState from '../AppEmptyState.vue'
 
 defineProps<{
   runs: ResterClientRun[]

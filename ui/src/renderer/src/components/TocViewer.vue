@@ -5,7 +5,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { openFile, type ProjectRef } from '../workspace'
 import type { BiblioNode } from '../../../preload/types'
-import AppEmptyState from './AppEmptyState.vue'
+import { AppEmptyState } from '@sankasten'
 
 const props = defineProps<{
   project: ProjectRef

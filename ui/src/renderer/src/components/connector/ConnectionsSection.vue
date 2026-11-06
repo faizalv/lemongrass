@@ -4,18 +4,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
-import AppButton from '../AppButton.vue'
-import AppCheckbox from '../AppCheckbox.vue'
-import AppSwitcher from '../AppSwitcher.vue'
+import { AppButton, AppCheckbox, AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
 import type { ResolvedSSHHost } from '../../../../preload/types'
 import {
   composeConnectionString as composeFields,
   parseConnectionString,
   type EngineChoice
 } from '../../connectionString'
-import AppInput from '../AppInput.vue'
 import { matchesQuery } from './listFilter'
-import AppEmptyState from '../AppEmptyState.vue'
 
 const props = defineProps<{
   visible: boolean

@@ -80,12 +80,9 @@ import type {
   GitLineRange,
   WorkgroupThreadMessage
 } from '../../../../preload/types'
-import AppButton from '../AppButton.vue'
-import AppMenuButton from '../AppMenuButton.vue'
-import AppModal from '../AppModal.vue'
+import { AppButton, AppMenuButton, AppModal, type MenuItem } from '@sankasten'
 import ConflictIcon from './ConflictIcon.vue'
 import { CONFLICT_ICONS } from '../../conflictIcons'
-import type { MenuItem } from '../AppContextMenu.vue'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
 

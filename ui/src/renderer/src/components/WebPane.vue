@@ -4,7 +4,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { WebBounds, WebState } from '../../../preload/types'
-import AppEmptyState from './AppEmptyState.vue'
+import { AppEmptyState } from '@sankasten'
 
 const props = defineProps<{
   shellTabId: string

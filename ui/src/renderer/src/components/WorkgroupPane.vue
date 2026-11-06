@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppEmptyState, AppModal } from '@sankasten'
 import { bodyParts, type BodyPart } from '../mentions'
 import { disbandWorkgroup, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import { GROUP_COLORS, groupColorVar } from '../groupColors'
@@ -21,8 +21,6 @@ import type {
   WorkgroupMemberInfo,
   WorkgroupThreadMessage
 } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppEmptyState from './AppEmptyState.vue'
 
 const POLL_MS = 4000
 // The author lemongrass posts system messages under, session.SystemAuthor in the store.

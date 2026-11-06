@@ -10,7 +10,7 @@ const openDrawers = reactive(new Set<string>())
 </script>
 
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
+import { AppButton, AppEmptyState, AppIcon, AppSplitButton } from '@sankasten'
 import { computed, ref } from 'vue'
 import { finishOperation, gitStateOf } from '../git'
 import { openConflict, type ProjectRef } from '../workspace'
@@ -18,10 +18,7 @@ import { handConflictTo, useConflictThread } from '../conflictThread'
 import { fileStatus, fileStatusText, type ConflictFileStatus } from '../conflictThreadModel'
 import { shellTitles } from '../shellRegistry'
 import type { GitFile } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppSplitButton from './AppSplitButton.vue'
 import ResolveWithMenu from './ResolveWithMenu.vue'
-import AppEmptyState from './AppEmptyState.vue'
 
 const props = defineProps<{
   project: ProjectRef

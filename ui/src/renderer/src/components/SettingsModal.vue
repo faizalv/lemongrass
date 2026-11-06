@@ -3,7 +3,14 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import AppModal from './AppModal.vue'
+import {
+  AppButton,
+  AppCheckbox,
+  AppConfirmButton,
+  AppEmptyState,
+  AppInput,
+  AppModal
+} from '@sankasten'
 import {
   PRIMARY_ACCOUNT_DIR,
   accountNameError,
@@ -11,8 +18,6 @@ import {
   addAccount,
   removeAccount
 } from '../accounts'
-import AppButton from './AppButton.vue'
-import AppConfirmButton from './AppConfirmButton.vue'
 import PolicySection from './safety/PolicySection.vue'
 import UpdatesSection from './updates/UpdatesSection.vue'
 import DepsSection from './deps/DepsSection.vue'
@@ -21,11 +26,8 @@ import GeneralSection from './general/GeneralSection.vue'
 import AppearanceSection from './appearance/AppearanceSection.vue'
 import { isMac } from '../windowControls'
 import UsageMeters from './UsageMeters.vue'
-import AppCheckbox from './AppCheckbox.vue'
 import { claudeUsage, refreshUsage, usageStore } from '../usage'
 import type { Project, StatusLineChainState } from '../../../preload/types'
-import AppInput from './AppInput.vue'
-import AppEmptyState from './AppEmptyState.vue'
 import SettingsIcon from './SettingsIcon.vue'
 
 const props = defineProps<{

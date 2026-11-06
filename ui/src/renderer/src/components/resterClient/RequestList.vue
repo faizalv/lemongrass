@@ -3,11 +3,8 @@
 
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
-import AppConfirmButton from '../AppConfirmButton.vue'
+import { AppConfirmButton, AppEmptyState, AppInput, type AppInputHandle } from '@sankasten'
 import type { ResterClientRequest } from '../../../../preload/types'
-import AppInput from '../AppInput.vue'
-import type { AppInputHandle } from '../appInput'
-import AppEmptyState from '../AppEmptyState.vue'
 
 defineProps<{
   requests: ResterClientRequest[]

@@ -3,8 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
-import AppButton from './AppButton.vue'
-import AppConfirmButton from './AppConfirmButton.vue'
+import { AppButton, AppConfirmButton, AppEmptyState } from '@sankasten'
 import MarkedText from './MarkedText.vue'
 import { ageNow } from '../ageClock'
 import { askState } from '../asks'
@@ -18,7 +17,6 @@ import {
   waitingRows,
   type CenterRow
 } from '../notifications'
-import AppEmptyState from './AppEmptyState.vue'
 
 const waiting = computed(() => waitingRows())
 const stored = computed(() => storedRows())

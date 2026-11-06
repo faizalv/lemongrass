@@ -7,7 +7,7 @@ import { gitStateOf } from '../../git'
 import type { ConflictThreadState } from '../../conflictThread'
 import { fileStatus, fileStatusText } from '../../conflictThreadModel'
 import type { ProjectRef } from '../../workspace'
-import AppSwitcher from '../AppSwitcher.vue'
+import { AppSwitcher } from '@sankasten'
 
 // Switches the file the conflict tab shows, among the files git still reports conflicted.
 const props = defineProps<{

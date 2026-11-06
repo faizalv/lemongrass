@@ -3,15 +3,18 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import AppContextMenu, { type MenuItem } from '../AppContextMenu.vue'
-import AppEmptyState from '../AppEmptyState.vue'
-import AppInput from '../AppInput.vue'
-import AppMenuButton from '../AppMenuButton.vue'
+import {
+  AppContextMenu,
+  AppEmptyState,
+  AppInput,
+  type AppInputHandle,
+  AppMenuButton,
+  type MenuItem
+} from '@sankasten'
 import TabIcon from '../TabIcon.vue'
 import SearchRows from '../treeSearch/SearchRows.vue'
 import TreeRow from '../treeSearch/TreeRow.vue'
 import TreeSearchBar from '../treeSearch/TreeSearchBar.vue'
-import type { AppInputHandle } from '../appInput'
 import { ageNow } from '../../ageClock'
 import { formatAge } from '../../relativeAge'
 import { fileIconOf, folderIconOf, type FileIcon } from '../../fileIcons'

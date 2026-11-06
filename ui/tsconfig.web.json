@@ -5,10 +5,13 @@
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.vue",
     "src/preload/*.d.ts",
-    "src/preload/types.ts"
+    "src/preload/types.ts",
+    "../sankasten/src/**/*.ts",
+    "../sankasten/src/**/*.vue"
   ],
   "exclude": [
-    "src/renderer/src/**/*.test.ts"
+    "src/renderer/src/**/*.test.ts",
+    "../sankasten/src/**/*.test.ts"
   ],
   "compilerOptions": {
     "composite": true,
@@ -16,6 +19,15 @@
     "paths": {
       "@renderer/*": [
         "src/renderer/src/*"
+      ],
+      "@sankasten": [
+        "../sankasten/src/index.ts"
+      ],
+      "@sankasten/*": [
+        "../sankasten/src/*"
+      ],
+      "vue": [
+        "node_modules/vue"
       ]
     }
   }

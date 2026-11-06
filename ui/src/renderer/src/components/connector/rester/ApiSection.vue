@@ -4,8 +4,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { VaultResterAPI, VaultRester, VaultTokenPlacement } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
-import AppSegmented from '../../AppSegmented.vue'
+import { AppButton, AppInput, AppSegmented } from '@sankasten'
 import {
   defaultResterAPI,
   headerDrafts,
@@ -13,7 +12,6 @@ import {
   type CommitRester,
   type HeaderDraft
 } from './resterDraft'
-import AppInput from '../../AppInput.vue'
 
 const props = defineProps<{
   rester: VaultRester

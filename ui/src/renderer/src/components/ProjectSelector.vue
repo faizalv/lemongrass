@@ -3,11 +3,8 @@
 
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
-import AppButton from './AppButton.vue'
-import AppConfirmButton from './AppConfirmButton.vue'
-import AppIcon from './AppIcon.vue'
+import { AppButton, AppConfirmButton, AppEmptyState, AppIcon } from '@sankasten'
 import type { Project } from '../../../preload/types'
-import AppEmptyState from './AppEmptyState.vue'
 import { useProjectDelete } from '../projectDelete'
 
 const props = defineProps<{

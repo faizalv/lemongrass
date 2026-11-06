@@ -3,13 +3,17 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
-import AppModal from './AppModal.vue'
-import AppButton from './AppButton.vue'
-import AppCheckbox from './AppCheckbox.vue'
-import AppConfirmButton from './AppConfirmButton.vue'
-import AppSegmented from './AppSegmented.vue'
-import AppIcon from './AppIcon.vue'
-import AppSwitcher from './AppSwitcher.vue'
+import {
+  AppButton,
+  AppCheckbox,
+  AppConfirmButton,
+  AppIcon,
+  AppInput,
+  type AppInputHandle,
+  AppModal,
+  AppSegmented,
+  AppSwitcher
+} from '@sankasten'
 import type {
   NodeGrantView,
   NodeIssued,
@@ -17,8 +21,6 @@ import type {
   NodeShare,
   NodeState
 } from '../../../preload/types'
-import AppInput from './AppInput.vue'
-import type { AppInputHandle } from './appInput'
 
 const emit = defineEmits<{
   close: []

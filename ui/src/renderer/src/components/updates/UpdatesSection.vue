@@ -3,9 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import AppButton from '../AppButton.vue'
-import AppConfirmButton from '../AppConfirmButton.vue'
-import AppProgressLine from '../AppProgressLine.vue'
+import { AppButton, AppConfirmButton, AppProgressLine } from '@sankasten'
 import UninstallPanel from './UninstallPanel.vue'
 import type { UpdateState } from '../../../../preload/types'
 

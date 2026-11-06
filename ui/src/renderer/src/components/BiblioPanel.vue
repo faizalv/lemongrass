@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppEmptyState, AppInput, AppModal } from '@sankasten'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import SearchRows from './treeSearch/SearchRows.vue'
@@ -14,9 +14,6 @@ import { biblioIconOf } from '../biblioIcons'
 import { useTreeSearch } from '../useTreeSearch'
 import type { SearchCandidate, SearchNode, SearchRow } from '../treeSearch'
 import type { BiblioNode, BiblioTree } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppInput from './AppInput.vue'
-import AppEmptyState from './AppEmptyState.vue'
 
 const props = defineProps<{
   tree: BiblioTree | null

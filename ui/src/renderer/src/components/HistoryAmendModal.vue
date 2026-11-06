@@ -5,9 +5,7 @@
 import { onMounted, ref } from 'vue'
 import type { ProjectRef } from '../workspace'
 import type { GitCommit } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppTextarea from './AppTextarea.vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppModal, AppTextarea } from '@sankasten'
 
 const props = defineProps<{
   project: ProjectRef

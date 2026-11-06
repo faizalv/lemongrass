@@ -4,10 +4,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { VaultEnvironment } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
-import AppModal from '../../AppModal.vue'
+import { AppButton, AppInput, AppModal } from '@sankasten'
 import { headerDrafts, headersFromDrafts, type HeaderDraft } from './resterDraft'
-import AppInput from '../../AppInput.vue'
 
 const props = defineProps<{
   title: string

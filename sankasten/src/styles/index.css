@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright (C) 2026 The Sankasten Authors */
+
+/* Everything an app imports once at startup: tokens, the base reset and the shared control pieces. */
+@import './tokens.css';
+@import './base.css';
+@import './controls.css';

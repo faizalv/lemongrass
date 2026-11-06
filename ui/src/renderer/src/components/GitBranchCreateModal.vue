@@ -6,11 +6,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { createBranch } from '../git'
 import type { ProjectRef } from '../workspace'
 import type { GitBranches } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppModal from './AppModal.vue'
-import AppSwitcher from './AppSwitcher.vue'
-import AppInput from './AppInput.vue'
-import type { AppInputHandle } from './appInput'
+import { AppButton, AppInput, type AppInputHandle, AppModal, AppSwitcher } from '@sankasten'
 
 const props = defineProps<{
   project: ProjectRef

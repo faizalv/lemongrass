@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import AppButton from '../AppButton.vue'
+import { AppButton } from '@sankasten'
 import DepRow from './DepRow.vue'
 import { depsStore } from '../../deps'
 import { osText } from '../../depsView'

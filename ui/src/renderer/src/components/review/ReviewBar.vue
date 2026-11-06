@@ -3,14 +3,12 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import AppButton from '../AppButton.vue'
-import AppSwitcher from '../AppSwitcher.vue'
+import { AppButton, AppInput, AppSwitcher } from '@sankasten'
 import { clearReview, prepareReview, reviewOf, setReviewMessage } from '../../annotations'
 import { reviewTargetsOf } from '../../reviewTargets'
 import { plainCopy } from '../connector/rester/resterDraft'
 import type { ProjectRef } from '../../workspace'
 import type { TabBusy } from '../../../../preload/types'
-import AppInput from '../AppInput.vue'
 
 const props = defineProps<{
   project: ProjectRef

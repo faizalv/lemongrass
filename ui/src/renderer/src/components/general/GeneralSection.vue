@@ -3,8 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import AppSegmented from '../AppSegmented.vue'
-import AppSwitcher from '../AppSwitcher.vue'
+import { AppSegmented, AppSwitcher } from '@sankasten'
 import { refreshZoomPresets, setZoom, zoom, zoomLabel } from '../../zoom'
 
 type Startup = 'lastProject' | 'projectSelector'

@@ -5,12 +5,9 @@
 import { computed, ref } from 'vue'
 import { userHandle } from '../../../userHandle'
 import type { VaultRester, VaultResterUser } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
-import AppCheckbox from '../../AppCheckbox.vue'
+import { AppButton, AppCheckbox, AppEmptyState, AppInput } from '@sankasten'
 import UserModal from './UserModal.vue'
 import type { CommitRester } from './resterDraft'
-import AppInput from '../../AppInput.vue'
-import AppEmptyState from '../../AppEmptyState.vue'
 
 const props = defineProps<{
   rester: VaultRester

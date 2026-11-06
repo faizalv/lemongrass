@@ -4,12 +4,10 @@
 <script setup lang="ts">
 // The passphrase gate shown while the vault session is locked. Its styles come from vault.css, so it
 // must render inside a .vault-tab element.
-import AppIcon from './AppIcon.vue'
+import { AppButton, AppIcon, AppInput } from '@sankasten'
 import { computed, onMounted, ref } from 'vue'
 import '../vault.css'
 import { clearShortIds, describeError, unlockVaultSession } from '../vaultSession'
-import AppButton from './AppButton.vue'
-import AppInput from './AppInput.vue'
 
 const unlockInput = ref('')
 const unlockError = ref('')

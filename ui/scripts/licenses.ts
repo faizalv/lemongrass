@@ -48,7 +48,7 @@ const out = resolve(ui, args.includes('--out') ? args[args.indexOf('--out') + 1]
 const warnOnly = args.includes('--warn')
 
 const problems: string[] = []
-const entries = [...npmEntries(), ...goEntries(), electronEntry()]
+const entries = [...npmEntries(), sankastenEntry(), ...goEntries(), electronEntry()]
 entries.sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name))
 
 for (const e of entries) {
@@ -221,6 +221,20 @@ function goEntries(): Entry[] {
       text: files.length > 0 ? joinTexts(m.dir, files) : ''
     }
   })
+}
+
+// The design system the renderer bundles from ../sankasten source. It is not under node_modules, so
+// the bundled-packages scan never sees it, and as an Apache-2.0 work its license ships with the app.
+function sankastenEntry(): Entry {
+  const dir = join(repo, 'sankasten')
+  const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
+  return {
+    group: 'app',
+    name: 'Sankasten',
+    version: manifest.version,
+    license: declaredLicense(manifest) ?? 'UNKNOWN',
+    text: joinTexts(dir, licenseFiles(dir))
+  }
 }
 
 // Electron's own MIT notice. Chromium's list is far too large to copy, and Electron already ships

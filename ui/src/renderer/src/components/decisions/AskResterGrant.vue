@@ -9,11 +9,7 @@
 import { computed, ref, watch } from 'vue'
 import type { Ask, VaultHTTPChannelWithShortId, VaultRester } from '../../../../preload/types'
 import { describeError, vaultSession } from '../../vaultSession'
-import AppButton from '../AppButton.vue'
-import AppCheckbox from '../AppCheckbox.vue'
-import AppInput from '../AppInput.vue'
-import AppSegmented from '../AppSegmented.vue'
-import AppSwitcher from '../AppSwitcher.vue'
+import { AppButton, AppCheckbox, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
 
 const props = defineProps<{
   ask: Ask

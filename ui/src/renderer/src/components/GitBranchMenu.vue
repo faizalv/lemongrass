@@ -2,16 +2,19 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
+import {
+  AppContextMenu,
+  AppIcon,
+  AppInput,
+  type AppInputHandle,
+  type MenuAnchor,
+  type MenuItem
+} from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { deleteBranch, gitStateOf, switchBranch, updateBranch } from '../git'
 import type { ProjectRef } from '../workspace'
 import type { GitBranches, GitLocalBranch } from '../../../preload/types'
-import type { MenuAnchor } from '../menuPlacement'
-import AppContextMenu, { type MenuItem } from './AppContextMenu.vue'
 import GitCounts from './GitCounts.vue'
-import AppInput from './AppInput.vue'
-import type { AppInputHandle } from './appInput'
 
 // blockedReason names why the current branch cannot be left now, such as a stopped rebase, which
 // blocks merge, checkout, new branch and deleting the checked-out branch. Update only fetches or
@@ -263,7 +266,7 @@ async function act(key: string): Promise<void> {
 }
 
 function openFirst(): void {
-  const row = menuRef.value?.querySelector<HTMLElement>('.branch-lists .lg-menu-row')
+  const row = menuRef.value?.querySelector<HTMLElement>('.branch-lists .sk-menu-row')
   row?.click()
 }
 
@@ -309,7 +312,7 @@ onBeforeUnmount(removeListeners)
   <button
     ref="triggerRef"
     type="button"
-    class="branch-trigger lg-field-trigger lg-field-trigger--sm"
+    class="branch-trigger sk-field-trigger sk-field-trigger--sm"
     :disabled="state.busy !== null"
     title="Branches"
     :aria-expanded="open"
@@ -317,14 +320,14 @@ onBeforeUnmount(removeListeners)
     @click="toggle"
   >
     <slot />
-    <AppIcon class="lg-trigger-caret" name="chevronDown" :size="9" />
+    <AppIcon class="sk-trigger-caret" name="chevronDown" :size="9" />
   </button>
 
   <Teleport to="body">
     <div
       v-if="open"
       ref="menuRef"
-      class="branch-menu lg-float lg-menu--sm"
+      class="branch-menu sk-float sk-menu--sm"
       :style="{
         left: `${position.left}px`,
         top: `${position.top}px`,
@@ -344,40 +347,40 @@ onBeforeUnmount(removeListeners)
       />
       <p v-if="error" class="branch-error">{{ error }}</p>
       <p v-if="notice" class="branch-notice">{{ notice }}</p>
-      <p v-if="!branches" class="lg-menu-empty">Loading...</p>
+      <p v-if="!branches" class="sk-menu-empty">Loading...</p>
       <div v-else class="branch-lists" role="listbox">
         <template v-if="local.length > 0">
-          <p class="lg-menu-heading">Local</p>
+          <p class="sk-menu-heading">Local</p>
           <button
             v-for="branch in local"
             :key="`local-${branch.name}`"
             type="button"
-            class="lg-menu-row"
+            class="sk-menu-row"
             :class="{
               'is-active': branch.name === branches.current,
               'is-open': !selected?.remote && selected?.name === branch.name
             }"
             @click="openActions($event.currentTarget as HTMLElement, branch.name, false)"
           >
-            <span class="lg-menu-label">{{ branch.name }}</span>
-            <span v-if="branch.name === branches.current" class="lg-menu-hint">current</span>
+            <span class="sk-menu-label">{{ branch.name }}</span>
+            <span v-if="branch.name === branches.current" class="sk-menu-hint">current</span>
             <GitCounts :ahead="branch.ahead" :behind="branch.behind" />
           </button>
         </template>
         <template v-if="remote.length > 0">
-          <p class="lg-menu-heading">Remote</p>
+          <p class="sk-menu-heading">Remote</p>
           <button
             v-for="name in remote"
             :key="`remote-${name}`"
             type="button"
-            class="lg-menu-row"
+            class="sk-menu-row"
             :class="{ 'is-open': selected?.remote && selected.name === name }"
             @click="openActions($event.currentTarget as HTMLElement, name, true)"
           >
-            <span class="lg-menu-label">{{ name }}</span>
+            <span class="sk-menu-label">{{ name }}</span>
           </button>
         </template>
-        <p v-if="local.length === 0 && remote.length === 0" class="lg-menu-empty">
+        <p v-if="local.length === 0 && remote.length === 0" class="sk-menu-empty">
           No branches match.
         </p>
       </div>
@@ -424,11 +427,11 @@ onBeforeUnmount(removeListeners)
 }
 
 /* GitCounts sits after the hint, so the label alone pushes the rest to the right. */
-.branch-lists .lg-menu-label {
+.branch-lists .sk-menu-label {
   margin-right: auto;
 }
 
-.branch-lists .lg-menu-hint {
+.branch-lists .sk-menu-hint {
   margin-left: 0;
 }
 

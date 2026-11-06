@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import IconFrame from './IconFrame.vue'
+import { IconFrame } from '@sankasten'
 // The workgroup glyph matches the workgroup tab's icon in tabKinds.ts, so the two read as the same thing.
 const SHAPES = {
   account: [

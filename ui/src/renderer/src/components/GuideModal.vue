@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppModal from './AppModal.vue'
+import { AppModal } from '@sankasten'
 import { GUIDE_CARDS } from '../guide'
 
 const emit = defineEmits<{

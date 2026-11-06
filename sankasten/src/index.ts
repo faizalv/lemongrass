@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 The Sankasten Authors
+
+// The package's one entry. Styles are not imported here: an app imports '@sankasten/styles/index.css'
+// once at startup, so the global token and control rules load exactly once.
+export { default as AppButton } from './components/AppButton.vue'
+export { default as AppCheckbox } from './components/AppCheckbox.vue'
+export { default as AppConfirmButton } from './components/AppConfirmButton.vue'
+export { default as AppContextMenu } from './components/AppContextMenu.vue'
+export type { MenuItem } from './components/AppContextMenu.vue'
+export { default as AppEmptyState } from './components/AppEmptyState.vue'
+export { default as AppIcon } from './components/AppIcon.vue'
+export { default as AppIconButton } from './components/AppIconButton.vue'
+export { default as AppInfoPopover } from './components/AppInfoPopover.vue'
+export { default as AppInput } from './components/AppInput.vue'
+export type { AppInputHandle } from './components/appInput'
+export { default as AppMenuButton } from './components/AppMenuButton.vue'
+export { default as AppModal } from './components/AppModal.vue'
+export { default as AppMultiPicker } from './components/AppMultiPicker.vue'
+export type { PickerGroup } from './components/AppMultiPicker.vue'
+export { default as AppProgressLine } from './components/AppProgressLine.vue'
+export { default as AppSegmented } from './components/AppSegmented.vue'
+export { default as AppSplitButton } from './components/AppSplitButton.vue'
+export { default as AppSwitcher } from './components/AppSwitcher.vue'
+export { default as AppTextarea } from './components/AppTextarea.vue'
+export { default as IconFrame } from './components/IconFrame.vue'
+
+export { APP_ICONS } from './icons/appIcons'
+export type { AppGlyph, AppIconName, IconShape } from './icons/appIcons'
+
+export { CONFIRM_DELAY_MS, createClickConfirm } from './lib/clickConfirm'
+export type { ClickConfirm, ConfirmState } from './lib/clickConfirm'
+export { placeFloat, placementStyle } from './lib/floatPlace'
+export type { FloatPlacement } from './lib/floatPlace'
+export { MENU_MARGIN, placeMenu, pointAnchor } from './lib/menuPlacement'
+export type { MenuAnchor, MenuAxis, MenuSize } from './lib/menuPlacement'
+export { useMenuPlacement } from './lib/useMenuPlacement'

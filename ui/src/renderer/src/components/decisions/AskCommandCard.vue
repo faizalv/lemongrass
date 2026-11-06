@@ -5,17 +5,19 @@
 // The card for a command ask. Execute runs the command in the vault daemon as the user, in the
 // ask's folder; the daemon refuses anything on its never-execute list whatever this card shows.
 // While it runs, the card shows the command's terminal and the human can type into it.
-import AppIcon from '../AppIcon.vue'
+import {
+  AppButton,
+  AppConfirmButton,
+  AppIcon,
+  AppInfoPopover,
+  AppProgressLine,
+  AppSegmented,
+  AppTextarea
+} from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import type { Ask } from '../../../../preload/types'
 import { describeError, vaultSession } from '../../vaultSession'
-import AppButton from '../AppButton.vue'
-import AppConfirmButton from '../AppConfirmButton.vue'
-import AppInfoPopover from '../AppInfoPopover.vue'
-import AppProgressLine from '../AppProgressLine.vue'
-import AppSegmented from '../AppSegmented.vue'
 import AppTerminal from '../AppTerminal.vue'
-import AppTextarea from '../AppTextarea.vue'
 import { noteAskAnswered } from '../../notifications'
 import { formatElapsed } from '../../elapsed'
 

@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, provide, reactive, ref, watch } from 'vue'
-import AppSegmented from '../AppSegmented.vue'
+import { AppEmptyState, AppInput, AppSegmented } from '@sankasten'
 import JsonNode from './JsonNode.vue'
 import HistoryPopover from './HistoryPopover.vue'
 import { statusClass } from '../../resterClientCall'
@@ -14,8 +14,6 @@ import type {
   ResterClientResult,
   ResterClientRun
 } from '../../../../preload/types'
-import AppInput from '../AppInput.vue'
-import AppEmptyState from '../AppEmptyState.vue'
 
 const props = defineProps<{
   result: ResterClientResult | null

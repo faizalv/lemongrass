@@ -3,8 +3,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import AppEmptyState from './AppEmptyState.vue'
-import AppSegmented from './AppSegmented.vue'
+import { AppEmptyState, AppSegmented } from '@sankasten'
 import BiblioPanel from './BiblioPanel.vue'
 import DeviceEntry from './DeviceEntry.vue'
 import FileExplorer from './explorer/FileExplorer.vue'

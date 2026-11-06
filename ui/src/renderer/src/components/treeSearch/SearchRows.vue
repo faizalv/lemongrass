@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
-import AppEmptyState from '../AppEmptyState.vue'
+import { AppEmptyState } from '@sankasten'
 import TreeRow from './TreeRow.vue'
 import type { FileIcon } from '../../fileIcons'
 import type { SearchNode } from '../../treeSearch'

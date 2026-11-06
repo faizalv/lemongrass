@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppEmptyState, AppModal } from '@sankasten'
 import WorkspaceLayout from './WorkspaceLayout.vue'
 import {
   addShell,
@@ -16,8 +16,6 @@ import {
 import { accountStore } from '../accounts'
 import { PICKABLE_SHELL_AGENTS, shellAgentById } from '../shellAgents'
 import AgentIcon from './AgentIcon.vue'
-import AppButton from './AppButton.vue'
-import AppEmptyState from './AppEmptyState.vue'
 
 const props = defineProps<{
   project: ProjectRef

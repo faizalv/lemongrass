@@ -11,7 +11,7 @@ import { describeError, vaultSession } from '../../vaultSession'
 import { askStateLabel, askSummary } from './askLabels'
 import { askParts, askWhere, loadAskProjects } from './askOrigin'
 import MarkedText from '../MarkedText.vue'
-import AppEmptyState from '../AppEmptyState.vue'
+import { AppEmptyState } from '@sankasten'
 import { decisionsIcon } from '../../icons'
 
 const props = defineProps<{

@@ -2,11 +2,8 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from '../AppIcon.vue'
+import { AppButton, AppEmptyState, AppIcon, AppSwitcher, AppTextarea } from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import AppButton from '../AppButton.vue'
-import AppSwitcher from '../AppSwitcher.vue'
-import AppTextarea from '../AppTextarea.vue'
 import { clearReview, reviewOf, setReviewMessage } from '../../annotations'
 import { handConflictTo, postToConflict, type ConflictThreadState } from '../../conflictThread'
 import { bodyParts, type BodyPart } from '../../mentions'
@@ -18,7 +15,6 @@ import type {
   TabBusy,
   WorkgroupThreadMessage
 } from '../../../../preload/types'
-import AppEmptyState from '../AppEmptyState.vue'
 
 const props = defineProps<{
   project: ProjectRef

@@ -5,8 +5,7 @@
 import { onMounted, ref } from 'vue'
 import type { ProjectRef } from '../workspace'
 import type { GitCommit, GitResetPreview } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppModal } from '@sankasten'
 
 const props = defineProps<{
   project: ProjectRef

@@ -9,13 +9,10 @@ import type {
   VaultHTTPChannelWithShortId,
   VaultResterSummary
 } from '../../../../preload/types'
-import AppButton from '../AppButton.vue'
+import { AppButton, AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
 import HttpChannelForm from './HttpChannelForm.vue'
 import ChannelTypeIcon from './ChannelTypeIcon.vue'
-import AppSwitcher from '../AppSwitcher.vue'
 import { matchesQuery, resterDomains } from './listFilter'
-import AppInput from '../AppInput.vue'
-import AppEmptyState from '../AppEmptyState.vue'
 
 const props = defineProps<{
   visible: boolean

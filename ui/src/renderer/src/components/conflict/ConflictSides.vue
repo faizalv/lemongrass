@@ -10,7 +10,7 @@ import type {
   GitConflictFile,
   GitConflictStage
 } from '../../../../preload/types'
-import AppButton from '../AppButton.vue'
+import { AppButton } from '@sankasten'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
 

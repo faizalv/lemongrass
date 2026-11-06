@@ -5,12 +5,9 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
 import type { VaultChannel, VaultChannelWithShortId } from '../../../../preload/types'
-import AppButton from '../AppButton.vue'
+import { AppButton, AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
 import DbChannelForm, { type DbChannelSeed } from './DbChannelForm.vue'
-import AppInput from '../AppInput.vue'
-import AppSwitcher from '../AppSwitcher.vue'
 import { matchesQuery } from './listFilter'
-import AppEmptyState from '../AppEmptyState.vue'
 
 const props = defineProps<{
   visible: boolean

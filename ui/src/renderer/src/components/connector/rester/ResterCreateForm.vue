@@ -5,10 +5,8 @@
 import { computed, ref, toRef } from 'vue'
 import { vaultSession, describeError } from '../../../vaultSession'
 import type { VaultRester } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
-import AppCheckbox from '../../AppCheckbox.vue'
+import { AppButton, AppCheckbox, AppInput } from '@sankasten'
 import { defaultResterAPI } from './resterDraft'
-import AppInput from '../../AppInput.vue'
 
 const props = defineProps<{
   taken: string[]

@@ -3,9 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import AppButton from '../AppButton.vue'
-import AppModal from '../AppModal.vue'
-import AppProgressLine from '../AppProgressLine.vue'
+import { AppButton, AppModal, AppProgressLine } from '@sankasten'
 import type { UninstallState } from '../../../../preload/types'
 import { isWindows } from '../../platform'
 

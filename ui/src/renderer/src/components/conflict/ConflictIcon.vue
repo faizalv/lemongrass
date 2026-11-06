@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import IconFrame from '../IconFrame.vue'
+import { IconFrame } from '@sankasten'
 import { CONFLICT_ICONS, type ConflictIconName } from '../../conflictIcons'
 
 withDefaults(defineProps<{ name: ConflictIconName; size?: number }>(), { size: 13 })

@@ -10,8 +10,7 @@ import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Markdown } from 'tiptap-markdown'
 import { Find, findState, setFindQuery, stepFind } from '../editorFind'
-import AppInput from './AppInput.vue'
-import type { AppInputHandle } from './appInput'
+import { AppInput, type AppInputHandle } from '@sankasten'
 import { isAbsolutePath, lastSegment } from '../pathForm'
 import { isWindows } from '../platform'
 

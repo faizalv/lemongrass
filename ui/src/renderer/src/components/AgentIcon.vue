@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import IconFrame from './IconFrame.vue'
+import { IconFrame } from '@sankasten'
 import { CLAUDE_MARK, CLAUDE_MARK_BOX, CODEX_MARK, CODEX_MARK_BOX } from '../vendorMarks'
 
 // The vendor marks fill with currentColor here, unlike Settings, so a pad's icon follows its text

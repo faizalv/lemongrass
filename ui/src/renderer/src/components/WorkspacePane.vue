@@ -2,9 +2,8 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
+import { AppConfirmButton, AppIcon, pointAnchor, useMenuPlacement } from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import AppConfirmButton from './AppConfirmButton.vue'
 import TabIcon from './TabIcon.vue'
 import StripIcon from './StripIcon.vue'
 import UsageMeters from './UsageMeters.vue'
@@ -33,8 +32,6 @@ import {
 } from '../workspace'
 import { tabKindOf, type TabContext } from '../tabKinds'
 import { tabGlow } from '../tabGlow'
-import { pointAnchor } from '../menuPlacement'
-import { useMenuPlacement } from '../useMenuPlacement'
 import { joinVendor, liveGroupsOf, openJoin } from '../workgroups'
 import type { UsageWindow, WorkgroupInfo } from '../../../preload/types'
 import type { DropZone, EdgeZone } from '../layoutTree'

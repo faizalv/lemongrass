@@ -2,20 +2,22 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
+import {
+  AppButton,
+  AppCheckbox,
+  AppConfirmButton,
+  AppEmptyState,
+  AppIcon,
+  AppInput,
+  AppModal
+} from '@sankasten'
 import { computed, ref } from 'vue'
 import { gitStateOf, runStash } from '../git'
 import { formatAge } from '../gitTime'
 import type { ProjectRef } from '../workspace'
 import type { GitStash } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppCheckbox from './AppCheckbox.vue'
-import AppConfirmButton from './AppConfirmButton.vue'
-import AppModal from './AppModal.vue'
 import GitIcon from './GitIcon.vue'
 import RevisionView from './RevisionView.vue'
-import AppInput from './AppInput.vue'
-import AppEmptyState from './AppEmptyState.vue'
 
 const props = defineProps<{
   project: ProjectRef

@@ -3,8 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import AppModal from '../AppModal.vue'
-import AppButton from '../AppButton.vue'
+import { AppButton, AppModal } from '@sankasten'
 import MarkedText from '../MarkedText.vue'
 import DepRow from './DepRow.vue'
 import { depsStore } from '../../deps'

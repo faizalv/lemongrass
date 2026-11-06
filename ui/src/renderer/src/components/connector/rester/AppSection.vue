@@ -2,12 +2,9 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from '../../AppIcon.vue'
+import { AppButton, AppIcon, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
 import { computed, ref } from 'vue'
 import type { VaultRester } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
-import AppSegmented from '../../AppSegmented.vue'
-import AppSwitcher from '../../AppSwitcher.vue'
 import { fieldKeys, type CommitRester } from './resterDraft'
 import { moveStep, removeStep } from './loginSteps'
 import {
@@ -17,7 +14,6 @@ import {
   type AppStepAction,
   type AppStepDraft
 } from './appSteps'
-import AppInput from '../../AppInput.vue'
 
 const props = defineProps<{
   rester: VaultRester

@@ -6,10 +6,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { describeError } from '../../../vaultSession'
 import { userHandle } from '../../../userHandle'
 import type { VaultRester, VaultResterUser, VaultUserOverride } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
-import AppCheckbox from '../../AppCheckbox.vue'
-import AppModal from '../../AppModal.vue'
-import AppSegmented from '../../AppSegmented.vue'
+import { AppButton, AppCheckbox, AppInput, AppModal, AppSegmented } from '@sankasten'
 import FieldRows from './FieldRows.vue'
 import {
   effectiveUser,
@@ -20,7 +17,6 @@ import {
   type CommitRester,
   type FieldDraft
 } from './resterDraft'
-import AppInput from '../../AppInput.vue'
 
 const props = defineProps<{
   rester: VaultRester

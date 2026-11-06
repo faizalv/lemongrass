@@ -2,6 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import type { Component } from 'vue'
+import type { IconShape } from '@sankasten'
 import ConflictView from './components/conflict/ConflictView.vue'
 import DeviceView from './components/DeviceView.vue'
 import DiffViewer from './components/DiffViewer.vue'
@@ -20,10 +21,7 @@ import { historyIcon, resterClientIcon } from './icons'
 import type { ProjectRef } from './workspace'
 import type { WorkspaceTab } from '../../preload/types'
 
-export interface IconShape {
-  tag: 'path' | 'rect' | 'circle'
-  attrs: Record<string, string | number>
-}
+export type { IconShape }
 
 export interface TabLabel {
   prefix?: string

@@ -9,7 +9,7 @@ import ReadOnlyFile from './ReadOnlyFile.vue'
 import MarkdownReader from './MarkdownReader.vue'
 import { editDoc, isMarkdownPath, openFile, workspaceOf, type ProjectRef } from '../workspace'
 import type { WorkspaceTab } from '../../../preload/types'
-import AppEmptyState from './AppEmptyState.vue'
+import { AppEmptyState } from '@sankasten'
 
 type DocTab = Extract<WorkspaceTab, { kind: 'doc' }>
 

@@ -8,15 +8,18 @@ import { formatAge, formatDate } from '../gitTime'
 import { buildGraph } from '../historyGraph'
 import type { ProjectRef } from '../workspace'
 import type { GitCommit, GitCommitInfo, GitLogSearchMode } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppContextMenu, { type MenuItem } from './AppContextMenu.vue'
-import AppSegmented from './AppSegmented.vue'
+import {
+  AppButton,
+  AppContextMenu,
+  AppEmptyState,
+  AppInput,
+  AppSegmented,
+  type MenuItem
+} from '@sankasten'
 import HistoryAmendModal from './HistoryAmendModal.vue'
 import GitIcon from './GitIcon.vue'
 import HistoryResetModal from './HistoryResetModal.vue'
 import RevisionView from './RevisionView.vue'
-import AppInput from './AppInput.vue'
-import AppEmptyState from './AppEmptyState.vue'
 import { historyIcon } from '../icons'
 
 const PAGE = 200

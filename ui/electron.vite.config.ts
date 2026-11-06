@@ -11,9 +11,14 @@ export default defineConfig({
   preload: { plugins: [bundledPackages()] },
   renderer: {
     resolve: {
-      alias: {
-        '@renderer': resolve('src/renderer/src')
-      }
+      // The design system is imported from source in ../sankasten. Deduping vue makes the package's
+      // components use the app's own Vue instance instead of one resolved from sankasten/node_modules.
+      alias: [
+        { find: '@renderer', replacement: resolve('src/renderer/src') },
+        { find: /^@sankasten$/, replacement: resolve('../sankasten/src/index.ts') },
+        { find: /^@sankasten\//, replacement: resolve('../sankasten/src') + '/' }
+      ],
+      dedupe: ['vue']
     },
     plugins: [vue(), bundledPackages()]
   }

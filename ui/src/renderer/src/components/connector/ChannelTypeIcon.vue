@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import IconFrame from '../IconFrame.vue'
+import { IconFrame } from '@sankasten'
 // An HTTP channel's type as a glyph: braces for api, a globe for web, a phone for app.
 withDefaults(defineProps<{ type: 'api' | 'web' | 'app'; size?: number }>(), { size: 12 })
 </script>

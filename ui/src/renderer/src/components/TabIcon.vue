@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import IconFrame from './IconFrame.vue'
+import { IconFrame } from '@sankasten'
 import type { IconShape } from '../tabKinds'
 
 withDefaults(defineProps<{ shapes: IconShape[]; size?: number }>(), { size: 13 })

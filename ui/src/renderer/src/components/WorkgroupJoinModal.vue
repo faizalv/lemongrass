@@ -3,9 +3,8 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppModal } from '@sankasten'
 import { closeJoin, confirmJoin, joining } from '../workgroups'
-import AppButton from './AppButton.vue'
 
 const cancelButton = ref<InstanceType<typeof AppButton> | null>(null)
 

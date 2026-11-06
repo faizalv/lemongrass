@@ -6,11 +6,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { describeError, vaultSession } from '../../../vaultSession'
 import type { VaultResterSummary } from '../../../../../preload/types'
 import { matchesQuery, resterDomains } from '../listFilter'
-import AppButton from '../../AppButton.vue'
+import { AppButton, AppEmptyState, AppInput } from '@sankasten'
 import ResterCreateForm from './ResterCreateForm.vue'
 import ResterDetail from './ResterDetail.vue'
-import AppInput from '../../AppInput.vue'
-import AppEmptyState from '../../AppEmptyState.vue'
 
 const props = defineProps<{
   visible: boolean

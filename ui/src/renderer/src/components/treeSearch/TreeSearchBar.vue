@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import AppInput from '../AppInput.vue'
+import { AppInput } from '@sankasten'
 import type { TreeSearch } from '../../useTreeSearch'
 
 const props = defineProps<{

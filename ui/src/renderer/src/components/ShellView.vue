@@ -19,8 +19,7 @@ import {
   terminalFontReady,
   type ShellSpec
 } from '../shellRegistry'
-import AppButton from './AppButton.vue'
-import AppContextMenu, { type MenuItem } from './AppContextMenu.vue'
+import { AppButton, AppContextMenu, type MenuItem } from '@sankasten'
 
 const props = defineProps<{
   spec: ShellSpec

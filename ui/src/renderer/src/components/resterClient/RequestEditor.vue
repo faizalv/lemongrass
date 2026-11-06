@@ -3,16 +3,18 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import AppButton from '../AppButton.vue'
-import AppTextarea from '../AppTextarea.vue'
-import AppSegmented from '../AppSegmented.vue'
-import AppSwitcher from '../AppSwitcher.vue'
+import {
+  AppButton,
+  AppEmptyState,
+  AppInput,
+  AppSegmented,
+  AppSwitcher,
+  AppTextarea
+} from '@sankasten'
 import PairRows from './PairRows.vue'
 import MultipartRows from './MultipartRows.vue'
 import FilePick from './FilePick.vue'
-import AppInput from '../AppInput.vue'
 import type { ResterClientBodyKind, ResterClientRequest } from '../../../../preload/types'
-import AppEmptyState from '../AppEmptyState.vue'
 
 // Edited in place; the parent owns the request.
 const request = defineModel<ResterClientRequest>({ required: true })

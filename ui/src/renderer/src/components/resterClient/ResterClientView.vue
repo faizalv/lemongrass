@@ -3,9 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import '../../resterClient.css'
-import AppButton from '../AppButton.vue'
-import AppSwitcher from '../AppSwitcher.vue'
+import { AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
 import VaultUnlockGate from '../VaultUnlockGate.vue'
 import RequestList from './RequestList.vue'
 import RequestEditor from './RequestEditor.vue'
@@ -30,8 +28,6 @@ import type {
   ResterClientRun,
   VaultRester
 } from '../../../../preload/types'
-import AppInput from '../AppInput.vue'
-import AppEmptyState from '../AppEmptyState.vue'
 import { resterClientIcon } from '../../icons'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']

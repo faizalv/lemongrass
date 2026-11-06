@@ -4,7 +4,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { VaultEnvironment, VaultRester } from '../../../../../preload/types'
-import AppButton from '../../AppButton.vue'
+import { AppButton } from '@sankasten'
 import EnvironmentModal from './EnvironmentModal.vue'
 import type { CommitRester } from './resterDraft'
 

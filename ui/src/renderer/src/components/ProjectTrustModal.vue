@@ -3,9 +3,8 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppModal } from '@sankasten'
 import type { Project } from '../../../preload/types'
-import AppButton from './AppButton.vue'
 
 defineProps<{
   project: Project

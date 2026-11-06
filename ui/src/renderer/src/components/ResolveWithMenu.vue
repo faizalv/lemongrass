@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
-import AppConfirmButton from './AppConfirmButton.vue'
+import { AppConfirmButton } from '@sankasten'
 import { resolveTargetsOf } from '../reviewTargets'
 import { glowTab } from '../tabGlow'
 import type { ProjectRef } from '../workspace'

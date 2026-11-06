@@ -3,8 +3,7 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
-import AppButton from '../AppButton.vue'
-import AppTextarea from '../AppTextarea.vue'
+import { AppButton, AppTextarea } from '@sankasten'
 
 // A draft has no saved comment yet, so cancelling it discards it instead of returning to view.
 const props = defineProps<{

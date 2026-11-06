@@ -8,11 +8,7 @@
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
 import type { VaultChannelWithShortId } from '../../../../preload/types'
-import AppButton from '../AppButton.vue'
-import AppCheckbox from '../AppCheckbox.vue'
-import AppSwitcher from '../AppSwitcher.vue'
-import AppMultiPicker from '../AppMultiPicker.vue'
-import AppInput from '../AppInput.vue'
+import { AppButton, AppCheckbox, AppInput, AppMultiPicker, AppSwitcher } from '@sankasten'
 
 export interface DbChannelSeed {
   name: string

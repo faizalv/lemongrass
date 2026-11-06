@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
+import { AppEmptyState, AppIcon } from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { openApprovals, pendingFor, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import {
@@ -13,7 +13,6 @@ import {
   type ProjectRef
 } from '../workspace'
 import type { WorkgroupInfo } from '../../../preload/types'
-import AppEmptyState from './AppEmptyState.vue'
 
 const POLL_MS = 5000
 

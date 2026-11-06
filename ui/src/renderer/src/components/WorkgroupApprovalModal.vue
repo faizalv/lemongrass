@@ -3,15 +3,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppModal, AppSegmented, AppTextarea } from '@sankasten'
 import { approvals, closeApprovals, decideApproval, ensureAccountChoices } from '../workgroups'
 import { accountStore } from '../accounts'
 import { shellAccountOf } from '../workspace'
 import { renderSafeMarkdown } from '../safeMarkdown'
 import type { WorkgroupPending } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppTextarea from './AppTextarea.vue'
-import AppSegmented from './AppSegmented.vue'
 
 const declineButton = ref<InstanceType<typeof AppButton> | null>(null)
 const reasonInput = ref<InstanceType<typeof AppTextarea> | null>(null)

@@ -2,9 +2,8 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from '../AppIcon.vue'
+import { AppConfirmButton, AppIcon } from '@sankasten'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import AppConfirmButton from '../AppConfirmButton.vue'
 import RunHistory from './RunHistory.vue'
 import { formatAge } from '../../relativeAge'
 import { ageNow } from '../../ageClock'

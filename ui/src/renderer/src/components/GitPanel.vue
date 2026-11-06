@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppIcon from './AppIcon.vue'
+import { AppButton, AppCheckbox, AppEmptyState, AppIcon, AppTextarea } from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   commitChanges,
@@ -24,9 +24,6 @@ import {
   type ProjectRef
 } from '../workspace'
 import type { GitFile, GitFileGroup, GitFileKind } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppTextarea from './AppTextarea.vue'
-import AppCheckbox from './AppCheckbox.vue'
 import GitIcon from './GitIcon.vue'
 import GitConflictPanel from './GitConflictPanel.vue'
 import GitBranchCreateModal from './GitBranchCreateModal.vue'
@@ -35,7 +32,6 @@ import GitCounts from './GitCounts.vue'
 import GitDivergedModal from './GitDivergedModal.vue'
 import GitMergeModal from './GitMergeModal.vue'
 import GitStashSection from './GitStashSection.vue'
-import AppEmptyState from './AppEmptyState.vue'
 
 const POLL_MS = 5000
 

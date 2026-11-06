@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import AppSegmented from '../AppSegmented.vue'
+import { AppSegmented } from '@sankasten'
 import {
   loadWindowControls,
   setWindowControlsPlacement,

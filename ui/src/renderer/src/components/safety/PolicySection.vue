@@ -10,12 +10,14 @@ import type {
   VaultPolicy,
   VaultPolicyRule
 } from '../../../../preload/types'
-import AppButton from '../AppButton.vue'
-import AppConfirmButton from '../AppConfirmButton.vue'
-import AppInput from '../AppInput.vue'
-import AppSwitcher from '../AppSwitcher.vue'
-import type { AppInputHandle } from '../appInput'
-import AppEmptyState from '../AppEmptyState.vue'
+import {
+  AppButton,
+  AppConfirmButton,
+  AppEmptyState,
+  AppInput,
+  type AppInputHandle,
+  AppSwitcher
+} from '@sankasten'
 import { isWindows } from '../../platform'
 import { policyPathError } from '../../policyPath'
 

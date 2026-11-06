@@ -8,7 +8,7 @@ import { useConflictThread } from '../../conflictThread'
 import { setConflictPath, type ProjectRef } from '../../workspace'
 import ConflictFilePicker from './ConflictFilePicker.vue'
 import ConflictFileView from './ConflictFileView.vue'
-import AppEmptyState from '../AppEmptyState.vue'
+import { AppEmptyState } from '@sankasten'
 
 // The conflict tab: one for the whole conflict session, showing one file at a time.
 const props = defineProps<{

@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppEmptyState from './AppEmptyState.vue'
+import { AppEmptyState } from '@sankasten'
 import CodeReader from './CodeReader.vue'
 import type { DocEntry } from '../workspace'
 

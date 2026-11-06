@@ -2,11 +2,8 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppButton from '../../AppButton.vue'
-import AppSegmented from '../../AppSegmented.vue'
-import AppSwitcher from '../../AppSwitcher.vue'
+import { AppButton, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
 import type { FieldDraft, FieldType } from './resterDraft'
-import AppInput from '../../AppInput.vue'
 
 defineProps<{
   addLabel: string

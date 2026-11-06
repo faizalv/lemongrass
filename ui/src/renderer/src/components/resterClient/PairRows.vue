@@ -2,9 +2,8 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AppButton from '../AppButton.vue'
+import { AppButton, AppInput } from '@sankasten'
 import type { ResterClientPair } from '../../../../preload/types'
-import AppInput from '../AppInput.vue'
 
 defineProps<{
   addLabel: string

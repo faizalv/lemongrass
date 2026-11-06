@@ -12,8 +12,7 @@ const markdownModes = reactive(new Map<string, MarkdownMode>())
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import AppEmptyState from './AppEmptyState.vue'
-import AppSegmented from './AppSegmented.vue'
+import { AppEmptyState, AppSegmented } from '@sankasten'
 import MarkdownReader from './MarkdownReader.vue'
 import ReadOnlyFile from './ReadOnlyFile.vue'
 import {

@@ -1,0 +1,5 @@
+# The token sheets keep their values aligned in columns, which prettier would undo.
+src/styles/tokens.css
+src/styles/base.css
+node_modules
+dist

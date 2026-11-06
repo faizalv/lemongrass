@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import AppButton from './AppButton.vue'
+import { AppButton } from '@sankasten'
 import DepRow from './deps/DepRow.vue'
 import { depsStore } from '../deps'
 import { avcCodecString, concatBytes } from '../h264'

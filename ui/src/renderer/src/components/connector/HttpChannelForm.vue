@@ -15,11 +15,7 @@ import type {
   VaultRester,
   VaultWebScope
 } from '../../../../preload/types'
-import AppButton from '../AppButton.vue'
-import AppCheckbox from '../AppCheckbox.vue'
-import AppSegmented from '../AppSegmented.vue'
-import AppSwitcher from '../AppSwitcher.vue'
-import AppInput from '../AppInput.vue'
+import { AppButton, AppCheckbox, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
 
 const props = defineProps<{
   resters: string[]

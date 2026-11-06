@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { computed, nextTick, ref, shallowRef, watch, type Ref } from 'vue'
-import type { AppInputHandle } from './components/appInput'
+import { type AppInputHandle } from '@sankasten'
 import {
   buildSearchTree,
   normalizeQuery,

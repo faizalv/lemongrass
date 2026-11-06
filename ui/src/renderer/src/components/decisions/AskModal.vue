@@ -10,9 +10,7 @@ import '../../vault.css'
 import type { Ask } from '../../../../preload/types'
 import { askState, closeAsk } from '../../asks'
 import { describeError, noteVaultActivity, vaultSession } from '../../vaultSession'
-import AppButton from '../AppButton.vue'
-import AppModal from '../AppModal.vue'
-import AppTextarea from '../AppTextarea.vue'
+import { AppButton, AppEmptyState, AppModal, AppTextarea } from '@sankasten'
 import VaultUnlockGate from '../VaultUnlockGate.vue'
 import AskCommandCard from './AskCommandCard.vue'
 import AskDbGrant from './AskDbGrant.vue'
@@ -21,7 +19,6 @@ import { noteAskAnswered } from '../../notifications'
 import { askStateLabel, askTypeLabel } from './askLabels'
 import { askParts, askWhere, loadAskProjects } from './askOrigin'
 import MarkedText from '../MarkedText.vue'
-import AppEmptyState from '../AppEmptyState.vue'
 
 const ask = ref<Ask | null>(null)
 const loadError = ref('')

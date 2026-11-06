@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import IconFrame from './IconFrame.vue'
+import { IconFrame } from '@sankasten'
 const SHAPES = {
   branch: [
     'M4 1.5a1.5 1.5 0 1 1 0 3a1.5 1.5 0 1 1 0-3',

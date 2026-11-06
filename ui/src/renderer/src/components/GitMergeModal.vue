@@ -6,8 +6,7 @@ import { computed, onMounted, ref } from 'vue'
 import { gitStateOf, mergeInto } from '../git'
 import type { ProjectRef } from '../workspace'
 import type { GitForecast } from '../../../preload/types'
-import AppButton from './AppButton.vue'
-import AppModal from './AppModal.vue'
+import { AppButton, AppModal } from '@sankasten'
 import GitForecastNotice from './GitForecastNotice.vue'
 
 const props = defineProps<{

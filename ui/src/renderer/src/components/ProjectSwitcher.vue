@@ -5,11 +5,14 @@
 // Not AppSwitcher: each row carries a second line and its own delete action, which a button row of
 // AppSwitcher cannot hold. The dropdown renders in body for the same reason AppSwitcher's does.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import AppInput from './AppInput.vue'
-import AppConfirmButton from './AppConfirmButton.vue'
-import AppIcon from './AppIcon.vue'
-import type { AppInputHandle } from './appInput'
-import { placeFloat, placementStyle } from '../floatPlace'
+import {
+  AppConfirmButton,
+  AppIcon,
+  AppInput,
+  type AppInputHandle,
+  placeFloat,
+  placementStyle
+} from '@sankasten'
 import { useProjectDelete } from '../projectDelete'
 import type { Project } from '../../../preload/types'
 
@@ -163,14 +166,14 @@ onBeforeUnmount(() => {
       @click="toggleOpen"
     >
       <span class="trigger-label">{{ activeLabel }}</span>
-      <AppIcon class="lg-trigger-caret" name="chevronDown" :size="9" />
+      <AppIcon class="sk-trigger-caret" name="chevronDown" :size="9" />
     </button>
 
     <Teleport to="body">
       <div
         v-if="open"
         ref="dropdownRef"
-        class="dropdown lg-float"
+        class="dropdown sk-float"
         :class="{ placed }"
         :style="dropdownStyle"
       >
@@ -232,8 +235,8 @@ onBeforeUnmount(() => {
               <AppIcon name="trash" :size="16" />
             </AppConfirmButton>
           </div>
-          <p v-if="projects.length === 0" class="lg-menu-empty">No projects yet.</p>
-          <p v-else-if="shown.length === 0" class="lg-menu-empty">No match.</p>
+          <p v-if="projects.length === 0" class="sk-menu-empty">No projects yet.</p>
+          <p v-else-if="shown.length === 0" class="sk-menu-empty">No match.</p>
         </div>
         <button type="button" class="add-item" @click="pickAdd">
           <span class="icon">+</span>
@@ -270,7 +273,7 @@ onBeforeUnmount(() => {
   color: var(--color-fg-primary);
 }
 
-.trigger .lg-trigger-caret {
+.trigger .sk-trigger-caret {
   margin-left: 0;
 }
 
