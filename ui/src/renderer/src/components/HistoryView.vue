@@ -262,7 +262,11 @@ function laneX(lane: number): number {
           v-for="(commit, index) in commits"
           :key="commit.hash"
           class="commit-row"
-          :class="{ selected: commit.hash === selected, head: commit.hash === head }"
+          :class="{
+            selected: commit.hash === selected,
+            head: commit.hash === head,
+            'no-graph': !graph
+          }"
           @click="pick(commit)"
           @contextmenu.prevent="openMenu($event, commit)"
         >
@@ -450,6 +454,12 @@ function laneX(lane: number): number {
   font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
+}
+
+/* The graph svg is the row's left gap; without it (while searching) the row takes the search
+   bar's inset so its text lines up with the field above. */
+.commit-row.no-graph {
+  padding-left: var(--space-4);
 }
 
 .commit-row:hover {
