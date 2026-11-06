@@ -427,8 +427,10 @@ interface Api {
       download: (
         tabId: string,
         alias: string,
-        remote: string
+        remote: string,
+        dir: boolean
       ) => Promise<SSHSessionReply<SSHTransferStart | null>>
+      pickUploads: () => Promise<string[]>
       stop: (tabId: string) => void
       setSudo: (tabId: string, on: boolean) => Promise<void>
       onEvent: (tabId: string, callback: (event: SSHSessionEvent) => void) => () => void

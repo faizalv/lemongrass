@@ -478,9 +478,11 @@ const ssh = {
     download: (
       tabId: string,
       alias: string,
-      remote: string
+      remote: string,
+      dir: boolean
     ): Promise<SSHSessionReply<SSHTransferStart | null>> =>
-      ipcRenderer.invoke('ssh:sessionDownload', tabId, alias, remote),
+      ipcRenderer.invoke('ssh:sessionDownload', tabId, alias, remote, dir),
+    pickUploads: (): Promise<string[]> => ipcRenderer.invoke('ssh:sessionPickUploads'),
     stop: (tabId: string): void => ipcRenderer.send('ssh:sessionStop', tabId),
     setSudo: (tabId: string, on: boolean): Promise<void> =>
       ipcRenderer.invoke('ssh:sessionSetSudo', tabId, on),

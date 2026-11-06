@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-// A server tab: a terminal logged in to one server, with the Files drawer over its right side.
+// A server tab: a terminal logged in to one server, with the Files layer over its right side.
 // The ssh command line comes from main, which owns the ControlMaster socket folder; the terminal
 // itself is an ordinary shell registry session, so it keeps running while the tab is hidden or
 // moved.
@@ -10,8 +10,8 @@ import { computed, onMounted, ref } from 'vue'
 import { AppButton, AppEmptyState } from '@sankasten'
 import ShellView from '../ShellView.vue'
 import TabIcon from '../TabIcon.vue'
-import FilesDrawer from './files/FilesDrawer.vue'
-import { DRAWER_ICONS } from './files/drawerIcons'
+import FilesLayer from './files/FilesLayer.vue'
+import { FILES_PATHS, shapesOf } from './files/drawerIcons'
 import { filesOf } from './files/filesStore'
 import { describeError } from '../../vaultSession'
 import { sshIcon } from '../../icons'
@@ -40,16 +40,10 @@ onMounted(async () => {
 <template>
   <div v-if="spec" class="server-view">
     <ShellView :spec="spec" :active="active" />
-    <FilesDrawer v-if="files.open" :tab-id="tabId" :alias="alias" />
-    <!-- Over terminal text, so it keeps a solid fill whether the drawer is open or not. -->
-    <AppButton
-      class="files-toggle"
-      variant="primary"
-      size="sm"
-      :pressed="files.open"
-      @click="files.open = !files.open"
-    >
-      <TabIcon :shapes="DRAWER_ICONS.files" />
+    <FilesLayer v-if="files.open" :tab-id="tabId" :alias="alias" @close="files.open = false" />
+    <!-- Over terminal text, so it keeps a solid fill; the layer's own Close replaces it while open. -->
+    <AppButton v-else class="files-toggle" variant="primary" size="sm" @click="files.open = true">
+      <TabIcon :shapes="shapesOf(FILES_PATHS.files)" />
       Files
     </AppButton>
   </div>

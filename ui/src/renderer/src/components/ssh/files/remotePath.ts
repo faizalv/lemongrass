@@ -4,31 +4,9 @@
 // Remote paths are POSIX and absolute whatever the local OS is, so they are joined here by hand
 // instead of with node's path module, which the renderer does not have.
 
-export interface Crumb {
-  name: string
-  path: string
-}
-
 export function joinRemote(dir: string, name: string): string {
   const base = dir.replace(/\/+$/, '')
   return `${base}/${name}`
-}
-
-export function parentOf(path: string): string {
-  const trimmed = path.replace(/\/+$/, '')
-  const cut = trimmed.lastIndexOf('/')
-  return cut <= 0 ? '/' : trimmed.slice(0, cut)
-}
-
-export function crumbsOf(path: string): Crumb[] {
-  const crumbs: Crumb[] = [{ name: '/', path: '/' }]
-  let at = ''
-  for (const part of path.split('/')) {
-    if (!part) continue
-    at = `${at}/${part}`
-    crumbs.push({ name: part, path: at })
-  }
-  return crumbs
 }
 
 // The reason a typed name cannot be a file or folder name, or null when it can.

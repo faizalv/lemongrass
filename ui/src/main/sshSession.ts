@@ -35,6 +35,9 @@ const REQUEST_OPS = new Set<SSHSessionRequest['op']>([
   'mkdir',
   'rename',
   'remove',
+  'touch',
+  'move',
+  'copy',
   'cancel'
 ])
 
@@ -172,31 +175,51 @@ export function registerSSHSessionHandlers(lgrassdPath: string | null): void {
     }
   )
 
-  // The local folder is picked here, so the renderer never names a local path to write to.
+  // The local target is picked here in the host save dialog, so the renderer never names a local
+  // path to write to. The dialog has already asked about replacing a file, so the helper replaces
+  // it, and only once the download succeeds. A folder arrives as one tar.gz the server streams.
   ipcMain.handle(
     'ssh:sessionDownload',
     async (
       event,
       tabId: string,
       alias: string,
-      remote: string
+      remote: string,
+      dir: boolean
     ): Promise<SSHSessionReply<SSHTransferStart | null>> => {
       const helper = startHelper(lgrassdPath, tabId, alias, event.sender)
-      const name = posix.basename(absoluteRemote(remote))
+      const remoteName = posix.basename(absoluteRemote(remote))
+      const fileName = dir ? `${remoteName}.tar.gz` : remoteName
       const win = BrowserWindow.fromWebContents(event.sender)
       const options = {
-        title: `Download ${name} to`,
-        properties: ['openDirectory' as const, 'createDirectory' as const]
+        title: `Download ${fileName}`,
+        defaultPath: join(app.getPath('downloads'), fileName)
       }
       const picked = win
-        ? await dialog.showOpenDialog(win, options)
-        : await dialog.showOpenDialog(options)
-      const folder = picked.filePaths[0]
-      if (picked.canceled || !folder) return { ok: true, result: null }
-      const local = join(folder, name)
-      return startTransfer(helper, { op: 'download', remote, local }, randomUUID(), name)
+        ? await dialog.showSaveDialog(win, options)
+        : await dialog.showSaveDialog(options)
+      if (picked.canceled || !picked.filePath) return { ok: true, result: null }
+      const body = {
+        op: dir ? 'downloadDir' : 'download',
+        remote,
+        local: picked.filePath,
+        replace: true
+      }
+      return startTransfer(helper, body, randomUUID(), basename(picked.filePath))
     }
   )
+
+  ipcMain.handle('ssh:sessionPickUploads', async (event): Promise<string[]> => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const options = {
+      title: 'Upload files',
+      properties: ['openFile' as const, 'multiSelections' as const]
+    }
+    const picked = win
+      ? await dialog.showOpenDialog(win, options)
+      : await dialog.showOpenDialog(options)
+    return picked.canceled ? [] : picked.filePaths
+  })
 
   ipcMain.on('ssh:sessionStop', (_event, tabId: string) => stopSession(tabId))
   ipcMain.handle('ssh:sessionSetSudo', (_event, tabId: string, on: boolean) =>

@@ -244,13 +244,16 @@ export interface SSHFileEntry {
 }
 
 // The file helper's requests the drawer sends as they are. Remote paths are absolute; transfers go
-// through their own calls, since main picks the local folder and the transfer id.
+// through their own calls, since main picks the local target and the transfer id.
 export type SSHSessionRequest =
   | { op: 'home' }
   | { op: 'list'; path: string }
   | { op: 'mkdir'; path: string }
   | { op: 'rename'; from: string; to: string }
   | { op: 'remove'; path: string }
+  | { op: 'touch'; path: string }
+  | { op: 'move'; from: string; to: string }
+  | { op: 'copy'; from: string; to: string }
   | { op: 'cancel'; transfer: string }
 
 // notLoggedIn: the terminal's master socket is missing. exists: a target is taken. isDir: a
