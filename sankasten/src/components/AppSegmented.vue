@@ -49,10 +49,11 @@ const emit = defineEmits<{
   background: var(--color-surface-3);
 }
 
+/* No width: 100%, which would add to a caller's margin and overflow; a flex child stretches and a
+   block-level flex box fills its container either way. */
 .segmented.block {
   display: flex;
   align-self: stretch;
-  width: 100%;
 }
 
 .segmented.block button {
