@@ -138,8 +138,11 @@ defineExpose({ focus: () => el.value?.focus() })
   --tone: var(--color-error);
 }
 
+/* Pressed has no hover look of its own: it stays amber, since the grey hover reads as off. */
 .ghost.is-pressed,
-.text.is-pressed {
+.text.is-pressed,
+.ghost.is-pressed:hover:not(:disabled),
+.text.is-pressed:hover:not(:disabled) {
   background: var(--color-amber-muted);
   color: var(--color-amber);
 }

@@ -24,6 +24,10 @@ export interface UiState {
   windowControls?: 'right' | 'left'
   // The sidebar's Biblio or Files view, and the file explorer's view options.
   sidebarView?: 'biblio' | 'files'
+  // The panel folded open under the tree from its icon in the sidebar.
+  sidebarPanel?: 'workgroup' | 'git' | 'none'
+  // Tool ids pinned to the header dock, in pin order.
+  pinnedTools?: string[]
   explorer?: {
     columns: { size: boolean; modified: boolean; git: boolean }
     density: 'compact' | 'comfortable'

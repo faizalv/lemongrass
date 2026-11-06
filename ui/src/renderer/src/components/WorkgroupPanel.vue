@@ -2,19 +2,11 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppBadge, AppEmptyState, AppNavItem } from '@sankasten'
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
-import { openApprovals, pendingFor, refreshWorkgroups, workgroupStateOf } from '../workgroups'
-import {
-  focusedWorkgroupId,
-  isTabOpen,
-  liveShellCount,
-  openWorkgroup,
-  type ProjectRef
-} from '../workspace'
+import { AppBadge, AppEmptyState } from '@sankasten'
+import { computed } from 'vue'
+import { openApprovals, pendingFor, workgroupStateOf } from '../workgroups'
+import { focusedWorkgroupId, isTabOpen, openWorkgroup, type ProjectRef } from '../workspace'
 import type { WorkgroupInfo } from '../../../preload/types'
-
-const POLL_MS = 5000
 
 const props = defineProps<{
   project: ProjectRef
@@ -28,64 +20,11 @@ const focusedId = computed(() => focusedWorkgroupId(props.project.id))
 function orphaned(group: WorkgroupInfo): boolean {
   return !isTabOpen(props.project.id, group.leaderTabId)
 }
-
-function refresh(): void {
-  void refreshWorkgroups(props.project)
-}
-
-function onFocus(): void {
-  refresh()
-}
-
-let timer: ReturnType<typeof setInterval> | undefined
-
-onMounted(() => {
-  refresh()
-  timer = setInterval(() => {
-    if (document.hasFocus()) refresh()
-  }, POLL_MS)
-  window.addEventListener('focus', onFocus)
-})
-
-onBeforeUnmount(() => {
-  clearInterval(timer)
-  window.removeEventListener('focus', onFocus)
-})
-
-watch(() => props.project.id, refresh)
-// A workgroup's tabs open right after the group is created, so a change in the shell count is the cue to look again.
-watch(() => liveShellCount(props.project.id), refresh)
 </script>
 
 <template>
   <div class="workgroup-panel">
-    <AppNavItem
-      label="Workgroup"
-      size="sm"
-      :active="!state.folded"
-      :expanded="!state.folded"
-      :count="groups.length"
-      :alert="waiting.length > 0 ? 'A workgroup is waiting for your approval' : undefined"
-      @click="state.folded = !state.folded"
-    >
-      <template #icon>
-        <svg
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="7" cy="3.5" r="1.7" />
-          <circle cx="3" cy="10.5" r="1.7" />
-          <circle cx="11" cy="10.5" r="1.7" />
-          <path d="M6 5l-2 4M8 5l2 4M4.7 10.5h4.6" />
-        </svg>
-      </template>
-    </AppNavItem>
-
-    <div v-if="!state.folded" class="wg-body">
+    <div class="wg-body">
       <button v-if="waiting.length > 0" class="wg-row waiting" @click="openApprovals()">
         <span class="wg-row-name">Waiting approval</span>
         <AppBadge>{{ waiting.length }}</AppBadge>
@@ -115,18 +54,20 @@ watch(() => liveShellCount(props.project.id), refresh)
 
 <style scoped>
 .workgroup-panel {
-  flex-shrink: 0;
-  padding: var(--space-2);
-  border-top: 1px solid var(--color-border-default);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .wg-body {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 55vh;
   overflow-y: auto;
-  padding: var(--space-2) var(--space-1) 0;
+  padding: var(--space-2) var(--space-3);
 }
 
 .wg-row {

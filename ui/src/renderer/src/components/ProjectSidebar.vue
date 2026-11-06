@@ -5,18 +5,16 @@
 import { onMounted, ref } from 'vue'
 import { AppEmptyState, AppSegmented } from '@sankasten'
 import BiblioPanel from './BiblioPanel.vue'
-import DeviceEntry from './DeviceEntry.vue'
 import FileExplorer from './explorer/FileExplorer.vue'
 import GitPanel from './GitPanel.vue'
-import NodeEntry from './NodeEntry.vue'
-import ResterClientEntry from './ResterClientEntry.vue'
-import SSHEntry from './SSHEntry.vue'
-import VaultEntry from './VaultEntry.vue'
+import GitPanelButton from './GitPanelButton.vue'
 import WorkgroupPanel from './WorkgroupPanel.vue'
+import WorkgroupPanelButton from './WorkgroupPanelButton.vue'
 import {
   loadSidebarSettings,
   setSidebarView,
   sidebarSettings,
+  toggleSidebarPanel,
   type SidebarView
 } from '../explorerSettings'
 import type { BiblioTree } from '../../../preload/types'
@@ -29,7 +27,6 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  openVault: []
   refreshBiblio: []
 }>()
 
@@ -86,13 +83,22 @@ function onGutterUp(): void {
           />
           <FileExplorer v-else :project="project" />
 
-          <WorkgroupPanel :project="project" />
-          <GitPanel :project="project" />
-          <VaultEntry @open="emit('openVault')" />
-          <DeviceEntry :project="project" />
-          <ResterClientEntry :project="project" />
-          <SSHEntry :project="project" />
-          <NodeEntry />
+          <div v-if="sidebarSettings.panel" class="panel-fold">
+            <WorkgroupPanel v-if="sidebarSettings.panel === 'workgroup'" :project="project" />
+            <GitPanel v-else :project="project" />
+          </div>
+          <div class="panel-bar" role="toolbar" aria-label="Panels">
+            <WorkgroupPanelButton
+              :project="project"
+              :open="sidebarSettings.panel === 'workgroup'"
+              @toggle="toggleSidebarPanel('workgroup')"
+            />
+            <GitPanelButton
+              :project="project"
+              :open="sidebarSettings.panel === 'git'"
+              @toggle="toggleSidebarPanel('git')"
+            />
+          </div>
         </div>
 
         <div class="sidebar-gutter" @pointerdown="onGutterDown" />
@@ -126,6 +132,26 @@ function onGutterUp(): void {
   flex-shrink: 0;
   min-height: 0;
   display: flex;
+}
+
+/* The open panel keeps the height it had as an inline fold, so the tree above keeps the rest;
+   the icon row stays at the bottom whether a panel is open or not. */
+.panel-fold {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 55vh;
+  min-height: 0;
+  border-top: 1px solid var(--color-border-default);
+}
+
+.panel-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border-default);
 }
 
 .sidebar-tree {

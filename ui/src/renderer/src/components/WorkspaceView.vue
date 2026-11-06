@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { AppButton, AppEmptyState, AppModal } from '@sankasten'
+import { AppButton, AppEmptyState, AppModal, AppPad } from '@sankasten'
 import WorkspaceLayout from './WorkspaceLayout.vue'
 import {
   addShell,
@@ -48,21 +48,20 @@ const showAccounts = computed(
     <AppModal v-if="shellPicker.open" title="New shell" @close="cancelShellPicker">
       <p class="card-text">Which agent should this pane run?</p>
       <div class="agent-pads" role="listbox" aria-label="Shell agent">
-        <button
+        <AppPad
           v-for="agent in PICKABLE_SHELL_AGENTS"
           :key="agent.id"
-          type="button"
-          class="agent-pad"
-          :class="{ selected: shellPicker.selectedId === agent.id }"
+          :label="agent.label"
+          :detail="agent.hint"
+          mono
+          :selected="shellPicker.selectedId === agent.id"
           role="option"
           :aria-selected="shellPicker.selectedId === agent.id"
           @click="shellPicker.selectedId = agent.id"
           @dblclick="confirmShellPicker(agent.id)"
         >
-          <AgentIcon class="agent-pad-icon" :agent-id="agent.id" :size="24" />
-          <span class="agent-label">{{ agent.label }}</span>
-          <span class="agent-hint">{{ agent.hint }}</span>
-        </button>
+          <template #icon><AgentIcon :agent-id="agent.id" :size="24" /></template>
+        </AppPad>
       </div>
       <template v-if="showAccounts">
         <p class="card-text">Which account should it use?</p>
@@ -136,53 +135,6 @@ const showAccounts = computed(
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
-}
-
-.agent-pad {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-  padding: var(--space-4) var(--space-2) var(--space-3);
-  background: transparent;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md, 8px);
-  color: var(--color-fg-muted);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.agent-pad-icon {
-  margin-bottom: var(--space-1);
-}
-
-.agent-pad .agent-label {
-  color: var(--color-fg-secondary);
-}
-
-.agent-pad:hover,
-.agent-pad.selected {
-  color: var(--color-fg-primary);
-}
-
-.agent-pad:hover {
-  background: var(--color-surface-2);
-}
-
-.agent-pad:hover .agent-label,
-.agent-pad.selected .agent-label {
-  color: var(--color-fg-primary);
-}
-
-.agent-pad.selected {
-  border-color: var(--color-amber);
-  background: var(--color-amber-muted, rgba(245, 197, 24, 0.12));
 }
 
 .agent-option {

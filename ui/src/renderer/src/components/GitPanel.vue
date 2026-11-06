@@ -8,17 +8,15 @@ import {
   AppDisclosure,
   AppEmptyState,
   AppIconButton,
-  AppNavItem,
   AppTextarea
 } from '@sankasten'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import {
   commitChanges,
   fetchAll,
   gitStateOf,
   isChecked,
   pushBranch,
-  refreshGit,
   setAllChecked,
   toggleFile,
   toggleGroupFold
@@ -40,8 +38,6 @@ import GitCounts from './GitCounts.vue'
 import GitDivergedModal from './GitDivergedModal.vue'
 import GitMergeModal from './GitMergeModal.vue'
 import GitStashSection from './GitStashSection.vue'
-
-const POLL_MS = 5000
 
 const props = defineProps<{
   project: ProjectRef
@@ -184,74 +180,14 @@ const pushTitle = computed(() => {
   if (pushBlockedReason.value) return pushBlockedReason.value
   return `Commit, then push to ${status.value?.pushTarget}`
 })
-
-function refresh(): void {
-  void refreshGit(props.project)
-}
-
-function onFocus(): void {
-  refresh()
-}
-
-let timer: ReturnType<typeof setInterval> | undefined
-
-onMounted(() => {
-  refresh()
-  timer = setInterval(() => {
-    if (document.hasFocus()) refresh()
-  }, POLL_MS)
-  window.addEventListener('focus', onFocus)
-})
-
-onBeforeUnmount(() => {
-  clearInterval(timer)
-  window.removeEventListener('focus', onFocus)
-})
-
-watch(() => props.project.id, refresh)
 </script>
 
 <template>
   <div class="git-panel">
-    <AppNavItem
-      size="sm"
-      label="Git"
-      :state="status?.branch ?? undefined"
-      :active="!state.folded"
-      :tone="conflictMode ? 'danger' : 'neutral'"
-      :count="files.length"
-      :expanded="!state.folded"
-      @click="state.folded = !state.folded"
-    >
-      <template #icon>
-        <svg
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="4" cy="3" r="1.5" />
-          <circle cx="4" cy="11" r="1.5" />
-          <circle cx="10.5" cy="5.5" r="1.5" />
-          <path d="M4 4.5v5M10.5 7c0 2.2-2.2 2.9-6 3.2" />
-        </svg>
-      </template>
-      <!-- Unfolded, the branch row below shows these beside Fetch and Push instead. -->
-      <template #trailing>
-        <GitCounts
-          v-if="state.folded && status?.isRepo"
-          :ahead="status.ahead"
-          :behind="status.behind"
-        />
-      </template>
-    </AppNavItem>
-
-    <div v-if="!state.folded && conflictMode" class="git-body">
+    <div v-if="conflictMode" class="git-body">
       <GitConflictPanel :project="project" />
     </div>
-    <div v-else-if="!state.folded" class="git-body">
+    <div v-else class="git-body">
       <GitBranchMenu v-if="status?.isRepo" :project="project" :blocked-reason="switchBlockedReason">
         <GitIcon class="row-icon" name="branch" />
         <span class="row-name">{{ status.branch ?? 'detached HEAD' }}</span>
@@ -402,18 +338,20 @@ watch(() => props.project.id, refresh)
 
 <style scoped>
 .git-panel {
-  flex-shrink: 0;
-  padding: var(--space-2);
-  border-top: 1px solid var(--color-border-default);
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .git-body {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  max-height: 55vh;
   overflow-y: auto;
-  padding: var(--space-2) var(--space-1) 0;
+  padding: var(--space-2) var(--space-3);
 }
 
 .remote-line {

@@ -31,7 +31,8 @@ onBeforeUnmount(() => clearTimeout(hideTimer))
 <style scoped>
 .zoom-indicator {
   position: fixed;
-  top: var(--space-8);
+  /* Below the 46 px header, so it never covers the tool dock at the header's center. */
+  top: calc(46px + var(--space-3));
   left: 50%;
   z-index: 900;
   transform: translateX(-50%);

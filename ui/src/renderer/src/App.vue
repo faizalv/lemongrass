@@ -16,6 +16,7 @@ import AskModal from './components/decisions/AskModal.vue'
 import WorkgroupJoinModal from './components/WorkgroupJoinModal.vue'
 import ProjectTrustModal from './components/ProjectTrustModal.vue'
 import ZoomIndicator from './components/ZoomIndicator.vue'
+import ToolDock from './components/ToolDock.vue'
 import SetupLayer from './components/deps/SetupLayer.vue'
 import ProjectSelector from './components/ProjectSelector.vue'
 import { loadAccounts } from './accounts'
@@ -26,7 +27,6 @@ import { restoreZoom, setZoom, stepZoom } from './zoom'
 import {
   cancelShellPicker,
   ensureLoaded,
-  openVault,
   refreshReadOnlyDocs,
   shellPicker,
   type ProjectRef
@@ -201,6 +201,9 @@ onBeforeUnmount(() => {
           />
         </span>
       </template>
+      <template v-if="activeRef" #center>
+        <ToolDock :project="activeRef" />
+      </template>
     </HeaderBar>
 
     <div class="body-row">
@@ -208,7 +211,6 @@ onBeforeUnmount(() => {
         :collapsed="sidebarCollapsed"
         :project="activeRef"
         :tree="biblioTree"
-        @open-vault="activeRef && openVault(activeRef)"
         @refresh-biblio="refreshBiblio"
       />
 

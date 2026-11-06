@@ -5,6 +5,7 @@ import { reactive } from 'vue'
 import type { UiState } from '../../preload/types'
 
 export type SidebarView = 'biblio' | 'files'
+export type SidebarPanel = 'workgroup' | 'git'
 export type ExplorerView = NonNullable<UiState['explorer']>
 export type ExplorerColumn = keyof ExplorerView['columns']
 
@@ -14,8 +15,13 @@ const DEFAULT_VIEW: ExplorerView = {
   hideIgnored: false
 }
 
-export const sidebarSettings = reactive<{ view: SidebarView; explorer: ExplorerView }>({
+export const sidebarSettings = reactive<{
+  view: SidebarView
+  panel: SidebarPanel | null
+  explorer: ExplorerView
+}>({
   view: 'biblio',
+  panel: null,
   explorer: structuredClone(DEFAULT_VIEW)
 })
 
@@ -26,6 +32,8 @@ export async function loadSidebarSettings(): Promise<void> {
   loaded = true
   const saved = await window.api.uiState.load()
   if (saved.sidebarView) sidebarSettings.view = saved.sidebarView
+  if (saved.sidebarPanel && saved.sidebarPanel !== 'none')
+    sidebarSettings.panel = saved.sidebarPanel
   if (saved.explorer) {
     sidebarSettings.explorer = {
       ...DEFAULT_VIEW,
@@ -38,6 +46,13 @@ export async function loadSidebarSettings(): Promise<void> {
 export function setSidebarView(view: SidebarView): void {
   sidebarSettings.view = view
   window.api.uiState.save({ sidebarView: view })
+}
+
+// Clicking the open panel's icon folds it shut; 'none' is stored because the file merges by
+// field and an absent field would keep the old panel.
+export function toggleSidebarPanel(panel: SidebarPanel): void {
+  sidebarSettings.panel = sidebarSettings.panel === panel ? null : panel
+  window.api.uiState.save({ sidebarPanel: sidebarSettings.panel ?? 'none' })
 }
 
 // ui-state.json merges per top-level field, so the whole explorer object is sent every time.

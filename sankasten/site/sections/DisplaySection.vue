@@ -16,6 +16,7 @@ import {
   AppModal,
   AppNavGroup,
   AppNavItem,
+  AppPad,
   AppProgressLine,
   IconFrame,
   type AppIconName,
@@ -31,6 +32,8 @@ const iconNames = Object.keys(APP_ICONS) as AppIconName[]
 const open = ref(true)
 const stashOpen = ref(false)
 const folded = ref(true)
+const pad = ref('one')
+const pinned = ref(false)
 const account = ref('second')
 const chips = ref(['orders', 'users', 'invoices'])
 const excluded = ref(false)
@@ -171,11 +174,56 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
           s === 'md' ? 12 : 3
         }}</AppBadge>
       </DemoRow>
-      <DemoRow label="on an icon button">
+      <DemoRow label="on an icon button; a status dot and a trailing mark instead of a count">
         <AppIconButton icon="info" label="Notifications" size="sm">
           <template #badge><AppBadge size="sm">5</AppBadge></template>
         </AppIconButton>
+        <AppIconButton icon="copy" label="Changes waiting" size="sm" dot="accent" />
+        <AppIconButton icon="copy" label="Changes waiting, 2 unsent" size="sm" dot="accent">
+          <template #trailing>
+            <svg
+              class="demo-ahead"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M5 8.5v-7M2 4.5l3-3 3 3" />
+            </svg>
+          </template>
+        </AppIconButton>
+        <AppIconButton icon="close" label="Stopped" size="sm" dot="danger" pressed />
       </DemoRow>
+    </DocBlock>
+
+    <DocBlock name="AppPad">
+      <div class="pad-grid">
+        <AppPad
+          v-for="p in ['one', 'two', 'three']"
+          :key="p"
+          :label="`Agent ${p}`"
+          :detail="`run-${p}`"
+          mono
+          :selected="pad === p"
+          @click="pad = p"
+        >
+          <template #icon><AppIcon name="copy" /></template>
+        </AppPad>
+        <AppPad label="Tunnel" detail="Shared" tone="success" size="sm">
+          <template #icon><AppIcon name="search" /></template>
+          <template #corner>
+            <AppIconButton
+              icon="plus"
+              size="xs"
+              :label="pinned ? 'Unpin' : 'Pin'"
+              :pressed="pinned"
+              @click="pinned = !pinned"
+            />
+          </template>
+        </AppPad>
+      </div>
     </DocBlock>
 
     <DocBlock name="AppEmptyState">
@@ -310,5 +358,15 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
 .out {
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
+}
+
+.pad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 120px);
+  gap: var(--space-2);
+}
+
+.demo-ahead {
+  color: var(--color-success);
 }
 </style>

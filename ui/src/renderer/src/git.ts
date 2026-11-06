@@ -19,7 +19,6 @@ export interface GitState {
   status: GitStatus | null
   stashes: GitStash[]
   revision: number
-  folded: boolean
   message: string
   messageSeeded: boolean
   unchecked: string[]
@@ -43,7 +42,6 @@ export function gitStateOf(projectId: string): GitState {
       status: null,
       stashes: [],
       revision: 0,
-      folded: true,
       message: '',
       messageSeeded: false,
       unchecked: [],

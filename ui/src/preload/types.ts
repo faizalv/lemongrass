@@ -44,6 +44,8 @@ export interface UiState {
   startup?: 'lastProject' | 'projectSelector'
   windowControls?: 'right' | 'left'
   sidebarView?: 'biblio' | 'files'
+  sidebarPanel?: 'workgroup' | 'git' | 'none'
+  pinnedTools?: string[]
   explorer?: {
     columns: { size: boolean; modified: boolean; git: boolean }
     density: 'compact' | 'comfortable'

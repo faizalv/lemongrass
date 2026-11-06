@@ -112,6 +112,11 @@ export const DOCS: Record<string, ComponentDoc> = {
         type: 'string',
         default: "'Click again'",
         doc: 'Tooltip and label while armed.'
+      },
+      {
+        name: 'dot',
+        type: "'accent' | 'info' | 'success' | 'danger'",
+        doc: 'A 5px status dot on the glyph’s top right corner, for a status on a small glyph where a count would cover it.'
       }
     ],
     events: [
@@ -123,6 +128,11 @@ export const DOCS: Record<string, ComponentDoc> = {
         name: 'default',
         type: '',
         doc: 'Any glyph: an icon component or a short text such as B or H1. Any svg is drawn at the size glyph height.'
+      },
+      {
+        name: 'trailing',
+        type: '',
+        doc: 'A small mark after the glyph, such as a direction arrow; any svg is drawn 4px under the glyph height, centered on it.'
       },
       {
         name: 'badge',
@@ -321,6 +331,42 @@ export const DOCS: Record<string, ComponentDoc> = {
         doc: 'The partly checked state of a select-all box; wins over checked.'
       },
       size
+    ]
+  },
+  AppPad: {
+    name: 'AppPad',
+    summary:
+      'A square choice in a grid: a large glyph, a label and one line of detail, such as an agent in a picker or a tool with its status.',
+    props: [
+      { name: 'label', type: 'string', doc: 'Required.' },
+      { name: 'detail', type: 'string', doc: 'One line under the label, ellipsized.' },
+      {
+        name: 'mono',
+        type: 'boolean',
+        default: 'false',
+        doc: 'The detail in the mono face, for a command.'
+      },
+      {
+        name: 'tone',
+        type: "'neutral' | 'accent' | 'success' | 'danger'",
+        default: "'neutral'",
+        doc: 'Colors the detail, for a status that is on or needs the user.'
+      },
+      { name: 'selected', type: 'boolean', default: 'false', doc: 'Amber border and fill.' },
+      {
+        name: 'size',
+        type: "'sm' | 'md'",
+        default: "'md'",
+        doc: 'md is a square tile with a 24px glyph; sm a compact row with a 16px glyph beside the label and detail, for a grid that keeps growing.'
+      }
+    ],
+    slots: [
+      { name: 'icon', type: '', doc: 'The glyph, any svg drawn 24px high, 16px at sm.' },
+      {
+        name: 'corner',
+        type: '',
+        doc: 'A control at the top right, such as a pin toggle. It is not nested in the pad’s button, so its clicks do not reach the pad.'
+      }
     ]
   },
   AppNavItem: {

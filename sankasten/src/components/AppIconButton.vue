@@ -29,6 +29,9 @@ const props = withDefaults(
     // A destructive action: the first click arms it and the second emits confirm instead of click.
     confirm?: boolean
     confirmLabel?: string
+    // A small status dot on the glyph's top right corner, for a status on a small glyph where a
+    // count badge would cover it.
+    dot?: 'accent' | 'info' | 'success' | 'danger'
   }>(),
   {
     icon: undefined,
@@ -38,7 +41,8 @@ const props = withDefaults(
     pressed: undefined,
     busy: false,
     confirm: false,
-    confirmLabel: 'Click again'
+    confirmLabel: 'Click again',
+    dot: undefined
   }
 )
 
@@ -85,9 +89,13 @@ defineExpose({
     @click="onClick"
     @confirm="onConfirm"
   >
-    <AppIcon v-if="busy" class="busy-glyph" name="spinner" />
-    <AppIcon v-else-if="icon" :name="icon" />
-    <slot v-else />
+    <span class="glyph">
+      <AppIcon v-if="busy" class="busy-glyph" name="spinner" />
+      <AppIcon v-else-if="icon" :name="icon" />
+      <slot v-else />
+      <span v-if="dot" class="dot" :class="`dot-${dot}`" aria-hidden="true" />
+    </span>
+    <span v-if="$slots.trailing" class="trailing"><slot name="trailing" /></span>
     <span v-if="$slots.badge" class="badge"><slot name="badge" /></span>
   </component>
 </template>
@@ -199,7 +207,10 @@ defineExpose({
   color: var(--color-fg-primary);
 }
 
-.app-icon-button.is-pressed {
+/* Pressed has no hover look of its own: it stays amber, since the grey hover reads as off. The
+   hover selector matches the hover rules' specificity so it wins over them. */
+.app-icon-button.is-pressed,
+.app-icon-button.is-pressed:hover:not(:disabled) {
   background: var(--color-amber-muted);
   color: var(--color-amber);
 }
@@ -230,6 +241,50 @@ defineExpose({
 
 .tone-neutral .busy-glyph {
   color: var(--color-fg-primary);
+}
+
+/* The glyph's own box, so the dot sits on the glyph's corner whatever the button's width. */
+.glyph {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* A small mark after the glyph, such as a direction arrow, centered on it and smaller. */
+.trailing {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 3px;
+}
+
+.app-icon-button .trailing :deep(svg) {
+  height: calc(var(--glyph) - 4px);
+}
+
+.dot-accent {
+  background: var(--color-amber);
+}
+
+.dot-info {
+  background: var(--color-info);
+}
+
+.dot-success {
+  background: var(--color-success);
+}
+
+.dot-danger {
+  background: var(--color-error);
 }
 
 /* Pinned to the top right corner and left unclipped, so a count can sit over the edge. */

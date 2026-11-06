@@ -13,6 +13,8 @@ const props = defineProps<{
 const SYNC_MS = 250
 // Inset of the sample points from the host's edge, so a rounded or bordered edge does not count as covered.
 const SAMPLE_INSET = 4
+// Spacing of the sample points along the host's edges, under the width of the narrowest menu.
+const EDGE_STEP = 48
 
 const host = ref<HTMLDivElement>()
 const state = ref<WebState | null>(null)
@@ -25,6 +27,9 @@ const shown = computed(() => (state.value?.open ? state.value : null))
 // After a flush of the active user or a failed login the browser stays open with no page to show, so the host
 // would be an empty dark area without its own empty state.
 const noUser = computed(() => shown.value !== null && shown.value.user === '')
+// The view is detached while something is drawn over the host or a tab is dragged, which would
+// otherwise leave the host an empty dark area that reads as broken.
+const hiddenForCover = ref(false)
 
 // The view is a native surface above the DOM, so it only stays attached while nothing in the page is drawn over the host.
 function covered(rect: DOMRect): boolean {
@@ -34,13 +39,20 @@ function covered(rect: DOMRect): boolean {
   const top = rect.top + SAMPLE_INSET
   const right = rect.right - SAMPLE_INSET
   const bottom = rect.bottom - SAMPLE_INSET
-  const points = [
-    [left, top],
-    [right, top],
-    [left, bottom],
-    [right, bottom],
-    [(left + right) / 2, (top + bottom) / 2]
-  ]
+  // Anything drawn over the host from outside it, such as a header dropdown, crosses one of its
+  // edges, so the edges are sampled densely enough to catch a narrow menu; the center catches a
+  // centered modal.
+  const points: [number, number][] = [[(left + right) / 2, (top + bottom) / 2]]
+  const across = Math.max(1, Math.ceil((right - left) / EDGE_STEP))
+  const down = Math.max(1, Math.ceil((bottom - top) / EDGE_STEP))
+  for (let i = 0; i <= across; i++) {
+    const x = left + ((right - left) * i) / across
+    points.push([x, top], [x, bottom])
+  }
+  for (let i = 1; i < down; i++) {
+    const y = top + ((bottom - top) * i) / down
+    points.push([left, y], [right, y])
+  }
   return points.some(([x, y]) => {
     const hit = document.elementFromPoint(x, y)
     return hit !== null && !el.contains(hit)
@@ -69,8 +81,9 @@ function sync(): void {
   const el = host.value
   if (!el) return
   const rect = el.getBoundingClientRect()
-  const visible =
-    rect.width > 0 && rect.height > 0 && !document.hidden && !dragging && !covered(rect)
+  const sized = rect.width > 0 && rect.height > 0 && !document.hidden
+  hiddenForCover.value = sized && (dragging || covered(rect))
+  const visible = sized && !hiddenForCover.value
   if (!visible) {
     detach()
     return
@@ -171,6 +184,11 @@ onBeforeUnmount(() => {
         layout="fill"
         title="No user is active."
         detail="The page appears again when the agent opens it as a user."
+      />
+      <AppEmptyState
+        v-else-if="hiddenForCover"
+        layout="fill"
+        title="Page hidden while something is open over it."
       />
     </div>
   </div>

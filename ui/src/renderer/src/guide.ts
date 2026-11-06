@@ -47,7 +47,7 @@ export const GUIDE_CARDS: GuideCard[] = [
   {
     id: 'connector',
     title: 'Connector',
-    where: 'Vault, in the sidebar under Biblio',
+    where: 'The toolbox at the top center of the window, then Vault',
     purpose:
       'The connector gives agents access to databases and HTTP APIs without showing them the password or token. You create a connection once, then grant an agent a channel that can only do what you allow.',
     when: 'When an agent needs to read or change data in a database or call an API that needs a login.',
@@ -67,7 +67,7 @@ export const GUIDE_CARDS: GuideCard[] = [
   {
     id: 'workgroups',
     title: 'Workgroups',
-    where: 'The workgroup list in the sidebar, and the thread in a workgroup tab',
+    where: 'The workgroup icon under the sidebar tree, and the thread in a workgroup tab',
     purpose:
       'A leader agent can start a group of thinkers, each on Claude Code or Codex, to work on one task together. They talk in a shared thread, and you approve the group before any of them starts.',
     when: 'When a task is big enough to split across several agents that need to discuss it.',
@@ -77,7 +77,7 @@ export const GUIDE_CARDS: GuideCard[] = [
   {
     id: 'node',
     title: 'Node',
-    where: 'Vault, then Node, in the sidebar',
+    where: 'The toolbox at the top center of the window, then Node',
     purpose:
       "Node shares some of your books, scratchpad tasks, laws and handovers with someone else's agent over a read-only link. Each person gets one token and sets it up once, and you change what it can read at any time.",
     when: 'When someone outside your machine needs to read specific project notes through their own agent.',
@@ -97,7 +97,7 @@ export const GUIDE_CARDS: GuideCard[] = [
   {
     id: 'git',
     title: 'Git panel',
-    where: 'Biblio, then Git, in the sidebar',
+    where: 'The Git icon under the sidebar tree',
     purpose:
       'The Git panel shows the changes in the current project, lets you read the diff, commit and push, without leaving Lemongrass.',
     when: 'When you want to review what an agent changed before you commit it.',

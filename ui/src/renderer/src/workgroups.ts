@@ -9,7 +9,6 @@ import { accountStore } from './accounts'
 export interface WorkgroupState {
   groups: WorkgroupInfo[]
   names: Record<number, string>
-  folded: boolean
   confirming: number | null
   busy: boolean
   error: string | null
@@ -23,7 +22,6 @@ export function workgroupStateOf(projectId: string): WorkgroupState {
     states[projectId] = {
       groups: [],
       names: {},
-      folded: true,
       confirming: null,
       busy: false,
       error: null

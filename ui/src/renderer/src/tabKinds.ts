@@ -21,7 +21,7 @@ import WebPane from './components/WebPane.vue'
 import WorkgroupPane from './components/WorkgroupPane.vue'
 import { shellTitles } from './shellRegistry'
 import { workgroupStateOf } from './workgroups'
-import { historyIcon, resterClientIcon, sshIcon } from './icons'
+import { deviceIcon, historyIcon, resterClientIcon, sshIcon, vaultIcon } from './icons'
 import type { ProjectRef } from './workspace'
 import type { WorkspaceTab } from '../../preload/types'
 
@@ -136,11 +136,7 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
   },
   // The persisted kind stays 'connector' so saved layouts keep loading.
   connector: {
-    icon: [
-      { tag: 'rect', attrs: { x: 2.5, y: 6.5, width: 9, height: 6, rx: 1.2 } },
-      { tag: 'path', attrs: { d: 'M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2' } },
-      { tag: 'circle', attrs: { cx: 7, cy: 9.5, r: 0.8 } }
-    ],
+    icon: vaultIcon,
     label: () => ({ text: 'Vault' }),
     title: () => 'Vault',
     body: VaultPanel,
@@ -148,10 +144,7 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     bodyProps: (_tab, ctx) => ({ active: ctx.active })
   },
   device: {
-    icon: [
-      { tag: 'rect', attrs: { x: 3.5, y: 1.5, width: 7, height: 11, rx: 1.4 } },
-      { tag: 'path', attrs: { d: 'M6 10.5h2' } }
-    ],
+    icon: deviceIcon,
     label: () => ({ text: 'Device' }),
     title: () => 'Device',
     body: DeviceView,
