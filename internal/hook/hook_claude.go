@@ -10,8 +10,11 @@ import (
 
 type claudeHookAdapter struct{}
 
+// A prompt block is a top-level decision in Claude Code's hook schema, not part of hookSpecificOutput.
 type claudeHookOutput struct {
-	HookSpecificOutput claudeHookSpecificOutput `json:"hookSpecificOutput"`
+	Decision           string                    `json:"decision,omitempty"`
+	Reason             string                    `json:"reason,omitempty"`
+	HookSpecificOutput *claudeHookSpecificOutput `json:"hookSpecificOutput,omitempty"`
 }
 
 type claudeHookSpecificOutput struct {
@@ -34,14 +37,21 @@ func (claudeHookAdapter) emit(result hookResult) {
 	if !result.hasOutput() {
 		return
 	}
+	json.NewEncoder(os.Stdout).Encode(claudeOutput(result))
+}
+
+func claudeOutput(result hookResult) claudeHookOutput {
+	if result.BlockReason != "" {
+		return claudeHookOutput{Decision: "block", Reason: result.BlockReason}
+	}
 	context := result.AdditionalContext
 	if result.PermissionDecision == "deny" {
 		context = ""
 	}
-	json.NewEncoder(os.Stdout).Encode(claudeHookOutput{HookSpecificOutput: claudeHookSpecificOutput{
+	return claudeHookOutput{HookSpecificOutput: &claudeHookSpecificOutput{
 		HookEventName:            result.EventName,
 		PermissionDecision:       result.PermissionDecision,
 		PermissionDecisionReason: result.PermissionDecisionReason,
 		AdditionalContext:        context,
-	}})
+	}}
 }

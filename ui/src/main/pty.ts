@@ -15,6 +15,7 @@ import { startupTrimArgs, startupTrimEnv } from './startupTrim'
 import { classifyInput } from './humanInput'
 import { destroyInstance } from './web'
 import { resolveShellBinary } from './shellBinary'
+import { SHELL_COMMAND, shellTabLaunch } from './shellTab'
 import { windowsLaunch, windowsShell, withPath, type Env, type Launch } from './winExec'
 import { freshWindowsPath } from './windowsPath'
 
@@ -126,12 +127,17 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       ...(configDir ? { CLAUDE_CONFIG_DIR: configDir } : {})
     })
     if ('error' in launch) return { error: launch.error }
-    const proc = pty.spawn(launch.file, launch.args, {
+    // Applied after launchFor, because on Windows it rebuilds PATH from the registry and would drop the shim dir.
+    const child =
+      opts.command === SHELL_COMMAND
+        ? shellTabLaunch(launch.file, launch.args, env, homedir())
+        : { args: launch.args, env }
+    const proc = pty.spawn(launch.file, child.args, {
       name: 'xterm-256color',
       cols: opts.cols ?? 80,
       rows: opts.rows ?? 24,
       cwd: opts.cwd ?? homedir(),
-      env: env as Record<string, string>
+      env: child.env as Record<string, string>
     })
 
     proc.onData((data) => {

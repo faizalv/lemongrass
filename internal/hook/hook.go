@@ -58,6 +58,9 @@ func Run(args []string, tabID string) {
 		os.Exit(1)
 	}
 	event := args[0]
+	if event == shellTabEndArg {
+		os.Exit(runShellTabEnd(args[1:]))
+	}
 	vendor := hookVendor(args[1:])
 
 	raw, err := io.ReadAll(os.Stdin)
@@ -65,6 +68,11 @@ func Run(args []string, tabID string) {
 		os.Exit(0)
 	}
 	adapter := hookAdapterFor(vendor)
+	if inShellTab(tabID, os.Getenv(shellTabEnv)) {
+		startShellTabEnd()
+		adapter.emit(shellTabFallback(event))
+		os.Exit(0)
+	}
 	payload, err := adapter.decode(raw)
 	if err != nil {
 		os.Exit(0)

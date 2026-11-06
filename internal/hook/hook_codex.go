@@ -10,8 +10,11 @@ import (
 
 type codexHookAdapter struct{}
 
+// Codex follows Claude Code's hook schema, so a prompt block is a top-level decision here too.
 type codexHookOutput struct {
-	HookSpecificOutput codexHookSpecificOutput `json:"hookSpecificOutput"`
+	Decision           string                   `json:"decision,omitempty"`
+	Reason             string                   `json:"reason,omitempty"`
+	HookSpecificOutput *codexHookSpecificOutput `json:"hookSpecificOutput,omitempty"`
 }
 
 type codexHookSpecificOutput struct {
@@ -34,10 +37,17 @@ func (codexHookAdapter) emit(result hookResult) {
 	if !result.hasOutput() {
 		return
 	}
-	json.NewEncoder(os.Stdout).Encode(codexHookOutput{HookSpecificOutput: codexHookSpecificOutput{
+	json.NewEncoder(os.Stdout).Encode(codexOutput(result))
+}
+
+func codexOutput(result hookResult) codexHookOutput {
+	if result.BlockReason != "" {
+		return codexHookOutput{Decision: "block", Reason: result.BlockReason}
+	}
+	return codexHookOutput{HookSpecificOutput: &codexHookSpecificOutput{
 		HookEventName:            result.EventName,
 		PermissionDecision:       result.PermissionDecision,
 		PermissionDecisionReason: result.PermissionDecisionReason,
 		AdditionalContext:        result.AdditionalContext,
-	}})
+	}}
 }

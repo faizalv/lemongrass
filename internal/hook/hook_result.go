@@ -10,6 +10,8 @@ type hookResult struct {
 	PermissionDecision       string
 	PermissionDecisionReason string
 	AdditionalContext        string
+	// BlockReason, when set, rejects a UserPromptSubmit and is shown to the human in place of the prompt.
+	BlockReason string
 }
 
 func newHookResult(eventName, permissionDecision string, parts []string) hookResult {
@@ -32,5 +34,5 @@ func newHookResult(eventName, permissionDecision string, parts []string) hookRes
 }
 
 func (r hookResult) hasOutput() bool {
-	return r.PermissionDecision == "deny" || r.AdditionalContext != ""
+	return r.PermissionDecision == "deny" || r.AdditionalContext != "" || r.BlockReason != ""
 }
