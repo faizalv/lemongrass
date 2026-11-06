@@ -36,6 +36,7 @@ export interface TreeSearch {
   onPanelKeydown: (event: KeyboardEvent) => void
   onInputKeydown: (event: KeyboardEvent) => void
   onInputBlur: () => void
+  show: () => void
   close: () => void
   refresh: () => void
   setQuery: (text: string) => void
@@ -111,6 +112,12 @@ export function useTreeSearch(options: TreeSearchOptions): TreeSearch {
     void nextTick(() => input.value?.focus())
   }
 
+  // The explicit way in, for a search button: opens the field as typing does, without a first key.
+  function show(): void {
+    open.value = true
+    void nextTick(() => input.value?.focus())
+  }
+
   function move(delta: number): void {
     const rows = result.value?.rows.length ?? 0
     if (!rows) return
@@ -159,6 +166,7 @@ export function useTreeSearch(options: TreeSearchOptions): TreeSearch {
     onPanelKeydown,
     onInputKeydown,
     onInputBlur,
+    show,
     close,
     refresh,
     setQuery,

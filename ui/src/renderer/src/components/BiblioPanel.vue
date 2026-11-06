@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { AppButton, AppEmptyState, AppInput, AppModal, AppNavItem } from '@sankasten'
+import { AppButton, AppEmptyState, AppIconButton, AppInput, AppModal, AppNavItem } from '@sankasten'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import SearchRows from './treeSearch/SearchRows.vue'
@@ -163,6 +163,18 @@ async function submitCreate(): Promise<void> {
 
 <template>
   <div ref="panel" class="biblio-view" tabindex="0" @keydown="search.onPanelKeydown">
+    <div class="biblio-head">
+      <span class="head-label">biblio</span>
+      <AppIconButton
+        size="sm"
+        tone="accent"
+        icon="search"
+        label="Search"
+        title="Search (or start typing)"
+        :pressed="search.open.value"
+        @click="search.show()"
+      />
+    </div>
     <div class="tree-scroll">
       <AppNavItem
         v-if="tree?.toc"
@@ -253,6 +265,24 @@ async function submitCreate(): Promise<void> {
   display: flex;
   flex-direction: column;
   outline: none;
+}
+
+.biblio-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3) var(--space-1) var(--space-3);
+}
+
+.head-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
 }
 
 .tree-scroll {

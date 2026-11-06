@@ -621,6 +621,15 @@ function rowKey(row: Row): string {
   >
     <div class="explorer-head">
       <span class="head-label" :title="project.path">{{ projectName }}</span>
+      <AppIconButton
+        size="sm"
+        tone="accent"
+        icon="search"
+        label="Search"
+        title="Search (or start typing)"
+        :pressed="search.open.value"
+        @click="search.show()"
+      />
       <AppIconButton size="sm" tone="accent" label="New file" @click="startCreate('file')">
         <TabIcon :shapes="shapesOf(ICONS.newFile)" />
       </AppIconButton>
