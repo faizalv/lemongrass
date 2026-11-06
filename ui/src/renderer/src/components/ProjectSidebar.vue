@@ -10,6 +10,7 @@ import FileExplorer from './explorer/FileExplorer.vue'
 import GitPanel from './GitPanel.vue'
 import NodeEntry from './NodeEntry.vue'
 import ResterClientEntry from './ResterClientEntry.vue'
+import SSHEntry from './SSHEntry.vue'
 import VaultEntry from './VaultEntry.vue'
 import WorkgroupPanel from './WorkgroupPanel.vue'
 import {
@@ -90,6 +91,7 @@ function onGutterUp(): void {
           <VaultEntry @open="emit('openVault')" />
           <DeviceEntry :project="project" />
           <ResterClientEntry :project="project" />
+          <SSHEntry :project="project" />
           <NodeEntry />
         </div>
 

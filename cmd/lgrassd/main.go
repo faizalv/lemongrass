@@ -52,6 +52,8 @@ func main() {
 		cmdUsage(os.Args[2:])
 	case "deps":
 		cmdDeps(os.Args[2:])
+	case "ssh":
+		cmdSSH(os.Args[2:])
 	case "hook":
 		hook.Run(os.Args[2:], os.Getenv(tabIDEnv))
 	default:
@@ -100,6 +102,8 @@ COMMANDS
                                      the records live in, as JSON
   deps check --json [--fresh]       Checks the tools lemongrass needs from the OS and prints each one's path,
                                      version, origin and install offer as JSON; --fresh ignores the cache
+  ssh keygen <path> [--comment <c>] Writes a new ed25519 key pair at path and path.pub, never replacing a
+                                     file; the passphrase, if any, is read from stdin
 
   version                           Print version
 `)

@@ -127,12 +127,109 @@ export interface VaultScope {
   Operations: string[]
 }
 
-// One ssh config host as OpenSSH resolves it (`ssh -G`), shown read-only in the Connections form.
+// One ssh config host as OpenSSH resolves it (`ssh -G`), shown read-only in the Connections form
+// and the SSH pane.
 export interface ResolvedSSHHost {
   hostname: string
   user: string
   port: string
   proxyJump: string
+  // As ssh prints them, `~` unexpanded. With no IdentityFile set, this is OpenSSH's default list.
+  identityFiles: string[]
+  knownHostsFiles: string[]
+  hostKeyAlias: string
+}
+
+// A key pair in the human's ssh directory, read from its .pub file. The private file is never read.
+export interface SSHKey {
+  name: string
+  privatePath: string
+  publicPath: string
+  hasPrivate: boolean
+  type: string
+  comment: string
+  fingerprint: string
+  inAgent: boolean
+}
+
+export interface SSHKeyList {
+  keys: SSHKey[]
+  // False when no ssh-agent answers on SSH_AUTH_SOCK.
+  agent: boolean
+}
+
+export interface SSHCreateKeyRequest {
+  name: string
+  comment: string
+  passphrase: string
+}
+
+// The keywords the SSH pane edits on a host it owns.
+export interface SSHHostFields {
+  alias: string
+  hostName: string
+  user: string
+  port: string
+  identityFile: string
+  proxyJump: string
+  identitiesOnly: boolean
+}
+
+export interface SSHHostEntry {
+  alias: string
+  file: string
+  // True for a host in lemongrass's own config.d file, which the pane may edit.
+  managed: boolean
+  fields?: SSHHostFields
+  resolved?: ResolvedSSHHost
+  resolveError?: string
+  // Key files the host names, expanded; empty when it only has OpenSSH's default list.
+  keyPaths: string[]
+}
+
+// Where lemongrass's own file is included from the human's ssh config: before any Host or Match
+// block, only inside one (so it applies to that block alone), or not at all.
+export type SSHIncludeState = 'included' | 'insideBlock' | 'missing'
+
+export interface SSHHostList {
+  hosts: SSHHostEntry[]
+  include: SSHIncludeState
+  configFile: string
+  managedFile: string
+  includeLine: string
+  home: string
+}
+
+// A host's config file and the 1-based lines of its block, for showing it read-only.
+export interface SSHHostBlock {
+  file: string
+  text: string
+  start: number
+  end: number
+}
+
+export interface SSHStoredHostKey {
+  type: string
+  fingerprint: string
+  file: string
+}
+
+export interface SSHHostKeys {
+  // The name the key is stored under: the HostKeyAlias or HostName, as [name]:port off port 22.
+  lookup: string
+  keys: SSHStoredHostKey[]
+}
+
+export type SSHRunRequest = { kind: 'addToAgent'; keyPath: string }
+
+export interface SSHRunData {
+  runId: string
+  data: string
+}
+
+export interface SSHRunExit {
+  runId: string
+  exitCode: number
 }
 
 export interface VaultChannel {
@@ -794,6 +891,8 @@ export type WorkspaceTab =
   | { id: string; kind: 'workgroup'; groupId: number }
   | { id: string; kind: 'device' }
   | { id: string; kind: 'resterClient' }
+  | { id: string; kind: 'ssh' }
+  | { id: string; kind: 'sshServer'; alias: string }
   | {
       id: string
       kind: 'shell'

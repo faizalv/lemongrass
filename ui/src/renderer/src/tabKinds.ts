@@ -11,13 +11,15 @@ import FileView from './components/FileView.vue'
 import HistoryView from './components/HistoryView.vue'
 import ResterClientView from './components/resterClient/ResterClientView.vue'
 import ShellView from './components/ShellView.vue'
+import SSHServerView from './components/ssh/SSHServerView.vue'
+import SSHView from './components/ssh/SSHView.vue'
 import { shellSized } from './shellRegistry'
 import VaultPanel from './components/VaultPanel.vue'
 import WebPane from './components/WebPane.vue'
 import WorkgroupPane from './components/WorkgroupPane.vue'
 import { shellTitles } from './shellRegistry'
 import { workgroupStateOf } from './workgroups'
-import { historyIcon, resterClientIcon } from './icons'
+import { historyIcon, resterClientIcon, sshIcon } from './icons'
 import type { ProjectRef } from './workspace'
 import type { WorkspaceTab } from '../../preload/types'
 
@@ -161,6 +163,24 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     // Kept alive so an unsent draft and the last response survive switching tabs.
     keepAlive: true,
     bodyProps: () => ({})
+  },
+  ssh: {
+    icon: sshIcon,
+    label: () => ({ text: 'SSH' }),
+    title: () => 'SSH',
+    body: SSHView,
+    // Kept alive so a running ssh-add keeps its terminal while another tab is shown.
+    keepAlive: true,
+    bodyProps: (_tab, ctx) => ({ active: ctx.active, project: ctx.project })
+  },
+  sshServer: {
+    icon: sshIcon,
+    label: (tab) => ({ text: tab.alias }),
+    title: (tab) => `ssh ${tab.alias}`,
+    body: SSHServerView,
+    keepAlive: true,
+    keepLayout: (tab) => !shellSized[tab.id],
+    bodyProps: (tab, ctx) => ({ tabId: tab.id, alias: tab.alias, active: ctx.active })
   },
   workgroup: {
     icon: [

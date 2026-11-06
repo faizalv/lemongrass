@@ -3,6 +3,16 @@
 
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  SSHCreateKeyRequest,
+  SSHHostFields,
+  SSHHostKeys,
+  SSHHostList,
+  SSHHostBlock,
+  SSHKey,
+  SSHKeyList,
+  SSHRunData,
+  SSHRunExit,
+  SSHRunRequest,
   AccountAddResult,
   Ask,
   AskCount,
@@ -378,6 +388,26 @@ interface Api {
     deleteRun: (requestId: string, runId: string) => Promise<ResterClientRun[]>
     clearHistory: (requestId: string) => Promise<void>
     pickFile: () => Promise<ResterClientPickedFile | null>
+  }
+  ssh: {
+    listKeys: () => Promise<SSHKeyList>
+    createKey: (req: SSHCreateKeyRequest) => Promise<SSHKey>
+    copyPublicKey: (path: string) => Promise<void>
+    listHosts: () => Promise<SSHHostList>
+    saveHost: (original: string | null, fields: SSHHostFields) => Promise<void>
+    deleteHost: (alias: string) => Promise<void>
+    addInclude: () => Promise<void>
+    hostKeys: (alias: string) => Promise<SSHHostKeys>
+    forgetHostKey: (alias: string) => Promise<void>
+    hostSource: (alias: string) => Promise<SSHHostBlock>
+    publicKey: (path: string) => Promise<string>
+    terminalArgs: (alias: string) => Promise<string[]>
+    runStart: (req: SSHRunRequest, cols: number, rows: number) => Promise<string>
+    runInput: (runId: string, data: string) => void
+    runResize: (runId: string, cols: number, rows: number) => void
+    runKill: (runId: string) => void
+    onRunData: (callback: (payload: SSHRunData) => void) => () => void
+    onRunExit: (callback: (payload: SSHRunExit) => void) => () => void
   }
   node: {
     state: () => Promise<NodeState>

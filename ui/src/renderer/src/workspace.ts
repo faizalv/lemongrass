@@ -73,6 +73,8 @@ type WorkgroupTab = Extract<WorkspaceTab, { kind: 'workgroup' }>
 type WebTab = Extract<WorkspaceTab, { kind: 'web' }>
 type DeviceTab = Extract<WorkspaceTab, { kind: 'device' }>
 type ResterClientTab = Extract<WorkspaceTab, { kind: 'resterClient' }>
+type SSHTab = Extract<WorkspaceTab, { kind: 'ssh' }>
+type SSHServerTab = Extract<WorkspaceTab, { kind: 'sshServer' }>
 
 const AUTOSAVE_MS = 600
 const LAYOUT_SAVE_MS = 400
@@ -163,6 +165,14 @@ function newDeviceTab(): DeviceTab {
 
 function newResterClientTab(): ResterClientTab {
   return { id: crypto.randomUUID(), kind: 'resterClient' }
+}
+
+function newSSHTab(): SSHTab {
+  return { id: crypto.randomUUID(), kind: 'ssh' }
+}
+
+function newSSHServerTab(alias: string): SSHServerTab {
+  return { id: crypto.randomUUID(), kind: 'sshServer', alias }
 }
 
 function newWorkgroupTab(groupId: number): WorkgroupTab {
@@ -823,6 +833,36 @@ export function openResterClient(project: ProjectRef): void {
   openSingletonTab(project, 'resterClient', newResterClientTab)
 }
 
+// One SSH tab per project, focused wherever it lives when opened again.
+export function openSSH(project: ProjectRef): void {
+  openSingletonTab(project, 'ssh', newSSHTab)
+}
+
+// One tab per server: opening it again focuses the open tab wherever it lives, since a second
+// login to the same server is rarely what the click meant.
+export function openSSHServer(project: ProjectRef, alias: string): void {
+  const layout = workspaces[project.id].layout
+  const root = layout.root
+  const tab = newSSHServerTab(alias)
+  if (!root) {
+    const leaf = tree.createLeaf<WorkspaceTab>([tab])
+    commit(project, leaf, leaf.id)
+    focusShellAfterMount(tab.id)
+    return
+  }
+  const leaves = tree.allLeaves(root)
+  for (const leaf of leaves) {
+    const existing = leaf.tabs.find((t) => t.kind === 'sshServer' && t.alias === alias)
+    if (!existing) continue
+    commit(project, tree.setActiveTab(root, leaf.id, existing.id), leaf.id)
+    focusShellAfterMount(existing.id)
+    return
+  }
+  const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
+  commit(project, tree.addTab(root, focused.id, tab), focused.id)
+  focusShellAfterMount(tab.id)
+}
+
 function openSingletonTab(
   project: ProjectRef,
   kind: WorkspaceTab['kind'],
@@ -966,12 +1006,22 @@ export function activateTab(project: ProjectRef, paneId: string, tabId: string):
   const root = workspaces[project.id].layout.root
   if (!root) return
   commit(project, tree.setActiveTab(root, paneId, tabId), paneId)
-  if (tabsOf(project.id).some((tab) => tab.id === tabId && tab.kind === 'shell')) {
+  if (tabsOf(project.id).some((tab) => tab.id === tabId && hasTerminal(tab))) {
     focusShellAfterMount(tabId)
   }
 }
 
 // A workgroup member keeps its saved session so its tab can be reopened with the same identity.
+function hasTerminal(tab: WorkspaceTab): boolean {
+  return tab.kind === 'shell' || tab.kind === 'sshServer'
+}
+
+// A server tab's terminal is never registered as an agent session, so it only needs disposing.
+function discardTerminal(project: ProjectRef, tab: WorkspaceTab): void {
+  if (tab.kind === 'shell') discardShell(project, tab.id)
+  else if (tab.kind === 'sshServer') disposeShell(tab.id)
+}
+
 function discardShell(project: ProjectRef, tabId: string): void {
   disposeShell(tabId)
   if (!isWorkgroupMember(project.id, tabId)) void window.api.tabSessions.forget(project.path, tabId)
@@ -981,7 +1031,7 @@ export function closeTab(project: ProjectRef, paneId: string, tabId: string): vo
   const root = workspaces[project.id].layout.root
   if (!root) return
   const tab = tree.findLeaf(root, paneId)?.tabs.find((t) => t.id === tabId)
-  if (tab?.kind === 'shell') discardShell(project, tab.id)
+  if (tab) discardTerminal(project, tab)
   commit(project, tree.closeTab(root, paneId, tabId))
 }
 
@@ -1018,7 +1068,7 @@ function closeMatching(
     if (paneId && leaf.id !== paneId) continue
     for (const tab of leaf.tabs) {
       if (!root || !matches(tab)) continue
-      if (tab.kind === 'shell') discardShell(project, tab.id)
+      discardTerminal(project, tab)
       root = tree.closeTab(root, leaf.id, tab.id)
     }
   }

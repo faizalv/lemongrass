@@ -3,7 +3,12 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseResolvedHost, parseSSHConfigHosts, type ConfigFiles } from './sshHosts.ts'
+import {
+  parseResolvedHost,
+  parseSSHConfigHostSources,
+  parseSSHConfigHosts,
+  type ConfigFiles
+} from './sshHosts.ts'
 
 const home = '/home/u'
 
@@ -70,7 +75,36 @@ test('ssh -G output gives the resolved target', () => {
     hostname: '10.0.0.5',
     user: 'dev',
     port: '2222',
-    proxyJump: 'jump-1'
+    proxyJump: 'jump-1',
+    identityFiles: [],
+    knownHostsFiles: [],
+    hostKeyAlias: ''
   })
   assert.equal(parseResolvedHost('hostname h\nproxyjump none\n').proxyJump, '')
+})
+
+test('ssh -G lists every identity file and splits the known hosts files', () => {
+  const output = [
+    'hostname h',
+    'identityfile ~/.ssh/id_work',
+    'identityfile ~/.ssh/id_ed25519',
+    'userknownhostsfile ~/.ssh/known_hosts ~/.ssh/known_hosts2',
+    'hostkeyalias none'
+  ].join('\n')
+  const resolved = parseResolvedHost(output)
+  assert.deepEqual(resolved.identityFiles, ['~/.ssh/id_work', '~/.ssh/id_ed25519'])
+  assert.deepEqual(resolved.knownHostsFiles, ['~/.ssh/known_hosts', '~/.ssh/known_hosts2'])
+  assert.equal(resolved.hostKeyAlias, '')
+})
+
+test('host sources name the file each host first appears in', () => {
+  const files = fakeFiles({
+    '/home/u/.ssh/config': 'Include config.d/*\nHost a\nHost b',
+    '/home/u/.ssh/config.d/lemongrass.conf': 'Host b\nHost c'
+  })
+  assert.deepEqual(parseSSHConfigHostSources('/home/u/.ssh/config', home, files), [
+    { alias: 'b', file: '/home/u/.ssh/config.d/lemongrass.conf' },
+    { alias: 'c', file: '/home/u/.ssh/config.d/lemongrass.conf' },
+    { alias: 'a', file: '/home/u/.ssh/config' }
+  ])
 })

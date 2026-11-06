@@ -35,6 +35,8 @@ function pushTitle(spec: ShellSpec, title: string): void {
 export interface ShellSpec {
   id: string
   command: string
+  // Arguments the command always starts with, such as a server tab's ssh options.
+  args?: string[]
   cwd?: string
   account?: string
   thinker?: boolean
@@ -229,7 +231,7 @@ async function start(session: ShellSession): Promise<void> {
   }
   const initial = initialArgs.get(spec.id)
   initialArgs.delete(spec.id)
-  const args = spawnArgs(spec.command, spec.id, initial)
+  const args = spawnArgs(spec.command, spec.id, initial ?? spec.args)
   if (resumeAttempts.delete(spec.id)) session.resumeDeadline = Date.now() + RESUME_FAILURE_WINDOW_MS
   const { cols, rows } = term
   const spawned = await window.api.pty.spawn({

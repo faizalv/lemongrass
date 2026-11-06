@@ -43,6 +43,8 @@ import { registerDeviceHandlers, stopAllDevices } from './device'
 import { registerVaultHandlers } from './vault'
 import { registerAskTerminal } from './askTerminal'
 import { registerResterClientHandlers } from './resterClient'
+import { registerSSHPaneHandlers } from './sshPane'
+import { killAllRuns } from './sshRun'
 import { registerNodeHandlers } from './node'
 import {
   registerWindowControlHandlers,
@@ -157,6 +159,7 @@ app.whenReady().then(async () => {
   registerDeviceHandlers(() => mainWindow?.webContents)
   registerVaultHandlers()
   registerResterClientHandlers()
+  registerSSHPaneHandlers(lgrassdPath)
   registerNodeHandlers()
   registerWindowControlHandlers(() => mainWindow)
   startWorkgroupBridge(() => mainWindow, lgrassdPath)
@@ -181,6 +184,7 @@ app.on('before-quit', () => {
 app.on('window-all-closed', () => {
   killAllShells()
   stopAllDevices()
+  killAllRuns()
   killDaemons()
   closeBiblioWatchers()
   closeProjectFileWatchers()

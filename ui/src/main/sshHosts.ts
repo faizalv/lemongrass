@@ -15,7 +15,7 @@ const MAX_INCLUDE_DEPTH = 16
 const RESOLVE_TIMEOUT_MS = 3_000
 
 // Mirrors sshAliasPattern in dbgate/sshdial.go, which rejects anything else before ssh runs.
-const ALIAS_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+export const ALIAS_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 export interface ConfigFiles {
   read(path: string): string | null
@@ -56,22 +56,28 @@ function includePaths(arg: string, sshDir: string, home: string, files: ConfigFi
     .map((entry) => join(dirname(path), entry))
 }
 
-// Lists the concrete Host entries of an ssh config in file order, following Include. A pattern
-// (`*`, `?` or a `!` negation) names no single host, so it is not offered as a pick.
-export function parseSSHConfigHosts(
+export interface SSHHostSource {
+  alias: string
+  file: string
+}
+
+// Lists the concrete Host entries of an ssh config in file order, following Include, with the file
+// each first appears in. A pattern (`*`, `?` or a `!` negation) names no single host, so it is not
+// offered as a pick.
+export function parseSSHConfigHostSources(
   path: string,
   home: string,
   files: ConfigFiles,
   depth = 0,
   seen = new Set<string>()
-): string[] {
+): SSHHostSource[] {
   if (depth > MAX_INCLUDE_DEPTH || seen.has(path)) return []
   seen.add(path)
   const text = files.read(path)
   if (text === null) return []
 
   const sshDir = join(home, '.ssh')
-  const hosts: string[] = []
+  const hosts: SSHHostSource[] = []
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim()
     if (!line || line.startsWith('#')) continue
@@ -81,32 +87,47 @@ export function parseSSHConfigHosts(
     const args = splitArgs(m[2])
     if (keyword === 'host') {
       for (const pattern of args) {
-        if (!/[*?!]/.test(pattern)) hosts.push(pattern)
+        if (!/[*?!]/.test(pattern)) hosts.push({ alias: pattern, file: path })
       }
     } else if (keyword === 'include') {
       for (const arg of args) {
         for (const included of includePaths(arg, sshDir, home, files)) {
-          hosts.push(...parseSSHConfigHosts(included, home, files, depth + 1, seen))
+          hosts.push(...parseSSHConfigHostSources(included, home, files, depth + 1, seen))
         }
       }
     }
   }
-  return [...new Set(hosts)]
+  const firsts = new Map<string, SSHHostSource>()
+  for (const host of hosts) if (!firsts.has(host.alias)) firsts.set(host.alias, host)
+  return [...firsts.values()]
 }
 
-// Reads `ssh -G` output, OpenSSH's fully resolved config for one host.
+export function parseSSHConfigHosts(path: string, home: string, files: ConfigFiles): string[] {
+  return parseSSHConfigHostSources(path, home, files).map((host) => host.alias)
+}
+
+// Reads `ssh -G` output, OpenSSH's fully resolved config for one host. Most keywords print once;
+// identityfile prints one line per file.
 export function parseResolvedHost(output: string): ResolvedSSHHost {
   const values = new Map<string, string>()
+  const identityFiles: string[] = []
   for (const line of output.split(/\r?\n/)) {
     const m = /^(\S+)\s+(.*)$/.exec(line.trim())
-    if (m && !values.has(m[1].toLowerCase())) values.set(m[1].toLowerCase(), m[2])
+    if (!m) continue
+    const keyword = m[1].toLowerCase()
+    if (keyword === 'identityfile') identityFiles.push(m[2])
+    else if (!values.has(keyword)) values.set(keyword, m[2])
   }
   const proxyJump = values.get('proxyjump') ?? ''
+  const hostKeyAlias = values.get('hostkeyalias') ?? ''
   return {
     hostname: values.get('hostname') ?? '',
     user: values.get('user') ?? '',
     port: values.get('port') ?? '',
-    proxyJump: proxyJump === 'none' ? '' : proxyJump
+    proxyJump: proxyJump === 'none' ? '' : proxyJump,
+    identityFiles,
+    knownHostsFiles: splitArgs(values.get('userknownhostsfile') ?? ''),
+    hostKeyAlias: hostKeyAlias === 'none' ? '' : hostKeyAlias
   }
 }
 
@@ -130,6 +151,11 @@ const diskFiles: ConfigFiles = {
 export function listSSHHosts(): string[] {
   const home = homedir()
   return parseSSHConfigHosts(join(home, '.ssh', 'config'), home, diskFiles)
+}
+
+export function listSSHHostSources(): SSHHostSource[] {
+  const home = homedir()
+  return parseSSHConfigHostSources(join(home, '.ssh', 'config'), home, diskFiles)
 }
 
 // `ssh -G` only prints the resolved config; it opens no connection.

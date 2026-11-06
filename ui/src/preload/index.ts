@@ -29,6 +29,16 @@ import type {
   DeviceStartResult,
   PtySpawnOptions,
   ResolvedSSHHost,
+  SSHCreateKeyRequest,
+  SSHHostFields,
+  SSHHostKeys,
+  SSHHostList,
+  SSHHostBlock,
+  SSHKey,
+  SSHKeyList,
+  SSHRunData,
+  SSHRunExit,
+  SSHRunRequest,
   PtyDataPayload,
   PtyExitPayload,
   Project,
@@ -415,6 +425,41 @@ const resterClient = {
     ipcRenderer.invoke('resterClient:pickFile')
 }
 
+const ssh = {
+  listKeys: (): Promise<SSHKeyList> => ipcRenderer.invoke('ssh:listKeys'),
+  createKey: (req: SSHCreateKeyRequest): Promise<SSHKey> =>
+    ipcRenderer.invoke('ssh:createKey', req),
+  copyPublicKey: (path: string): Promise<void> => ipcRenderer.invoke('ssh:copyPublicKey', path),
+  listHosts: (): Promise<SSHHostList> => ipcRenderer.invoke('ssh:listHosts'),
+  saveHost: (original: string | null, fields: SSHHostFields): Promise<void> =>
+    ipcRenderer.invoke('ssh:saveHost', original, fields),
+  deleteHost: (alias: string): Promise<void> => ipcRenderer.invoke('ssh:deleteHost', alias),
+  addInclude: (): Promise<void> => ipcRenderer.invoke('ssh:addInclude'),
+  hostKeys: (alias: string): Promise<SSHHostKeys> => ipcRenderer.invoke('ssh:hostKeys', alias),
+  forgetHostKey: (alias: string): Promise<void> => ipcRenderer.invoke('ssh:forgetHostKey', alias),
+  hostSource: (alias: string): Promise<SSHHostBlock> => ipcRenderer.invoke('ssh:hostSource', alias),
+  publicKey: (path: string): Promise<string> => ipcRenderer.invoke('ssh:publicKey', path),
+  terminalArgs: (alias: string): Promise<string[]> => ipcRenderer.invoke('ssh:terminalArgs', alias),
+  runStart: (req: SSHRunRequest, cols: number, rows: number): Promise<string> =>
+    ipcRenderer.invoke('ssh:runStart', req, cols, rows),
+  runInput: (runId: string, data: string): void => ipcRenderer.send('ssh:runInput', runId, data),
+  runResize: (runId: string, cols: number, rows: number): void =>
+    ipcRenderer.send('ssh:runResize', runId, cols, rows),
+  runKill: (runId: string): void => ipcRenderer.send('ssh:runKill', runId),
+  onRunData: (callback: (payload: SSHRunData) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: SSHRunData): void =>
+      callback(payload)
+    ipcRenderer.on('ssh:run-data', listener)
+    return () => ipcRenderer.removeListener('ssh:run-data', listener)
+  },
+  onRunExit: (callback: (payload: SSHRunExit) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: SSHRunExit): void =>
+      callback(payload)
+    ipcRenderer.on('ssh:run-exit', listener)
+    return () => ipcRenderer.removeListener('ssh:run-exit', listener)
+  }
+}
+
 const node = {
   state: (): Promise<NodeState> => ipcRenderer.invoke('node:state'),
   saveTunnel: (
@@ -760,6 +805,7 @@ const api = {
   conflictAgent,
   device,
   resterClient,
+  ssh,
   node,
   vault,
   web,
