@@ -167,10 +167,6 @@ function isImageFile(target: string): boolean {
   return extension === '.jpeg' || Object.values(IMAGE_EXTENSIONS).includes(extension)
 }
 
-function isScratchpadImage(root: string, target: string): boolean {
-  return relative(root, target).split(sep)[0] === 'scratchpad' && isImageFile(target)
-}
-
 function handleImageRequest(request: Request): Response | Promise<Response> {
   try {
     const params = new URL(request.url).searchParams
@@ -179,7 +175,8 @@ function handleImageRequest(request: Request): Response | Promise<Response> {
     if (!projectPath || !relativePath) return new Response(null, { status: 400 })
     const root = realpathSync(join(projectPath, 'biblio'))
     const target = resolveInBiblio(root, relativePath)
-    if (!target || !isScratchpadImage(root, target)) return new Response(null, { status: 403 })
+    // Any tier may hold images, since read-only docs in books, laws and handovers render them too.
+    if (!target || !isImageFile(target)) return new Response(null, { status: 403 })
     return net.fetch(pathToFileURL(realpathSync(target)).toString())
   } catch {
     return new Response(null, { status: 404 })

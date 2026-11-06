@@ -3,9 +3,11 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { Editor, EditorContent, Node, mergeAttributes } from '@tiptap/vue-3'
+import { Editor, EditorContent, Extension, Node, mergeAttributes } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table'
+import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Markdown } from 'tiptap-markdown'
 import { Find, findState, setFindQuery, stepFind } from '../editorFind'
 import AppInput from './AppInput.vue'
@@ -69,11 +71,57 @@ const LiteralText = Node.create({
   addStorage() {
     return {
       markdown: {
-        serialize(state: { text(text: string, escape: boolean): void }, node: { text?: string }) {
-          state.text(node.text ?? '', false)
+        // A bare pipe inside a table cell would end the cell, so only there it is escaped.
+        serialize(
+          state: { text(text: string, escape: boolean): void; inTable?: boolean },
+          node: { text?: string }
+        ) {
+          const text = node.text ?? ''
+          state.text(state.inTable ? text.replace(/\|/g, '\\|') : text, false)
         }
       }
     }
+  }
+})
+
+// tiptap-markdown can write a table as markdown only while every cell is one paragraph; otherwise,
+// with html off, the whole table is saved as the text "[table]". So a cell holds one paragraph
+// and the keys that would add a paragraph or a hard break do nothing inside it.
+const SingleParagraphCell = TableCell.extend({ content: 'paragraph' })
+const SingleParagraphHeader = TableHeader.extend({ content: 'paragraph' })
+
+const CellLineGuard = Extension.create({
+  name: 'cellLineGuard',
+  priority: 1000,
+  addKeyboardShortcuts() {
+    const inCell = (): boolean =>
+      this.editor.isActive('tableCell') || this.editor.isActive('tableHeader')
+    return {
+      Enter: inCell,
+      'Shift-Enter': inCell,
+      'Mod-Enter': inCell
+    }
+  }
+})
+
+// tiptap-markdown gives only bullet and ordered lists a `tight` attribute; without one a task list
+// serializes loose, putting a blank line between every `- [ ]` item on save.
+const TightTaskLists = Extension.create({
+  name: 'tightTaskLists',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['taskList'],
+        attributes: {
+          tight: {
+            default: true,
+            parseHTML: (element) =>
+              element.getAttribute('data-tight') === 'true' || !element.querySelector('p'),
+            renderHTML: (attributes) => ({ 'data-tight': attributes.tight ? 'true' : null })
+          }
+        }
+      }
+    ]
   }
 })
 
@@ -220,6 +268,14 @@ onMounted(() => {
       StarterKit.configure({ text: false }),
       LiteralText,
       ScratchpadImage,
+      Table.configure({ resizable: false }),
+      TableRow,
+      SingleParagraphHeader,
+      SingleParagraphCell,
+      CellLineGuard,
+      TaskList,
+      TightTaskLists,
+      TaskItem.configure({ nested: true }),
       Markdown.configure({ html: false }),
       Find
     ],
@@ -342,6 +398,56 @@ watch(
       >
         &ldquo;
       </button>
+      <button
+        class="tool"
+        title="Task list"
+        :class="{ active: editor.isActive('taskList') }"
+        @click="editor.chain().focus().toggleTaskList().run()"
+      >
+        &check; Tasks
+      </button>
+      <button
+        class="tool"
+        title="Insert table"
+        :disabled="editor.isActive('table')"
+        @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
+      >
+        Table
+      </button>
+      <template v-if="editor.isActive('table')">
+        <span class="divider" />
+        <button
+          class="tool"
+          title="Add row below"
+          @click="editor.chain().focus().addRowAfter().run()"
+        >
+          + Row
+        </button>
+        <button
+          class="tool"
+          title="Add column right"
+          @click="editor.chain().focus().addColumnAfter().run()"
+        >
+          + Col
+        </button>
+        <button class="tool" title="Delete row" @click="editor.chain().focus().deleteRow().run()">
+          &minus; Row
+        </button>
+        <button
+          class="tool"
+          title="Delete column"
+          @click="editor.chain().focus().deleteColumn().run()"
+        >
+          &minus; Col
+        </button>
+        <button
+          class="tool danger"
+          title="Delete table"
+          @click="editor.chain().focus().deleteTable().run()"
+        >
+          Delete table
+        </button>
+      </template>
     </div>
     <div v-if="findOpen" class="find">
       <AppInput
@@ -584,5 +690,124 @@ watch(
   padding-left: var(--space-4);
   color: var(--color-fg-secondary);
   margin-bottom: var(--space-3);
+}
+
+.tool.danger:hover {
+  color: var(--color-error);
+}
+
+.content :deep(h4),
+.content :deep(h5),
+.content :deep(h6) {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  margin-top: var(--space-5);
+  margin-bottom: var(--space-2);
+}
+
+.content :deep(h4) {
+  font-size: var(--text-base);
+}
+
+.content :deep(h5),
+.content :deep(h6) {
+  font-size: var(--text-sm);
+}
+
+.content :deep(h6) {
+  color: var(--color-fg-secondary);
+}
+
+.content :deep(li > ul),
+.content :deep(li > ol) {
+  margin-bottom: 0;
+}
+
+.content :deep(.tableWrapper) {
+  overflow-x: auto;
+  margin-bottom: var(--space-3);
+}
+
+.content :deep(table) {
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.content :deep(th),
+.content :deep(td) {
+  min-width: 60px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  text-align: left;
+  vertical-align: top;
+}
+
+.content :deep(th) {
+  background: var(--layer-raised-hover);
+  font-weight: var(--weight-semibold);
+}
+
+.content :deep(th p),
+.content :deep(td p) {
+  margin-bottom: 0;
+}
+
+.content :deep(.selectedCell) {
+  background: var(--color-amber-muted);
+}
+
+.content :deep(ul[data-type='taskList']) {
+  list-style: none;
+  padding-left: var(--space-1);
+}
+
+/* TaskItem's node view draws its li without data-type="taskItem", so rules reach it through the list. */
+.content :deep(ul[data-type='taskList'] > li) {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.content :deep(ul[data-type='taskList'] > li > div) {
+  flex: 1;
+  min-width: 0;
+}
+
+.content :deep(ul[data-type='taskList'] > li > label) {
+  flex-shrink: 0;
+  display: flex;
+  padding-top: 4px;
+  cursor: pointer;
+}
+
+.content :deep(ul[data-type='taskList'] > li input[type='checkbox']) {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  background: var(--layer-input);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-default),
+    border-color var(--duration-fast) var(--ease-default);
+}
+
+.content :deep(ul[data-type='taskList'] > li input[type='checkbox']:checked) {
+  background: var(--color-amber)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230A0A0A' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E")
+    center / 10px no-repeat;
+  border-color: var(--color-amber);
+}
+
+.content :deep(ul[data-type='taskList'] > li input[type='checkbox']:focus-visible) {
+  outline: 1px solid var(--color-amber);
+  outline-offset: 2px;
+}
+
+.content :deep(ul[data-type='taskList'] > li[data-checked='true'] > div) {
+  color: var(--color-fg-secondary);
 }
 </style>

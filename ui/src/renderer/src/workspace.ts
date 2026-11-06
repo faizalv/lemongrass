@@ -2,8 +2,8 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { nextTick, reactive, watch } from 'vue'
-import { marked } from 'marked'
 import * as tree from './layoutTree'
+import { biblioImageUrl, renderReaderMarkdown } from './readerMarkdown'
 import type { DropZone, EdgeZone } from './layoutTree'
 import {
   disposeShell,
@@ -345,7 +345,7 @@ async function loadDoc(project: ProjectRef, path: string, force = false): Promis
   if (editable) {
     entry.content = raw
     entry.baseline = raw
-  } else entry.html = await marked.parse(raw)
+  } else entry.html = renderReaderMarkdown(raw, path, biblioImageUrl(project.path))
   entry.status = 'ready'
 }
 
