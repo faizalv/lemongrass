@@ -104,6 +104,10 @@ COMMANDS
                                      version, origin and install offer as JSON; --fresh ignores the cache
   ssh keygen <path> [--comment <c>] Writes a new ed25519 key pair at path and path.pub, never replacing a
                                      file; the passphrase, if any, is read from stdin
+  ssh session <alias> --control-path <p> [--sudo]
+                                    Serves an SSH tab's file browser over SFTP through the ControlMaster
+                                     at p, one JSON request or reply per line on stdin and stdout;
+                                     --sudo runs the remote sftp-server as root through sudo -n
 
   version                           Print version
 `)

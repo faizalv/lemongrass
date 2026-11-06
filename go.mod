@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pganalyze/pg_query_go/v6 v6.2.2
+	github.com/pkg/sftp v1.13.10
 	github.com/wasilibs/go-pgquery v0.0.0-20260908021017-318158a2ab67
 	github.com/xwb1989/sqlparser v0.0.0-20180606152119-120387863bf2
 	github.com/zalando/go-keyring v0.2.8
@@ -23,6 +24,7 @@ require (
 
 require (
 	github.com/jpillora/backoff v1.0.0 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	golang.ngrok.com/muxado/v2 v2.0.1 // indirect
 	golang.org/x/net v0.58.0 // indirect
 )
