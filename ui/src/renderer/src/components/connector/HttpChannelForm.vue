@@ -15,7 +15,14 @@ import type {
   VaultRester,
   VaultWebScope
 } from '../../../../preload/types'
-import { AppButton, AppCheckbox, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
+import {
+  AppButton,
+  AppCheckbox,
+  AppIconButton,
+  AppInput,
+  AppSegmented,
+  AppSwitcher
+} from '@sankasten'
 
 const props = defineProps<{
   resters: string[]
@@ -338,14 +345,7 @@ onMounted(applySeed)
               type="text"
               placeholder="https://sso.example.com"
             />
-            <button
-              type="button"
-              class="chip-remove"
-              title="Remove origin"
-              @click="removeOrigin(i)"
-            >
-              ×
-            </button>
+            <AppIconButton icon="close" label="Remove origin" @click="removeOrigin(i)" />
           </div>
           <AppButton type="button" @click="addOrigin">+ Origin</AppButton>
         </div>
@@ -368,14 +368,7 @@ onMounted(applySeed)
               @select="(m) => (ex.method = m)"
             />
             <AppInput v-model="ex.pathPattern" type="text" placeholder="/users/*/change-password" />
-            <button
-              type="button"
-              class="chip-remove"
-              title="Remove exclusion"
-              @click="removeExclusion(i)"
-            >
-              ×
-            </button>
+            <AppIconButton icon="close" label="Remove exclusion" @click="removeExclusion(i)" />
           </div>
           <AppButton type="button" @click="addExclusion">+ Exclusion</AppButton>
         </div>

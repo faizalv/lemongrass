@@ -4,7 +4,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { VaultEnvironment } from '../../../../../preload/types'
-import { AppButton, AppInput, AppModal } from '@sankasten'
+import { AppButton, AppIconButton, AppInput, AppModal } from '@sankasten'
 import { headerDrafts, headersFromDrafts, type HeaderDraft } from './resterDraft'
 
 const props = defineProps<{
@@ -78,14 +78,7 @@ function save(): void {
           <div v-for="(header, i) in headers" :key="i" class="kv-row">
             <AppInput v-model="header.name" type="text" placeholder="name" />
             <AppInput v-model="header.value" type="text" placeholder="value" />
-            <button
-              type="button"
-              class="chip-remove"
-              title="Remove header"
-              @click="headers.splice(i, 1)"
-            >
-              ×
-            </button>
+            <AppIconButton icon="close" label="Remove header" @click="headers.splice(i, 1)" />
           </div>
           <AppButton
             type="button"

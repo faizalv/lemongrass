@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { AppButton } from '@sankasten'
+import { AppButton, AppIconButton } from '@sankasten'
 import DepRow from './deps/DepRow.vue'
 import { depsStore } from '../deps'
 import { avcCodecString, concatBytes } from '../h264'
@@ -297,11 +297,23 @@ onBeforeUnmount(teardown)
       <span v-if="current" class="device-serial">{{ current.serial }}</span>
       <span class="spacer" />
       <template v-if="phase === 'live'">
-        <AppButton title="Back" @click="pressKey(AndroidKey.back)">Back</AppButton>
-        <AppButton title="Home" @click="pressKey(AndroidKey.home)">Home</AppButton>
-        <AppButton title="Recent apps" @click="pressKey(AndroidKey.appSwitch)">Recents</AppButton>
+        <AppIconButton size="sm" label="Back" @click="pressKey(AndroidKey.back)">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M10 2.5v9L3.5 7z" stroke-linejoin="round" />
+          </svg>
+        </AppIconButton>
+        <AppIconButton size="sm" label="Home" @click="pressKey(AndroidKey.home)">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+            <circle cx="7" cy="7" r="4.5" />
+          </svg>
+        </AppIconButton>
+        <AppIconButton size="sm" label="Recent apps" @click="pressKey(AndroidKey.appSwitch)">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="3" y="3" width="8" height="8" rx="1.2" />
+          </svg>
+        </AppIconButton>
       </template>
-      <AppButton v-if="phase !== 'picking'" @click="backToList">Devices</AppButton>
+      <AppButton v-if="phase !== 'picking'" size="sm" @click="backToList">Devices</AppButton>
     </div>
 
     <div v-if="phase === 'picking'" class="picker">

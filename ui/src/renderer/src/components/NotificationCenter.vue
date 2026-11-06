@@ -49,10 +49,11 @@ watch(
   <div class="center" role="dialog" aria-label="Notifications">
     <div class="center-head">
       <span class="center-title">Notifications</span>
-      <AppButton v-if="hasUnread" @click="markAllRead"> Mark all read </AppButton>
+      <AppButton v-if="hasUnread" size="sm" @click="markAllRead">Mark all read</AppButton>
       <AppConfirmButton
         v-if="center.items.length > 0"
         variant="ghost"
+        size="sm"
         confirm-label="Clear all?"
         @confirm="clearAll"
       >

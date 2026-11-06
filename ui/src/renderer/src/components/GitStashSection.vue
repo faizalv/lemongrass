@@ -5,9 +5,9 @@
 import {
   AppButton,
   AppCheckbox,
-  AppConfirmButton,
+  AppDisclosure,
   AppEmptyState,
-  AppIcon,
+  AppIconButton,
   AppInput,
   AppModal
 } from '@sankasten'
@@ -55,20 +55,22 @@ async function save(): Promise<void> {
 <template>
   <div class="stash-section">
     <div class="stash-head">
-      <button class="stash-toggle" :aria-expanded="!folded" @click="folded = !folded">
-        <AppIcon class="stash-chevron" :class="{ open: !folded }" name="chevronRight" :size="9" />
-        <span class="git-heading">Stashes</span>
-        <span v-if="stashes.length > 0" class="stash-count">{{ stashes.length }}</span>
-      </button>
-      <button
-        class="stash-new"
+      <AppDisclosure
+        label="Stashes"
+        :count="stashes.length || undefined"
+        count-look="pill"
+        :open="!folded"
+        @update:open="folded = !$event"
+      />
+      <AppIconButton
+        size="sm"
+        tone="accent"
+        :label="hasChanges ? 'Stash changes' : 'No changes to stash'"
         :disabled="!hasChanges || state.busy !== null"
-        :title="hasChanges ? 'Stash changes' : 'No changes to stash'"
-        :aria-label="hasChanges ? 'Stash changes' : 'No changes to stash'"
         @click="((saving = !saving), (folded = false))"
       >
         <GitIcon name="stash" />
-      </button>
+      </AppIconButton>
     </div>
 
     <template v-if="!folded">
@@ -82,10 +84,16 @@ async function save(): Promise<void> {
           :disabled="state.busy !== null"
           @keydown.enter="save"
         />
-        <AppCheckbox :checked="includeUntracked" @click="includeUntracked = !includeUntracked">
+        <AppCheckbox
+          size="sm"
+          :checked="includeUntracked"
+          @click="includeUntracked = !includeUntracked"
+        >
           Include untracked files
         </AppCheckbox>
-        <AppButton variant="primary" :disabled="state.busy !== null" @click="save">Stash</AppButton>
+        <AppButton variant="primary" size="sm" :disabled="state.busy !== null" @click="save">
+          Stash
+        </AppButton>
       </div>
       <p v-if="error" class="stash-error">{{ error }}</p>
       <AppEmptyState v-if="stashes.length === 0" size="sm" title="No stashes" />
@@ -96,32 +104,35 @@ async function save(): Promise<void> {
             <span class="stash-age">{{ formatAge(stash.time) }}</span>
           </button>
           <div class="stash-actions">
-            <button
-              title="Apply and keep the stash"
-              aria-label="Apply and keep the stash"
+            <AppIconButton
+              size="xs"
+              tone="accent"
+              label="Apply and keep the stash"
               :disabled="state.busy !== null"
               @click="perform('apply', stash.ref)"
             >
               <GitIcon name="apply" />
-            </button>
-            <button
-              title="Apply and remove the stash"
-              aria-label="Apply and remove the stash"
+            </AppIconButton>
+            <AppIconButton
+              size="xs"
+              tone="accent"
+              label="Apply and remove the stash"
               :disabled="state.busy !== null"
               @click="perform('pop', stash.ref)"
             >
               <GitIcon name="pop" />
-            </button>
-            <AppConfirmButton
-              class="drop"
-              title="Drop the stash"
-              aria-label="Drop the stash"
+            </AppIconButton>
+            <AppIconButton
+              size="xs"
+              tone="danger"
+              label="Drop the stash"
+              confirm
               confirm-label="Click again to drop"
               :disabled="state.busy !== null"
               @confirm="perform('drop', stash.ref)"
             >
               <GitIcon name="drop" />
-            </AppConfirmButton>
+            </AppIconButton>
           </div>
         </li>
       </ul>
@@ -147,62 +158,6 @@ async function save(): Promise<void> {
   align-items: center;
   gap: 6px;
   padding: 0 var(--space-2);
-}
-
-.stash-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  cursor: pointer;
-}
-
-.git-heading {
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-}
-
-.stash-chevron {
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.stash-chevron.open {
-  transform: rotate(90deg);
-}
-
-.stash-count {
-  min-width: 16px;
-  padding: 0 5px;
-  border-radius: var(--radius-pill);
-  background: var(--color-info);
-  color: var(--color-white);
-  font-size: 10px;
-  font-weight: var(--weight-bold);
-  line-height: 16px;
-  text-align: center;
-}
-
-.stash-new {
-  display: flex;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--color-fg-muted);
-  cursor: pointer;
-}
-
-.stash-new:hover:not(:disabled),
-.stash-new:focus-visible:not(:disabled) {
-  color: var(--color-fg-accent);
-}
-
-.stash-new:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 
 .stash-form {
@@ -272,39 +227,6 @@ async function save(): Promise<void> {
 
 .stash-actions {
   display: flex;
-  gap: var(--space-3);
-}
-
-.stash-actions button {
-  display: flex;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--color-fg-muted);
-  cursor: pointer;
-}
-
-.stash-actions button:hover:not(:disabled),
-.stash-actions button:focus-visible:not(:disabled) {
-  color: var(--color-fg-accent);
-}
-
-.stash-actions button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.stash-actions .drop:hover:not(:disabled),
-.stash-actions .drop:focus-visible:not(:disabled) {
-  color: var(--color-error);
-}
-
-/* Padding gives the confirm's progress bar and armed background room around the glyph, and the
-   negative margin keeps the icon row aligned. */
-.stash-actions .drop {
-  padding: 2px;
-  margin: -2px;
-  border-radius: var(--radius-sm);
 }
 
 .stash-view {

@@ -7,10 +7,12 @@ import {
   AppButton,
   AppCheckbox,
   AppConfirmButton,
-  AppIcon,
+  AppDisclosure,
+  AppIconButton,
   AppInput,
   type AppInputHandle,
   AppModal,
+  AppNavItem,
   AppSegmented,
   AppSwitcher
 } from '@sankasten'
@@ -467,16 +469,13 @@ function copy(key: string, text: string): void {
     <div class="settings-layout">
       <aside class="settings-nav">
         <h3 class="settings-nav-title">Node</h3>
-        <button
+        <AppNavItem
           v-for="item in sections"
           :key="item.id"
-          type="button"
-          class="settings-nav-item"
-          :class="{ selected: section === item.id }"
+          :label="item.label"
+          :active="section === item.id"
           @click="selectSection(item.id)"
-        >
-          {{ item.label }}
-        </button>
+        />
       </aside>
 
       <section v-if="!state" class="settings-section">
@@ -506,18 +505,16 @@ function copy(key: string, text: string): void {
             </span>
             <span v-else class="settings-row-meta">Nobody outside this machine can reach it.</span>
             <template v-if="status?.running">
-              <button
-                type="button"
-                class="node-icon-action"
-                :title="copied === 'url' ? 'Copied' : 'Copy URL'"
-                :aria-label="copied === 'url' ? 'Copied' : 'Copy URL'"
+              <AppIconButton
+                size="xs"
+                :icon="copied === 'url' ? 'check' : 'copy'"
+                :label="copied === 'url' ? 'Copied' : 'Copy URL'"
                 @click="copy('url', nodeURL)"
-              >
-                <AppIcon :name="copied === 'url' ? 'check' : 'copy'" :size="14" />
-              </button>
+              />
               <AppConfirmButton
                 v-slot="{ armed }"
-                class="settings-action danger"
+                variant="danger"
+                size="xs"
                 :disabled="busy"
                 @confirm="closeTunnel"
               >
@@ -625,14 +622,12 @@ function copy(key: string, text: string): void {
                 @select="selectToken"
                 @add="startAddToken"
               />
-              <button
+              <AppButton
                 v-if="selected && !selected.revoked && !creating && !renaming"
-                type="button"
-                class="settings-action"
                 @click="startRename"
               >
                 Rename
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -641,7 +636,7 @@ function copy(key: string, text: string): void {
           <div v-if="issued && issued.id === selectedId" class="node-issued">
             <div class="node-issued-head">
               <span class="settings-row-title">Setup for {{ issued.label }}</span>
-              <button type="button" class="settings-action" @click="issued = null">Done</button>
+              <AppButton size="sm" @click="issued = null">Done</AppButton>
             </div>
             <p class="settings-text">
               Shown once. Send it privately. They add it once, and what it can read is changed here
@@ -650,16 +645,22 @@ function copy(key: string, text: string): void {
             <span class="node-copy-label">Token</span>
             <div class="node-copy">
               <code>{{ issued.token }}</code>
-              <button type="button" class="settings-action" @click="copy('token', issued.token)">
-                {{ copied === 'token' ? 'Copied' : 'Copy' }}
-              </button>
+              <AppIconButton
+                size="sm"
+                :icon="copied === 'token' ? 'check' : 'copy'"
+                :label="copied === 'token' ? 'Copied' : 'Copy token'"
+                @click="copy('token', issued.token)"
+              />
             </div>
             <span class="node-copy-label">Claude Code</span>
             <div class="node-copy">
               <code>{{ claudeCommand }}</code>
-              <button type="button" class="settings-action" @click="copy('claude', claudeCommand)">
-                {{ copied === 'claude' ? 'Copied' : 'Copy' }}
-              </button>
+              <AppIconButton
+                size="sm"
+                :icon="copied === 'claude' ? 'check' : 'copy'"
+                :label="copied === 'claude' ? 'Copied' : 'Copy command'"
+                @click="copy('claude', claudeCommand)"
+              />
             </div>
             <p v-if="!nodeURL" class="settings-text">
               Open the tunnel to fill in the URL, or replace NODE_URL by hand.
@@ -675,7 +676,8 @@ function copy(key: string, text: string): void {
                 <AppConfirmButton
                   :key="selected.id"
                   v-slot="{ armed }"
-                  class="settings-action"
+                  variant="ghost"
+                  size="xs"
                   :disabled="busy"
                   @confirm="confirmed(() => removeToken(selected!.id))"
                 >
@@ -742,13 +744,12 @@ function copy(key: string, text: string): void {
                   <li v-for="name in share[kind.id]" :key="kind.id + name" class="settings-row">
                     <span class="settings-badge">{{ kind.one }}</span>
                     <span class="settings-row-title node-name">{{ name }}</span>
-                    <button
-                      type="button"
-                      class="settings-action"
+                    <AppIconButton
+                      icon="close"
+                      size="xs"
+                      :label="`Remove ${name}`"
                       @click="removeResource(share.alias, kind.id, name)"
-                    >
-                      Remove
-                    </button>
+                    />
                   </li>
                 </template>
               </ul>
@@ -785,24 +786,17 @@ function copy(key: string, text: string): void {
               </div>
               <template v-if="resourceProject">
                 <div v-for="kind in kinds" :key="kind.id" class="settings-group">
-                  <button
-                    type="button"
-                    class="settings-group-head"
-                    :aria-expanded="openKinds.includes(kind.id)"
-                    @click="toggleKind(kind.id)"
+                  <AppDisclosure
+                    block
+                    :open="openKinds.includes(kind.id)"
+                    @update:open="toggleKind(kind.id)"
                   >
-                    <span
-                      class="settings-group-chevron"
-                      :class="{ expanded: openKinds.includes(kind.id) }"
-                      aria-hidden="true"
-                      >▸</span
-                    >
                     {{ kind.label }}
                     <span class="settings-group-count">
                       {{ pickedIn(resourceProject.alias, kind.id) }} of
                       {{ total(resourceProject, kind.id) }}
                     </span>
-                  </button>
+                  </AppDisclosure>
                   <div v-if="openKinds.includes(kind.id)" class="settings-group-body">
                     <p v-if="total(resourceProject, kind.id) === 0" class="settings-text">None.</p>
                     <p
@@ -836,7 +830,8 @@ function copy(key: string, text: string): void {
                 <AppConfirmButton
                   :key="selected.id"
                   v-slot="{ armed }"
-                  class="settings-action"
+                  variant="ghost"
+                  size="xs"
                   :disabled="busy"
                   @confirm="confirmed(() => disconnect(selected!.id))"
                 >
@@ -884,29 +879,6 @@ function copy(key: string, text: string): void {
 
 .node-state.on {
   color: var(--color-success);
-}
-
-.node-icon-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 22px;
-  flex-shrink: 0;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.node-icon-action:hover {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
 }
 
 .node-token {

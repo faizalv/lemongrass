@@ -41,7 +41,7 @@ const showAccounts = computed(
     </template>
     <AppEmptyState v-else layout="fill" title="Nothing open.">
       <template #action>
-        <AppButton variant="primary" @click="addShell(project)">+ New shell</AppButton>
+        <AppButton variant="primary" size="md" @click="addShell(project)">+ New shell</AppButton>
       </template>
     </AppEmptyState>
 
@@ -97,8 +97,8 @@ const showAccounts = computed(
       </template>
       <p v-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
       <template #footer>
-        <AppButton @click="cancelShellPicker">Cancel</AppButton>
-        <AppButton variant="primary" @click="confirmShellPicker()">Open</AppButton>
+        <AppButton size="md" @click="cancelShellPicker">Cancel</AppButton>
+        <AppButton variant="primary" size="md" @click="confirmShellPicker()">Open</AppButton>
       </template>
     </AppModal>
   </div>

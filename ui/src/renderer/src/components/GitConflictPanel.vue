@@ -10,7 +10,7 @@ const openDrawers = reactive(new Set<string>())
 </script>
 
 <script setup lang="ts">
-import { AppButton, AppEmptyState, AppIcon, AppSplitButton } from '@sankasten'
+import { AppButton, AppDisclosure, AppEmptyState, AppSplitButton } from '@sankasten'
 import { computed, ref } from 'vue'
 import { finishOperation, gitStateOf } from '../git'
 import { openConflict, type ProjectRef } from '../workspace'
@@ -124,6 +124,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
         <AppSplitButton
           ref="split"
           variant="primary"
+          size="sm"
           class="conflict-split"
           :disabled="state.busy !== null"
           :items="manualItems"
@@ -140,6 +141,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
       <AppButton
         v-else
         variant="primary"
+        size="sm"
         class="conflict-action"
         :disabled="state.busy !== null"
         @click="finish('continue')"
@@ -148,6 +150,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
       </AppButton>
       <AppButton
         variant="danger"
+        size="sm"
         class="conflict-abort"
         :disabled="state.busy !== null"
         @click="finish('abort')"
@@ -161,16 +164,13 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 
     <AppEmptyState v-if="conflicted.length === 0" size="sm" title="All conflicts are resolved." />
     <section v-else>
-      <button class="drawer-head" :aria-expanded="drawerOpen" @click="toggleDrawer">
-        <AppIcon
-          class="drawer-chevron"
-          :class="{ open: drawerOpen }"
-          name="chevronRight"
-          :size="9"
-        />
-        <span>Conflicted files</span>
-        <span class="drawer-count">{{ conflicted.length }}</span>
-      </button>
+      <AppDisclosure
+        block
+        label="Conflicted files"
+        :count="conflicted.length"
+        :open="drawerOpen"
+        @update:open="toggleDrawer"
+      />
       <ul v-if="drawerOpen" class="conflict-files">
         <li v-for="file in conflicted" :key="file.path">
           <button
@@ -238,12 +238,10 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 
 .conflict-buttons .conflict-action {
   flex: 1;
-  padding: var(--space-1) var(--space-2);
 }
 
 .conflict-buttons .conflict-abort {
   flex: 1 0 auto;
-  padding: var(--space-1) var(--space-3);
 }
 
 .conflict-assignee {
@@ -253,39 +251,6 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 
 .assignee-name {
   color: var(--color-fg-primary);
-}
-
-.drawer-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 3px var(--space-2);
-  background: transparent;
-  border: none;
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-}
-
-.drawer-head:hover {
-  color: var(--color-fg-primary);
-}
-
-.drawer-chevron {
-  flex-shrink: 0;
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.drawer-chevron.open {
-  transform: rotate(90deg);
-}
-
-.drawer-count {
-  color: var(--color-fg-muted);
-  font-weight: var(--weight-regular);
 }
 
 .conflict-files {

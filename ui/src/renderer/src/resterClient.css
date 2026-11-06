@@ -85,16 +85,71 @@
   color: var(--color-fg-secondary);
 }
 
+/* Request, gutter, Response. Each box's share is its flex-grow, set from the split ratio in
+   ResterClientView, over a zero basis so the shares divide the width left beside the gutter. */
 .rester-client .panes {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-4);
+  display: flex;
+  gap: var(--space-2);
   margin-top: var(--space-2);
 }
 
+/* The hit area is wider than the 4px line it draws, so the gutter is easy to grab. */
+.rester-client .gutter {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  width: var(--space-2);
+  cursor: col-resize;
+}
+
+.rester-client .gutter::before {
+  content: '';
+  width: 4px;
+  border-radius: var(--radius-pill);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.rester-client .gutter:hover::before,
+.rester-client .gutter:active::before {
+  background: var(--color-amber);
+}
+
+/* A minimized box: a slim rail with its title written vertically; a click anywhere restores it. */
+.rester-client .box-rail {
+  flex: 0 0 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  background: var(--layer-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+
+.rester-client .box-rail:hover {
+  background: var(--layer-card-hover);
+}
+
+.rester-client .rail-title {
+  writing-mode: vertical-rl;
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-fg-secondary);
+  white-space: nowrap;
+}
+
+.rester-client .flip {
+  transform: rotate(180deg);
+}
+
 .rester-client .box {
+  flex: 1 1 0;
+  min-width: 280px;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -104,21 +159,30 @@
   overflow: hidden;
 }
 
+/* A header wraps whole items onto a second line when narrow; no item wraps inside itself. */
 .rester-client .box-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  min-height: 48px;
+  gap: var(--space-2) var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border-default);
   background: var(--color-surface-2);
 }
 
 .rester-client .box-title {
+  white-space: nowrap;
   font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--color-fg-primary);
+}
+
+.rester-client .head-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 
 .rester-client .box-body {
@@ -132,6 +196,7 @@
 }
 
 .rester-client .status {
+  white-space: nowrap;
   padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
   font-size: var(--text-xs);

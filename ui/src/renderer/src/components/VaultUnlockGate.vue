@@ -119,7 +119,12 @@ async function confirmReset(): Promise<void> {
           </AppButton>
         </div>
         <p v-if="unlockError" class="error-text">{{ unlockError }}</p>
-        <AppButton v-if="unlockMode === 'enter'" class="reset-link" @click="openResetConfirm">
+        <AppButton
+          v-if="unlockMode === 'enter'"
+          variant="text"
+          class="reset-link"
+          @click="openResetConfirm"
+        >
           Forgot your passphrase?
         </AppButton>
       </template>

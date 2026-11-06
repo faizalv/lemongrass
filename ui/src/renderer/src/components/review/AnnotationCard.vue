@@ -59,8 +59,8 @@ onMounted(() => {
         @keydown.enter.meta.exact.prevent="save"
       />
       <div class="actions">
-        <AppButton type="button" @click="cancel">Cancel</AppButton>
-        <AppButton type="button" variant="primary" :disabled="!text.trim()" @click="save">
+        <AppButton type="button" size="sm" @click="cancel">Cancel</AppButton>
+        <AppButton type="button" size="sm" variant="primary" :disabled="!text.trim()" @click="save">
           {{ draft ? 'Add comment' : 'Save' }}
         </AppButton>
       </div>
@@ -68,8 +68,10 @@ onMounted(() => {
     <template v-else>
       <p class="comment">{{ comment }}</p>
       <div class="actions">
-        <AppButton type="button" variant="danger" @click="emit('remove')">Delete</AppButton>
-        <AppButton type="button" @click="startEditing">Edit</AppButton>
+        <AppButton type="button" size="sm" variant="danger" @click="emit('remove')"
+          >Delete</AppButton
+        >
+        <AppButton type="button" size="sm" @click="startEditing">Edit</AppButton>
       </div>
     </template>
   </div>

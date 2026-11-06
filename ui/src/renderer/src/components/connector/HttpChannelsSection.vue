@@ -229,6 +229,7 @@ onUnmounted(() => {
       </p>
       <AppButton
         v-if="!showHTTPCreateForm"
+        size="sm"
         variant="primary"
         class="new-channel-button"
         :disabled="resters.length === 0"
@@ -257,6 +258,7 @@ onUnmounted(() => {
     <template v-else>
       <div class="list-filter">
         <AppSwitcher
+          size="sm"
           class="rester-filter"
           :items="resterItems"
           :active-id="resterFilter"
@@ -269,6 +271,7 @@ onUnmounted(() => {
         />
         <AppInput
           v-model="query"
+          size="sm"
           type="text"
           spellcheck="false"
           icon="search"
@@ -364,16 +367,18 @@ onUnmounted(() => {
           </span>
           <div v-if="activatingHTTPId !== channel.ID" class="channel-actions">
             <AppButton
+              size="sm"
               :disabled="!vaultUnlocked"
               title="Create a new channel from this one"
               @click="openHTTPCopyForm(channel)"
             >
               Copy
             </AppButton>
-            <AppButton @click="openHTTPActivate(channel.ID)">
+            <AppButton size="sm" @click="openHTTPActivate(channel.ID)">
               {{ statusForHTTP(channel) === 'expired' ? 'Activate' : 'Rotate' }}
             </AppButton>
             <AppButton
+              size="sm"
               variant="danger"
               :disabled="revokingHTTPId === channel.ID"
               @click="revokeHTTP(channel.ID)"
@@ -386,14 +391,20 @@ onUnmounted(() => {
         <div v-if="activatingHTTPId === channel.ID" class="inline-form">
           <AppInput
             v-model.number="activateHTTPTtlMinutes"
+            size="sm"
             type="number"
             min="1"
             title="TTL, minutes"
             autofocus
             @keydown.enter="submitHTTPActivate"
           />
-          <AppButton @click="cancelHTTPActivate">Cancel</AppButton>
-          <AppButton variant="primary" :disabled="activatingHTTP" @click="submitHTTPActivate">
+          <AppButton size="sm" @click="cancelHTTPActivate">Cancel</AppButton>
+          <AppButton
+            size="sm"
+            variant="primary"
+            :disabled="activatingHTTP"
+            @click="submitHTTPActivate"
+          >
             {{
               statusForHTTP(channel) === 'expired'
                 ? activatingHTTP

@@ -9,7 +9,7 @@ import ConnectionsSection from './connector/ConnectionsSection.vue'
 import DbChannelsSection from './connector/DbChannelsSection.vue'
 import ResterList from './connector/rester/ResterList.vue'
 import HttpChannelsSection from './connector/HttpChannelsSection.vue'
-import { AppButton } from '@sankasten'
+import { AppButton, AppNavItem } from '@sankasten'
 import VaultUnlockGate from './VaultUnlockGate.vue'
 import DecisionsSection from './decisions/DecisionsSection.vue'
 import { askState } from '../asks'
@@ -38,84 +38,86 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
 
       <template v-else>
         <nav class="vault-nav">
-          <button
-            class="nav-item"
-            :class="{ active: activeKind === 'decisions' }"
+          <AppNavItem
+            size="sm"
+            label="Decisions"
+            :active="activeKind === 'decisions'"
+            :count="askState.count.waiting"
+            count-title="Decisions waiting"
             @click="activeKind = 'decisions'"
           >
-            <svg
-              class="nav-icon"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <component
-                :is="shape.tag"
-                v-for="(shape, i) in decisionsIcon"
-                :key="i"
-                v-bind="shape.attrs"
-              />
-            </svg>
-            Decisions
-            <span v-if="askState.count.waiting > 0" class="nav-count">
-              {{ askState.count.waiting }}
-            </span>
-          </button>
+            <template #icon>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <component
+                  :is="shape.tag"
+                  v-for="(shape, i) in decisionsIcon"
+                  :key="i"
+                  v-bind="shape.attrs"
+                />
+              </svg>
+            </template>
+          </AppNavItem>
           <span class="nav-group-label">Connector</span>
-          <button
-            class="nav-item"
-            :class="{ active: activeKind === 'database' }"
+          <AppNavItem
+            size="sm"
+            label="Database"
+            :active="activeKind === 'database'"
             @click="activeKind = 'database'"
           >
-            <svg
-              class="nav-icon"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <ellipse cx="7" cy="3.5" rx="4.5" ry="1.8" />
-              <path d="M2.5 3.5v7c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8v-7" />
-              <path d="M2.5 7c0 1 2 1.8 4.5 1.8S11.5 8 11.5 7" />
-            </svg>
-            Database
-          </button>
-          <button
-            class="nav-item"
-            :class="{ active: activeKind === 'http' }"
+            <template #icon>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <ellipse cx="7" cy="3.5" rx="4.5" ry="1.8" />
+                <path d="M2.5 3.5v7c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8v-7" />
+                <path d="M2.5 7c0 1 2 1.8 4.5 1.8S11.5 8 11.5 7" />
+              </svg>
+            </template>
+          </AppNavItem>
+          <AppNavItem
+            size="sm"
+            label="Rester"
+            :active="activeKind === 'http'"
             @click="activeKind = 'http'"
           >
-            <svg
-              class="nav-icon"
-              width="14"
-              height="14"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="7" cy="7" r="5.5" />
-              <path d="M1.5 7h11" />
-              <path
-                d="M7 1.5c1.7 1.6 2.5 3.4 2.5 5.5S8.7 10.9 7 12.5C5.3 10.9 4.5 9.1 4.5 7S5.3 3.1 7 1.5z"
-              />
-            </svg>
-            Rester
-          </button>
+            <template #icon>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="7" cy="7" r="5.5" />
+                <path d="M1.5 7h11" />
+                <path
+                  d="M7 1.5c1.7 1.6 2.5 3.4 2.5 5.5S8.7 10.9 7 12.5C5.3 10.9 4.5 9.1 4.5 7S5.3 3.1 7 1.5z"
+                />
+              </svg>
+            </template>
+          </AppNavItem>
           <div class="nav-lock">
             <span class="unlock-status">Vault unlocked</span>
-            <AppButton @click="lockVaultSession">Lock</AppButton>
+            <AppButton size="sm" @click="lockVaultSession">Lock</AppButton>
           </div>
         </nav>
 

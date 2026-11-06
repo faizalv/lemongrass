@@ -10,7 +10,7 @@ import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Markdown } from 'tiptap-markdown'
 import { Find, findState, setFindQuery, stepFind } from '../editorFind'
-import { AppInput, type AppInputHandle } from '@sankasten'
+import { AppButton, AppIconButton, AppInput, type AppInputHandle } from '@sankasten'
 import { isAbsolutePath, lastSegment } from '../pathForm'
 import { isWindows } from '../platform'
 
@@ -330,122 +330,136 @@ watch(
 <template>
   <div class="markdown-editor" @keydown="onKeydown">
     <div v-if="editor" class="toolbar">
-      <button
-        class="tool"
-        :class="{ active: editor.isActive('bold') }"
-        title="Bold"
+      <AppIconButton
+        size="sm"
+        label="Bold"
+        :pressed="editor.isActive('bold')"
         @click="editor.chain().focus().toggleBold().run()"
       >
         B
-      </button>
-      <button
-        class="tool italic"
-        :class="{ active: editor.isActive('italic') }"
-        title="Italic"
+      </AppIconButton>
+      <AppIconButton
+        size="sm"
+        label="Italic"
+        :pressed="editor.isActive('italic')"
         @click="editor.chain().focus().toggleItalic().run()"
       >
-        I
-      </button>
+        <span class="glyph-italic">I</span>
+      </AppIconButton>
       <span class="divider" />
-      <button
-        class="tool"
-        :class="{ active: editor.isActive('heading', { level: 1 }) }"
-        title="Heading 1"
+      <AppIconButton
+        size="sm"
+        label="Heading 1"
+        :pressed="editor.isActive('heading', { level: 1 })"
         @click="editor.chain().focus().toggleHeading({ level: 1 }).run()"
       >
         H1
-      </button>
-      <button
-        class="tool"
-        :class="{ active: editor.isActive('heading', { level: 2 }) }"
-        title="Heading 2"
+      </AppIconButton>
+      <AppIconButton
+        size="sm"
+        label="Heading 2"
+        :pressed="editor.isActive('heading', { level: 2 })"
         @click="editor.chain().focus().toggleHeading({ level: 2 }).run()"
       >
         H2
-      </button>
+      </AppIconButton>
       <span class="divider" />
-      <button
-        class="tool"
-        :class="{ active: editor.isActive('bulletList') }"
+      <AppButton
+        variant="text"
+        size="sm"
         title="Bullet list"
+        :pressed="editor.isActive('bulletList')"
         @click="editor.chain().focus().toggleBulletList().run()"
       >
         &bull; List
-      </button>
-      <button
-        class="tool"
-        :class="{ active: editor.isActive('orderedList') }"
+      </AppButton>
+      <AppButton
+        variant="text"
+        size="sm"
         title="Numbered list"
+        :pressed="editor.isActive('orderedList')"
         @click="editor.chain().focus().toggleOrderedList().run()"
       >
         1. List
-      </button>
+      </AppButton>
       <span class="divider" />
-      <button
-        class="tool mono"
-        :class="{ active: editor.isActive('codeBlock') }"
-        title="Code block"
+      <AppIconButton
+        size="sm"
+        label="Code block"
+        :pressed="editor.isActive('codeBlock')"
         @click="editor.chain().focus().toggleCodeBlock().run()"
       >
-        &lt;/&gt;
-      </button>
-      <button
-        class="tool"
-        :class="{ active: editor.isActive('blockquote') }"
-        title="Quote"
+        <span class="glyph-mono">&lt;/&gt;</span>
+      </AppIconButton>
+      <AppIconButton
+        size="sm"
+        label="Quote"
+        :pressed="editor.isActive('blockquote')"
         @click="editor.chain().focus().toggleBlockquote().run()"
       >
         &ldquo;
-      </button>
-      <button
-        class="tool"
+      </AppIconButton>
+      <AppButton
+        variant="text"
+        size="sm"
         title="Task list"
-        :class="{ active: editor.isActive('taskList') }"
+        :pressed="editor.isActive('taskList')"
         @click="editor.chain().focus().toggleTaskList().run()"
       >
         &check; Tasks
-      </button>
-      <button
-        class="tool"
+      </AppButton>
+      <AppButton
+        variant="text"
+        size="sm"
         title="Insert table"
         :disabled="editor.isActive('table')"
         @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()"
       >
         Table
-      </button>
+      </AppButton>
       <template v-if="editor.isActive('table')">
         <span class="divider" />
-        <button
-          class="tool"
+        <AppButton
+          variant="text"
+          size="sm"
           title="Add row below"
           @click="editor.chain().focus().addRowAfter().run()"
         >
           + Row
-        </button>
-        <button
-          class="tool"
+        </AppButton>
+        <AppButton
+          variant="text"
+          size="sm"
           title="Add column right"
           @click="editor.chain().focus().addColumnAfter().run()"
         >
           + Col
-        </button>
-        <button class="tool" title="Delete row" @click="editor.chain().focus().deleteRow().run()">
+        </AppButton>
+        <AppButton
+          variant="text"
+          size="sm"
+          title="Delete row"
+          @click="editor.chain().focus().deleteRow().run()"
+        >
           &minus; Row
-        </button>
-        <button
-          class="tool"
+        </AppButton>
+        <AppButton
+          variant="text"
+          size="sm"
           title="Delete column"
           @click="editor.chain().focus().deleteColumn().run()"
         >
           &minus; Col
-        </button>
-        <button
-          class="tool danger"
+        </AppButton>
+        <AppButton
+          variant="text"
+          size="sm"
+          tone="danger"
           title="Delete table"
           @click="editor.chain().focus().deleteTable().run()"
         >
           Delete table
-        </button>
+        </AppButton>
       </template>
     </div>
     <div v-if="findOpen" class="find">
@@ -462,23 +476,23 @@ watch(
       <span class="find-count">
         {{ findCount ? `${findCurrent + 1} of ${findCount}` : findQuery ? 'No matches' : '' }}
       </span>
-      <button
-        class="tool"
-        title="Previous (Shift+Enter)"
+      <AppIconButton
+        size="sm"
+        label="Previous (Shift+Enter)"
         :disabled="!findCount"
         @click="editor && stepFind(editor, -1)"
       >
         &uarr;
-      </button>
-      <button
-        class="tool"
-        title="Next (Enter)"
+      </AppIconButton>
+      <AppIconButton
+        size="sm"
+        label="Next (Enter)"
         :disabled="!findCount"
         @click="editor && stepFind(editor, 1)"
       >
         &darr;
-      </button>
-      <button class="tool" title="Close (Esc)" @click="closeFind">&times;</button>
+      </AppIconButton>
+      <AppIconButton size="sm" icon="close" label="Close (Esc)" @click="closeFind" />
     </div>
     <p v-if="imageNotice" class="notice">{{ imageNotice }}</p>
     <EditorContent v-if="editor" class="content" :editor="editor" @click="focusFromBlank" />
@@ -514,37 +528,12 @@ watch(
   border-bottom: 1px solid var(--color-border-default);
 }
 
-.tool {
-  padding: var(--space-1) var(--space-2);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.tool.italic {
+.glyph-italic {
   font-style: italic;
 }
 
-.tool.mono {
+.glyph-mono {
   font-family: var(--font-mono);
-}
-
-.tool:hover {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
-}
-
-.tool.active {
-  background: var(--color-amber-muted);
-  color: var(--color-fg-accent);
 }
 
 .divider {
@@ -583,11 +572,6 @@ watch(
   color: var(--color-fg-secondary);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
-}
-
-.tool:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .content :deep(.find-match) {
@@ -689,10 +673,6 @@ watch(
   padding-left: var(--space-4);
   color: var(--color-fg-secondary);
   margin-bottom: var(--space-3);
-}
-
-.tool.danger:hover {
-  color: var(--color-error);
 }
 
 .content :deep(h4),

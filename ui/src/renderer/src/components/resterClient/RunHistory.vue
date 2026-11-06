@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppConfirmButton, AppEmptyState } from '@sankasten'
+import { AppIconButton, AppEmptyState } from '@sankasten'
 import { statusClass } from '../../resterClientCall'
 import { formatAge } from '../../relativeAge'
 import { ageNow } from '../../ageClock'
@@ -46,14 +46,16 @@ function statusOf(run: ResterClientRun): { text: string; className: string } {
         <span class="status" :class="statusOf(run).className">{{ statusOf(run).text }}</span>
         <span v-if="run.download?.kind === 'saved'" class="tag">Download</span>
         <span class="when">{{ formatAge(run.at, ageNow) }}</span>
-        <AppConfirmButton
-          class="remove"
-          title="Delete run"
-          @click.stop
-          @confirm="emit('remove', run.id)"
-        >
-          ×
-        </AppConfirmButton>
+        <span class="remove" @click.stop>
+          <AppIconButton
+            icon="close"
+            size="xs"
+            label="Delete run"
+            confirm
+            confirm-label="Click again to delete"
+            @confirm="emit('remove', run.id)"
+          />
+        </span>
       </div>
       <div class="run-line detail">
         <span class="user">{{ run.request.user }}</span>
@@ -131,25 +133,14 @@ function statusOf(run: ResterClientRun): { text: string; className: string } {
   font-family: var(--font-mono);
 }
 
+/* The wrapper keeps a click on the button from also selecting the row. */
 .remove {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
-  cursor: pointer;
+  display: flex;
   visibility: hidden;
 }
 
 .run:hover .remove {
   visibility: visible;
-}
-
-.remove:hover {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
 }
 </style>

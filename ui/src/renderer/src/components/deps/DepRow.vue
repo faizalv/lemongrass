@@ -55,6 +55,7 @@ function install(): void {
       <span class="dep-spacer" />
       <AppButton
         v-if="weight && dep.offer"
+        size="xs"
         type="button"
         :variant="weight"
         :disabled="disabled"

@@ -6,6 +6,8 @@ import { ref } from 'vue'
 import {
   AppButton,
   AppEmptyState,
+  AppIcon,
+  AppIconButton,
   AppInput,
   AppSegmented,
   AppSwitcher,
@@ -18,6 +20,8 @@ import type { ResterClientBodyKind, ResterClientRequest } from '../../../../prel
 
 // Edited in place; the parent owns the request.
 const request = defineModel<ResterClientRequest>({ required: true })
+
+const emit = defineEmits<{ collapse: [] }>()
 
 const section = ref<'body' | 'headers'>('body')
 const formatError = ref('')
@@ -50,10 +54,11 @@ function formatJson(): void {
   <section class="box">
     <header class="box-head">
       <span class="box-title">Request</span>
-      <AppSegmented v-model="section" :options="sections" aria-label="Request part" />
+      <AppSegmented v-model="section" size="sm" :options="sections" aria-label="Request part" />
       <div v-if="section === 'body'" class="body-kind">
         <AppSwitcher
           framed
+          size="sm"
           :items="bodyKinds"
           :active-id="request.bodyKind"
           placeholder="None"
@@ -61,13 +66,18 @@ function formatJson(): void {
           @select="request.bodyKind = $event as ResterClientBodyKind"
         />
       </div>
-      <AppButton
-        v-if="section === 'body' && request.bodyKind === 'json'"
-        class="format"
-        @click="formatJson"
-      >
-        Format
-      </AppButton>
+      <div class="head-end">
+        <AppButton
+          v-if="section === 'body' && request.bodyKind === 'json'"
+          size="sm"
+          @click="formatJson"
+        >
+          Format
+        </AppButton>
+        <AppIconButton size="sm" label="Minimize Request" @click="emit('collapse')">
+          <AppIcon name="chevronRight" class="flip" />
+        </AppIconButton>
+      </div>
     </header>
 
     <div class="box-body">
@@ -101,6 +111,7 @@ function formatJson(): void {
             />
             <AppInput
               v-model="request.file.contentType"
+              size="sm"
               type="text"
               placeholder="type from extension"
               spellcheck="false"
@@ -123,10 +134,6 @@ function formatJson(): void {
 <style scoped>
 .body-kind {
   width: 120px;
-}
-
-.format {
-  margin-left: auto;
 }
 
 .file-body {

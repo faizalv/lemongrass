@@ -4,7 +4,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { VaultResterAPI, VaultRester, VaultTokenPlacement } from '../../../../../preload/types'
-import { AppButton, AppInput, AppSegmented } from '@sankasten'
+import { AppButton, AppDisclosure, AppIconButton, AppInput, AppSegmented } from '@sankasten'
 import {
   defaultResterAPI,
   headerDrafts,
@@ -114,16 +114,15 @@ async function turnOff(): Promise<void> {
 
 <template>
   <div class="inline-section">
-    <button type="button" class="settings-toggle" :aria-expanded="open" @click="toggle">
-      <span class="settings-chevron" :class="{ expanded: open }">▸</span>
-      API side
+    <div class="settings-toggle">
+      <AppDisclosure :open="open" label="API side" @update:open="toggle" />
       <span class="status-capsule" :class="{ 'status-open': rester.API }">
         {{ rester.API ? 'On' : 'Off' }}
       </span>
       <span v-if="rester.API && !open" class="settings-summary">
         {{ rester.API.LoginEndpoint || 'Tokens only, no login endpoint' }}
       </span>
-    </button>
+    </div>
 
     <div v-if="open" class="settings-body">
       <p v-if="!rester.API" class="hint">Saving turns the API side on for this rester.</p>
@@ -196,14 +195,7 @@ async function turnOff(): Promise<void> {
           <div v-for="(header, i) in headers" :key="i" class="kv-row">
             <AppInput v-model="header.name" type="text" placeholder="e.g. api-version" />
             <AppInput v-model="header.value" type="text" placeholder="value" />
-            <button
-              type="button"
-              class="chip-remove"
-              title="Remove header"
-              @click="headers.splice(i, 1)"
-            >
-              ×
-            </button>
+            <AppIconButton icon="close" label="Remove header" @click="headers.splice(i, 1)" />
           </div>
           <AppButton
             type="button"

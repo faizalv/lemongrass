@@ -8,7 +8,7 @@
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
 import type { VaultChannelWithShortId } from '../../../../preload/types'
-import { AppButton, AppCheckbox, AppInput, AppMultiPicker, AppSwitcher } from '@sankasten'
+import { AppButton, AppCheckbox, AppChip, AppInput, AppMultiPicker, AppSwitcher } from '@sankasten'
 
 export interface DbChannelSeed {
   name: string
@@ -186,17 +186,15 @@ async function submitCreate(): Promise<void> {
             :disabled="tablesLoading"
           >
             <div v-if="newTables.length > 0" class="chip-row">
-              <span v-for="table in newTables" :key="table" class="chip">
+              <AppChip
+                v-for="table in newTables"
+                :key="table"
+                removable
+                :remove-label="`Remove ${table}`"
+                @remove="removeSelectedTable(table)"
+              >
                 {{ table }}
-                <button
-                  type="button"
-                  class="chip-remove"
-                  title="Remove"
-                  @click="removeSelectedTable(table)"
-                >
-                  ×
-                </button>
-              </span>
+              </AppChip>
             </div>
           </AppMultiPicker>
         </div>

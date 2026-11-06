@@ -3,6 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { AppNavItem } from '@sankasten'
 import NodeModal from './NodeModal.vue'
 
 type Phase = 'checking' | 'connecting' | 'shared' | 'off'
@@ -47,26 +48,24 @@ onBeforeUnmount(() => clearTimeout(timer))
 
 <template>
   <div class="node-panel">
-    <button class="node-item" @click="open = true">
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.2"
-        stroke-linecap="round"
-      >
-        <circle cx="7" cy="7" r="2" />
-        <circle cx="2.5" cy="3" r="1.2" />
-        <circle cx="11.5" cy="3" r="1.2" />
-        <circle cx="7" cy="12" r="1.2" />
-        <path d="M3.5 3.8L5.5 5.8M10.5 3.8L8.5 5.8M7 9v1.8" />
-      </svg>
-      <span class="node-label">Node</span>
-      <span class="node-state">{{ view.text }}</span>
-      <span class="node-dot" :class="phase" :title="view.dot" />
-    </button>
+    <AppNavItem size="sm" label="Node" :state="view.text" @click="open = true">
+      <template #icon>
+        <svg
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+        >
+          <circle cx="7" cy="7" r="2" />
+          <circle cx="2.5" cy="3" r="1.2" />
+          <circle cx="11.5" cy="3" r="1.2" />
+          <circle cx="7" cy="12" r="1.2" />
+          <path d="M3.5 3.8L5.5 5.8M10.5 3.8L8.5 5.8M7 9v1.8" />
+        </svg>
+      </template>
+      <template #trailing><span class="node-dot" :class="phase" :title="view.dot" /></template>
+    </AppNavItem>
     <NodeModal v-if="open" @close="close" />
   </div>
 </template>
@@ -76,39 +75,6 @@ onBeforeUnmount(() => clearTimeout(timer))
   flex-shrink: 0;
   padding: var(--space-2);
   border-top: 1px solid var(--color-border-default);
-}
-
-.node-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--layer-raised);
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.node-item:hover {
-  background: var(--layer-raised-hover);
-}
-
-.node-label {
-  flex-shrink: 0;
-}
-
-.node-state {
-  flex: 1;
-  min-width: 0;
-  color: var(--color-fg-secondary);
-  font-weight: var(--weight-regular);
-  text-align: left;
 }
 
 .node-dot {

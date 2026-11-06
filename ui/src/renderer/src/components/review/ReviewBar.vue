@@ -113,12 +113,14 @@ async function submit(): Promise<void> {
         placeholder="Send to tab"
         empty-text="No Claude or Codex tab is open in this project."
         framed
+        size="sm"
         above
         @select="targetId = $event"
       />
     </div>
     <AppButton
       variant="primary"
+      size="sm"
       :disabled="!!blocker || sending"
       :title="blocker ?? undefined"
       @click="submit"

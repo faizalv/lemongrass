@@ -99,6 +99,7 @@ watch(
         </p>
         <AppButton
           v-if="!showCreate"
+          size="sm"
           variant="primary"
           class="new-channel-button"
           @click="showCreate = true"
@@ -122,6 +123,7 @@ watch(
         <div class="list-filter">
           <AppInput
             v-model="query"
+            size="sm"
             type="text"
             spellcheck="false"
             icon="search"
@@ -137,8 +139,9 @@ watch(
               <span class="channel-db">{{ name }}</span>
             </div>
             <div class="channel-actions">
-              <AppButton @click="openName = name">Open</AppButton>
+              <AppButton size="sm" @click="openName = name">Open</AppButton>
               <AppButton
+                size="sm"
                 variant="danger"
                 :disabled="deletingName === name"
                 @click="deleteRester(name)"

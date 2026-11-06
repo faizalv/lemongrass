@@ -52,6 +52,7 @@ const items = computed(() =>
 <template>
   <AppSwitcher
     class="file-picker"
+    size="sm"
     :items="items"
     :active-id="path"
     :label="nameOf(path)"

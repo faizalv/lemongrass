@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AppButton, AppEmptyState } from '@sankasten'
+import { AppButton, AppDisclosure, AppEmptyState } from '@sankasten'
 import type { CreditEntry, CreditGroup, CreditsResult } from '../../../../preload/types'
 
 const GROUPS: { id: CreditGroup; label: string }[] = [
@@ -41,7 +41,7 @@ async function openChromium(): Promise<void> {
 <template>
   <div v-if="selected" class="credits">
     <div class="credits-detail-head">
-      <AppButton type="button" @click="selected = null">Back</AppButton>
+      <AppButton size="sm" type="button" @click="selected = null">Back</AppButton>
       <span class="settings-row-title">{{ selected.name }}</span>
       <span class="settings-row-meta">{{ selected.version }}</span>
       <span class="settings-badge">{{ selected.license }}</span>
@@ -70,21 +70,13 @@ async function openChromium(): Promise<void> {
     <template v-else>
       <p class="settings-text">Select a component to read its full license.</p>
       <div v-for="group in groups" :key="group.id" class="settings-group">
-        <button
-          type="button"
-          class="settings-group-head"
-          :aria-expanded="open.includes(group.id)"
-          @click="toggle(group.id)"
-        >
-          <span
-            class="settings-group-chevron"
-            :class="{ expanded: open.includes(group.id) }"
-            aria-hidden="true"
-            >▸</span
-          >
-          {{ group.label }}
-          <span class="settings-group-count">{{ group.entries.length }}</span>
-        </button>
+        <AppDisclosure
+          block
+          :open="open.includes(group.id)"
+          :label="group.label"
+          :count="group.entries.length"
+          @update:open="toggle(group.id)"
+        />
         <div v-if="open.includes(group.id)" class="settings-group-body credits-body">
           <button
             v-for="entry in group.entries"

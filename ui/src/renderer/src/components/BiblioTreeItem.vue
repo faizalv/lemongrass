@@ -3,6 +3,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { AppIconButton } from '@sankasten'
 import TabIcon from './TabIcon.vue'
 import { archiveIcon, biblioDirShapes, biblioFileShapes } from '../biblioIcons'
 import type { BiblioNode } from '../../../preload/types'
@@ -105,33 +106,25 @@ const isArchivableScratchpadTask = computed((): boolean => {
 
       <span class="label">{{ node.name }}</span>
     </button>
-    <button
+    <AppIconButton
       v-if="isArchivableScratchpadTask"
       class="tree-item-add"
-      title="Archive"
+      size="xs"
+      tone="accent"
+      label="Archive"
       @click.stop="emit('archive-scratchpad', node.path)"
     >
-      <TabIcon :shapes="archiveIcon" class="small-icon" />
-    </button>
-    <button
+      <TabIcon :shapes="archiveIcon" />
+    </AppIconButton>
+    <AppIconButton
       v-if="showAddButton"
       class="tree-item-add"
-      :title="isTopLevelScratchpad ? 'Add scratchpad' : 'Add file'"
+      size="xs"
+      tone="accent"
+      icon="plus"
+      :label="isTopLevelScratchpad ? 'Add scratchpad' : 'Add file'"
       @click.stop="onAddClick"
-    >
-      <svg
-        width="10"
-        height="10"
-        viewBox="0 0 10 10"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.3"
-        stroke-linecap="round"
-      >
-        <line x1="5" y1="1" x2="5" y2="9" />
-        <line x1="1" y1="5" x2="9" y2="5" />
-      </svg>
-    </button>
+    />
   </div>
 
   <template v-if="node.children && expanded">
@@ -223,26 +216,7 @@ const isArchivableScratchpadTask = computed((): boolean => {
 }
 
 .tree-item-add {
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
   margin-right: var(--space-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-muted);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.tree-item-add:hover {
-  background: var(--color-surface-2);
-  color: var(--color-fg-accent);
 }
 
 .indent {
@@ -260,11 +234,6 @@ const isArchivableScratchpadTask = computed((): boolean => {
 
 .chevron.expanded {
   transform: rotate(90deg);
-}
-
-.small-icon {
-  width: 11px;
-  height: 11px;
 }
 
 .icon {

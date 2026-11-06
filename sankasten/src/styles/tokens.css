@@ -126,9 +126,12 @@
 
   /* Control height. Every single-line control (field, dropdown trigger, button, segmented switch,
      icon button, checkbox row) is exactly one of these tall, border included, so two controls of
-     one size line up in a row. md is the default; sm is for dense surfaces. */
+     one size line up in a row. md is the default; sm is for dense surfaces; xs is only for an
+     action inside a list, tree or menu row, so the row keeps the height of the plain rows. */
+  --control-h-xs:    22px;
   --control-h-sm:    28px;
   --control-h-md:    34px;
+  --control-icon-xs: 12px;
   --control-icon-sm: 13px;
   --control-icon-md: 15px;
 

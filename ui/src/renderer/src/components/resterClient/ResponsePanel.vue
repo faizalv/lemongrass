@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, provide, reactive, ref, watch } from 'vue'
-import { AppEmptyState, AppInput, AppSegmented } from '@sankasten'
+import { AppEmptyState, AppIcon, AppIconButton, AppInput, AppSegmented } from '@sankasten'
 import JsonNode from './JsonNode.vue'
 import HistoryPopover from './HistoryPopover.vue'
 import { statusClass } from '../../resterClientCall'
@@ -32,6 +32,7 @@ const emit = defineEmits<{
   pickRun: [run: ResterClientRun]
   removeRun: [runId: string]
   clearHistory: []
+  collapse: []
 }>()
 
 const view = ref<'tree' | 'raw' | 'headers'>('tree')
@@ -171,6 +172,7 @@ function formatSize(bytes: number): string {
         <span class="spacer" />
         <AppSegmented
           class="views"
+          size="sm"
           :model-value="activeView"
           :options="views"
           aria-label="Response view"
@@ -193,6 +195,9 @@ function formatSize(bytes: number): string {
         @remove="emit('removeRun', $event)"
         @clear="emit('clearHistory')"
       />
+      <AppIconButton size="sm" label="Minimize Response" @click="emit('collapse')">
+        <AppIcon name="chevronRight" />
+      </AppIconButton>
     </header>
     <div v-if="!sending && !error && result && parsed.ok" class="search-row">
       <AppInput
@@ -209,25 +214,24 @@ function formatSize(bytes: number): string {
       <span v-if="countText" class="count" :class="{ invalid: searchError }">
         {{ countText }}
       </span>
-      <button
-        type="button"
-        class="step"
-        title="Previous match (Shift+Enter)"
+      <AppIconButton
+        size="sm"
+        label="Previous match (Shift+Enter)"
         :disabled="stepCount === 0"
         @click="step(-1)"
       >
         ↑
-      </button>
-      <button
-        type="button"
-        class="step"
-        title="Next match (Enter)"
+      </AppIconButton>
+      <AppIconButton
+        size="sm"
+        label="Next match (Enter)"
         :disabled="stepCount === 0"
         @click="step(1)"
       >
         ↓
-      </button>
+      </AppIconButton>
       <AppSegmented
+        size="sm"
         :model-value="tree.filter ? 'matches' : 'all'"
         :options="filterOptions"
         aria-label="Show"
@@ -283,6 +287,7 @@ function formatSize(bytes: number): string {
 .meta {
   color: var(--color-fg-secondary);
   font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .spacer {
@@ -315,27 +320,6 @@ function formatSize(bytes: number): string {
 
 .count.invalid {
   color: var(--color-error);
-}
-
-.step {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  color: var(--color-fg-secondary);
-  cursor: pointer;
-}
-
-.step:hover:not(:disabled) {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
-}
-
-.step:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .raw {

@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
-import { AppConfirmButton, AppEmptyState, AppInput, type AppInputHandle } from '@sankasten'
+import { AppIconButton, AppEmptyState, AppInput, type AppInputHandle } from '@sankasten'
 import type { ResterClientRequest } from '../../../../preload/types'
 
 defineProps<{
@@ -66,14 +66,16 @@ function finishRename(): void {
       <span v-else class="name" :title="`${title(request)} (double-click to rename)`">
         {{ title(request) }}
       </span>
-      <AppConfirmButton
-        class="remove"
-        title="Delete request"
-        @click.stop
-        @confirm="emit('remove', request.id)"
-      >
-        ×
-      </AppConfirmButton>
+      <span class="remove" @click.stop>
+        <AppIconButton
+          icon="close"
+          size="xs"
+          label="Delete request"
+          confirm
+          confirm-label="Click again to delete"
+          @confirm="emit('remove', request.id)"
+        />
+      </span>
     </div>
   </div>
 </template>
@@ -144,25 +146,14 @@ function finishRename(): void {
   min-width: 0;
 }
 
+/* The wrapper keeps a click on the button from also selecting the row. */
 .remove {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
-  cursor: pointer;
+  display: flex;
   visibility: hidden;
 }
 
 .request-item:hover .remove {
   visibility: visible;
-}
-
-.remove:hover {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
 }
 </style>

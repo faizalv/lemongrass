@@ -6,7 +6,15 @@ import { computed, reactive, ref, watch } from 'vue'
 import { describeError } from '../../../vaultSession'
 import { userHandle } from '../../../userHandle'
 import type { VaultRester, VaultResterUser, VaultUserOverride } from '../../../../../preload/types'
-import { AppButton, AppCheckbox, AppInput, AppModal, AppSegmented } from '@sankasten'
+import {
+  AppButton,
+  AppCheckbox,
+  AppDisclosure,
+  AppIconButton,
+  AppInput,
+  AppModal,
+  AppSegmented
+} from '@sankasten'
 import FieldRows from './FieldRows.vue'
 import {
   effectiveUser,
@@ -298,16 +306,15 @@ async function removeUser(): Promise<void> {
               <template v-else-if="testStatus === 'error'">✗ {{ testError }}</template>
               <template v-else-if="testStatus === 'idle'">Not tested yet</template>
             </span>
-            <button
+            <AppIconButton
               v-if="testStatus === 'error' && testResponseStatus > 0"
-              type="button"
-              class="response-detail-button"
-              title="Show the login response"
-              aria-label="Show the login response"
+              icon="info"
+              variant="ghost"
+              tone="danger"
+              label="Show the login response"
+              :pressed="showResponse"
               @click="showResponse = !showResponse"
-            >
-              !
-            </button>
+            />
           </div>
           <template v-if="showResponse">
             <p class="hint">The login endpoint answered with status {{ testResponseStatus }}.</p>
@@ -330,16 +337,8 @@ async function removeUser(): Promise<void> {
         </p>
         <template v-for="env in rester.Environments" :key="env.Name">
           <div v-if="environments.includes(env.Name) && overrides[env.Name]" class="user-draft">
-            <button
-              type="button"
-              class="settings-toggle"
-              :aria-expanded="overrides[env.Name].open"
-              @click="overrides[env.Name].open = !overrides[env.Name].open"
-            >
-              <span class="settings-chevron" :class="{ expanded: overrides[env.Name].open }"
-                >▸</span
-              >
-              {{ env.Name }}
+            <div class="settings-toggle">
+              <AppDisclosure v-model:open="overrides[env.Name].open" :label="env.Name" />
               <span class="settings-summary">
                 {{
                   (
@@ -351,7 +350,7 @@ async function removeUser(): Promise<void> {
                     : 'Inherits'
                 }}
               </span>
-            </button>
+            </div>
             <template v-if="overrides[env.Name].open">
               <AppInput
                 v-if="isByot"

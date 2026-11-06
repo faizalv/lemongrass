@@ -94,7 +94,7 @@ async function remove(name: string): Promise<void> {
     <div class="users-toolbar">
       <span class="field-label">Environments ({{ rester.Environments.length }})</span>
       <span class="toolbar-fill"></span>
-      <AppButton @click="open({ kind: 'add' })">+ Environment</AppButton>
+      <AppButton size="sm" @click="open({ kind: 'add' })">+ Environment</AppButton>
     </div>
 
     <div class="env-grid">
@@ -110,9 +110,12 @@ async function remove(name: string): Promise<void> {
           {{ assignedCount(env.Name) }} users, {{ (env.Headers ?? []).length }} extra headers
         </span>
         <div class="channel-actions">
-          <AppButton @click="open({ kind: 'edit', source: env.Name })">Edit</AppButton>
-          <AppButton @click="open({ kind: 'duplicate', source: env.Name })">Duplicate</AppButton>
+          <AppButton size="sm" @click="open({ kind: 'edit', source: env.Name })">Edit</AppButton>
+          <AppButton size="sm" @click="open({ kind: 'duplicate', source: env.Name })"
+            >Duplicate</AppButton
+          >
           <AppButton
+            size="sm"
             variant="danger"
             :disabled="rester.Environments.length < 2 || deleting === env.Name"
             :title="rester.Environments.length < 2 ? 'A rester keeps at least one environment' : ''"

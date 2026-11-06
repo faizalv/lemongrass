@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppConfirmButton, AppIcon, pointAnchor, useMenuPlacement } from '@sankasten'
+import { AppConfirmButton, AppIcon, AppIconButton, pointAnchor, useMenuPlacement } from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TabIcon from './TabIcon.vue'
 import StripIcon from './StripIcon.vue'
@@ -411,17 +411,18 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="pane-actions">
-        <button class="pane-action" title="New shell" @click="addShell(project, leaf.id)">
-          <AppIcon name="plus" :size="14" />
-        </button>
-        <button
-          class="pane-action"
-          title="New shell in a pane to the right"
+        <AppIconButton
+          icon="plus"
+          label="New shell"
+          size="sm"
+          @click="addShell(project, leaf.id)"
+        />
+        <AppIconButton
+          label="New shell in a pane to the right"
+          size="sm"
           @click="addShellInNewPane(project, leaf.id, 'right')"
         >
           <svg
-            width="14"
-            height="14"
             viewBox="0 0 14 14"
             fill="none"
             stroke="currentColor"
@@ -432,15 +433,13 @@ onBeforeUnmount(() => {
             <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
             <path d="M7 2v10" />
           </svg>
-        </button>
-        <button
-          class="pane-action"
-          title="New shell in a pane below"
+        </AppIconButton>
+        <AppIconButton
+          label="New shell in a pane below"
+          size="sm"
           @click="addShellInNewPane(project, leaf.id, 'down')"
         >
           <svg
-            width="14"
-            height="14"
             viewBox="0 0 14 14"
             fill="none"
             stroke="currentColor"
@@ -451,17 +450,15 @@ onBeforeUnmount(() => {
             <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
             <path d="M1.5 7h11" />
           </svg>
-        </button>
+        </AppIconButton>
         <template v-if="activeTab && isDocumentTab(activeTab)">
           <span class="action-divider" />
-          <button
-            class="pane-action"
-            title="Read in a new shell"
+          <AppIconButton
+            label="Read in a new shell"
+            size="sm"
             @click="openInNewShell(project, leaf.id, activeTab.id)"
           >
             <svg
-              width="14"
-              height="14"
               viewBox="0 0 14 14"
               fill="none"
               stroke="currentColor"
@@ -471,15 +468,13 @@ onBeforeUnmount(() => {
             >
               <path d="M2.5 4.5l3 2.5-3 2.5M7 10h4.5" />
             </svg>
-          </button>
-          <button
-            class="pane-action"
-            :title="copiedTabId === activeTab.id ? 'Copied' : 'Copy path'"
+          </AppIconButton>
+          <AppIconButton
+            :icon="copiedTabId === activeTab.id ? 'check' : 'copy'"
+            :label="copiedTabId === activeTab.id ? 'Copied' : 'Copy path'"
+            size="sm"
             @click="copyPath(activeTab.id)"
-          >
-            <AppIcon v-if="copiedTabId === activeTab.id" name="check" :size="14" />
-            <AppIcon v-else name="copy" :size="14" />
-          </button>
+          />
         </template>
       </div>
     </div>
@@ -718,27 +713,6 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-3) var(--space-4) var(--space-2) 0;
-}
-
-.pane-action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.pane-action:hover {
-  background: var(--color-surface-1);
-  color: var(--color-fg-primary);
 }
 
 .action-divider {

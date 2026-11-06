@@ -327,7 +327,7 @@ async function decline(): Promise<void> {
       />
       <p v-if="viewNote" class="hint view-note">
         {{ viewNote }}
-        <AppButton :disabled="busy" @click="attachTerminal">Show here</AppButton>
+        <AppButton size="sm" :disabled="busy" @click="attachTerminal">Show here</AppButton>
       </p>
     </div>
     <div v-if="ask.reason" class="field-block">

@@ -12,8 +12,10 @@ import type {
 } from '../../../../preload/types'
 import {
   AppButton,
+  AppChip,
   AppConfirmButton,
   AppEmptyState,
+  AppIconButton,
   AppInput,
   type AppInputHandle,
   AppSwitcher
@@ -377,6 +379,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         <AppInput
           ref="filterInput"
           v-model="filterQuery"
+          size="sm"
           icon="search"
           class="find-input"
           placeholder="Filter rules"
@@ -387,7 +390,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         <span v-if="!isGlobal && filterQuery.trim()" class="find-count">
           {{ visibleRuleCount ? `${visibleRuleCount} rules` : 'No rules match' }}
         </span>
-        <button class="find-close" title="Close (Esc)" @click="closeFilter">&times;</button>
+        <AppIconButton icon="close" size="sm" label="Close (Esc)" @click="closeFilter" />
       </div>
       <p v-if="isGlobal" class="hint">
         Global blocks apply to every project. A project can exclude any of them.
@@ -450,24 +453,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         </div>
         <p v-if="binaryError" class="error-text">{{ binaryError }}</p>
         <div v-if="globalBinaries.length || binaries.length" class="chip-row">
-          <span
+          <AppChip
             v-for="name in globalBinaries"
             :key="`global-${name}`"
-            class="chip chip--global"
-            :class="{ 'chip--excluded': binaryExcluded(name) }"
+            tone="quiet"
+            tag="global"
+            :struck="binaryExcluded(name)"
+            :action-label="binaryExcluded(name) ? 'Include' : 'Exclude'"
+            @action="toggleBinaryExclude(name)"
           >
-            <span class="chip-text">{{ name }}</span>
-            <span class="chip-tag">global</span>
-            <button class="chip-action" @click="toggleBinaryExclude(name)">
-              {{ binaryExcluded(name) ? 'Include' : 'Exclude' }}
-            </button>
-          </span>
-          <span v-for="name in binaries" :key="name" class="chip">
             {{ name }}
-            <button class="chip-remove" :aria-label="`Remove ${name}`" @click="removeBinary(name)">
-              &times;
-            </button>
-          </span>
+          </AppChip>
+          <AppChip
+            v-for="name in binaries"
+            :key="name"
+            removable
+            :remove-label="`Remove ${name}`"
+            @remove="removeBinary(name)"
+          >
+            {{ name }}
+          </AppChip>
         </div>
       </div>
 
@@ -488,24 +493,26 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         </div>
         <p v-if="pathError" class="error-text">{{ pathError }}</p>
         <div v-if="globalPaths.length || paths.length" class="chip-row">
-          <span
+          <AppChip
             v-for="value in globalPaths"
             :key="`global-${value}`"
-            class="chip chip--global"
-            :class="{ 'chip--excluded': pathExcluded(value) }"
+            tone="quiet"
+            tag="global"
+            :struck="pathExcluded(value)"
+            :action-label="pathExcluded(value) ? 'Include' : 'Exclude'"
+            @action="togglePathExclude(value)"
           >
-            <span class="chip-text">{{ value }}</span>
-            <span class="chip-tag">global</span>
-            <button class="chip-action" @click="togglePathExclude(value)">
-              {{ pathExcluded(value) ? 'Include' : 'Exclude' }}
-            </button>
-          </span>
-          <span v-for="value in paths" :key="value" class="chip">
             {{ value }}
-            <button class="chip-remove" :aria-label="`Remove ${value}`" @click="removePath(value)">
-              &times;
-            </button>
-          </span>
+          </AppChip>
+          <AppChip
+            v-for="value in paths"
+            :key="value"
+            removable
+            :remove-label="`Remove ${value}`"
+            @remove="removePath(value)"
+          >
+            {{ value }}
+          </AppChip>
         </div>
       </div>
     </div>
@@ -597,20 +604,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
   font-variant-numeric: tabular-nums;
 }
 
-.find-close {
-  padding: 0 var(--space-1);
-  background: transparent;
-  border: none;
-  color: var(--color-fg-muted);
-  font-size: var(--text-md);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.find-close:hover {
-  color: var(--color-fg-primary);
-}
-
 .policy-group {
   display: flex;
   flex-direction: column;
@@ -676,59 +669,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px var(--space-2);
-  background: var(--color-surface-2);
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-primary);
-  font-size: var(--text-xs);
-}
-
-.chip--global {
-  background: var(--color-surface-3);
-}
-
-.chip--excluded .chip-text {
-  color: var(--color-fg-muted);
-  text-decoration: line-through;
-}
-
-.chip-tag {
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-}
-
-.chip-action {
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--color-amber);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.chip-action:hover {
-  text-decoration: underline;
-}
-
-.chip-remove {
-  background: transparent;
-  border: none;
-  color: var(--color-fg-muted);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  line-height: 1;
-  padding: 0;
-}
-
-.chip-remove:hover {
-  color: var(--color-fg-primary);
 }
 
 .error-text {

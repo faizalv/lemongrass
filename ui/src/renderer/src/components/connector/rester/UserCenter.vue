@@ -68,11 +68,12 @@ async function toggleAssignment(user: VaultResterUser, env: string): Promise<voi
       <span class="field-label">Users ({{ rester.Users.length }})</span>
       <AppInput
         v-model="search"
+        size="sm"
         icon="search"
         class="users-search"
         placeholder="Search name, handle or tag"
       />
-      <AppButton @click="openUser(null)">+ User</AppButton>
+      <AppButton size="sm" @click="openUser(null)">+ User</AppButton>
     </div>
 
     <p v-if="listError" class="error-text">{{ listError }}</p>
@@ -94,6 +95,7 @@ async function toggleAssignment(user: VaultResterUser, env: string): Promise<voi
         <AppCheckbox
           v-for="env in rester.Environments"
           :key="env.Name"
+          size="sm"
           :checked="assigned(user, env.Name)"
           :disabled="busyUser !== null"
           @click="toggleAssignment(user, env.Name)"

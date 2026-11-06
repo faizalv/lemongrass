@@ -47,13 +47,15 @@ watch(
     <p v-else-if="joining.error" class="error">{{ joining.error }}</p>
     <template #footer>
       <template v-if="joining.notice">
-        <AppButton ref="cancelButton" variant="primary" @click="closeJoin">Close</AppButton>
+        <AppButton ref="cancelButton" variant="primary" size="md" @click="closeJoin">
+          Close
+        </AppButton>
       </template>
       <template v-else>
-        <AppButton ref="cancelButton" :disabled="joining.busy" @click="closeJoin">
+        <AppButton ref="cancelButton" size="md" :disabled="joining.busy" @click="closeJoin">
           Cancel
         </AppButton>
-        <AppButton variant="primary" :disabled="joining.busy" @click="confirmJoin">
+        <AppButton variant="primary" size="md" :disabled="joining.busy" @click="confirmJoin">
           {{ joining.busy ? 'Adding...' : 'Approve' }}
         </AppButton>
       </template>

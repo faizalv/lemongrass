@@ -9,7 +9,14 @@
 import { computed, ref, watch } from 'vue'
 import type { Ask, VaultHTTPChannelWithShortId, VaultRester } from '../../../../preload/types'
 import { describeError, vaultSession } from '../../vaultSession'
-import { AppButton, AppCheckbox, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
+import {
+  AppButton,
+  AppCheckbox,
+  AppIconButton,
+  AppInput,
+  AppSegmented,
+  AppSwitcher
+} from '@sankasten'
 
 const props = defineProps<{
   ask: Ask
@@ -230,14 +237,11 @@ async function approve(): Promise<void> {
               @select="(m) => (ex.method = m)"
             />
             <AppInput v-model="ex.pathPattern" type="text" placeholder="/users/*/change-password" />
-            <button
-              type="button"
-              class="chip-remove"
-              :aria-label="`Remove exclusion ${ex.method} ${ex.pathPattern}`"
+            <AppIconButton
+              icon="close"
+              :label="`Remove exclusion ${ex.method} ${ex.pathPattern}`"
               @click="removeExclusion(i)"
-            >
-              ×
-            </button>
+            />
           </div>
           <AppButton type="button" @click="addExclusion">+ Exclusion</AppButton>
         </div>

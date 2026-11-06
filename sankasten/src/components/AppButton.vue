@@ -9,7 +9,8 @@ withDefaults(
     // text is frameless, for a secondary action in a toolbar or a row. tone colors text and
     // ghost; the other variants carry their own color. pressed marks a toggle that is on.
     variant?: 'primary' | 'ghost' | 'danger' | 'text'
-    size?: 'sm' | 'md'
+    // xs only for an action inside a list, tree or menu row.
+    size?: 'xs' | 'sm' | 'md'
     tone?: 'neutral' | 'accent' | 'info' | 'success' | 'danger'
     pressed?: boolean
   }>(),
@@ -60,6 +61,11 @@ defineExpose({ focus: () => el.value?.focus() })
 .app-button--sm {
   height: var(--control-h-sm);
   padding: 0 var(--space-3);
+}
+
+.app-button--xs {
+  height: var(--control-h-xs);
+  padding: 0 var(--space-2);
 }
 
 .app-button:focus-visible {

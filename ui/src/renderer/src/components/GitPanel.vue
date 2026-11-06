@@ -2,7 +2,15 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppButton, AppCheckbox, AppEmptyState, AppIcon, AppTextarea } from '@sankasten'
+import {
+  AppButton,
+  AppCheckbox,
+  AppDisclosure,
+  AppEmptyState,
+  AppIconButton,
+  AppNavItem,
+  AppTextarea
+} from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   commitChanges,
@@ -205,40 +213,40 @@ watch(() => props.project.id, refresh)
 
 <template>
   <div class="git-panel">
-    <button
-      class="git-item"
-      :class="{ open: !state.folded, conflict: conflictMode }"
-      :aria-expanded="!state.folded"
+    <AppNavItem
+      size="sm"
+      label="Git"
+      :state="status?.branch ?? undefined"
+      :active="!state.folded"
+      :tone="conflictMode ? 'danger' : 'neutral'"
+      :count="files.length"
+      :expanded="!state.folded"
       @click="state.folded = !state.folded"
     >
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="4" cy="3" r="1.5" />
-        <circle cx="4" cy="11" r="1.5" />
-        <circle cx="10.5" cy="5.5" r="1.5" />
-        <path d="M4 4.5v5M10.5 7c0 2.2-2.2 2.9-6 3.2" />
-      </svg>
-      <span class="git-label">Git</span>
-      <span v-if="status?.branch" class="git-branch" :title="status.branch">{{
-        status.branch
-      }}</span>
+      <template #icon>
+        <svg
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="4" cy="3" r="1.5" />
+          <circle cx="4" cy="11" r="1.5" />
+          <circle cx="10.5" cy="5.5" r="1.5" />
+          <path d="M4 4.5v5M10.5 7c0 2.2-2.2 2.9-6 3.2" />
+        </svg>
+      </template>
       <!-- Unfolded, the branch row below shows these beside Fetch and Push instead. -->
-      <GitCounts
-        v-if="state.folded && status?.isRepo"
-        :ahead="status.ahead"
-        :behind="status.behind"
-      />
-      <span v-if="files.length" class="git-count">{{ files.length }}</span>
-      <AppIcon class="git-chevron" name="chevronRight" :size="10" />
-    </button>
+      <template #trailing>
+        <GitCounts
+          v-if="state.folded && status?.isRepo"
+          :ahead="status.ahead"
+          :behind="status.behind"
+        />
+      </template>
+    </AppNavItem>
 
     <div v-if="!state.folded && conflictMode" class="git-body">
       <GitConflictPanel :project="project" />
@@ -250,37 +258,44 @@ watch(() => props.project.id, refresh)
         <GitCounts :ahead="status.ahead" :behind="status.behind" />
       </GitBranchMenu>
       <div v-if="status?.isRepo" class="remote-line">
-        <button class="history-open" @click="openHistory(project)">
+        <AppButton variant="text" size="sm" class="history-open" @click="openHistory(project)">
           <GitIcon class="row-icon" name="open" />
-          <span>History</span>
-        </button>
+          History
+        </AppButton>
         <span class="remote-spacer" />
-        <button
-          class="remote-icon fetch"
-          :disabled="state.busy !== null"
-          :title="fetchTitle"
-          :aria-label="fetchTitle"
+        <!-- Fetch matches the blue behind count and Push the green ahead count. While one runs it
+             stays enabled so its spinner shows at full strength; busy holds back its clicks. -->
+        <AppIconButton
+          size="sm"
+          variant="tinted"
+          tone="info"
+          :label="fetchTitle"
+          :busy="state.busy === 'fetch'"
+          :disabled="state.busy !== null && state.busy !== 'fetch'"
           @click="fetchRemotes"
         >
-          <GitIcon v-if="state.busy === 'fetch'" class="spin" name="spinner" />
-          <GitIcon v-else name="fetch" />
-        </button>
-        <button
-          class="remote-icon push"
-          :disabled="state.busy !== null || pushOnlyBlockedReason !== null"
-          :title="pushOnlyTitle"
-          :aria-label="pushOnlyTitle"
+          <GitIcon name="fetch" />
+        </AppIconButton>
+        <AppIconButton
+          size="sm"
+          variant="tinted"
+          tone="success"
+          :label="pushOnlyTitle"
+          :busy="state.busy === 'push'"
+          :disabled="
+            (state.busy !== null && state.busy !== 'push') || pushOnlyBlockedReason !== null
+          "
           @click="push"
         >
-          <GitIcon v-if="state.busy === 'push'" class="spin" name="spinner" />
-          <GitIcon v-else name="push" />
-        </button>
+          <GitIcon name="push" />
+        </AppIconButton>
       </div>
       <p v-if="rowError" class="git-error">{{ rowError }}</p>
       <p v-if="rowNotice" class="git-notice">{{ rowNotice }}</p>
       <div class="changes-head">
         <AppCheckbox
           v-if="files.length > 0"
+          size="sm"
           class="file-check"
           title="Select all"
           aria-label="Select all changes"
@@ -299,23 +314,17 @@ watch(() => props.project.id, refresh)
         <AppEmptyState v-if="files.length === 0" size="sm" title="No changes" />
         <div v-else class="file-list">
           <section v-for="group in groups" :key="group.id" class="file-group">
-            <button
-              class="group-head"
-              :aria-expanded="!state.foldedGroups.includes(group.id)"
-              @click="toggleGroupFold(project.id, group.id)"
-            >
-              <AppIcon
-                class="group-chevron"
-                :class="{ open: !state.foldedGroups.includes(group.id) }"
-                name="chevronRight"
-                :size="9"
-              />
-              <span>{{ group.label }}</span>
-              <span class="group-count">{{ group.files.length }}</span>
-            </button>
+            <AppDisclosure
+              block
+              :label="group.label"
+              :count="group.files.length"
+              :open="!state.foldedGroups.includes(group.id)"
+              @update:open="toggleGroupFold(project.id, group.id)"
+            />
             <ul v-if="!state.foldedGroups.includes(group.id)" class="group-files">
               <li v-for="file in group.files" :key="file.path" class="file-item">
                 <AppCheckbox
+                  size="sm"
                   class="file-check"
                   :aria-label="`Include ${file.path} in the commit`"
                   :checked="isChecked(project.id, file.path)"
@@ -348,6 +357,7 @@ watch(() => props.project.id, refresh)
         <p v-if="hint" class="git-hint">{{ hint }}</p>
         <div class="git-actions">
           <AppButton
+            size="sm"
             class="git-action"
             :disabled="!canCommit"
             @click="commitChanges(project, false)"
@@ -356,6 +366,7 @@ watch(() => props.project.id, refresh)
           </AppButton>
           <AppButton
             variant="primary"
+            size="sm"
             class="git-action"
             :disabled="!canPush"
             :title="pushTitle"
@@ -396,81 +407,6 @@ watch(() => props.project.id, refresh)
   border-top: 1px solid var(--color-border-default);
 }
 
-.git-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--layer-raised);
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.git-item:hover {
-  background: var(--layer-raised-hover);
-}
-
-.git-item.open {
-  background: var(--color-amber-muted);
-  color: var(--color-fg-accent);
-}
-
-.git-item.conflict,
-.git-item.conflict:hover {
-  background: var(--color-error-muted);
-  color: var(--color-error);
-}
-
-.git-item.conflict .git-count {
-  background: var(--color-error);
-}
-
-.git-label {
-  flex-shrink: 0;
-}
-
-.git-branch {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-fg-secondary);
-  font-weight: var(--weight-regular);
-  text-align: left;
-}
-
-.git-count {
-  flex-shrink: 0;
-  min-width: 18px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-amber);
-  color: var(--color-black);
-  font-size: 11px;
-  line-height: 18px;
-  text-align: center;
-}
-
-.git-chevron {
-  flex-shrink: 0;
-  margin-left: auto;
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.git-item.open .git-chevron {
-  transform: rotate(90deg);
-}
-
 .git-body {
   display: flex;
   flex-direction: column;
@@ -491,62 +427,8 @@ watch(() => props.project.id, refresh)
   flex: 1;
 }
 
-.remote-icon {
-  --tint: var(--color-fg-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  padding: 0;
-  background: color-mix(in srgb, var(--tint) 14%, transparent);
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--tint);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-/* Fetch matches the blue behind count and Push the green ahead count. */
-.remote-icon.fetch {
-  --tint: var(--color-info);
-}
-
-.remote-icon.push {
-  --tint: var(--color-success);
-}
-
-.remote-icon:hover:not(:disabled),
-.remote-icon:focus-visible:not(:disabled) {
-  background: color-mix(in srgb, var(--tint) 28%, transparent);
-}
-
-.remote-icon:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.remote-icon:has(.spin) {
-  opacity: 1;
-}
-
 .history-open {
-  display: flex;
-  align-items: center;
   gap: 6px;
-  padding: 3px var(--space-2);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.history-open:hover {
-  background: var(--color-surface-2);
 }
 
 .row-icon {
@@ -561,7 +443,7 @@ watch(() => props.project.id, refresh)
   white-space: nowrap;
 }
 
-.history-open:hover .row-icon,
+.history-open:hover:not(:disabled) .row-icon,
 .history-open:focus-visible .row-icon {
   color: var(--color-fg-accent);
 }
@@ -585,10 +467,8 @@ watch(() => props.project.id, refresh)
   font-size: var(--text-xs);
 }
 
-/* The panel rows are compact, so the checkbox drops its own vertical padding. */
 .file-check {
   flex-shrink: 0;
-  padding: 0;
 }
 
 .file-item {
@@ -602,39 +482,6 @@ watch(() => props.project.id, refresh)
   flex-shrink: 0;
   max-height: 180px;
   overflow-y: auto;
-}
-
-.group-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 3px var(--space-2);
-  background: transparent;
-  border: none;
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-}
-
-.group-head:hover {
-  color: var(--color-fg-primary);
-}
-
-.group-chevron {
-  flex-shrink: 0;
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.group-chevron.open {
-  transform: rotate(90deg);
-}
-
-.group-count {
-  color: var(--color-fg-muted);
-  font-weight: var(--weight-regular);
 }
 
 .group-files {
@@ -752,9 +599,8 @@ watch(() => props.project.id, refresh)
   padding-bottom: var(--space-1);
 }
 
-/* The two actions split the narrow sidebar evenly, so they take less side padding than elsewhere. */
+/* The two actions split the narrow sidebar evenly. */
 .git-actions .git-action {
   flex: 1;
-  padding: var(--space-1) var(--space-2);
 }
 </style>

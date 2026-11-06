@@ -231,9 +231,10 @@ function laneX(lane: number): number {
         placeholder="Search commits"
         aria-label="Search commits"
       />
-      <AppSegmented v-model="mode" aria-label="Search by" :options="SEARCH_MODES" />
+      <AppSegmented v-model="mode" size="sm" aria-label="Search by" :options="SEARCH_MODES" />
       <AppButton
         variant="primary"
+        size="sm"
         :disabled="pushBlockedReason !== null"
         :title="pushBlockedReason ?? `Push ${status?.branch} to ${status?.pushTarget}`"
         @click="push"
@@ -347,6 +348,7 @@ function laneX(lane: number): number {
             </p>
             <AppSegmented
               v-model="detailMode"
+              size="sm"
               aria-label="Show"
               :options="[
                 { value: 'diff', label: 'Diff' },

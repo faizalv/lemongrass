@@ -80,7 +80,7 @@ import type {
   GitLineRange,
   WorkgroupThreadMessage
 } from '../../../../preload/types'
-import { AppButton, AppMenuButton, AppModal, type MenuItem } from '@sankasten'
+import { AppButton, AppIconButton, AppMenuButton, AppModal, type MenuItem } from '@sankasten'
 import ConflictIcon from './ConflictIcon.vue'
 import { CONFLICT_ICONS } from '../../conflictIcons'
 
@@ -724,55 +724,55 @@ onBeforeUnmount(() => {
     <div ref="toolbarEl" class="toolbar">
       <slot name="picker" />
       <div class="nav">
-        <button
-          type="button"
-          class="bar-icon"
-          title="Previous conflict"
-          aria-label="Previous conflict"
+        <AppIconButton
+          size="sm"
+          tone="accent"
+          label="Previous conflict"
           :disabled="!conflictIndexes.length"
           @click="step(-1)"
         >
           <ConflictIcon name="prev" />
-        </button>
+        </AppIconButton>
         <span class="counter">{{ counterText }}</span>
-        <button
-          type="button"
-          class="bar-icon"
-          title="Next conflict"
-          aria-label="Next conflict"
+        <AppIconButton
+          size="sm"
+          tone="accent"
+          label="Next conflict"
           :disabled="!conflictIndexes.length"
           @click="step(1)"
         >
           <ConflictIcon name="next" />
-        </button>
+        </AppIconButton>
       </div>
       <span v-if="statusText" class="status" :title="statusTitle">{{ statusText }}</span>
-      <button
+      <AppButton
         v-if="proposalMode && proposedLeft > 0 && !narrow"
         type="button"
+        variant="text"
+        tone="success"
+        size="sm"
         class="accept-all"
         title="Keep the model's text for every conflict it proposed in this file"
         @click="accept('all')"
       >
         Accept all
-      </button>
+      </AppButton>
       <span class="spacer" />
-      <button
-        type="button"
-        class="bar-icon"
-        :class="{ on: focus }"
-        :aria-pressed="focus"
-        :title="focus ? 'Show every line' : 'Hide the lines that need no merging'"
-        :aria-label="focus ? 'Show every line' : 'Hide the lines that need no merging'"
+      <AppIconButton
+        size="sm"
+        tone="accent"
+        :pressed="focus"
+        :label="focus ? 'Show every line' : 'Hide the lines that need no merging'"
         @click="toggleFocus"
       >
         <ConflictIcon name="focus" />
-      </button>
-      <AppMenuButton :items="menuItems" label="Whole-file actions" @select="onMenu">
+      </AppIconButton>
+      <AppMenuButton size="sm" :items="menuItems" label="Whole-file actions" @select="onMenu">
         <ConflictIcon name="more" />
       </AppMenuButton>
       <AppButton
         variant="primary"
+        size="sm"
         class="apply"
         :title="applyBlocked ?? 'Write the middle to the file and mark it resolved'"
         :disabled="applyBlocked !== null"
@@ -862,57 +862,8 @@ onBeforeUnmount(() => {
   color: var(--color-fg-muted);
 }
 
-/* Bare icons, as in the git panel: muted, accent on hover and keyboard focus, lit while on. */
-.bar-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 3px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
-  cursor: pointer;
-}
-
-.bar-icon:hover:not(:disabled),
-.bar-icon:focus-visible,
-.bar-icon.on {
-  color: var(--color-fg-accent);
-}
-
-.bar-icon:focus-visible {
-  outline: 1px solid var(--color-amber);
-}
-
-.bar-icon:disabled {
-  color: var(--color-fg-disabled);
-  cursor: default;
-}
-
-/* Frameless jade text, the go action for every proposal at once. */
 .accept-all {
   flex-shrink: 0;
-  padding: 1px 4px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-jade);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.accept-all:hover,
-.accept-all:focus-visible {
-  background: var(--color-jade-muted);
-}
-
-.accept-all:focus-visible {
-  outline: 1px solid var(--color-amber);
 }
 
 .toolbar .apply {

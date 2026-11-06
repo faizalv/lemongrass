@@ -167,6 +167,7 @@ watch(
               <AppSegmented
                 v-model="approvals.accounts[selected.requestId][index]"
                 :options="accountOptions"
+                size="md"
                 :aria-labelledby="`account-${selected.requestId}-${index}`"
               />
             </div>
@@ -194,6 +195,7 @@ watch(
         <footer class="action-bar">
           <AppButton
             ref="declineButton"
+            size="md"
             :disabled="approvals.busy"
             @click="onDecline(selected.requestId)"
           >
@@ -201,6 +203,7 @@ watch(
           </AppButton>
           <AppButton
             variant="primary"
+            size="md"
             :disabled="approvals.busy"
             @click="decideApproval(selected.requestId, true)"
           >

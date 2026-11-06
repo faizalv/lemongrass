@@ -6,8 +6,8 @@
 // AppSwitcher cannot hold. The dropdown renders in body for the same reason AppSwitcher's does.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  AppConfirmButton,
   AppIcon,
+  AppIconButton,
   AppInput,
   type AppInputHandle,
   placeFloat,
@@ -161,7 +161,7 @@ onBeforeUnmount(() => {
     <button
       ref="triggerRef"
       type="button"
-      class="trigger"
+      class="sk-plain-trigger sk-plain-trigger--sm"
       :aria-expanded="open"
       @click="toggleOpen"
     >
@@ -182,6 +182,7 @@ onBeforeUnmount(() => {
           v-model="query"
           class="search"
           icon="search"
+          size="sm"
           spellcheck="false"
           placeholder="Search projects"
           @keydown.down.prevent="move(1)"
@@ -214,26 +215,27 @@ onBeforeUnmount(() => {
               </span>
               <span class="project-path">{{ parentLabel(project.path) }}</span>
             </button>
-            <span
+            <AppIconButton
               v-if="deleteRefusal(project.id)"
-              class="delete-slot"
+              class="delete"
+              icon="trash"
+              label="Delete project"
+              size="xs"
               :title="deleteRefusal(project.id)"
-            >
-              <button type="button" class="delete" disabled :aria-label="deleteRefusal(project.id)">
-                <AppIcon name="trash" :size="16" />
-              </button>
-            </span>
-            <AppConfirmButton
+              disabled
+            />
+            <AppIconButton
               v-else
               :key="project.id"
               class="delete"
-              title="Delete project"
-              aria-label="Delete project"
+              icon="trash"
+              label="Delete project"
+              size="xs"
+              tone="danger"
+              confirm
               confirm-label="Click again to delete. The folder is not touched, and lemongrass keeps its data for 30 days."
               @confirm="remove(project.id)"
-            >
-              <AppIcon name="trash" :size="16" />
-            </AppConfirmButton>
+            />
           </div>
           <p v-if="projects.length === 0" class="sk-menu-empty">No projects yet.</p>
           <p v-else-if="shown.length === 0" class="sk-menu-empty">No match.</p>
@@ -250,31 +252,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .project-switcher {
   position: relative;
-}
-
-.trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.trigger:hover,
-.trigger[aria-expanded='true'] {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
-}
-
-.trigger .sk-trigger-caret {
-  margin-left: 0;
 }
 
 .trigger-label {
@@ -389,38 +366,15 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.delete-slot {
-  display: inline-flex;
-}
-
 /* Shown only on the row under the pointer or keyboard; hidden keeps its space, so the path's width
-   never jumps. Padding gives the confirm's progress bar and armed background room around the glyph. */
+   never jumps. */
 .delete {
-  flex-shrink: 0;
-  display: inline-flex;
-  padding: 4px;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
   visibility: hidden;
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .project-row.is-highlighted .delete,
 .project-row:focus-within .delete {
   visibility: visible;
-}
-
-.delete:hover:not(:disabled),
-.delete:focus-visible:not(:disabled) {
-  color: var(--color-error);
-}
-
-.project-row .delete:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .add-item {

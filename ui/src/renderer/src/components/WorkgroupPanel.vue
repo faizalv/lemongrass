@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppEmptyState, AppIcon } from '@sankasten'
+import { AppBadge, AppEmptyState, AppNavItem } from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { openApprovals, pendingFor, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import {
@@ -59,45 +59,36 @@ watch(() => liveShellCount(props.project.id), refresh)
 
 <template>
   <div class="workgroup-panel">
-    <button
-      class="wg-item"
-      :class="{ open: !state.folded }"
-      :aria-expanded="!state.folded"
+    <AppNavItem
+      label="Workgroup"
+      size="sm"
+      :active="!state.folded"
+      :expanded="!state.folded"
+      :count="groups.length"
+      :alert="waiting.length > 0 ? 'A workgroup is waiting for your approval' : undefined"
       @click="state.folded = !state.folded"
     >
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <circle cx="7" cy="3.5" r="1.7" />
-        <circle cx="3" cy="10.5" r="1.7" />
-        <circle cx="11" cy="10.5" r="1.7" />
-        <path d="M6 5l-2 4M8 5l2 4M4.7 10.5h4.6" />
-      </svg>
-      <span class="wg-label">Workgroup</span>
-      <span v-if="groups.length > 0" class="wg-count">{{ groups.length }}</span>
-      <span
-        v-if="waiting.length > 0"
-        class="wg-alert"
-        role="img"
-        aria-label="Action needed"
-        title="A workgroup is waiting for your approval"
-      >
-        !
-      </span>
-      <AppIcon class="wg-chevron" name="chevronRight" :size="10" />
-    </button>
+      <template #icon>
+        <svg
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="7" cy="3.5" r="1.7" />
+          <circle cx="3" cy="10.5" r="1.7" />
+          <circle cx="11" cy="10.5" r="1.7" />
+          <path d="M6 5l-2 4M8 5l2 4M4.7 10.5h4.6" />
+        </svg>
+      </template>
+    </AppNavItem>
 
     <div v-if="!state.folded" class="wg-body">
       <button v-if="waiting.length > 0" class="wg-row waiting" @click="openApprovals()">
         <span class="wg-row-name">Waiting approval</span>
-        <span class="wg-count">{{ waiting.length }}</span>
+        <AppBadge>{{ waiting.length }}</AppBadge>
       </button>
       <button
         v-for="group in groups"
@@ -127,72 +118,6 @@ watch(() => liveShellCount(props.project.id), refresh)
   flex-shrink: 0;
   padding: var(--space-2);
   border-top: 1px solid var(--color-border-default);
-}
-
-.wg-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--layer-raised);
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.wg-item:hover {
-  background: var(--layer-raised-hover);
-}
-
-.wg-item.open {
-  background: var(--color-amber-muted);
-  color: var(--color-fg-accent);
-}
-
-.wg-label {
-  flex-shrink: 0;
-}
-
-.wg-count {
-  flex-shrink: 0;
-  min-width: 18px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-amber);
-  color: var(--color-black);
-  font-size: 11px;
-  line-height: 18px;
-  text-align: center;
-}
-
-.wg-chevron {
-  flex-shrink: 0;
-  margin-left: auto;
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.wg-item.open .wg-chevron {
-  transform: rotate(90deg);
-}
-
-.wg-alert {
-  flex-shrink: 0;
-  width: 18px;
-  border-radius: var(--radius-pill);
-  background: var(--color-error);
-  color: var(--color-black);
-  font-size: 11px;
-  font-weight: var(--weight-bold);
-  line-height: 18px;
-  text-align: center;
 }
 
 .wg-body {

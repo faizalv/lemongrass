@@ -18,7 +18,7 @@ const props = withDefaults(
     // error for a destructive action; jade for a go action such as starting a task.
     tone?: 'error' | 'jade'
     // Passed to AppButton; a bare root (no variant) takes its size from the caller.
-    size?: 'sm' | 'md'
+    size?: 'xs' | 'sm' | 'md'
   }>(),
   { confirmLabel: 'Click again', variant: undefined, tone: 'error', size: 'md' }
 )

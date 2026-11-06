@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppButton, AppInput, AppSegmented } from '@sankasten'
+import { AppButton, AppIconButton, AppInput, AppSegmented } from '@sankasten'
 import FilePick from './FilePick.vue'
 import type { ResterClientPart, ResterClientPickedFile } from '../../../../preload/types'
 
@@ -28,11 +28,12 @@ function picked(part: ResterClientPart, file: ResterClientPickedFile): void {
   <div class="parts">
     <p class="hint">Sent as multipart form data: text fields first, then files in row order.</p>
     <div v-for="(part, i) in parts" :key="i" class="part">
-      <AppInput v-model="part.name" type="text" placeholder="field" spellcheck="false" />
-      <AppSegmented v-model="part.kind" :options="kinds" aria-label="Field kind" />
+      <AppInput v-model="part.name" size="sm" type="text" placeholder="field" spellcheck="false" />
+      <AppSegmented v-model="part.kind" size="sm" :options="kinds" aria-label="Field kind" />
       <AppInput
         v-if="part.kind === 'text'"
         v-model="part.value"
+        size="sm"
         class="value"
         type="text"
         placeholder="value"
@@ -42,15 +43,16 @@ function picked(part: ResterClientPart, file: ResterClientPickedFile): void {
         <FilePick :path="part.path" :size="part.size" @picked="picked(part, $event)" />
         <AppInput
           v-model="part.contentType"
+          size="sm"
           class="type"
           type="text"
           placeholder="type from extension"
           spellcheck="false"
         />
       </div>
-      <button type="button" class="remove" title="Remove" @click="parts.splice(i, 1)">×</button>
+      <AppIconButton icon="close" size="sm" label="Remove" @click="parts.splice(i, 1)" />
     </div>
-    <AppButton class="add" @click="add">+ Field</AppButton>
+    <AppButton class="add" size="sm" @click="add">+ Field</AppButton>
   </div>
 </template>
 
@@ -68,28 +70,12 @@ function picked(part: ResterClientPart, file: ResterClientPickedFile): void {
   align-items: center;
 }
 
+/* The type input keeps a fixed width so the file picker beside it is never cut off. */
 .file {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 150px);
+  grid-template-columns: minmax(0, 1fr) 150px;
   gap: var(--space-2);
   align-items: center;
-}
-
-.remove {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
-  font-size: var(--text-md);
-  cursor: pointer;
-}
-
-.remove:hover {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
 }
 
 .add {

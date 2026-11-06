@@ -2,7 +2,15 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppButton, AppIcon, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
+import {
+  AppButton,
+  AppDisclosure,
+  AppIcon,
+  AppIconButton,
+  AppInput,
+  AppSegmented,
+  AppSwitcher
+} from '@sankasten'
 import { computed, ref } from 'vue'
 import type { VaultRester } from '../../../../../preload/types'
 import { fieldKeys, type CommitRester } from './resterDraft'
@@ -113,16 +121,15 @@ async function turnOff(): Promise<void> {
 
 <template>
   <div class="inline-section">
-    <button type="button" class="settings-toggle" :aria-expanded="open" @click="toggle">
-      <span class="settings-chevron" :class="{ expanded: open }">▸</span>
-      Web side
+    <div class="settings-toggle">
+      <AppDisclosure :open="open" label="Web side" @update:open="toggle" />
       <span class="status-capsule" :class="{ 'status-open': rester.Web }">
         {{ rester.Web ? 'On' : 'Off' }}
       </span>
       <span v-if="rester.Web && !open" class="settings-summary">
         {{ (rester.Web.Login ?? []).length }} login steps
       </span>
-    </button>
+    </div>
 
     <div v-if="open" class="settings-body">
       <p v-if="!rester.Web" class="hint">Saving turns the web side on for this rester.</p>
@@ -161,14 +168,7 @@ async function turnOff(): Promise<void> {
             :aria-label="`Action of step ${index + 1}`"
           />
           <span class="toolbar-fill"></span>
-          <button
-            type="button"
-            class="chip-remove"
-            title="Remove step"
-            @click="removeStep(steps, index)"
-          >
-            ×
-          </button>
+          <AppIconButton icon="close" label="Remove step" @click="removeStep(steps, index)" />
         </div>
 
         <AppInput

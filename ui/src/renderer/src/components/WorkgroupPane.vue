@@ -218,7 +218,9 @@ onBeforeUnmount(() => clearInterval(timer))
             />
           </div>
         </div>
-        <AppButton v-if="live" variant="danger" @click="confirming = true">Disband</AppButton>
+        <AppButton v-if="live" variant="danger" size="sm" @click="confirming = true">
+          Disband
+        </AppButton>
       </header>
 
       <p v-if="state.error" class="pane-error">{{ state.error }}</p>
@@ -244,9 +246,15 @@ onBeforeUnmount(() => clearInterval(timer))
       <div class="thread">
         <h3 class="thread-title">Thread</h3>
         <div ref="scroller" class="thread-scroll">
-          <button v-if="more" class="older-button" :disabled="loadingOlder" @click="loadOlder">
+          <AppButton
+            v-if="more"
+            class="older-button"
+            size="sm"
+            :disabled="loadingOlder"
+            @click="loadOlder"
+          >
             {{ loadingOlder ? 'Loading...' : 'Load earlier messages' }}
-          </button>
+          </AppButton>
           <p v-if="threadError" class="pane-error">{{ threadError }}</p>
           <AppEmptyState v-else-if="messages.length === 0" title="No messages yet." />
           <article
@@ -279,10 +287,12 @@ onBeforeUnmount(() => clearInterval(timer))
     >
       <p>Its tabs stay open and its thread stays readable.</p>
       <template #footer>
-        <AppButton ref="cancelButton" :disabled="state.busy" @click="confirming = false">
+        <AppButton ref="cancelButton" size="md" :disabled="state.busy" @click="confirming = false">
           Cancel
         </AppButton>
-        <AppButton variant="danger" :disabled="state.busy" @click="onDisband">Disband</AppButton>
+        <AppButton variant="danger" size="md" :disabled="state.busy" @click="onDisband">
+          Disband
+        </AppButton>
       </template>
     </AppModal>
   </div>
@@ -468,19 +478,6 @@ onBeforeUnmount(() => clearInterval(timer))
 
 .older-button {
   align-self: center;
-  padding: var(--space-1) var(--space-3);
-  background: transparent;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.older-button:hover:not(:disabled) {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
 }
 
 .message {

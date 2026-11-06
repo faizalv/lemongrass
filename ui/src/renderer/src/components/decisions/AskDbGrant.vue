@@ -9,7 +9,7 @@
 import { computed, ref, watch } from 'vue'
 import type { Ask, AskDeclineExtra, VaultChannelWithShortId } from '../../../../preload/types'
 import { describeError, vaultSession } from '../../vaultSession'
-import { AppButton, AppCheckbox, AppInfoPopover, AppInput, AppSwitcher } from '@sankasten'
+import { AppButton, AppCheckbox, AppChip, AppInfoPopover, AppInput, AppSwitcher } from '@sankasten'
 
 const props = defineProps<{
   ask: Ask
@@ -70,7 +70,10 @@ function capsuleState(table: string): CapsuleState {
   return tablesByLower.value.has(table.toLowerCase()) ? 'found' : 'missing'
 }
 
-function capsuleTone(table: string): string {
+// A missing table is red, a found one green, and one still being checked stays quiet.
+const CHIP_TONES = { missing: 'danger', checking: 'quiet', found: 'success' } as const
+
+function capsuleTone(table: string): 'missing' | 'checking' | 'found' {
   const state = capsuleState(table)
   return state === 'unchecked' ? UNCHECKED_TONE : state
 }
@@ -235,29 +238,24 @@ watch(remaining, (tables) => {
         <div class="field-block">
           <span class="field-label">Tables</span>
           <div class="capsule-row">
-            <span
+            <AppChip
               v-for="table in remaining"
               :key="table"
               class="capsule"
-              :class="`capsule--${capsuleTone(table)}`"
+              mono
+              :tone="CHIP_TONES[capsuleTone(table)]"
               tabindex="0"
               :aria-describedby="hintTable === table ? hintId : undefined"
+              :removable="capsuleState(table) === 'missing'"
+              :remove-label="`Remove table ${table}`"
+              @remove="removeTable(table)"
               @mouseenter="showHint(table, $event)"
               @mouseleave="hideHint"
               @focusin="showHint(table, $event)"
               @focusout="hideHint"
             >
               {{ table }}
-              <button
-                v-if="capsuleState(table) === 'missing'"
-                type="button"
-                class="capsule-remove"
-                :aria-label="`Remove table ${table}`"
-                @click="removeTable(table)"
-              >
-                ×
-              </button>
-            </span>
+            </AppChip>
           </div>
           <AppInfoPopover :id="hintId" :anchor="hintAnchor">
             {{ hintTable ? capsuleHint(hintTable) : '' }}
@@ -318,53 +316,12 @@ watch(remaining, (tables) => {
 }
 
 .capsule {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-pill);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
   outline: none;
-  transition:
-    background var(--duration-fast) var(--ease-default),
-    color var(--duration-fast) var(--ease-default);
 }
 
 .capsule:focus-visible {
   outline: 1px solid var(--color-amber);
   outline-offset: 1px;
-}
-
-.capsule--missing {
-  background: var(--color-error-muted);
-  color: var(--color-error);
-}
-
-.capsule--checking {
-  background: var(--color-surface-3);
-  color: var(--color-fg-secondary);
-}
-
-.capsule--found {
-  background: var(--color-jade-muted);
-  color: var(--color-jade);
-}
-
-.capsule-remove {
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: inherit;
-  font-size: var(--text-sm);
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0.7;
-}
-
-.capsule-remove:hover,
-.capsule-remove:focus-visible {
-  opacity: 1;
 }
 
 .op-box:disabled {

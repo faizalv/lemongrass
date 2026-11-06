@@ -64,7 +64,7 @@ onMounted(load)
 <template>
   <div class="section rester-detail">
     <div class="section-toolbar">
-      <AppButton @click="emit('close')">All resters</AppButton>
+      <AppButton size="sm" @click="emit('close')">All resters</AppButton>
       <h4 class="inline-section-title rester-title">{{ name }}</h4>
     </div>
 

@@ -3,7 +3,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
+import { AppButton, AppEmptyState, AppIcon, AppIconButton, AppInput, AppSwitcher } from '@sankasten'
+import '../../resterClient.css'
 import VaultUnlockGate from '../VaultUnlockGate.vue'
 import RequestList from './RequestList.vue'
 import RequestEditor from './RequestEditor.vue'
@@ -33,6 +34,13 @@ import { resterClientIcon } from '../../icons'
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 // Where the last selected request is remembered, so reopening the app shows it again.
 const SELECTED_KEY = 'resterClient.selectedId'
+// Where the Request box's share of the split and the minimized box are remembered.
+const SPLIT_KEY = 'resterClient.split'
+const COLLAPSED_KEY = 'resterClient.collapsed'
+// Each box keeps this width while both are open, so a drag can never squeeze one away.
+const BOX_MIN_PX = 280
+
+type Box = 'request' | 'response'
 
 interface Outcome {
   result: ResterClientResult | null
@@ -55,6 +63,59 @@ const outcomes = reactive<Record<string, Outcome>>({})
 const runs = computed(() =>
   selectedId.value ? (resterClientStore.histories[selectedId.value] ?? []) : []
 )
+
+function storedSplit(): number {
+  const value = Number(localStorage.getItem(SPLIT_KEY))
+  return value > 0 && value < 1 ? value : 0.5
+}
+
+function storedCollapsed(): Box | null {
+  const value = localStorage.getItem(COLLAPSED_KEY)
+  return value === 'request' || value === 'response' ? value : null
+}
+
+const split = ref(storedSplit())
+// At most one box is minimized, so one is always open.
+const collapsed = ref<Box | null>(storedCollapsed())
+const panesEl = ref<HTMLDivElement>()
+let dragging = false
+
+watch(collapsed, (value) => {
+  if (value) localStorage.setItem(COLLAPSED_KEY, value)
+  else localStorage.removeItem(COLLAPSED_KEY)
+})
+
+// The gutter captures the pointer so the release always reaches it, even outside the window.
+function onGutterDown(event: PointerEvent): void {
+  if (event.button !== 0) return
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  dragging = true
+}
+
+function onGutterMove(event: PointerEvent): void {
+  if (!dragging || !panesEl.value) return
+  // The boxes share the width left after the gutter and the two gaps beside it.
+  const gutter = event.currentTarget as HTMLElement
+  const rect = panesEl.value.getBoundingClientRect()
+  const gap = parseFloat(getComputedStyle(panesEl.value).columnGap) || 0
+  const taken = gutter.offsetWidth + 2 * gap
+  const usable = rect.width - taken
+  if (usable <= 0) return
+  const min = Math.min(0.5, BOX_MIN_PX / usable)
+  const ratio = (event.clientX - rect.left - taken / 2) / usable
+  split.value = Math.max(min, Math.min(1 - min, ratio))
+}
+
+function onGutterUp(): void {
+  if (!dragging) return
+  dragging = false
+  localStorage.setItem(SPLIT_KEY, String(split.value))
+}
+
+function resetSplit(): void {
+  split.value = 0.5
+  localStorage.setItem(SPLIT_KEY, '0.5')
+}
 
 const resters = ref<Record<string, VaultRester>>({})
 const restersError = ref('')
@@ -389,7 +450,7 @@ function onUrlKeydown(event: KeyboardEvent): void {
       <nav class="client-sidebar">
         <div class="sidebar-actions">
           <span class="sidebar-label">Requests</span>
-          <AppButton @click="addRequest">+ Request</AppButton>
+          <AppButton size="sm" @click="addRequest">+ Request</AppButton>
         </div>
         <RequestList
           :requests="requests"
@@ -464,9 +525,32 @@ function onUrlKeydown(event: KeyboardEvent): void {
         <p v-if="resolvedURL" class="hint resolved">{{ resolvedURL }}</p>
         <p v-if="outcome.notice" class="hint notice">{{ outcome.notice }}</p>
 
-        <div class="panes">
-          <RequestEditor :model-value="selected" />
+        <div ref="panesEl" class="panes">
+          <div v-if="collapsed === 'request'" class="box-rail" @click="collapsed = null">
+            <AppIconButton size="sm" label="Show Request" @click="collapsed = null">
+              <AppIcon name="chevronRight" />
+            </AppIconButton>
+            <span class="rail-title">Request</span>
+          </div>
+          <RequestEditor
+            v-show="collapsed !== 'request'"
+            :model-value="selected"
+            :style="{ flexGrow: collapsed ? 1 : split }"
+            @collapse="collapsed = 'request'"
+          />
+          <div
+            v-if="!collapsed"
+            class="gutter"
+            title="Drag to resize. Double-click to split evenly."
+            @pointerdown="onGutterDown"
+            @pointermove="onGutterMove"
+            @pointerup="onGutterUp"
+            @pointercancel="onGutterUp"
+            @dblclick="resetSplit"
+          />
           <ResponsePanel
+            v-show="collapsed !== 'response'"
+            :style="{ flexGrow: collapsed ? 1 : 1 - split }"
             :result="outcome.result"
             :download="outcome.download"
             :error="outcome.error"
@@ -478,7 +562,14 @@ function onUrlKeydown(event: KeyboardEvent): void {
             @pick-run="pickRun"
             @remove-run="removeRun"
             @clear-history="clearRuns"
+            @collapse="collapsed = 'response'"
           />
+          <div v-if="collapsed === 'response'" class="box-rail" @click="collapsed = null">
+            <AppIconButton size="sm" label="Show Response" @click="collapsed = null">
+              <AppIcon name="chevronRight" class="flip" />
+            </AppIconButton>
+            <span class="rail-title">Response</span>
+          </div>
         </div>
       </section>
 

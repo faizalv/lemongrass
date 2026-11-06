@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppButton, AppEmptyState, AppIcon, AppSwitcher, AppTextarea } from '@sankasten'
+import { AppButton, AppDisclosure, AppEmptyState, AppSwitcher, AppTextarea } from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { clearReview, reviewOf, setReviewMessage } from '../../annotations'
 import { handConflictTo, postToConflict, type ConflictThreadState } from '../../conflictThread'
@@ -193,10 +193,7 @@ function onKeydown(event: KeyboardEvent): void {
 <template>
   <div class="thread-bar">
     <div class="bar-head">
-      <button class="fold" :aria-expanded="!folded" @click="folded = !folded">
-        <AppIcon class="fold-chevron" :class="{ open: !folded }" name="chevronRight" :size="9" />
-        Conflict thread
-      </button>
+      <AppDisclosure label="Conflict thread" :open="!folded" @update:open="folded = !$event" />
       <span v-if="open" class="head-note">
         with <span class="head-name">{{ shellTitles[assignee] ?? 'a tab that is closed' }}</span>
       </span>
@@ -247,12 +244,14 @@ function onKeydown(event: KeyboardEvent): void {
           placeholder="Hand to tab"
           empty-text="No Claude or Codex tab is open in this project."
           framed
+          size="sm"
           above
           @select="targetId = $event"
         />
       </div>
       <AppButton
         variant="primary"
+        size="sm"
         class="send"
         :disabled="!!blocker || sending"
         :title="
@@ -282,32 +281,6 @@ function onKeydown(event: KeyboardEvent): void {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.fold {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-}
-
-.fold:hover {
-  color: var(--color-fg-primary);
-}
-
-.fold-chevron {
-  transition: transform var(--duration-fast) var(--ease-out);
-}
-
-.fold-chevron.open {
-  transform: rotate(90deg);
 }
 
 .head-note {

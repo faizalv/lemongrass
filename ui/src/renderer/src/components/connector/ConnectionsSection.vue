@@ -367,6 +367,7 @@ watch(
       <p class="hint">Saved database credentials. Channels are created from a connection.</p>
       <AppButton
         v-if="!showConnectionForm"
+        size="sm"
         variant="primary"
         class="new-channel-button"
         @click="openConnectionForm"
@@ -522,6 +523,7 @@ watch(
       <div class="list-filter">
         <AppInput
           v-model="connectionQuery"
+          size="sm"
           icon="search"
           spellcheck="false"
           placeholder="Search by name"
@@ -550,6 +552,7 @@ watch(
         </div>
         <div class="channel-actions">
           <AppButton
+            size="sm"
             :disabled="!vaultUnlocked || rowStatus[name] === 'verifying'"
             :title="!vaultUnlocked ? 'Unlock the vault first' : ''"
             @click="testRow(name)"
@@ -557,6 +560,7 @@ watch(
             {{ rowStatus[name] === 'verifying' ? 'Testing...' : 'Test' }}
           </AppButton>
           <AppButton
+            size="sm"
             :disabled="!vaultUnlocked || loadingConnectionName === name"
             :title="!vaultUnlocked ? 'Unlock the vault first' : ''"
             @click="openConnectionEdit(name)"
@@ -564,6 +568,7 @@ watch(
             {{ loadingConnectionName === name ? 'Loading...' : 'Edit' }}
           </AppButton>
           <AppButton
+            size="sm"
             variant="danger"
             :disabled="deletingConnectionName === name"
             @click="deleteConnection(name)"

@@ -25,7 +25,9 @@ async function choose(): Promise<void> {
 <!-- Main reads the file when the request is sent, so only its path and its size at pick time are kept. -->
 <template>
   <div class="file-pick">
-    <AppButton @click="choose">{{ path ? 'Change' : 'Choose file' }}</AppButton>
+    <AppButton class="choose" size="sm" @click="choose">{{
+      path ? 'Change' : 'Choose file'
+    }}</AppButton>
     <template v-if="path">
       <span class="file-name" :title="path">{{ name }}</span>
       <span v-if="size" class="file-size">{{ formatSize(size) }}</span>
@@ -40,6 +42,10 @@ async function choose(): Promise<void> {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+}
+
+.choose {
+  flex-shrink: 0;
 }
 
 .file-name {

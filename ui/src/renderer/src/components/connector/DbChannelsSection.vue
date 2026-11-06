@@ -210,6 +210,7 @@ onUnmounted(() => {
       <p class="hint">Scoped, short-lived access to a connection. The newest channel is first.</p>
       <AppButton
         v-if="!showCreateForm"
+        size="sm"
         variant="primary"
         class="new-channel-button"
         :disabled="connections.length === 0"
@@ -237,6 +238,7 @@ onUnmounted(() => {
     <template v-else>
       <div class="list-filter">
         <AppSwitcher
+          size="sm"
           class="connection-filter"
           :items="connectionItems"
           :active-id="connectionFilter"
@@ -249,6 +251,7 @@ onUnmounted(() => {
         />
         <AppInput
           v-model="query"
+          size="sm"
           icon="search"
           spellcheck="false"
           placeholder="Filter by name, table or operation"
@@ -311,16 +314,18 @@ onUnmounted(() => {
           </span>
           <div v-if="activatingId !== channel.ID" class="channel-actions">
             <AppButton
+              size="sm"
               :disabled="!vaultUnlocked"
               title="Create a new channel from this one"
               @click="openCopyForm(channel)"
             >
               Copy
             </AppButton>
-            <AppButton @click="openActivate(channel.ID)">
+            <AppButton size="sm" @click="openActivate(channel.ID)">
               {{ statusFor(channel) === 'expired' ? 'Activate' : 'Rotate' }}
             </AppButton>
             <AppButton
+              size="sm"
               variant="danger"
               :disabled="revokingId === channel.ID"
               @click="revoke(channel.ID)"
@@ -333,14 +338,15 @@ onUnmounted(() => {
         <div v-if="activatingId === channel.ID" class="inline-form">
           <AppInput
             v-model.number="activateTtlMinutes"
+            size="sm"
             type="number"
             min="1"
             title="TTL, minutes"
             autofocus
             @keydown.enter="submitActivate"
           />
-          <AppButton @click="cancelActivate">Cancel</AppButton>
-          <AppButton variant="primary" :disabled="activating" @click="submitActivate">
+          <AppButton size="sm" @click="cancelActivate">Cancel</AppButton>
+          <AppButton size="sm" variant="primary" :disabled="activating" @click="submitActivate">
             {{
               statusFor(channel) === 'expired'
                 ? activating

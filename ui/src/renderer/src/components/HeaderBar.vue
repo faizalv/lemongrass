@@ -2,6 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
+import { AppIconButton } from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NotificationBell from './NotificationBell.vue'
 import { isMac, loadWindowControls, windowControls } from '../windowControls'
@@ -115,12 +116,12 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <div class="sidebar-toggle-zone">
-      <button
-        class="control"
-        :title="sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'"
+      <AppIconButton
+        :label="sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'"
+        size="sm"
         @click="emit('toggle-sidebar')"
       >
-        <svg width="14" height="14" viewBox="0 0 14 14">
+        <svg viewBox="0 0 14 14">
           <rect
             x="0.5"
             y="0.5"
@@ -133,7 +134,7 @@ onBeforeUnmount(() => {
           />
           <line x1="5" y1="0.5" x2="5" y2="13.5" stroke="currentColor" stroke-width="1" />
         </svg>
-      </button>
+      </AppIconButton>
     </div>
     <div class="drag-region">
       <slot name="title" />
@@ -143,10 +144,8 @@ onBeforeUnmount(() => {
     </div>
     <div class="window-controls">
       <NotificationBell />
-      <button class="control" title="Guide" @click="emit('open-guide')">
+      <AppIconButton label="Guide" size="sm" @click="emit('open-guide')">
         <svg
-          width="15"
-          height="15"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -158,11 +157,9 @@ onBeforeUnmount(() => {
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
           <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
-      </button>
-      <button class="control" title="Settings" @click="emit('open-settings')">
+      </AppIconButton>
+      <AppIconButton label="Settings" size="sm" @click="emit('open-settings')">
         <svg
-          width="15"
-          height="15"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -175,19 +172,19 @@ onBeforeUnmount(() => {
           />
           <circle cx="12" cy="12" r="3" />
         </svg>
-      </button>
+      </AppIconButton>
       <template v-if="!isMac && !lightsLeft">
-        <button class="control" title="Minimize" @click="controls.minimize()">
-          <svg width="10" height="10" viewBox="0 0 10 10">
+        <AppIconButton label="Minimize" size="sm" @click="controls.minimize()">
+          <svg viewBox="0 0 10 10">
             <line x1="1" y1="8" x2="9" y2="8" stroke="currentColor" stroke-width="1" />
           </svg>
-        </button>
-        <button
-          class="control"
-          :title="isMaximized ? 'Restore' : 'Maximize'"
+        </AppIconButton>
+        <AppIconButton
+          :label="isMaximized ? 'Restore' : 'Maximize'"
+          size="sm"
           @click="controls.toggleMaximize()"
         >
-          <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10">
+          <svg v-if="!isMaximized" viewBox="0 0 10 10">
             <rect
               x="1"
               y="1"
@@ -198,7 +195,7 @@ onBeforeUnmount(() => {
               stroke-width="1"
             />
           </svg>
-          <svg v-else width="10" height="10" viewBox="0 0 10 10">
+          <svg v-else viewBox="0 0 10 10">
             <rect
               x="0.5"
               y="2.5"
@@ -210,13 +207,13 @@ onBeforeUnmount(() => {
             />
             <path d="M2.5 2.5V0.5H9.5V7.5H7.5" fill="none" stroke="currentColor" stroke-width="1" />
           </svg>
-        </button>
-        <button class="control close" title="Close" @click="controls.close()">
-          <svg width="10" height="10" viewBox="0 0 10 10">
+        </AppIconButton>
+        <AppIconButton label="Close" size="sm" tone="danger" @click="controls.close()">
+          <svg viewBox="0 0 10 10">
             <line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1" />
             <line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1" />
           </svg>
-        </button>
+        </AppIconButton>
       </template>
     </div>
   </div>
@@ -329,29 +326,5 @@ onBeforeUnmount(() => {
   gap: var(--space-1);
   padding: 0 var(--space-2);
   -webkit-app-region: no-drag;
-}
-
-.control {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.control:hover {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
-}
-
-.control.close:hover {
-  background: var(--color-error);
-  color: var(--color-white);
 }
 </style>

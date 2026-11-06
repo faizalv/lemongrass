@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { AppButton, AppEmptyState, AppInput, AppModal } from '@sankasten'
+import { AppButton, AppEmptyState, AppInput, AppModal, AppNavItem } from '@sankasten'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import SearchRows from './treeSearch/SearchRows.vue'
@@ -164,28 +164,29 @@ async function submitCreate(): Promise<void> {
 <template>
   <div ref="panel" class="biblio-view" tabindex="0" @keydown="search.onPanelKeydown">
     <div class="tree-scroll">
-      <button
+      <AppNavItem
         v-if="tree?.toc"
         class="toc-item"
-        :class="{ active: tree.toc.path === selectedPath }"
+        size="sm"
+        label="Table of Content"
+        :active="tree.toc.path === selectedPath"
         @click="selectFile(tree.toc.path)"
       >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 14 14"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <line x1="2" y1="3" x2="12" y2="3" />
-          <line x1="2" y1="7" x2="12" y2="7" />
-          <line x1="2" y1="11" x2="8" y2="11" />
-        </svg>
-        <span>Table of Content</span>
-      </button>
+        <template #icon>
+          <svg
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="2" y1="3" x2="12" y2="3" />
+            <line x1="2" y1="7" x2="12" y2="7" />
+            <line x1="2" y1="11" x2="8" y2="11" />
+          </svg>
+        </template>
+      </AppNavItem>
 
       <TreeSearchBar v-if="search.open.value" :search="search" placeholder="Search biblio" />
 
@@ -262,32 +263,7 @@ async function submitCreate(): Promise<void> {
 }
 
 .toc-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-3);
-  background: var(--color-surface-2);
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.toc-item:hover {
-  background: var(--color-surface-3);
-}
-
-.toc-item.active {
-  background: var(--color-amber-muted);
-  color: var(--color-fg-accent);
 }
 
 .tree-groups {

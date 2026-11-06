@@ -16,7 +16,8 @@ const props = withDefaults(
     // short text such as B or H1).
     icon?: AppIconName
     label: string
-    size?: 'sm' | 'md'
+    // xs only for an action inside a list, tree or menu row.
+    size?: 'xs' | 'sm' | 'md'
     // bare is the default for toolbars and rows; ghost adds a border; tinted fills in the tone.
     variant?: 'bare' | 'ghost' | 'tinted'
     // On bare it colors the glyph on hover only, on ghost and tinted it colors it always.
@@ -127,6 +128,14 @@ defineExpose({
 .size-sm {
   --h: var(--control-h-sm);
   --glyph: var(--control-icon-sm);
+  font-size: var(--text-xs);
+}
+
+.size-xs {
+  --h: var(--control-h-xs);
+  --glyph: var(--control-icon-xs);
+  padding: 0 2px;
+  border-radius: var(--radius-sm);
   font-size: var(--text-xs);
 }
 

@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppButton, AppInput } from '@sankasten'
+import { AppButton, AppIconButton, AppInput } from '@sankasten'
 import type { ResterClientPair } from '../../../../preload/types'
 
 defineProps<{
@@ -17,11 +17,19 @@ const pairs = defineModel<ResterClientPair[]>({ required: true })
 <template>
   <div class="pairs">
     <div v-for="(pair, i) in pairs" :key="i" class="pair">
-      <AppInput v-model="pair.name" type="text" :placeholder="namePlaceholder" spellcheck="false" />
-      <AppInput v-model="pair.value" type="text" placeholder="value" spellcheck="false" />
-      <button type="button" class="remove" title="Remove" @click="pairs.splice(i, 1)">×</button>
+      <AppInput
+        v-model="pair.name"
+        size="sm"
+        type="text"
+        :placeholder="namePlaceholder"
+        spellcheck="false"
+      />
+      <AppInput v-model="pair.value" size="sm" type="text" placeholder="value" spellcheck="false" />
+      <AppIconButton icon="close" size="sm" label="Remove" @click="pairs.splice(i, 1)" />
     </div>
-    <AppButton class="add" @click="pairs.push({ name: '', value: '' })">+ {{ addLabel }}</AppButton>
+    <AppButton class="add" size="sm" @click="pairs.push({ name: '', value: '' })"
+      >+ {{ addLabel }}</AppButton
+    >
   </div>
 </template>
 
@@ -37,23 +45,6 @@ const pairs = defineModel<ResterClientPair[]>({ required: true })
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
   gap: var(--space-2);
   align-items: center;
-}
-
-.remove {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
-  font-size: var(--text-md);
-  cursor: pointer;
-}
-
-.remove:hover {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
 }
 
 .add {

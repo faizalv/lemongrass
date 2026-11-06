@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
-import { AppButton, AppConfirmButton, AppEmptyState, AppIcon } from '@sankasten'
+import { AppButton, AppEmptyState, AppIconButton } from '@sankasten'
 import type { Project } from '../../../preload/types'
 import { useProjectDelete } from '../projectDelete'
 
@@ -39,24 +39,31 @@ async function remove(id: string): Promise<void> {
             <span class="selector-name">{{ project.name }}</span>
             <span class="selector-path">{{ project.path }}</span>
           </button>
-          <span v-if="refusal(project.id)" class="delete-slot" :title="refusal(project.id)">
-            <button type="button" class="delete" disabled :aria-label="refusal(project.id)">
-              <AppIcon name="trash" :size="18" />
-            </button>
-          </span>
-          <AppConfirmButton
+          <AppIconButton
+            v-if="refusal(project.id)"
+            class="delete"
+            icon="trash"
+            label="Delete project"
+            size="xs"
+            :title="refusal(project.id)"
+            disabled
+          />
+          <AppIconButton
             v-else
             class="delete"
-            title="Delete project"
-            aria-label="Delete project"
+            icon="trash"
+            label="Delete project"
+            size="xs"
+            tone="danger"
+            confirm
             confirm-label="Click again to delete. The folder is not touched, and lemongrass keeps its data for 30 days."
             @confirm="remove(project.id)"
-          >
-            <AppIcon name="trash" :size="18" />
-          </AppConfirmButton>
+          />
         </li>
       </ul>
-      <AppButton type="button" class="selector-add" @click="emit('add')">Add project</AppButton>
+      <AppButton type="button" class="selector-add" size="md" @click="emit('add')">
+        Add project
+      </AppButton>
     </div>
   </div>
 </template>
@@ -134,38 +141,15 @@ async function remove(id: string): Promise<void> {
   outline: none;
 }
 
-.delete-slot {
-  display: inline-flex;
-}
-
 /* Shown only on the row under the pointer or holding focus; hidden keeps its space, so the path's
-   width never jumps. Padding gives the confirm's progress bar and armed background room. */
+   width never jumps. */
 .delete {
-  flex-shrink: 0;
-  display: inline-flex;
-  padding: 5px;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
   visibility: hidden;
-  cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-out);
 }
 
 .selector-row:hover .delete,
 .selector-row:focus-within .delete {
   visibility: visible;
-}
-
-.delete:hover:not(:disabled),
-.delete:focus-visible:not(:disabled) {
-  color: var(--color-error);
-}
-
-.selector-row .delete:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .selector-name {

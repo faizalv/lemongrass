@@ -2,6 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
+import { AppNavItem } from '@sankasten'
 import { askState } from '../asks'
 import { vaultSession } from '../vaultSession'
 
@@ -12,35 +13,34 @@ const emit = defineEmits<{
 
 <template>
   <div class="vault-panel">
-    <button class="vault-item" :class="{ open: vaultSession.unlocked }" @click="emit('open')">
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect x="2.5" y="6.5" width="9" height="6" rx="1.2" />
-        <path d="M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2" />
-        <circle cx="7" cy="9.5" r="0.8" />
-      </svg>
-      <span class="vault-label">Vault</span>
-      <span class="vault-state">{{ vaultSession.unlocked ? 'Unlocked' : 'Locked' }}</span>
-      <span
-        v-if="askState.count.waiting > 0"
-        class="vault-count"
-        :title="
-          askState.count.waiting === 1
-            ? 'A decision is waiting for you'
-            : `${askState.count.waiting} decisions are waiting for you`
-        "
-      >
-        {{ askState.count.waiting }}
-      </span>
-    </button>
+    <AppNavItem
+      size="sm"
+      label="Vault"
+      :state="vaultSession.unlocked ? 'Unlocked' : 'Locked'"
+      :active="vaultSession.unlocked"
+      :count="askState.count.waiting"
+      :count-title="
+        askState.count.waiting === 1
+          ? 'A decision is waiting for you'
+          : `${askState.count.waiting} decisions are waiting for you`
+      "
+      @click="emit('open')"
+    >
+      <template #icon>
+        <svg
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="2.5" y="6.5" width="9" height="6" rx="1.2" />
+          <path d="M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2" />
+          <circle cx="7" cy="9.5" r="0.8" />
+        </svg>
+      </template>
+    </AppNavItem>
   </div>
 </template>
 
@@ -49,58 +49,5 @@ const emit = defineEmits<{
   flex-shrink: 0;
   padding: var(--space-2);
   border-top: 1px solid var(--color-border-default);
-}
-
-.vault-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: var(--layer-raised);
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.vault-item:hover {
-  background: var(--layer-raised-hover);
-}
-
-.vault-item.open {
-  background: var(--color-amber-muted);
-  color: var(--color-fg-accent);
-}
-
-.vault-label {
-  flex-shrink: 0;
-}
-
-.vault-count {
-  flex-shrink: 0;
-  min-width: 18px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-amber);
-  color: var(--color-black);
-  font-size: 11px;
-  font-weight: var(--weight-regular);
-  line-height: 18px;
-  text-align: center;
-}
-
-.vault-state {
-  flex: 1;
-  min-width: 0;
-  color: var(--color-fg-secondary);
-  font-weight: var(--weight-regular);
-  text-align: left;
 }
 </style>

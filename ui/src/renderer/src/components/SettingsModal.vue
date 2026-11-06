@@ -9,7 +9,8 @@ import {
   AppConfirmButton,
   AppEmptyState,
   AppInput,
-  AppModal
+  AppModal,
+  AppNavItem
 } from '@sankasten'
 import {
   PRIMARY_ACCOUNT_DIR,
@@ -104,84 +105,45 @@ async function onRemove(name: string): Promise<void> {
     <div class="settings-layout">
       <aside class="settings-nav">
         <h3 class="settings-nav-title">Settings</h3>
-        <button
-          type="button"
-          class="settings-nav-item"
-          :class="{ selected: section === 'general' }"
-          @click="section = 'general'"
-        >
-          <SettingsIcon name="general" />
-          General
-        </button>
+        <AppNavItem :active="section === 'general'" label="General" @click="section = 'general'">
+          <template #icon><SettingsIcon name="general" /></template>
+        </AppNavItem>
         <!-- Window controls is its only choice, and macOS always shows the native lights. -->
-        <button
+        <AppNavItem
           v-if="!isMac"
-          type="button"
-          class="settings-nav-item"
-          :class="{ selected: section === 'appearance' }"
+          :active="section === 'appearance'"
+          label="Appearance"
           @click="section = 'appearance'"
         >
-          <SettingsIcon name="appearance" />
-          Appearance
-        </button>
-        <button type="button" class="settings-nav-item" @click="section = 'claude'">
-          <SettingsIcon name="accounts" />
-          Accounts
-        </button>
-        <button
-          type="button"
-          class="settings-nav-item settings-nav-subitem"
-          :class="{ selected: section === 'claude' }"
-          @click="section = 'claude'"
-        >
-          <SettingsIcon name="claude" />
-          Claude
-        </button>
-        <button
-          type="button"
-          class="settings-nav-item settings-nav-subitem"
-          :class="{ selected: section === 'codex' }"
-          @click="section = 'codex'"
-        >
-          <SettingsIcon name="codex" />
-          Codex
-        </button>
-        <button
-          type="button"
-          class="settings-nav-item"
-          :class="{ selected: section === 'safety' }"
-          @click="section = 'safety'"
-        >
-          <SettingsIcon name="safety" />
-          Safety
-        </button>
-        <button
-          type="button"
-          class="settings-nav-item"
-          :class="{ selected: section === 'updates' }"
-          @click="section = 'updates'"
-        >
-          <SettingsIcon name="updates" />
-          Updates
-        </button>
-        <button
-          type="button"
-          class="settings-nav-item"
-          :class="{ selected: section === 'dependencies' }"
+          <template #icon><SettingsIcon name="appearance" /></template>
+        </AppNavItem>
+        <AppNavItem label="Accounts" @click="section = 'claude'">
+          <template #icon><SettingsIcon name="accounts" /></template>
+        </AppNavItem>
+        <div class="settings-nav-sub">
+          <AppNavItem :active="section === 'claude'" label="Claude" @click="section = 'claude'">
+            <template #icon><SettingsIcon name="claude" /></template>
+          </AppNavItem>
+          <AppNavItem :active="section === 'codex'" label="Codex" @click="section = 'codex'">
+            <template #icon><SettingsIcon name="codex" /></template>
+          </AppNavItem>
+        </div>
+        <AppNavItem :active="section === 'safety'" label="Safety" @click="section = 'safety'">
+          <template #icon><SettingsIcon name="safety" /></template>
+        </AppNavItem>
+        <AppNavItem :active="section === 'updates'" label="Updates" @click="section = 'updates'">
+          <template #icon><SettingsIcon name="updates" /></template>
+        </AppNavItem>
+        <AppNavItem
+          :active="section === 'dependencies'"
+          label="Dependencies"
           @click="section = 'dependencies'"
         >
-          <SettingsIcon name="dependencies" />
-          Dependencies
-        </button>
-        <button
-          type="button"
-          class="settings-nav-item"
-          :class="{ selected: section === 'credits' }"
-          @click="section = 'credits'"
-        >
-          <SettingsIcon name="credits" />
-          Credits
-        </button>
+          <template #icon><SettingsIcon name="dependencies" /></template>
+        </AppNavItem>
+        <AppNavItem :active="section === 'credits'" label="Credits" @click="section = 'credits'">
+          <template #icon><SettingsIcon name="credits" /></template>
+        </AppNavItem>
       </aside>
 
       <section v-if="section === 'general'" class="settings-section">
@@ -261,7 +223,8 @@ async function onRemove(name: string): Promise<void> {
             />
             <AppConfirmButton
               v-slot="{ armed }"
-              class="settings-action"
+              variant="ghost"
+              size="xs"
               @confirm="onRemove(account.name)"
             >
               {{ armed ? 'Click again' : 'Remove' }}

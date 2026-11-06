@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppConfirmButton, AppIcon } from '@sankasten'
+import { AppButton, AppConfirmButton, AppIcon } from '@sankasten'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import RunHistory from './RunHistory.vue'
 import { formatAge } from '../../relativeAge'
@@ -52,16 +52,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootRef" class="history">
-    <button
-      type="button"
+    <AppButton
+      variant="text"
+      size="sm"
       class="age"
       :class="{ open }"
+      :pressed="open"
       :title="`${new Date(at).toLocaleString()}. Click for this request's history.`"
       @click="open = !open"
     >
       {{ formatAge(at, ageNow) }}
       <AppIcon class="caret" name="chevronDown" :size="9" />
-    </button>
+    </AppButton>
     <div v-if="open" class="popover">
       <div class="popover-head">
         <span class="popover-title">
@@ -70,6 +72,7 @@ onBeforeUnmount(() => {
         <AppConfirmButton
           v-if="runs.length > 0"
           variant="ghost"
+          size="sm"
           confirm-label="Click again to clear"
           @confirm="emit('clear')"
         >
@@ -91,28 +94,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .history {
   position: relative;
-}
-
-.age {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 2px var(--space-2);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.age:hover,
-.age.open {
-  background: var(--color-surface-3);
-  border-color: var(--color-border-default);
-  color: var(--color-fg-primary);
 }
 
 .caret {

@@ -6,6 +6,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   AppContextMenu,
   AppEmptyState,
+  AppIconButton,
   AppInput,
   type AppInputHandle,
   AppMenuButton,
@@ -620,34 +621,16 @@ function rowKey(row: Row): string {
   >
     <div class="explorer-head">
       <span class="head-label" :title="project.path">{{ projectName }}</span>
-      <button
-        class="tool"
-        type="button"
-        title="New file"
-        aria-label="New file"
-        @click="startCreate('file')"
-      >
+      <AppIconButton size="sm" tone="accent" label="New file" @click="startCreate('file')">
         <TabIcon :shapes="shapesOf(ICONS.newFile)" />
-      </button>
-      <button
-        class="tool"
-        type="button"
-        title="New folder"
-        aria-label="New folder"
-        @click="startCreate('dir')"
-      >
+      </AppIconButton>
+      <AppIconButton size="sm" tone="accent" label="New folder" @click="startCreate('dir')">
         <TabIcon :shapes="shapesOf(ICONS.newFolder)" />
-      </button>
-      <button
-        class="tool"
-        type="button"
-        title="Collapse all"
-        aria-label="Collapse all"
-        @click="collapseAll(project)"
-      >
+      </AppIconButton>
+      <AppIconButton size="sm" tone="accent" label="Collapse all" @click="collapseAll(project)">
         <TabIcon :shapes="shapesOf(ICONS.collapse)" />
-      </button>
-      <AppMenuButton :items="viewItems" label="View options" @select="onViewSelect">
+      </AppIconButton>
+      <AppMenuButton size="sm" :items="viewItems" label="View options" @select="onViewSelect">
         <TabIcon :shapes="shapesOf(ICONS.view)" />
       </AppMenuButton>
     </div>
@@ -805,27 +788,6 @@ function rowKey(row: Row): string {
   color: var(--color-fg-secondary);
   font-size: var(--text-xs);
   font-weight: var(--weight-semibold);
-}
-
-.tool {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-  color: var(--color-fg-muted);
-  cursor: pointer;
-}
-
-.tool:hover,
-.tool:focus-visible {
-  color: var(--color-fg-accent);
-}
-
-.tool:focus-visible {
-  outline: 1px solid var(--color-amber);
 }
 
 .explorer-scroll {

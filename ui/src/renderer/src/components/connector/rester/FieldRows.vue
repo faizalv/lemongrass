@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppButton, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
+import { AppButton, AppIconButton, AppInput, AppSegmented, AppSwitcher } from '@sankasten'
 import type { FieldDraft, FieldType } from './resterDraft'
 
 defineProps<{
@@ -64,9 +64,7 @@ function label(type: FieldType): string {
         :inputmode="field.type === 'number' ? 'decimal' : undefined"
         :placeholder="field.type === 'number' ? 'number, e.g. 3' : 'value'"
       />
-      <button type="button" class="chip-remove" title="Remove field" @click="fields.splice(i, 1)">
-        ×
-      </button>
+      <AppIconButton icon="close" label="Remove field" @click="fields.splice(i, 1)" />
     </div>
     <AppButton
       type="button"

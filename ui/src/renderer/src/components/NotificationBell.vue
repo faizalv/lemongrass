@@ -2,6 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
+import { AppIconButton } from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import NotificationCenter from './NotificationCenter.vue'
 import { askState } from '../asks'
@@ -45,17 +46,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootRef" class="bell-zone">
-    <button
-      class="bell"
-      :class="{ open: center.open }"
-      :title="label"
-      :aria-label="label"
+    <AppIconButton
+      :label="label"
+      size="sm"
+      :pressed="center.open"
       :aria-expanded="center.open"
       @click="toggle"
     >
       <svg
-        width="15"
-        height="15"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -66,10 +64,12 @@ onBeforeUnmount(() => {
         <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
         <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
       </svg>
-      <span v-if="count > 0" class="badge" :class="{ deciding }">
-        {{ count > 99 ? '99+' : count }}
-      </span>
-    </button>
+      <template v-if="count > 0" #badge>
+        <span class="count" :class="{ deciding }">
+          {{ count > 99 ? '99+' : count }}
+        </span>
+      </template>
+    </AppIconButton>
     <NotificationCenter v-if="center.open" />
   </div>
 </template>
@@ -81,31 +81,8 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
-.bell {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-pill);
-  color: var(--color-fg-secondary);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.bell:hover,
-.bell.open {
-  background: var(--color-surface-3);
-  color: var(--color-fg-primary);
-}
-
-.badge {
-  position: absolute;
-  top: 1px;
-  right: -2px;
+.count {
+  display: block;
   min-width: 15px;
   padding: 0 4px;
   border-radius: var(--radius-pill);
@@ -115,10 +92,9 @@ onBeforeUnmount(() => {
   font-weight: var(--weight-semibold);
   line-height: 15px;
   text-align: center;
-  pointer-events: none;
 }
 
-.badge.deciding {
+.count.deciding {
   background: var(--color-amber);
   color: var(--color-black);
 }
