@@ -195,7 +195,7 @@ func (s *Session) startUpload(c *sftp.Client, local, remote, id string) (any, er
 	}}, nil
 }
 
-func (s *Session) startDownload(c *sftp.Client, remote, local, id string) (any, error) {
+func (s *Session) startDownload(c *sftp.Client, remote, local, id string, replace bool) (any, error) {
 	if !filepath.IsAbs(local) {
 		return nil, errors.New("sshsession: local path must be absolute")
 	}
@@ -206,8 +206,8 @@ func (s *Session) startDownload(c *sftp.Client, remote, local, id string) (any, 
 	if fi.IsDir() {
 		return nil, withCode(CodeIsDir, "sshsession: %s is a folder", remote)
 	}
-	if _, err := os.Lstat(local); err == nil {
-		return nil, withCode(CodeExists, "sshsession: %s already exists", local)
+	if err := checkLocalTarget(local, replace); err != nil {
+		return nil, err
 	}
 	ctx, err := s.register(id)
 	if err != nil {
@@ -218,26 +218,23 @@ func (s *Session) startDownload(c *sftp.Client, remote, local, id string) (any, 
 		s.unregister(id)
 		return nil, fmt.Errorf("sshsession: download %s: %w", remote, err)
 	}
-	dst, err := os.OpenFile(local, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	dst, err := openLocalTarget(local, replace)
 	if err != nil {
 		src.Close()
 		s.unregister(id)
-		if errors.Is(err, os.ErrExist) {
-			return nil, withCode(CodeExists, "sshsession: %s already exists", local)
-		}
-		return nil, fmt.Errorf("sshsession: download to %s: %w", local, err)
+		return nil, err
 	}
 	m := &meter{s: s, ctx: ctx, id: id, total: fi.Size(), last: time.Now()}
 	return &pending{Transfer: id, Total: fi.Size(), run: func() {
 		defer s.unregister(id)
-		_, err := src.WriteTo(meterWriter{w: dst, m: m})
+		_, err := src.WriteTo(meterWriter{w: dst.f, m: m})
 		src.Close()
-		if cerr := dst.Close(); err == nil && cerr != nil {
-			err = cerr
+		if err == nil {
+			err = dst.commit()
 		}
 		if err != nil {
 			err = fmt.Errorf("sshsession: download to %s: %w", local, err)
 		}
-		s.finish(ctx, m, err, func() { _ = os.Remove(local) })
+		s.finish(ctx, m, err, dst.abort)
 	}}, nil
 }

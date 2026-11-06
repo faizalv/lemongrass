@@ -45,9 +45,15 @@ const dialTimeout = 20 * time.Second
 // progressEvery is how often a transfer reports progress; the drawer only redraws a bar.
 var progressEvery = 200 * time.Millisecond
 
-// Session serves one tab's requests over one lazily opened SFTP client.
+// Session serves one tab's requests over one lazily opened SFTP client, and runs the operations
+// SFTP has no verb for (move across filesystems, copy, folder archive) as commands over the master.
 type Session struct {
 	dial Dialer
+	run  Runner
+
+	// ctx ends with the session, so a long copy or archive does not outlive the tab.
+	ctx  context.Context
+	stop context.CancelFunc
 
 	outMu sync.Mutex
 	out   *json.Encoder
@@ -63,9 +69,10 @@ type Session struct {
 	work sync.WaitGroup
 }
 
-// New makes a session that dials with d on its first request.
-func New(d Dialer) *Session {
-	return &Session{dial: d, transfers: map[string]context.CancelFunc{}}
+// New makes a session that dials with d on its first request and runs commands with r.
+func New(d Dialer, r Runner) *Session {
+	ctx, stop := context.WithCancel(context.Background())
+	return &Session{dial: d, run: r, ctx: ctx, stop: stop, transfers: map[string]context.CancelFunc{}}
 }
 
 type request struct {
@@ -77,6 +84,7 @@ type request struct {
 	Remote   string          `json:"remote"`
 	Local    string          `json:"local"`
 	Transfer string          `json:"transfer"`
+	Replace  bool            `json:"replace"`
 }
 
 type reply struct {
@@ -150,6 +158,7 @@ func (s *Session) shutdown() {
 		s.client = nil
 	}
 	s.connMu.Unlock()
+	s.stop()
 	<-done
 }
 
@@ -218,8 +227,16 @@ func (s *Session) op(c *sftp.Client, home string, req request) (any, error) {
 		return nil, rename(c, resolve(home, req.From), resolve(home, req.To))
 	case "remove":
 		return nil, remove(c, resolve(home, req.Path))
+	case "touch":
+		return nil, touch(c, resolve(home, req.Path))
+	case "move":
+		return nil, s.move(c, resolve(home, req.From), resolve(home, req.To))
+	case "copy":
+		return nil, s.copy(c, resolve(home, req.From), resolve(home, req.To))
 	case "download":
-		return s.startDownload(c, resolve(home, req.Remote), req.Local, req.Transfer)
+		return s.startDownload(c, resolve(home, req.Remote), req.Local, req.Transfer, req.Replace)
+	case "downloadDir":
+		return s.startDownloadDir(c, resolve(home, req.Remote), req.Local, req.Transfer, req.Replace)
 	case "upload":
 		return s.startUpload(c, req.Local, resolve(home, req.Remote), req.Transfer)
 	default:

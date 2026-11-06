@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -35,13 +36,26 @@ type harness struct {
 	dials   atomic.Int32
 	nextID  int
 	servers chan net.Conn
+	run     Runner
 }
 
 // newHarness runs a session whose transport is an in-process SFTP server rooted at a temp folder.
 // fail makes the n-th dial fail, for the notLoggedIn cases.
 func newHarness(t *testing.T, fail func(n int32) error) *harness {
 	t.Helper()
+	return newHarnessRunner(t, fail, localRunner)
+}
+
+// localRunner runs the helper's command scripts with the local sh, against the same folder the
+// in-process SFTP server serves.
+func localRunner(ctx context.Context, script string) (*exec.Cmd, error) {
+	return exec.CommandContext(ctx, "sh", "-c", script), nil
+}
+
+func newHarnessRunner(t *testing.T, fail func(n int32) error, run Runner) *harness {
+	t.Helper()
 	h := blankHarness(t)
+	h.run = run
 	h.start(func(ctx context.Context) (io.ReadWriteCloser, error) {
 		n := h.dials.Add(1)
 		if fail != nil {
@@ -80,7 +94,11 @@ func (h *harness) start(dial Dialer) {
 	outR, outW := io.Pipe()
 	h.in = inW
 	go func() {
-		h.served <- New(dial).Serve(inR, outW)
+		run := h.run
+		if run == nil {
+			run = localRunner
+		}
+		h.served <- New(dial, run).Serve(inR, outW)
 		outW.Close()
 	}()
 	go func() {
@@ -398,7 +416,7 @@ func TestHandshakeFailureIsNotLoggedIn(t *testing.T) {
 			cli, srv := net.Pipe()
 			srv.Close() // ssh exited before sftp started
 			return cli, nil
-		}).Serve(inR, &out)
+		}, localRunner).Serve(inR, &out)
 	}()
 	fmt.Fprintln(inW, `{"id":1,"op":"home"}`)
 	inW.Close()

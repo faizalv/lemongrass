@@ -88,21 +88,49 @@ func classify(stderr string, sudo bool) (code, line string) {
 }
 
 // SSHDialer opens SFTP through the tab's ControlMaster, as root through sudo when sudo is set. It
-// never logs in by itself: the master is checked first, because with no master ssh would try a
-// fresh login, which BatchMode can still complete with an agent key and so bypass the terminal the
-// human logs in through.
+// never logs in by itself (see checkMaster).
 func SSHDialer(alias, controlPath string, sudo bool) Dialer {
 	return func(ctx context.Context) (io.ReadWriteCloser, error) {
-		if !ValidAlias(alias) {
-			return nil, fmt.Errorf("invalid host alias %q", alias)
-		}
-		check := exec.CommandContext(ctx, "ssh", "-o", "ControlPath="+controlPath, "-o", "BatchMode=yes",
-			"-O", "check", "--", alias)
-		if out, err := check.CombinedOutput(); err != nil {
-			return nil, fmt.Errorf("no login for %s yet: %s", alias, firstLine(out, err))
+		if err := checkMaster(ctx, alias, controlPath); err != nil {
+			return nil, err
 		}
 		return startPipe(exec.Command("ssh", sessionArgs(alias, controlPath, sudo)...), sudo)
 	}
+}
+
+// checkMaster fails unless the tab's ControlMaster is up. Every ssh the helper starts checks first,
+// because with no master ssh would try a fresh login, which BatchMode can still complete with an
+// agent key and so bypass the terminal the human logs in through.
+func checkMaster(ctx context.Context, alias, controlPath string) error {
+	if !ValidAlias(alias) {
+		return fmt.Errorf("invalid host alias %q", alias)
+	}
+	check := exec.CommandContext(ctx, "ssh", "-o", "ControlPath="+controlPath, "-o", "BatchMode=yes",
+		"-O", "check", "--", alias)
+	if out, err := check.CombinedOutput(); err != nil {
+		return fmt.Errorf("no login for %s yet: %s", alias, firstLine(out, err))
+	}
+	return nil
+}
+
+// SSHRunner runs scripts over the tab's ControlMaster, through `sudo -n` in sudo mode.
+func SSHRunner(alias, controlPath string, sudo bool) Runner {
+	return func(ctx context.Context, script string) (*exec.Cmd, error) {
+		if err := checkMaster(ctx, alias, controlPath); err != nil {
+			return nil, err
+		}
+		return exec.CommandContext(ctx, "ssh", runnerArgs(alias, controlPath, sudo, script)...), nil
+	}
+}
+
+// runnerArgs wraps script in sh -c for the same reason as sudoCommand.
+func runnerArgs(alias, controlPath string, sudo bool, script string) []string {
+	remote := "sh -c '" + script + "'"
+	if sudo {
+		remote = "sudo -n " + remote
+	}
+	return []string{"-T", "-o", "ControlMaster=no", "-o", "ControlPath=" + controlPath, "-o", "BatchMode=yes",
+		"--", alias, remote}
 }
 
 // startPipe starts cmd and returns its stdio as the SFTP stream.

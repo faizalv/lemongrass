@@ -70,7 +70,8 @@ func runSSHSession(args []string, stdin io.Reader, stdout io.Writer) error {
 	if !filepath.IsAbs(controlPath) {
 		return errors.New("lgrassd: control path must be absolute")
 	}
-	return sshsession.New(sshsession.SSHDialer(alias, controlPath, sudo)).Serve(stdin, stdout)
+	return sshsession.New(sshsession.SSHDialer(alias, controlPath, sudo),
+		sshsession.SSHRunner(alias, controlPath, sudo)).Serve(stdin, stdout)
 }
 
 func runSSHKeygen(args []string, stdin io.Reader) error {

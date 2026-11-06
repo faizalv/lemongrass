@@ -61,3 +61,19 @@ func TestClassify(t *testing.T) {
 		}
 	}
 }
+
+func TestRunnerArgs(t *testing.T) {
+	for _, script := range []string{mvScript, cpScript, tarScript} {
+		if strings.ContainsAny(script, "'!\n") {
+			t.Fatalf("script breaks the single-quote wrapping or csh: %s", script)
+		}
+	}
+	got := strings.Join(runnerArgs("web-1", "/h/cm", false, mvScript), " ")
+	if got != "-T -o ControlMaster=no -o ControlPath=/h/cm -o BatchMode=yes -- web-1 sh -c '"+mvScript+"'" {
+		t.Fatalf("plain runner argv = %s", got)
+	}
+	args := runnerArgs("web-1", "/h/cm", true, cpScript)
+	if args[len(args)-1] != "sudo -n sh -c '"+cpScript+"'" {
+		t.Fatalf("sudo runner command = %s", args[len(args)-1])
+	}
+}
