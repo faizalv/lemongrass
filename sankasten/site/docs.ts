@@ -300,7 +300,13 @@ export const DOCS: Record<string, ComponentDoc> = {
     props: [
       { name: 'options', type: '{ value, label }[]', doc: '' },
       { name: 'v-model', type: 'string | number', doc: '' },
-      size
+      size,
+      {
+        name: 'block',
+        type: 'boolean',
+        default: 'false',
+        doc: 'Full width of its container with equal segments, for a switch that heads a panel.'
+      }
     ]
   },
   AppCheckbox: {

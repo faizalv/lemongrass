@@ -7,8 +7,10 @@ withDefaults(
     options: { value: T; label: string }[]
     modelValue: T
     size?: 'sm' | 'md'
+    // Full width of its container with equal segments, for a switch that heads a panel.
+    block?: boolean
   }>(),
-  { size: 'md' }
+  { size: 'md', block: false }
 )
 
 const emit = defineEmits<{
@@ -18,7 +20,7 @@ const emit = defineEmits<{
 
 <!-- Picks one of a few modes. Name the group with aria-label or aria-labelledby on the component. -->
 <template>
-  <div class="segmented" :class="`size-${size}`" role="radiogroup">
+  <div class="segmented" :class="[`size-${size}`, { block }]" role="radiogroup">
     <button
       v-for="option in options"
       :key="option.value"
@@ -47,6 +49,16 @@ const emit = defineEmits<{
   background: var(--color-surface-3);
 }
 
+.segmented.block {
+  display: flex;
+  align-self: stretch;
+  width: 100%;
+}
+
+.segmented.block button {
+  flex: 1;
+}
+
 .segmented.size-sm {
   --h: var(--control-h-sm);
 }
@@ -55,6 +67,7 @@ const emit = defineEmits<{
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: calc(var(--h) - 6px);
   padding: 0 var(--space-3);
   border: none;

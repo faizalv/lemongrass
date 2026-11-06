@@ -71,6 +71,7 @@ function onGutterUp(): void {
         <div class="sidebar-tree" :style="{ width: `${treeWidth}px` }">
           <AppSegmented
             class="view-switch"
+            block
             aria-label="Sidebar view"
             :options="VIEWS"
             :model-value="sidebarSettings.view"
@@ -134,12 +135,7 @@ function onGutterUp(): void {
 }
 
 .sidebar-tree .view-switch {
-  align-self: stretch;
   margin: var(--space-3) var(--space-2) 0;
-}
-
-.sidebar-tree .view-switch :deep(button) {
-  flex: 1;
 }
 
 .sidebar-gutter {

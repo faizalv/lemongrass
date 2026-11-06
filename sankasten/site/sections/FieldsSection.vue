@@ -39,6 +39,7 @@ const groups: PickerGroup[] = [
 const picked = ref<string[]>(['orders'])
 
 const mode = ref('diff')
+const view = ref('docs')
 const checks = ref({ a: true, b: false })
 </script>
 
@@ -114,6 +115,19 @@ const checks = ref({ a: true, b: false })
             { value: 'history', label: 'History' }
           ]"
         />
+      </DemoRow>
+      <DemoRow label="block">
+        <div style="width: 260px">
+          <AppSegmented
+            v-model="view"
+            block
+            aria-label="Sidebar view"
+            :options="[
+              { value: 'docs', label: 'Docs' },
+              { value: 'files', label: 'Files' }
+            ]"
+          />
+        </div>
       </DemoRow>
     </DocBlock>
 
