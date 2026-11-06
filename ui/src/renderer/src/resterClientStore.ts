@@ -3,6 +3,7 @@
 
 import { reactive, watch } from 'vue'
 import { plainCopy } from './components/connector/rester/resterDraft'
+import { withBodyDefaults } from './resterClientCall'
 import type { ResterClientRequest, ResterClientRun } from '../../preload/types'
 
 const SAVE_MS = 400
@@ -20,7 +21,7 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 export function loadResterClient(): Promise<void> {
   loading ??= window.api.resterClient.load().then((requests) => {
-    resterClientStore.requests = requests
+    resterClientStore.requests = requests.map(withBodyDefaults)
     resterClientStore.loaded = true
   })
   return loading

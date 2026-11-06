@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 The Lemongrass Authors
 
-import type { ResterClientBodyKind, ResterClientPair } from '../../preload/types'
+import type {
+  ResterClientBodyKind,
+  ResterClientFileBody,
+  ResterClientPair,
+  ResterClientPart
+} from '../../preload/types'
 
 export interface ParsedCurl {
   method: string
@@ -10,6 +15,8 @@ export interface ParsedCurl {
   bodyKind: ResterClientBodyKind
   json: string
   form: ResterClientPair[]
+  multipart: ResterClientPart[]
+  file: ResterClientFileBody
   // Credential headers and options removed because the chosen rester user supplies auth.
   dropped: string[]
   notes: string[]
@@ -174,10 +181,13 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
     bodyKind: 'none',
     json: '',
     form: [],
+    multipart: [],
+    file: { path: '', size: 0, contentType: '' },
     dropped: [],
     notes: []
   }
   const data: string[] = []
+  let bodyFile = ''
   let jsonBody: string | null = null
   let getMode = false
   const credentialNames = new Set(
@@ -237,7 +247,9 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
       case 'data-raw':
       case 'data-binary':
       case 'data-ascii':
-        if (value?.startsWith('@') && option !== 'data-raw') {
+        if (value?.startsWith('@') && option === 'data-binary') {
+          bodyFile = value.slice(1)
+        } else if (value?.startsWith('@') && option !== 'data-raw') {
           result.notes.push(`The body file ${value.slice(1)} was not read.`)
         } else {
           data.push(value ?? '')
@@ -255,10 +267,12 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
         const eq = (value ?? '').indexOf('=')
         const name = eq > 0 ? value!.slice(0, eq) : (value ?? '')
         const fieldValue = eq > 0 ? value!.slice(eq + 1) : ''
-        if (fieldValue.startsWith('@') || fieldValue.startsWith('<')) {
-          result.notes.push(`The file field ${name} was left out.`)
+        if (option !== 'form-string' && fieldValue.startsWith('@')) {
+          result.multipart.push(filePart(name, fieldValue.slice(1)))
+        } else if (option !== 'form-string' && fieldValue.startsWith('<')) {
+          result.notes.push(`The field ${name} reads its value from a file and was left out.`)
         } else {
-          result.form.push({ name, value: fieldValue })
+          result.multipart.push(textPart(name, fieldValue))
         }
         break
       }
@@ -309,9 +323,16 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
       result.bodyKind = 'form'
       result.form = formPairs(raw)
     }
-  } else if (result.form.length > 0) {
-    result.bodyKind = 'form'
-    result.notes.push('The multipart form is sent as a urlencoded form.')
+  } else if (result.multipart.length > 0) {
+    result.bodyKind = 'multipart'
+  } else if (bodyFile) {
+    result.bodyKind = 'file'
+    result.file = { path: bodyFile, size: 0, contentType }
+  }
+  for (const path of [bodyFile, ...result.multipart.map((part) => part.path)]) {
+    if (path && !isAbsolutePath(path)) {
+      result.notes.push(`The file ${path} is a relative path. Choose it again.`)
+    }
   }
   if (result.bodyKind === 'json' && isJsonText(result.json)) {
     result.json = JSON.stringify(JSON.parse(result.json), null, 2)
@@ -319,6 +340,23 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
 
   if (!result.method) result.method = result.bodyKind === 'none' ? 'GET' : 'POST'
   return result
+}
+
+function textPart(name: string, value: string): ResterClientPart {
+  return { name, kind: 'text', value, path: '', size: 0, contentType: '' }
+}
+
+// curl writes a file field as path;type=mime;filename=name. The path ends at the first such
+// parameter, and only the type is kept, since the part's file name is always the path's base name.
+function filePart(name: string, spec: string): ResterClientPart {
+  const marker = /;(type|filename|headers|encoder)=/.exec(spec)
+  const path = marker ? spec.slice(0, marker.index) : spec
+  const type = /;type=([^;]*)/.exec(spec)?.[1] ?? ''
+  return { name, kind: 'file', value: '', path, size: 0, contentType: type }
+}
+
+function isAbsolutePath(path: string): boolean {
+  return path.startsWith('/') || path.startsWith('~/') || /^[A-Za-z]:[\\/]/.test(path)
 }
 
 // Removes and returns the Content-Type header, since the body kind decides it when the request is sent.

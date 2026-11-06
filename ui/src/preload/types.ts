@@ -695,7 +695,31 @@ export interface ResterClientPair {
   value: string
 }
 
-export type ResterClientBodyKind = 'none' | 'json' | 'form'
+export type ResterClientBodyKind = 'none' | 'json' | 'form' | 'multipart' | 'file'
+
+// One row of a multipart body. A file part holds the file's path, never its bytes, so a saved
+// request and its history point at the file and main reads it when the request is sent. size is
+// what the file had when it was picked, for display only.
+export interface ResterClientPart {
+  name: string
+  kind: 'text' | 'file'
+  value: string
+  path: string
+  size: number
+  contentType: string
+}
+
+// A File body: the whole body is the file's bytes. Like a part, it holds the path, not the bytes.
+export interface ResterClientFileBody {
+  path: string
+  size: number
+  contentType: string
+}
+
+export interface ResterClientPickedFile {
+  path: string
+  size: number
+}
 
 // One saved request in a project's Rester Client. It holds no credential: the chosen rester user
 // supplies auth when it is sent.
@@ -711,6 +735,8 @@ export interface ResterClientRequest {
   bodyKind: ResterClientBodyKind
   json: string
   form: ResterClientPair[]
+  multipart: ResterClientPart[]
+  file: ResterClientFileBody
 }
 
 export interface ResterClientCall {
@@ -721,6 +747,10 @@ export interface ResterClientCall {
   path: string
   body: string
   contentType: string
+  // Set for a multipart or file body, which main builds by reading the files; body and contentType
+  // are then empty.
+  multipart?: ResterClientPart[]
+  file?: ResterClientFileBody
   headers: ResterClientPair[]
 }
 

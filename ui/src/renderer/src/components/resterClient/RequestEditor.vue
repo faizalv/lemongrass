@@ -8,6 +8,9 @@ import AppTextarea from '../AppTextarea.vue'
 import AppSegmented from '../AppSegmented.vue'
 import AppSwitcher from '../AppSwitcher.vue'
 import PairRows from './PairRows.vue'
+import MultipartRows from './MultipartRows.vue'
+import FilePick from './FilePick.vue'
+import AppInput from '../AppInput.vue'
 import type { ResterClientBodyKind, ResterClientRequest } from '../../../../preload/types'
 import AppEmptyState from '../AppEmptyState.vue'
 
@@ -25,7 +28,9 @@ const sections = [
 const bodyKinds: { id: ResterClientBodyKind; label: string }[] = [
   { id: 'none', label: 'None' },
   { id: 'json', label: 'JSON' },
-  { id: 'form', label: 'Form' }
+  { id: 'form', label: 'Form' },
+  { id: 'multipart', label: 'Multipart' },
+  { id: 'file', label: 'File' }
 ]
 
 function formatJson(): void {
@@ -83,6 +88,23 @@ function formatJson(): void {
           />
           <p v-if="formatError" class="error-text">{{ formatError }}</p>
         </template>
+        <MultipartRows v-else-if="request.bodyKind === 'multipart'" v-model="request.multipart" />
+        <template v-else-if="request.bodyKind === 'file'">
+          <p class="hint">The whole body is the file's bytes, read when the request is sent.</p>
+          <div class="file-body">
+            <FilePick
+              :path="request.file.path"
+              :size="request.file.size"
+              @picked="Object.assign(request.file, $event)"
+            />
+            <AppInput
+              v-model="request.file.contentType"
+              type="text"
+              placeholder="type from extension"
+              spellcheck="false"
+            />
+          </div>
+        </template>
         <PairRows v-else v-model="request.form" add-label="Field" name-placeholder="field" />
       </template>
 
@@ -98,11 +120,18 @@ function formatJson(): void {
 
 <style scoped>
 .body-kind {
-  width: 104px;
+  width: 120px;
 }
 
 .format {
   margin-left: auto;
+}
+
+.file-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 200px);
+  gap: var(--space-2);
+  align-items: center;
 }
 
 .json-input {

@@ -61,14 +61,56 @@ test('-G moves data to the query string', () => {
   assert.equal(parsed.bodyKind, 'none')
 })
 
-test('the rester token header, --user and file fields are left out', () => {
+test('the rester token header and --user are left out, and -F fills a multipart body', () => {
   const parsed = parseCurl(
-    `curl https://x.test/up -H 'X-Api-Key: k' -u me:pw -F 'title=hi' -F 'file=@a.png'`,
+    `curl https://x.test/up -H 'X-Api-Key: k' -u me:pw -F 'title=hi' -F 'file=@/tmp/a.png;type=image/webp;filename=b.png'`,
     'x-api-key'
   )
   assert.deepEqual(parsed.dropped, ['X-Api-Key', '--user'])
-  assert.deepEqual(parsed.form, [{ name: 'title', value: 'hi' }])
-  assert.equal(parsed.notes.length, 2)
+  assert.equal(parsed.bodyKind, 'multipart')
+  assert.equal(parsed.method, 'POST')
+  assert.deepEqual(parsed.multipart, [
+    { name: 'title', kind: 'text', value: 'hi', path: '', size: 0, contentType: '' },
+    {
+      name: 'file',
+      kind: 'file',
+      value: '',
+      path: '/tmp/a.png',
+      size: 0,
+      contentType: 'image/webp'
+    }
+  ])
+  assert.deepEqual(parsed.notes, [])
+})
+
+test('--form-string stays text, a < field is left out, and a relative file gets a note', () => {
+  const parsed = parseCurl(
+    `curl https://x.test/up --form-string 'at=@home' -F 'body=<notes.txt' -F 'doc=@docs/a.pdf'`
+  )
+  assert.deepEqual(
+    parsed.multipart.map((part) => [part.name, part.kind, part.value, part.path]),
+    [
+      ['at', 'text', '@home', ''],
+      ['doc', 'file', '', 'docs/a.pdf']
+    ]
+  )
+  assert.deepEqual(parsed.notes, [
+    'The field body reads its value from a file and was left out.',
+    'The file docs/a.pdf is a relative path. Choose it again.'
+  ])
+})
+
+test('--data-binary @file fills a file body with the pasted content type', () => {
+  const parsed = parseCurl(
+    `curl -X PUT https://x.test/import -H 'Content-Type: text/csv' --data-binary @/srv/rows.csv`
+  )
+  assert.equal(parsed.bodyKind, 'file')
+  assert.equal(parsed.method, 'PUT')
+  assert.deepEqual(parsed.file, { path: '/srv/rows.csv', size: 0, contentType: 'text/csv' })
+  assert.deepEqual(parsed.headers, [])
+  const plain = parseCurl(`curl https://x.test/import -d @rows.csv`)
+  assert.equal(plain.bodyKind, 'none')
+  assert.deepEqual(plain.notes, ['The body file rows.csv was not read.'])
 })
 
 test('looksLikeCurl only matches a curl command', () => {

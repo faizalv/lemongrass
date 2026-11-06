@@ -4,11 +4,13 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { createWriteStream, unlinkSync } from 'fs'
 import type { WriteStream } from 'fs'
+import { stat } from 'fs/promises'
 import { homedir } from 'os'
 import { join } from 'path'
 import type {
   ResterClientCall,
   ResterClientDownload,
+  ResterClientPickedFile,
   ResterClientRequest,
   ResterClientResult,
   ResterClientRun
@@ -23,6 +25,7 @@ import {
   saveRequests
 } from './resterClientStore'
 import { ipcConnect } from './ipcAddress'
+import { buildFileBody, buildMultipart, type BuiltBody } from './resterUpload'
 import { vaultCall } from './vault'
 
 const STORE_DIR = join(homedir(), '.lemongrass', 'rester-client')
@@ -55,18 +58,36 @@ interface WireHeader {
   payload?: { inline?: WireInline; stream?: { status: number; name: string } }
 }
 
+// A text body comes from the renderer as is; a multipart or file body is read from disk here.
+async function bodyOf(call: ResterClientCall): Promise<BuiltBody> {
+  if (call.multipart) return buildMultipart(call.multipart)
+  if (call.file) return buildFileBody(call.file)
+  return { body: Buffer.from(call.body, 'utf-8'), contentType: call.contentType }
+}
+
 // The vault takes a []byte body as base64 and vault.Header with Go's field names.
-function wireCall(call: ResterClientCall): unknown {
+async function wireCall(call: ResterClientCall): Promise<unknown> {
+  const { body, contentType } = await bodyOf(call)
   return {
     rester: call.rester,
     environment: call.environment,
     user: call.user,
     method: call.method,
     path: call.path,
-    body: call.body ? Buffer.from(call.body, 'utf-8').toString('base64') : undefined,
-    content_type: call.contentType || undefined,
+    body: body.length > 0 ? body.toString('base64') : undefined,
+    content_type: contentType || undefined,
     headers: call.headers.map((header) => ({ Name: header.name, Value: header.value }))
   }
+}
+
+async function pickFile(win: BrowserWindow | null): Promise<ResterClientPickedFile | null> {
+  const options = { properties: ['openFile' as const] }
+  const picked = win
+    ? await dialog.showOpenDialog(win, options)
+    : await dialog.showOpenDialog(options)
+  const path = picked.filePaths[0]
+  if (picked.canceled || !path) return null
+  return { path, size: (await stat(path)).size }
 }
 
 function fromWire(result: WireResult): ResterClientResult {
@@ -107,7 +128,7 @@ async function humanRequest(
 ): Promise<ResterClientResult> {
   const result = await vaultCall<WireResult>('human_request', {
     root_secret: passphrase,
-    call: wireCall(call)
+    call: await wireCall(call)
   })
   return fromWire(result)
 }
@@ -129,6 +150,8 @@ async function humanDownload(
   passphrase: string,
   call: ResterClientCall
 ): Promise<ResterClientDownload> {
+  // Built before connecting, so a file that cannot be read fails without opening a socket.
+  const wire = await wireCall(call)
   const socket = await ipcConnect('vault')
   return new Promise((resolve, reject) => {
     const start = Date.now()
@@ -231,7 +254,7 @@ async function humanDownload(
     socket.write(
       JSON.stringify({
         op: 'human_download',
-        payload: { root_secret: passphrase, call: wireCall(call) }
+        payload: { root_secret: passphrase, call: wire }
       }) + '\n'
     )
     socket.on('data', (chunk: Buffer) => {
@@ -277,5 +300,8 @@ export function registerResterClientHandlers(): void {
   )
   ipcMain.handle('resterClient:clearHistory', (_event, requestId: string) =>
     clearHistory(STORE_DIR, requestId)
+  )
+  ipcMain.handle('resterClient:pickFile', (event) =>
+    pickFile(BrowserWindow.fromWebContents(event.sender))
   )
 }

@@ -3,7 +3,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { apiUsers, buildCall } from './resterClientCall.ts'
+import { apiUsers, buildCall, withBodyDefaults } from './resterClientCall.ts'
 import type { VaultResterUser } from '../../preload/types'
 
 const request = {
@@ -23,7 +23,12 @@ const request = {
   form: [
     { name: 'q', value: 'a b' },
     { name: ' ', value: 'x' }
-  ]
+  ],
+  multipart: [
+    { name: ' doc ', kind: 'file' as const, value: '', path: '/d/a.pdf', size: 3, contentType: '' },
+    { name: '', kind: 'text' as const, value: 'skipped', path: '', size: 0, contentType: '' }
+  ],
+  file: { path: '/d/b.csv', size: 4, contentType: 'text/csv' }
 }
 
 test('a form body is urlencoded with its content type', () => {
@@ -81,4 +86,33 @@ test('apiUsers keeps assigned users that can log in or carry a token', () => {
     apiUsers(rester, 'staging').map((u) => u.Name),
     ['login', 'token']
   )
+})
+
+test('a multipart body travels as named parts and a file body as its path', () => {
+  const multipart = buildCall({ ...request, bodyKind: 'multipart' })
+  assert.equal(multipart.body, '')
+  assert.equal(multipart.contentType, '')
+  assert.deepEqual(multipart.multipart, [
+    { name: 'doc', kind: 'file', value: '', path: '/d/a.pdf', size: 3, contentType: '' }
+  ])
+  assert.equal(multipart.file, undefined)
+  const file = buildCall({ ...request, bodyKind: 'file' })
+  assert.deepEqual(file.file, { path: '/d/b.csv', size: 4, contentType: 'text/csv' })
+  assert.equal(file.multipart, undefined)
+  assert.equal(buildCall({ ...request, bodyKind: 'form' }).multipart, undefined)
+})
+
+test('a multipart body with no named part sends nothing', () => {
+  const call = buildCall({ ...request, bodyKind: 'multipart', multipart: [] })
+  assert.equal(call.multipart, undefined)
+  assert.equal(call.body, '')
+})
+
+test('an older saved request gets empty multipart and file fields', () => {
+  const old = { ...request } as Partial<typeof request>
+  delete old.multipart
+  delete old.file
+  const filled = withBodyDefaults(old as typeof request)
+  assert.deepEqual(filled.multipart, [])
+  assert.deepEqual(filled.file, { path: '', size: 0, contentType: '' })
 })

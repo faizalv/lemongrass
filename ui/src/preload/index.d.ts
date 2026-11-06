@@ -74,6 +74,7 @@ import type {
   NodeIssued,
   NodeIssueRequest,
   ResterClientCall,
+  ResterClientPickedFile,
   ResterClientDownload,
   ResterClientRequest,
   ResterClientResult,
@@ -376,6 +377,7 @@ interface Api {
     recordRun: (requestId: string, run: ResterClientRun) => Promise<ResterClientRun[]>
     deleteRun: (requestId: string, runId: string) => Promise<ResterClientRun[]>
     clearHistory: (requestId: string) => Promise<void>
+    pickFile: () => Promise<ResterClientPickedFile | null>
   }
   node: {
     state: () => Promise<NodeState>

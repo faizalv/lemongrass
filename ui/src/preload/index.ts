@@ -74,6 +74,7 @@ import type {
   TabBusy,
   NodeIssued,
   ResterClientCall,
+  ResterClientPickedFile,
   ResterClientDownload,
   ResterClientRequest,
   ResterClientResult,
@@ -409,7 +410,9 @@ const resterClient = {
   deleteRun: (requestId: string, runId: string): Promise<ResterClientRun[]> =>
     ipcRenderer.invoke('resterClient:deleteRun', requestId, runId),
   clearHistory: (requestId: string): Promise<void> =>
-    ipcRenderer.invoke('resterClient:clearHistory', requestId)
+    ipcRenderer.invoke('resterClient:clearHistory', requestId),
+  pickFile: (): Promise<ResterClientPickedFile | null> =>
+    ipcRenderer.invoke('resterClient:pickFile')
 }
 
 const node = {

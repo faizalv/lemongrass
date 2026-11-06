@@ -3,6 +3,8 @@
 
 import type {
   ResterClientCall,
+  ResterClientFileBody,
+  ResterClientPart,
   ResterClientRequest,
   VaultRester,
   VaultResterUser
@@ -24,12 +26,29 @@ export function apiUsers(rester: VaultRester, environment: string): VaultResterU
   )
 }
 
+// Requests saved before multipart and file bodies existed load without those fields.
+export function withBodyDefaults(request: ResterClientRequest): ResterClientRequest {
+  request.multipart ??= []
+  request.file ??= { path: '', size: 0, contentType: '' }
+  return request
+}
+
 // Turns a saved request into what the vault sends. A JSON body leaves the content type empty, so the
-// proxy sets application/json; a form body is urlencoded.
+// proxy sets application/json; a form body is urlencoded. A multipart or file body travels as its
+// parts or path, because only main can read the files.
 export function buildCall(request: ResterClientRequest): ResterClientCall {
   let body = ''
   let contentType = ''
-  if (request.bodyKind === 'json') {
+  let multipart: ResterClientPart[] | undefined
+  let file: ResterClientFileBody | undefined
+  if (request.bodyKind === 'multipart') {
+    const parts = (request.multipart ?? [])
+      .filter((part) => part.name.trim() !== '')
+      .map((part) => ({ ...part, name: part.name.trim() }))
+    if (parts.length > 0) multipart = parts
+  } else if (request.bodyKind === 'file' && request.file) {
+    file = { ...request.file }
+  } else if (request.bodyKind === 'json') {
     body = request.json.trim()
   } else if (request.bodyKind === 'form') {
     const params = new URLSearchParams()
@@ -47,6 +66,8 @@ export function buildCall(request: ResterClientRequest): ResterClientCall {
     path: request.url.trim(),
     body,
     contentType: body ? contentType : '',
+    ...(multipart ? { multipart } : {}),
+    ...(file ? { file } : {}),
     headers: request.headers
       .filter((header) => header.name.trim() !== '')
       .map((header) => ({ name: header.name.trim(), value: header.value }))

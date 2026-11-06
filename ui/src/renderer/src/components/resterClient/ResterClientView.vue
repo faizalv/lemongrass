@@ -204,7 +204,9 @@ function addRequest(): void {
     headers: [],
     bodyKind: 'none',
     json: '',
-    form: []
+    form: [],
+    multipart: [],
+    file: { path: '', size: 0, contentType: '' }
   }
   resterClientStore.requests.push(request)
   selectedId.value = request.id
@@ -265,6 +267,8 @@ function onUrlPaste(event: ClipboardEvent): void {
   request.bodyKind = parsed.bodyKind
   request.json = parsed.json
   request.form = parsed.form
+  request.multipart = parsed.multipart
+  request.file = parsed.file
 
   const notes: string[] = []
   if (parsed.dropped.length) {
