@@ -13,6 +13,10 @@ import type {
   SSHRunData,
   SSHRunExit,
   SSHRunRequest,
+  SSHSessionEvent,
+  SSHSessionReply,
+  SSHSessionRequest,
+  SSHTransferStart,
   AccountAddResult,
   Ask,
   AskCount,
@@ -408,6 +412,28 @@ interface Api {
     runKill: (runId: string) => void
     onRunData: (callback: (payload: SSHRunData) => void) => () => void
     onRunExit: (callback: (payload: SSHRunExit) => void) => () => void
+    session: {
+      request: <T>(
+        tabId: string,
+        alias: string,
+        req: SSHSessionRequest
+      ) => Promise<SSHSessionReply<T>>
+      upload: (
+        tabId: string,
+        alias: string,
+        local: string,
+        remoteDir: string
+      ) => Promise<SSHSessionReply<SSHTransferStart>>
+      download: (
+        tabId: string,
+        alias: string,
+        remote: string
+      ) => Promise<SSHSessionReply<SSHTransferStart | null>>
+      stop: (tabId: string) => void
+      setSudo: (tabId: string, on: boolean) => Promise<void>
+      onEvent: (tabId: string, callback: (event: SSHSessionEvent) => void) => () => void
+      pathForFile: (file: File) => string
+    }
   }
   node: {
     state: () => Promise<NodeState>

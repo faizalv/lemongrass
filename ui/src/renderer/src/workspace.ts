@@ -17,6 +17,7 @@ import {
 import { accountIsDeleted, preferredAccount, setPreferredAccount } from './accounts'
 import { defaultGroupColor, groupColorVar, isGroupColor, type GroupColor } from './groupColors'
 import { isWorkgroupMember, tabGroup, workgroupStateOf } from './workgroups'
+import { stopFiles } from './components/ssh/files/filesStore'
 import {
   preferredShellAgentId,
   resumeArgs,
@@ -1019,7 +1020,10 @@ function hasTerminal(tab: WorkspaceTab): boolean {
 // A server tab's terminal is never registered as an agent session, so it only needs disposing.
 function discardTerminal(project: ProjectRef, tab: WorkspaceTab): void {
   if (tab.kind === 'shell') discardShell(project, tab.id)
-  else if (tab.kind === 'sshServer') disposeShell(tab.id)
+  else if (tab.kind === 'sshServer') {
+    disposeShell(tab.id)
+    stopFiles(tab.id)
+  }
 }
 
 function discardShell(project: ProjectRef, tabId: string): void {

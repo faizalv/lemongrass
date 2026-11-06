@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type {
   AccountAddResult,
@@ -39,6 +39,10 @@ import type {
   SSHRunData,
   SSHRunExit,
   SSHRunRequest,
+  SSHSessionEvent,
+  SSHSessionReply,
+  SSHSessionRequest,
+  SSHTransferStart,
   PtyDataPayload,
   PtyExitPayload,
   Project,
@@ -457,6 +461,38 @@ const ssh = {
       callback(payload)
     ipcRenderer.on('ssh:run-exit', listener)
     return () => ipcRenderer.removeListener('ssh:run-exit', listener)
+  },
+  session: {
+    request: <T>(
+      tabId: string,
+      alias: string,
+      req: SSHSessionRequest
+    ): Promise<SSHSessionReply<T>> => ipcRenderer.invoke('ssh:sessionRequest', tabId, alias, req),
+    upload: (
+      tabId: string,
+      alias: string,
+      local: string,
+      remoteDir: string
+    ): Promise<SSHSessionReply<SSHTransferStart>> =>
+      ipcRenderer.invoke('ssh:sessionUpload', tabId, alias, local, remoteDir),
+    download: (
+      tabId: string,
+      alias: string,
+      remote: string
+    ): Promise<SSHSessionReply<SSHTransferStart | null>> =>
+      ipcRenderer.invoke('ssh:sessionDownload', tabId, alias, remote),
+    stop: (tabId: string): void => ipcRenderer.send('ssh:sessionStop', tabId),
+    setSudo: (tabId: string, on: boolean): Promise<void> =>
+      ipcRenderer.invoke('ssh:sessionSetSudo', tabId, on),
+    onEvent: (tabId: string, callback: (event: SSHSessionEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: SSHSessionEvent): void => {
+        if (payload.tabId === tabId) callback(payload)
+      }
+      ipcRenderer.on('ssh:session-event', listener)
+      return () => ipcRenderer.removeListener('ssh:session-event', listener)
+    },
+    // A file dropped from the desktop carries its path only through webUtils since Electron 32.
+    pathForFile: (file: File): string => webUtils.getPathForFile(file)
   }
 }
 

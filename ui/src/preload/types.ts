@@ -232,6 +232,60 @@ export interface SSHRunExit {
   exitCode: number
 }
 
+// One entry of a remote folder as the file helper lists it. mode is the permission string such as
+// drwxr-xr-x and mtime is unix milliseconds; a link's dir and size are its target's.
+export interface SSHFileEntry {
+  name: string
+  dir: boolean
+  link: boolean
+  size: number
+  mode: string
+  mtime: number
+}
+
+// The file helper's requests the drawer sends as they are. Remote paths are absolute; transfers go
+// through their own calls, since main picks the local folder and the transfer id.
+export type SSHSessionRequest =
+  | { op: 'home' }
+  | { op: 'list'; path: string }
+  | { op: 'mkdir'; path: string }
+  | { op: 'rename'; from: string; to: string }
+  | { op: 'remove'; path: string }
+  | { op: 'cancel'; transfer: string }
+
+// notLoggedIn: the terminal's master socket is missing. exists: a target is taken. isDir: a
+// transfer's source is a folder. cancelled: a transfer was cancelled. The sudo codes come from a
+// helper started with --sudo: sudo wants a password, refused for another reason, or no
+// sftp-server binary was found.
+export type SSHSessionCode =
+  'notLoggedIn' | 'exists' | 'isDir' | 'cancelled' | 'sudoPassword' | 'sudoRefused' | 'noSftpServer'
+
+export type SSHSessionReply<T = unknown> =
+  { ok: true; result: T } | { ok: false; error: string; code?: SSHSessionCode }
+
+export interface SSHHomeResult {
+  path: string
+}
+
+export interface SSHListResult {
+  path: string
+  entries: SSHFileEntry[]
+}
+
+// A transfer the helper accepted; its progress arrives as events under the same id.
+export interface SSHTransferStart {
+  transfer: string
+  name: string
+  total: number
+}
+
+// exit is sent by main when the helper process ends; the next request starts a new one.
+export type SSHSessionEvent =
+  | { tabId: string; event: 'progress'; transfer: string; done: number; total: number }
+  | { tabId: string; event: 'done'; transfer: string }
+  | { tabId: string; event: 'failed'; transfer: string; error: string; code?: SSHSessionCode }
+  | { tabId: string; event: 'exit'; error: string }
+
 export interface VaultChannel {
   ID: string
   Name: string

@@ -37,6 +37,7 @@ import { createKey, findKey, listKeys, readPublicKey, sshDir } from './sshKeys'
 import { forgetHostKey, storedHostKeys } from './sshKnownHosts'
 import { hostBlockRange } from './sshText'
 import { killRun, resizeRun, startRun, writeRun } from './sshRun'
+import { registerSSHSessionHandlers } from './sshSession'
 import { terminalArgs } from './sshTerminal'
 
 // The SSH pane is the human's own tool and runs here in Electron main, never through the vault
@@ -248,4 +249,5 @@ export function registerSSHPaneHandlers(lgrassdPath: string | null): void {
     resizeRun(runId, cols, rows)
   )
   ipcMain.on('ssh:runKill', (_event, runId: string) => killRun(runId))
+  registerSSHSessionHandlers(lgrassdPath)
 }
