@@ -38,6 +38,8 @@ const REQUEST_OPS = new Set<SSHSessionRequest['op']>([
   'touch',
   'move',
   'copy',
+  'read',
+  'write',
   'cancel'
 ])
 

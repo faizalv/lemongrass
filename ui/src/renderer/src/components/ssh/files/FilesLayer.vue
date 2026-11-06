@@ -29,9 +29,10 @@ import {
   uploadPicked
 } from './filesStore'
 import { joinRemote } from './remotePath'
+import { openRemoteFile, type ProjectRef } from '../../../workspace'
 import type { SSHFileEntry } from '../../../../../preload/types'
 
-const props = defineProps<{ tabId: string; alias: string }>()
+const props = defineProps<{ project: ProjectRef; tabId: string; alias: string }>()
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -57,15 +58,25 @@ function retry(): void {
   else void navigate(props.tabId, null)
 }
 
+// A folder is entered; a file opens in a remote file tab.
 function open(entry: SSHFileEntry): void {
+  const path = joinRemote(state.value.path ?? '/', entry.name)
+  if (!entry.dir) {
+    openRemoteFile(props.project, props.alias, path, props.tabId)
+    return
+  }
   selected.value = null
-  void navigate(props.tabId, joinRemote(state.value.path ?? '/', entry.name))
+  void navigate(props.tabId, path)
 }
 
 const menuItems = computed((): MenuItem[] => {
   const entry = menu.value?.entry
   if (entry) {
+    const items: MenuItem[] = entry.dir
+      ? []
+      : [{ key: 'open', label: 'Open', icon: FILES_PATHS.open }]
     return [
+      ...items,
       { key: 'move', label: 'Move', icon: FILES_PATHS.move },
       { key: 'copy', label: 'Copy', icon: FILES_PATHS.copy },
       { key: 'download', label: 'Download', icon: FILES_PATHS.download },
@@ -99,6 +110,7 @@ function onSelect(key: string): void {
   } else if (key === 'upload') void uploadPicked(tabId)
   else if (key === 'paste') void paste(tabId)
   else if (!entry) return
+  else if (key === 'open') open(entry)
   else if (key === 'move' || key === 'copy') setClipboard(tabId, entry.name, key)
   else if (key === 'download') void downloadEntry(tabId, entry)
   else if (key === 'rename') {

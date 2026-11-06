@@ -9,6 +9,8 @@ import DiffViewer from './components/DiffViewer.vue'
 import DocView from './components/DocView.vue'
 import FileView from './components/FileView.vue'
 import HistoryView from './components/HistoryView.vue'
+import RemoteFileView from './components/ssh/editor/RemoteFileView.vue'
+import { isRemoteFileDirty } from './components/ssh/editor/remoteFiles'
 import ResterClientView from './components/resterClient/ResterClientView.vue'
 import ShellView from './components/ShellView.vue'
 import SSHServerView from './components/ssh/SSHServerView.vue'
@@ -28,6 +30,8 @@ export type { IconShape }
 export interface TabLabel {
   prefix?: string
   text: string
+  // Unsaved edits: the close mark shows a dot and asks for a second click.
+  dirty?: boolean
 }
 
 export interface TabContext {
@@ -180,7 +184,31 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     body: SSHServerView,
     keepAlive: true,
     keepLayout: (tab) => !shellSized[tab.id],
-    bodyProps: (tab, ctx) => ({ tabId: tab.id, alias: tab.alias, active: ctx.active })
+    bodyProps: (tab, ctx) => ({
+      project: ctx.project,
+      tabId: tab.id,
+      alias: tab.alias,
+      active: ctx.active
+    })
+  },
+  remoteFile: {
+    icon: sshIcon,
+    label: (tab) => ({
+      prefix: tab.alias,
+      text: tab.path.slice(tab.path.lastIndexOf('/') + 1),
+      dirty: isRemoteFileDirty(tab.id)
+    }),
+    title: (tab) => `${tab.alias}:${tab.path}`,
+    body: RemoteFileView,
+    // Kept alive so the editor's scroll and selection survive switching tabs; unsaved edits
+    // survive a pane move through remoteFiles.ts.
+    keepAlive: true,
+    bodyProps: (tab, ctx) => ({
+      project: ctx.project,
+      tabId: tab.id,
+      alias: tab.alias,
+      path: tab.path
+    })
   },
   workgroup: {
     icon: [

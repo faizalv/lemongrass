@@ -21,7 +21,10 @@ export function createSessionLink(
   onEvent: (event: SessionMessage) => void
 ): SessionLink {
   let next = 0
-  let rest = ''
+  // The unfinished line's chunks, joined only once its newline arrives. A 2 MB file's read
+  // reply is one line of up to about 12 MB, and rejoining a growing string per chunk would be
+  // quadratic.
+  let partial: string[] = []
   const pending = new Map<string, (reply: SSHSessionReply) => void>()
 
   const handle = (line: string): void => {
@@ -59,9 +62,17 @@ export function createSessionLink(
       })
     },
     feed(chunk) {
-      const lines = (rest + chunk).split('\n')
-      rest = lines.pop() ?? ''
-      for (const line of lines) if (line.trim()) handle(line)
+      let start = 0
+      let end = chunk.indexOf('\n')
+      while (end !== -1) {
+        partial.push(chunk.slice(start, end))
+        const line = partial.join('')
+        partial = []
+        if (line.trim()) handle(line)
+        start = end + 1
+        end = chunk.indexOf('\n', start)
+      }
+      if (start < chunk.length) partial.push(chunk.slice(start))
     },
     close(error) {
       for (const resolve of pending.values()) resolve({ ok: false, error })

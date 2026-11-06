@@ -209,7 +209,8 @@ async function dropSudo(
     await window.api.ssh.session.setSudo(tabId, false)
     return { ok: true, result: null }
   })
-  if (reload) void load(tabId)
+  // The layer reloads only when it has shown a folder; a remote file tab may be the only user.
+  if (reload && s.loaded) void load(tabId)
   return true
 }
 
@@ -225,6 +226,21 @@ async function call<T>(
     return { ok: false, error: s.sudoDropped, code: reply.code }
   }
   return reply
+}
+
+// A request from outside the layer, such as a remote file tab, through the same server tab's
+// helper, so it follows that tab's root mode and its fallback.
+export function serverRequest<T>(
+  tabId: string,
+  alias: string,
+  req: SSHSessionRequest
+): Promise<SSHSessionReply<T>> {
+  filesOf(tabId, alias)
+  return call<T>(tabId, req)
+}
+
+export function actingAsRoot(tabId: string): boolean {
+  return states[tabId]?.sudo ?? false
 }
 
 export async function setSudo(tabId: string, on: boolean): Promise<void> {

@@ -64,3 +64,14 @@ test('close answers every waiting request with the error', async () => {
   assert.deepEqual(await a, { ok: false, error: 'stopped' })
   assert.deepEqual(await b, { ok: false, error: 'stopped' })
 })
+
+test('a line far larger than one chunk arrives whole', async () => {
+  const { link } = setup()
+  const reply = link.request({ op: 'read', path: '/big' })
+  const content = 'x'.repeat(3_000_000)
+  const line = `${JSON.stringify({ id: '1', ok: true, result: { content } })}\n`
+  for (let at = 0; at < line.length; at += 65_536) link.feed(line.slice(at, at + 65_536))
+  const got = await reply
+  assert.ok(got.ok)
+  assert.equal((got.result as { content: string }).content.length, content.length)
+})

@@ -16,8 +16,10 @@ import { filesOf } from './files/filesStore'
 import { describeError } from '../../vaultSession'
 import { sshIcon } from '../../icons'
 import type { ShellSpec } from '../../shellRegistry'
+import type { ProjectRef } from '../../workspace'
 
 const props = defineProps<{
+  project: ProjectRef
   tabId: string
   alias: string
   active: boolean
@@ -40,7 +42,13 @@ onMounted(async () => {
 <template>
   <div v-if="spec" class="server-view">
     <ShellView :spec="spec" :active="active" />
-    <FilesLayer v-if="files.open" :tab-id="tabId" :alias="alias" @close="files.open = false" />
+    <FilesLayer
+      v-if="files.open"
+      :project="project"
+      :tab-id="tabId"
+      :alias="alias"
+      @close="files.open = false"
+    />
     <!-- Over terminal text, so it keeps a solid fill; the layer's own Close replaces it while open. -->
     <AppButton v-else class="files-toggle" variant="primary" size="sm" @click="files.open = true">
       <TabIcon :shapes="shapesOf(FILES_PATHS.files)" />

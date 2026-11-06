@@ -254,20 +254,43 @@ export type SSHSessionRequest =
   | { op: 'touch'; path: string }
   | { op: 'move'; from: string; to: string }
   | { op: 'copy'; from: string; to: string }
+  | { op: 'read'; path: string }
+  | { op: 'write'; path: string; content: string; mtime: number; force?: boolean }
   | { op: 'cancel'; transfer: string }
 
 // notLoggedIn: the terminal's master socket is missing. exists: a target is taken. isDir: a
 // transfer's source is a folder. cancelled: a transfer was cancelled. The sudo codes come from a
 // helper started with --sudo: sudo wants a password, refused for another reason, or no
-// sftp-server binary was found.
+// sftp-server binary was found. binary and tooLarge refuse a read; changed refuses a write whose
+// file moved on the server since it was read.
 export type SSHSessionCode =
-  'notLoggedIn' | 'exists' | 'isDir' | 'cancelled' | 'sudoPassword' | 'sudoRefused' | 'noSftpServer'
+  | 'notLoggedIn'
+  | 'exists'
+  | 'isDir'
+  | 'cancelled'
+  | 'sudoPassword'
+  | 'sudoRefused'
+  | 'noSftpServer'
+  | 'binary'
+  | 'tooLarge'
+  | 'changed'
 
 export type SSHSessionReply<T = unknown> =
   { ok: true; result: T } | { ok: false; error: string; code?: SSHSessionCode }
 
 export interface SSHHomeResult {
   path: string
+}
+
+// A text file up to 2 MB as the helper reads it; mtime is unix ms in whole seconds.
+export interface SSHReadResult {
+  content: string
+  mtime: number
+  size: number
+}
+
+export interface SSHWriteResult {
+  mtime: number
 }
 
 export interface SSHListResult {
@@ -950,6 +973,8 @@ export type WorkspaceTab =
   | { id: string; kind: 'resterClient' }
   | { id: string; kind: 'ssh' }
   | { id: string; kind: 'sshServer'; alias: string }
+  // A file on a server, edited through its server tab's helper; serverTabId follows that tab.
+  | { id: string; kind: 'remoteFile'; alias: string; path: string; serverTabId: string }
   | {
       id: string
       kind: 'shell'

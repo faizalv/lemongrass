@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 // The shown folder in one of three views: Detailed and Basic rows, or a Tile grid of large icons.
-// Click selects, double-click enters a folder, and a right click asks the layer for the entry's
+// Click selects, double-click enters a folder or opens a file, and a right click asks the layer for the entry's
 // menu, or the empty space's menu when it lands outside every entry.
 import TabIcon from '../../TabIcon.vue'
 import FileRow from './FileRow.vue'
@@ -52,7 +52,7 @@ function onMenu(event: MouseEvent, entry: SSHFileEntry | null): void {
         role="listitem"
         :title="entry.link ? `${entry.name} (link)` : entry.name"
         @click="emit('select', entry.name)"
-        @dblclick="entry.dir && emit('open', entry)"
+        @dblclick="emit('open', entry)"
         @contextmenu="onMenu($event, entry)"
       >
         <TabIcon
@@ -72,7 +72,7 @@ function onMenu(event: MouseEvent, entry: SSHFileEntry | null): void {
         :detailed="view === 'detailed'"
         :selected="selected === entry.name"
         @click="emit('select', entry.name)"
-        @dblclick="entry.dir && emit('open', entry)"
+        @dblclick="emit('open', entry)"
         @contextmenu="onMenu($event, entry)"
       />
     </template>

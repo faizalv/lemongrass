@@ -406,7 +406,22 @@ onBeforeUnmount(() => {
             </span>
             {{ tabKindOf(tab).label(tab, tabContext(tab)).text }}
           </span>
-          <span class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)">&times;</span>
+          <!-- Unsaved edits: a dot until hovered, and a second click to close without saving. -->
+          <AppConfirmButton
+            v-if="tabKindOf(tab).label(tab, tabContext(tab)).dirty"
+            v-slot="{ armed }"
+            class="tab-close dirty"
+            title="Unsaved changes"
+            confirm-label="Close without saving"
+            @click.stop
+            @confirm="closeTab(project, leaf.id, tab.id)"
+          >
+            <span class="dirty-dot" aria-hidden="true" />
+            <span class="dirty-close">{{ armed ? '!' : '×' }}</span>
+          </AppConfirmButton>
+          <span v-else class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)"
+            >&times;</span
+          >
         </div>
       </div>
 
@@ -853,6 +868,38 @@ onBeforeUnmount(() => {
 .tab-close:hover {
   background: var(--color-surface-2);
   color: var(--color-fg-primary);
+}
+
+.tab-close.dirty {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.dirty-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-fg-secondary);
+}
+
+.dirty-close {
+  display: none;
+}
+
+.tab-close.dirty:hover .dirty-dot,
+.tab-close.dirty:focus-visible .dirty-dot,
+.tab-close.dirty:not([data-confirm='idle']) .dirty-dot {
+  display: none;
+}
+
+.tab-close.dirty:hover .dirty-close,
+.tab-close.dirty:focus-visible .dirty-close,
+.tab-close.dirty:not([data-confirm='idle']) .dirty-close {
+  display: inline;
 }
 
 .pane-body {

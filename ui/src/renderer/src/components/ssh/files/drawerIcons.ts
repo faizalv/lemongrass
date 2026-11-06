@@ -8,6 +8,7 @@ import type { IconShape } from '../../../tabKinds'
 // match the project explorer's so the same action looks the same in both trees.
 export const FILES_PATHS = {
   files: ['M1.5 3.5h4l1.5 2h5.5v6h-11z'],
+  open: ['M3 1.5h5l3 3v8H3z', 'M8 1.5v3h3'],
   back: ['M8.5 3 4.5 7l4 4'],
   forward: ['M5.5 3l4 4-4 4'],
   reload: ['M11.5 7a4.5 4.5 0 1 1-1.3-3.2', 'M11.5 2v2.5H9'],
