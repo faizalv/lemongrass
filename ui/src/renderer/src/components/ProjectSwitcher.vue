@@ -209,11 +209,11 @@ onBeforeUnmount(() => {
               :title="project.path"
               @click="pick(project.id)"
             >
-              <span class="project-name">
-                <span class="active-dot" aria-hidden="true" />
-                <span class="name-text">{{ project.name }}</span>
+              <span class="active-dot" aria-hidden="true" />
+              <span class="project-text">
+                <span class="project-name">{{ project.name }}</span>
+                <span class="project-path">{{ parentLabel(project.path) }}</span>
               </span>
-              <span class="project-path">{{ parentLabel(project.path) }}</span>
             </button>
             <AppIconButton
               v-if="deleteRefusal(project.id)"
@@ -312,13 +312,14 @@ onBeforeUnmount(() => {
   background: var(--layer-float-hover);
 }
 
+/* The dot centers on the whole row, and name and path stack in one column after it, so both lines
+   start at the same x. */
 .project-pick {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
+  align-items: center;
+  gap: var(--space-2);
   padding: 6px var(--space-2);
   background: transparent;
   border: none;
@@ -327,21 +328,30 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.project-name {
-  max-width: 100%;
+.project-text {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: 1px;
+}
+
+.project-name,
+.project-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-name {
   color: var(--color-fg-primary);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
 }
 
-.name-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.project-path {
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
 }
 
 /* Every row keeps the dot's slot, so names line up whichever row is active. */
@@ -354,16 +364,6 @@ onBeforeUnmount(() => {
 
 .project-row.is-active .active-dot {
   background: var(--color-amber);
-}
-
-.project-path {
-  max-width: 100%;
-  overflow: hidden;
-  padding-left: calc(6px + var(--space-2));
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Shown only on the row under the pointer or keyboard; hidden keeps its space, so the path's width
