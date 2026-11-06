@@ -79,15 +79,19 @@ async function remove(): Promise<void> {
           {{ hostTarget(host) }}<template v-if="jump"> through {{ jump }}</template>
         </span>
       </div>
-      <!-- Fixed slots, so every card's actions line up in columns even when one is missing. -->
+      <!-- Fixed slots, so every card's actions line up in columns even when one is missing. Open
+           takes the right edge and a missing Remove leaves its gap on the left, in the free space. -->
       <div class="ssh-card-actions">
-        <AppButton
+        <AppIconButton
+          v-if="host.managed"
+          icon="trash"
           size="sm"
-          :title="`Log in to ${host.alias} in a terminal tab`"
-          @click="emit('open')"
-        >
-          Open
-        </AppButton>
+          tone="danger"
+          confirm
+          :label="`Remove ${host.alias}`"
+          @confirm="remove"
+        />
+        <span v-else />
         <AppButton v-if="host.managed" variant="text" size="sm" @click="emit('edit')">
           Edit
         </AppButton>
@@ -101,16 +105,13 @@ async function remove(): Promise<void> {
         >
           View
         </AppButton>
-        <AppIconButton
-          v-if="host.managed"
-          icon="trash"
+        <AppButton
           size="sm"
-          tone="danger"
-          confirm
-          :label="`Remove ${host.alias}`"
-          @confirm="remove"
-        />
-        <span v-else />
+          :title="`Log in to ${host.alias} in a terminal tab`"
+          @click="emit('open')"
+        >
+          Open
+        </AppButton>
       </div>
     </div>
 
