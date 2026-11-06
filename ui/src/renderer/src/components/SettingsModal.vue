@@ -10,6 +10,7 @@ import {
   AppEmptyState,
   AppInput,
   AppModal,
+  AppNavGroup,
   AppNavItem
 } from '@sankasten'
 import {
@@ -117,17 +118,19 @@ async function onRemove(name: string): Promise<void> {
         >
           <template #icon><SettingsIcon name="appearance" /></template>
         </AppNavItem>
-        <AppNavItem label="Accounts" @click="section = 'claude'">
-          <template #icon><SettingsIcon name="accounts" /></template>
-        </AppNavItem>
-        <div class="settings-nav-sub">
+        <AppNavGroup size="md">
+          <template #parent>
+            <AppNavItem label="Accounts" @click="section = 'claude'">
+              <template #icon><SettingsIcon name="accounts" /></template>
+            </AppNavItem>
+          </template>
           <AppNavItem :active="section === 'claude'" label="Claude" @click="section = 'claude'">
             <template #icon><SettingsIcon name="claude" /></template>
           </AppNavItem>
           <AppNavItem :active="section === 'codex'" label="Codex" @click="section = 'codex'">
             <template #icon><SettingsIcon name="codex" /></template>
           </AppNavItem>
-        </div>
+        </AppNavGroup>
         <AppNavItem :active="section === 'safety'" label="Safety" @click="section = 'safety'">
           <template #icon><SettingsIcon name="safety" /></template>
         </AppNavItem>

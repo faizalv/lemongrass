@@ -369,6 +369,26 @@ export const DOCS: Record<string, ComponentDoc> = {
       }
     ]
   },
+  AppNavGroup: {
+    name: 'AppNavGroup',
+    summary:
+      'A parent AppNavItem with its children indented under it and joined by tree guides: a line from under the parent icon to the last child, an elbow into each child, a rounded corner on the last.',
+    props: [
+      {
+        name: 'size',
+        type: "'sm' | 'md'",
+        default: "'md'",
+        doc: 'Match the items’ size; it places the line under the parent’s icon.'
+      }
+    ],
+    slots: [
+      { name: 'parent', type: '', doc: 'The parent AppNavItem.' },
+      { name: 'default', type: '', doc: 'The child AppNavItems, any number.' }
+    ],
+    notes: [
+      'The group owns the gap between parent and children so the line meets the parent. The elbow into an active child is drawn strong.'
+    ]
+  },
   AppDisclosure: {
     name: 'AppDisclosure',
     summary:

@@ -14,6 +14,7 @@ import {
   AppIconButton,
   AppInfoPopover,
   AppModal,
+  AppNavGroup,
   AppNavItem,
   AppProgressLine,
   IconFrame,
@@ -30,6 +31,7 @@ const iconNames = Object.keys(APP_ICONS) as AppIconName[]
 const open = ref(true)
 const stashOpen = ref(false)
 const folded = ref(true)
+const account = ref('second')
 const chips = ref(['orders', 'users', 'invoices'])
 const excluded = ref(false)
 const modal = ref(false)
@@ -74,6 +76,36 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
         <AppNavItem label="Node" state="Shared" size="sm">
           <template #trailing><span class="dot" /></template>
         </AppNavItem>
+      </div>
+    </DocBlock>
+
+    <DocBlock name="AppNavGroup">
+      <div class="groups">
+        <div v-for="s in ['md', 'sm'] as const" :key="s" class="sidebar">
+          <AppNavItem label="General" :size="s">
+            <template #icon><AppIcon name="info" /></template>
+          </AppNavItem>
+          <AppNavGroup :size="s">
+            <template #parent>
+              <AppNavItem label="Accounts" :size="s" @click="account = 'first'">
+                <template #icon><AppIcon name="copy" /></template>
+              </AppNavItem>
+            </template>
+            <AppNavItem
+              v-for="a in ['first', 'second', 'third']"
+              :key="a"
+              :label="a"
+              :size="s"
+              :active="account === a"
+              @click="account = a"
+            >
+              <template #icon><AppIcon name="check" /></template>
+            </AppNavItem>
+          </AppNavGroup>
+          <AppNavItem label="Updates" :size="s">
+            <template #icon><AppIcon name="search" /></template>
+          </AppNavItem>
+        </div>
       </div>
     </DocBlock>
 
@@ -215,6 +247,11 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
   padding: var(--space-2);
   background: var(--color-surface-1);
   border-radius: var(--radius-md);
+}
+
+.groups {
+  display: flex;
+  gap: var(--space-4);
 }
 
 .row {
