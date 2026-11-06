@@ -80,13 +80,15 @@ onBeforeUnmount(() => window.removeEventListener('hashchange', onHash))
         />
       </div>
     </nav>
-    <main class="content">
-      <OverviewSection />
-      <TokensSection />
-      <RulesSection />
-      <ActionsSection />
-      <FieldsSection />
-      <DisplaySection />
+    <main class="main">
+      <div class="content">
+        <OverviewSection />
+        <TokensSection />
+        <RulesSection />
+        <ActionsSection />
+        <FieldsSection />
+        <DisplaySection />
+      </div>
     </main>
   </div>
 </template>
@@ -140,12 +142,21 @@ onBeforeUnmount(() => window.removeEventListener('hashchange', onHash))
   background: var(--layer-raised);
 }
 
+/* The main area fills everything right of the nav and is the scroll container, so its scrollbar
+   sits at the window edge; the column inside is centered and capped for reading and demos, with
+   side padding that shrinks on a narrow window. min-width: 0 lets the grid cell shrink below the
+   column's content width. */
+.main {
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-10) clamp(var(--space-4), 4vw, var(--space-10)) var(--space-24);
+}
+
 .content {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 1080px;
-  padding: var(--space-10) var(--space-10) var(--space-24);
-  overflow-y: auto;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 </style>
