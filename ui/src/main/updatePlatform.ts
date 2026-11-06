@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // What differs between the rpm, the macOS and the Windows update. The check, download and SHA256SUMS

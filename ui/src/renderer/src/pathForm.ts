@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Absolute paths from main and from hooks use the host's form: '/' on Unix, '\' (or '/') with a drive letter and

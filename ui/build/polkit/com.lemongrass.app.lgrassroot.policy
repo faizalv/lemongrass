@@ -3,7 +3,7 @@
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
 <!--
-  SPDX-License-Identifier: AGPL-3.0-only
+  SPDX-License-Identifier: MPL-2.0
   Copyright (C) 2026 The Lemongrass Authors
 
   The action names one exact path, since pkexec on any other path falls back to its generic password prompt. The path

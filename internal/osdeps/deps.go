@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Package osdeps checks the tools lemongrass needs from the OS: where each one is, its version, which package owns

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Package gitbash finds Git for Windows' bash, the shell lemongrass runs a user's command line through on Windows,

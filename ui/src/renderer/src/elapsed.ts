@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // A running time as a clock reads it: 0:07, 12:34, 1:02:03. A start in the future counts as zero.

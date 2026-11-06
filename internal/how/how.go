@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Package how serves the step-by-step instructions behind `lgrass how <domain> <action>`, printing only the branch that applies.

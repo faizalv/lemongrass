@@ -4,7 +4,7 @@
   "description": "Lemongrass -- agent orchestrator",
   "main": "./out/main/index.js",
   "author": "The Lemongrass Authors",
-  "license": "AGPL-3.0-only",
+  "license": "MPL-2.0",
   "homepage": "https://github.com/faizalv/lemongrass",
   "scripts": {
     "format": "prettier --write .",

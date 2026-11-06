@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Package threadsvc delivers ledger notifications, from threads and other sources: the ledger-driven delivery routines and the socket service the agent process hosts.

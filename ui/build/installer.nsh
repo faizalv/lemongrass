@@ -1,4 +1,4 @@
-; SPDX-License-Identifier: AGPL-3.0-only
+; SPDX-License-Identifier: MPL-2.0
 ; Copyright (C) 2026 The Lemongrass Authors
 
 ; Runs before the uninstaller removes the files, so the bundled lgrassconf.exe is still there. It stops the keeper and

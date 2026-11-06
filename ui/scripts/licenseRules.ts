@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-// Licenses that may ship alongside Lemongrass's AGPL-3.0-only code. Anything else fails the
+// Licenses that may ship alongside Lemongrass's MPL-2.0 code. Anything else fails the
 // packaged build, so a dependency that relicenses to something incompatible is caught before release.
 export const ACCEPTED = new Set([
   'MIT',

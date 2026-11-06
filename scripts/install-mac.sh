@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Copyright (C) 2026 The Lemongrass Authors
 
 # Installs or updates Lemongrass on macOS from the GitHub release, in one command:

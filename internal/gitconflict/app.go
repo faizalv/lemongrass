@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Package gitconflict is the Go side of handing a git conflict to a model tab: the app socket ops it calls and the few git reads it needs. Reading conflicts themselves stays in the app's main process.

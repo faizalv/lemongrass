@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // The shapes a blocked path may take in the Safety section before it is saved; the gate's own validation (guard.Policy.Validate) stays the judge. Windows also takes a drive path, a ~\ path, a UNC path and the home variables, which the gate normalizes.

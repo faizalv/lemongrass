@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: AGPL-3.0-only
+# SPDX-License-Identifier: MPL-2.0
 # Copyright (C) 2026 The Lemongrass Authors
 
 # Fails when any x86-64 ELF file under the given directories needs a newer glibc than build/rpm/glibc-floor. A native

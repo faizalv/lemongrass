@@ -1,4 +1,4 @@
--- SPDX-License-Identifier: AGPL-3.0-only
+-- SPDX-License-Identifier: MPL-2.0
 -- Copyright (C) 2026 The Lemongrass Authors
 
 -- Fake fixtures for internal/dbgate/tricks_realdb_test.go, run as the vaultadmin superuser by the image on a fresh volume, inside vaultapp.

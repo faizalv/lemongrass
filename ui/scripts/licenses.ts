@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Writes <out>/licenses.json, the third-party credits shown in Settings > Credits. It ships inside
@@ -64,7 +64,7 @@ if (problems.length > 0) {
   for (const p of problems) console.error(`licenses: ${p}`)
   if (!warnOnly) {
     console.error(
-      'licenses: add the license to ACCEPTED in scripts/licenseRules.ts only if it can ship with AGPL-3.0-only, or record the package in EXCEPTIONS in scripts/licenses.ts.'
+      'licenses: add the license to ACCEPTED in scripts/licenseRules.ts only if it can ship with MPL-2.0, or record the package in EXCEPTIONS in scripts/licenses.ts.'
     )
     process.exit(1)
   }

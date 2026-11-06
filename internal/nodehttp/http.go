@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Package nodehttp is the node's HTTP surface: bearer auth, the plain read routes and the MCP adapter, all read-only.

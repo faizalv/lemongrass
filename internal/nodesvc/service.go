@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Package nodesvc runs the node daemon: it keeps the tunnel matching node.json and answers the app's reload and status calls on node.sock.
