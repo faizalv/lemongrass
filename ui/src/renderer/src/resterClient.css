@@ -159,15 +159,43 @@
   overflow: hidden;
 }
 
-/* A header wraps whole items onto a second line when narrow; no item wraps inside itself. */
+/* One row: a scroll area with the title and every control, then the collapse chevron pinned
+   outside it so it stays in view however narrow the box is. */
 .rester-client .box-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border-default);
   background: var(--color-surface-2);
+}
+
+/* Items keep their natural width and the area scrolls sideways instead of wrapping. The thin
+   scrollbar's room is always kept, so showing it on hover never moves the row. Anything that drops
+   down from a head must render in body, since this overflow clips. */
+.rester-client .head-scroll {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.rester-client .head-scroll:hover {
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.rester-client .head-scroll > * {
+  flex-shrink: 0;
+}
+
+.rester-client .head-spacer {
+  flex: 1 0 0;
 }
 
 .rester-client .box-title {
@@ -176,13 +204,6 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   color: var(--color-fg-primary);
-}
-
-.rester-client .head-end {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-left: auto;
 }
 
 .rester-client .box-body {
@@ -195,7 +216,8 @@
   overflow: auto;
 }
 
-.rester-client .status {
+.rester-client .status,
+.rester-float .status {
   white-space: nowrap;
   padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
@@ -203,23 +225,28 @@
   font-weight: var(--weight-semibold);
 }
 
-.rester-client .status.ok {
+.rester-client .status.ok,
+.rester-float .status.ok {
   background: var(--color-success-muted);
   color: var(--color-success);
 }
 
-.rester-client .status.redirect {
+.rester-client .status.redirect,
+.rester-float .status.redirect {
   background: var(--color-sapphire-muted);
   color: var(--color-sapphire);
 }
 
-.rester-client .status.client {
+.rester-client .status.client,
+.rester-float .status.client {
   background: var(--color-amber-muted);
   color: var(--color-amber);
 }
 
 .rester-client .status.server,
-.rester-client .status.failed {
+.rester-float .status.server,
+.rester-client .status.failed,
+.rester-float .status.failed {
   background: var(--color-error-muted);
   color: var(--color-error);
 }

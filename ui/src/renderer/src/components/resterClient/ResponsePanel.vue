@@ -6,6 +6,7 @@ import { computed, provide, reactive, ref, watch } from 'vue'
 import { AppEmptyState, AppIcon, AppIconButton, AppInput, AppSegmented } from '@sankasten'
 import JsonNode from './JsonNode.vue'
 import HistoryPopover from './HistoryPopover.vue'
+import { wheelSideways } from './headScroll'
 import { statusClass } from '../../resterClientCall'
 import { pathId, runSearch } from '../../responseSearch'
 import { treeSearchKey, type TreeSearch } from './searchContext'
@@ -164,37 +165,38 @@ function formatSize(bytes: number): string {
 <template>
   <section class="box">
     <header class="box-head">
-      <span class="box-title">Response</span>
-      <template v-if="!sending && !error && result">
-        <span class="status" :class="statusClass(result.status)">{{ result.status }}</span>
-        <span class="meta">{{ result.durationMs }} ms</span>
-        <span class="meta">{{ formatSize(result.size) }}</span>
-        <span class="spacer" />
-        <AppSegmented
-          class="views"
-          size="sm"
-          :model-value="activeView"
-          :options="views"
-          aria-label="Response view"
-          @update:model-value="view = $event"
+      <div class="head-scroll" @wheel="wheelSideways">
+        <span class="box-title">Response</span>
+        <template v-if="!sending && !error && result">
+          <span class="status" :class="statusClass(result.status)">{{ result.status }}</span>
+          <span class="meta">{{ result.durationMs }} ms</span>
+          <span class="meta">{{ formatSize(result.size) }}</span>
+          <span class="head-spacer" />
+          <AppSegmented
+            size="sm"
+            :model-value="activeView"
+            :options="views"
+            aria-label="Response view"
+            @update:model-value="view = $event"
+          />
+        </template>
+        <template v-else-if="!sending && !error && download?.kind === 'saved'">
+          <span class="status" :class="statusClass(download.status)">{{ download.status }}</span>
+          <span class="meta">{{ download.durationMs }} ms</span>
+          <span class="meta">{{ formatSize(download.bytes) }}</span>
+          <span class="head-spacer" />
+        </template>
+        <span v-else class="head-spacer" />
+        <HistoryPopover
+          v-if="at && !sending"
+          :at="at"
+          :runs="runs"
+          :run-id="runId"
+          @pick="emit('pickRun', $event)"
+          @remove="emit('removeRun', $event)"
+          @clear="emit('clearHistory')"
         />
-      </template>
-      <template v-else-if="!sending && !error && download?.kind === 'saved'">
-        <span class="status" :class="statusClass(download.status)">{{ download.status }}</span>
-        <span class="meta">{{ download.durationMs }} ms</span>
-        <span class="meta">{{ formatSize(download.bytes) }}</span>
-        <span class="spacer" />
-      </template>
-      <span v-else class="spacer" />
-      <HistoryPopover
-        v-if="at && !sending"
-        :at="at"
-        :runs="runs"
-        :run-id="runId"
-        @pick="emit('pickRun', $event)"
-        @remove="emit('removeRun', $event)"
-        @clear="emit('clearHistory')"
-      />
+      </div>
       <AppIconButton size="sm" label="Minimize Response" @click="emit('collapse')">
         <AppIcon name="chevronRight" />
       </AppIconButton>
@@ -288,10 +290,6 @@ function formatSize(bytes: number): string {
   color: var(--color-fg-secondary);
   font-size: var(--text-xs);
   white-space: nowrap;
-}
-
-.spacer {
-  flex: 1;
 }
 
 .tree {

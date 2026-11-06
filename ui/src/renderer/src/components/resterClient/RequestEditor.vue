@@ -16,6 +16,7 @@ import {
 import PairRows from './PairRows.vue'
 import MultipartRows from './MultipartRows.vue'
 import FilePick from './FilePick.vue'
+import { wheelSideways } from './headScroll'
 import type { ResterClientBodyKind, ResterClientRequest } from '../../../../preload/types'
 
 // Edited in place; the parent owns the request.
@@ -53,20 +54,21 @@ function formatJson(): void {
 <template>
   <section class="box">
     <header class="box-head">
-      <span class="box-title">Request</span>
-      <AppSegmented v-model="section" size="sm" :options="sections" aria-label="Request part" />
-      <div v-if="section === 'body'" class="body-kind">
-        <AppSwitcher
-          framed
-          size="sm"
-          :items="bodyKinds"
-          :active-id="request.bodyKind"
-          placeholder="None"
-          empty-text=""
-          @select="request.bodyKind = $event as ResterClientBodyKind"
-        />
-      </div>
-      <div class="head-end">
+      <div class="head-scroll" @wheel="wheelSideways">
+        <span class="box-title">Request</span>
+        <AppSegmented v-model="section" size="sm" :options="sections" aria-label="Request part" />
+        <div v-if="section === 'body'" class="body-kind">
+          <AppSwitcher
+            framed
+            size="sm"
+            :items="bodyKinds"
+            :active-id="request.bodyKind"
+            placeholder="None"
+            empty-text=""
+            @select="request.bodyKind = $event as ResterClientBodyKind"
+          />
+        </div>
+        <span class="head-spacer" />
         <AppButton
           v-if="section === 'body' && request.bodyKind === 'json'"
           size="sm"
@@ -74,10 +76,10 @@ function formatJson(): void {
         >
           Format
         </AppButton>
-        <AppIconButton size="sm" label="Minimize Request" @click="emit('collapse')">
-          <AppIcon name="chevronRight" class="flip" />
-        </AppIconButton>
       </div>
+      <AppIconButton size="sm" label="Minimize Request" @click="emit('collapse')">
+        <AppIcon name="chevronRight" class="flip" />
+      </AppIconButton>
     </header>
 
     <div class="box-body">
