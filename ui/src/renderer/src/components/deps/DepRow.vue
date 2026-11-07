@@ -7,8 +7,11 @@ import { AppButton, AppProgressLine } from '@sankasten'
 import { formatElapsed } from '../../elapsed'
 import {
   actionLabel,
+  anyAgentReady,
   buttonWeight,
+  depLabel,
   featuresText,
+  offPathText,
   originText,
   routeBlocked,
   routeNote,
@@ -50,19 +53,26 @@ const elapsed = computed(() =>
 )
 
 const outcome = computed(() => props.state.outcomes[props.dep.name] ?? null)
-const weight = computed(() => buttonWeight(props.dep))
-const blocked = computed(() => (props.dep.offer ? routeBlocked(props.dep.offer) : null))
+const weight = computed(() => buttonWeight(props.dep, !anyAgentReady(props.state.report)))
+const blocked = computed(() =>
+  props.dep.offer ? routeBlocked(props.dep.offer, props.state.unsupported) : null
+)
 
 // One install at a time, since the package manager holds a single lock, and none while a check runs.
 const disabled = computed(
-  () =>
-    !!props.state.unsupported ||
-    !!blocked.value ||
-    !!props.state.installing ||
-    props.state.phase === 'checking'
+  () => !!blocked.value || !!props.state.installing || props.state.phase === 'checking'
 )
 
-const note = computed(() => (props.dep.offer && !blocked.value ? routeNote(props.dep.offer) : null))
+const note = computed(() =>
+  props.dep.offer && !blocked.value
+    ? routeNote(props.dep, props.state.report?.os.family ?? '')
+    : null
+)
+
+const offPath = computed(() => {
+  const dir = props.state.offPath[props.dep.name]
+  return dir && props.dep.status === 'ok' ? offPathText(props.dep, dir) : null
+})
 
 const meta = computed(() => [props.dep.path, originText(props.dep)].filter(Boolean).join(', '))
 
@@ -74,7 +84,7 @@ function install(): void {
 <template>
   <li class="dep-row">
     <div class="dep-head">
-      <span class="settings-row-title">{{ dep.name }}</span>
+      <span class="settings-row-title">{{ depLabel(dep) }}</span>
       <span class="dep-status" :class="tone(dep)">{{ statusText(dep) }}</span>
       <span v-if="!dep.required" class="settings-badge">Optional</span>
       <span class="dep-spacer" />
@@ -95,6 +105,7 @@ function install(): void {
     <p v-if="dep.message" class="dep-text dep-message">{{ dep.message }}</p>
     <p v-if="blocked && weight" class="dep-text">{{ blocked }}</p>
     <p v-if="note && weight && !installing" class="dep-text">{{ note }}</p>
+    <p v-if="offPath" class="dep-text">{{ offPath }}</p>
     <div v-if="installing" class="dep-output">
       <div class="dep-run">
         <AppProgressLine class="dep-run-line" :label="`${verb} ${installing.package}`" />

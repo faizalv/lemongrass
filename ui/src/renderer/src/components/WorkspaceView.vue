@@ -14,6 +14,10 @@ import {
   type ProjectRef
 } from '../workspace'
 import { accountStore } from '../accounts'
+import { depsStore } from '../deps'
+import { agentMissing } from '../depsView'
+import MarkedText from './MarkedText.vue'
+import type { NamePart } from '../tabNames'
 import { PICKABLE_SHELL_AGENTS, shellAgentById } from '../shellAgents'
 import AgentIcon from './AgentIcon.vue'
 
@@ -23,6 +27,17 @@ const props = defineProps<{
 
 const workspace = computed(() => workspaceOf(props.project.id))
 const selectedAgentWarning = computed(() => shellAgentById(shellPicker.selectedId).warning)
+
+// An agent the dependency check found missing stays selectable, so the pad can say why it cannot open.
+const missing = (command: string): boolean => agentMissing(depsStore.state?.report, command)
+const selectedMissing = computed(() => missing(shellAgentById(shellPicker.selectedId).command))
+const missingParts = computed((): NamePart[] => [
+  { text: `${shellAgentById(shellPicker.selectedId).label} is not installed. Install it in ` },
+  { text: 'Settings', mark: true },
+  { text: ', under ' },
+  { text: 'Dependencies', mark: true },
+  { text: '.' }
+])
 const showAccounts = computed(
   () => shellPicker.selectedId === 'claude' && accountStore.items.length > 0
 )
@@ -52,8 +67,9 @@ const showAccounts = computed(
           v-for="agent in PICKABLE_SHELL_AGENTS"
           :key="agent.id"
           :label="agent.label"
-          :detail="agent.hint"
-          mono
+          :detail="missing(agent.command) ? 'Not installed' : agent.hint"
+          :mono="!missing(agent.command)"
+          :tone="missing(agent.command) ? 'danger' : 'neutral'"
           :selected="shellPicker.selectedId === agent.id"
           role="option"
           :aria-selected="shellPicker.selectedId === agent.id"
@@ -94,10 +110,18 @@ const showAccounts = computed(
           </button>
         </div>
       </template>
-      <p v-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
+      <p v-if="selectedMissing" class="agent-warning"><MarkedText :parts="missingParts" /></p>
+      <p v-else-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
       <template #footer>
         <AppButton size="md" @click="cancelShellPicker">Cancel</AppButton>
-        <AppButton variant="primary" size="md" @click="confirmShellPicker()">Open</AppButton>
+        <AppButton
+          variant="primary"
+          size="md"
+          :disabled="selectedMissing"
+          @click="confirmShellPicker()"
+        >
+          Open
+        </AppButton>
       </template>
     </AppModal>
   </div>

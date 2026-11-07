@@ -4,6 +4,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  AGENT_GROUP,
+  agentsOffPath,
   KEPT_LINES,
   appendOutput,
   helperExitText,
@@ -311,9 +313,11 @@ test('nextSeen keeps an ok record until the layer completes', () => {
   const broken = parseReport(withGit({ status: 'missing' }))
   const fixed = parseReport(JSON.stringify(fixture))
   assert.ok(broken && fixed)
-  assert.deepEqual(nextSeen({ git: 'ok' }, broken, false), { git: 'ok' })
-  assert.deepEqual(nextSeen({ git: 'ok' }, broken, true), { git: 'missing' })
-  assert.deepEqual(nextSeen({ git: 'missing' }, fixed, false), { git: 'ok' })
+  // The fixture's codex is ok, so the agent group is recorded ok throughout.
+  const agents = { [AGENT_GROUP]: 'ok' }
+  assert.deepEqual(nextSeen({ git: 'ok' }, broken, false), { git: 'ok', ...agents })
+  assert.deepEqual(nextSeen({ git: 'ok' }, broken, true), { git: 'missing', ...agents })
+  assert.deepEqual(nextSeen({ git: 'missing' }, fixed, false), { git: 'ok', ...agents })
 })
 
 test('successText checks the result of the fresh check', () => {
@@ -336,4 +340,33 @@ test('parseReport reads real lgrassd output', () => {
   assert.equal(report.deps.length, 5)
   assert.deepEqual(report.deps[3].origin, { kind: 'package', package: 'ffmpeg' })
   assert.match(report.deps[2].message, /COPR/)
+})
+
+test('the agent group reopens the layer like a required dependency', () => {
+  const report = parseReport(JSON.stringify(fixture))
+  assert.ok(report)
+  // codex is ok in the fixture, so the group is ok.
+  const seen = nextSeen({}, report, false)
+  assert.equal(seen[AGENT_GROUP], 'ok')
+  const gone = {
+    ...report,
+    deps: report.deps.map((dep) => (dep.agent ? { ...dep, status: 'missing' as const } : dep))
+  }
+  assert.equal(requiredRegressed(seen, gone), true)
+  assert.equal(requiredRegressed(seen, report), false)
+  assert.equal(nextSeen(seen, gone, false)[AGENT_GROUP], 'ok')
+  assert.equal(nextSeen(seen, gone, true)[AGENT_GROUP], 'missing')
+  const noAgents = { ...report, deps: report.deps.filter((dep) => !dep.agent) }
+  assert.equal(AGENT_GROUP in nextSeen({}, noAgents, true), false)
+})
+
+test('agentsOffPath names an agent folder the login shell PATH lacks', () => {
+  const report = parseReport(JSON.stringify(fixture))
+  assert.ok(report)
+  assert.deepEqual(agentsOffPath(report, '/usr/bin:/bin', 'darwin'), {
+    codex: '/home/u/.local/bin'
+  })
+  assert.deepEqual(agentsOffPath(report, '/usr/bin:/home/u/.local/bin/', 'linux'), {})
+  assert.deepEqual(agentsOffPath(report, null, 'linux'), {})
+  assert.deepEqual(agentsOffPath(report, '', 'win32'), {})
 })

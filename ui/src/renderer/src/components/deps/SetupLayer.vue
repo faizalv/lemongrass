@@ -7,6 +7,7 @@ import { AppButton, AppEmptyState, AppModal } from '@sankasten'
 import MarkedText from '../MarkedText.vue'
 import DepRow from './DepRow.vue'
 import { depsStore } from '../../deps'
+import { agentDeps, agentGroupText, anyAgentReady } from '../../depsView'
 import type { NamePart } from '../../tabNames'
 
 // A check that finishes sooner than this never shows the spinner, so a cached check does not flash it.
@@ -20,6 +21,10 @@ const state = computed(() => depsStore.state)
 const open = computed(() => !hidden.value && !!state.value?.setupDue)
 const required = computed(() => state.value?.report?.deps.filter((dep) => dep.required) ?? [])
 const pending = computed(() => required.value.filter((dep) => dep.status !== 'ok'))
+// The agents come first: with none of them no tab can run, while a missing tool only turns its features off.
+const agents = computed(() => agentDeps(state.value?.report))
+const agentPending = computed(() => agents.value.length > 0 && !anyAgentReady(state.value?.report))
+const allReady = computed(() => pending.value.length === 0 && !agentPending.value)
 const waiting = computed(() => state.value?.phase === 'checking' && !state.value.report)
 
 const spinnerShown = ref(false)
@@ -43,9 +48,13 @@ const manageParts: NamePart[] = [
   { text: '.' }
 ]
 
-// The install button carries the weight while a required dependency is pending, so Continue steps down.
+// The install button carries the weight while a required dependency or the agent group is pending, so Continue
+// steps down.
 const continueVariant = computed(() =>
-  pending.value.some((dep) => dep.offer) ? 'ghost' : 'primary'
+  pending.value.some((dep) => dep.offer) ||
+  (agentPending.value && agents.value.some((dep) => dep.offer))
+    ? 'ghost'
+    : 'primary'
 )
 
 async function finish(): Promise<void> {
@@ -73,10 +82,14 @@ async function finish(): Promise<void> {
       </template>
 
       <template v-else-if="state.report">
-        <p v-if="pending.length === 0" class="settings-text">
-          Everything lemongrass needs is in place.
-        </p>
-        <p v-else class="settings-text">
+        <p v-if="allReady" class="settings-text">Everything lemongrass needs is in place.</p>
+        <template v-if="agents.length > 0">
+          <p v-if="agentPending" class="settings-text">{{ agentGroupText(agents) }}</p>
+          <ul class="settings-rows">
+            <DepRow v-for="dep in agents" :key="dep.name" :dep="dep" :state="state" />
+          </ul>
+        </template>
+        <p v-if="pending.length > 0" class="settings-text">
           Lemongrass needs these tools. Without them, the features they serve stay off.
         </p>
         <ul class="settings-rows">

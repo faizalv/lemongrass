@@ -108,10 +108,10 @@ export function installUnsupported(
   platform: string,
   arch: string
 ): string | null {
-  if (!packaged) return 'This is a source build. Installs run only in the installed app.'
+  if (!packaged) return 'This is a source build. System packages install only in the installed app.'
   if (platform === 'win32') return null
   if (platform !== 'linux' || !helperArch(arch)) {
-    return 'Installing from lemongrass is not supported on this system yet.'
+    return 'Installing system packages from lemongrass is not supported on this system yet.'
   }
   return null
 }
@@ -290,9 +290,25 @@ export function helperExitText(code: number | null, lastError: string): string {
 
 export type RequiredStatuses = Record<string, DepEntry['status']>
 
+// The agent CLIs are optional one by one, but lemongrass needs at least one, so the group is recorded as one
+// required item under a key no dependency name can take.
+export const AGENT_GROUP = '@agents'
+
+// The statuses the reopen rule judges: every required dependency, and the agent group as ok when any agent is.
+function requiredStatuses(report: DepsReport): [string, DepEntry['status']][] {
+  const entries: [string, DepEntry['status']][] = report.deps
+    .filter((dep) => dep.required)
+    .map((dep) => [dep.name, dep.status])
+  const agents = report.deps.filter((dep) => dep.agent)
+  if (agents.length > 0) {
+    entries.push([AGENT_GROUP, agents.some((dep) => dep.status === 'ok') ? 'ok' : 'missing'])
+  }
+  return entries
+}
+
 // Whether a required dependency that was ok when last seen is no longer ok, which reopens the startup layer.
 export function requiredRegressed(seen: RequiredStatuses, report: DepsReport): boolean {
-  return report.deps.some((dep) => dep.required && seen[dep.name] === 'ok' && dep.status !== 'ok')
+  return requiredStatuses(report).some(([name, status]) => seen[name] === 'ok' && status !== 'ok')
 }
 
 // The statuses to keep after a check. A required dependency now ok is recorded at once; one that is
@@ -304,11 +320,30 @@ export function nextSeen(
   completed: boolean
 ): RequiredStatuses {
   const next: RequiredStatuses = {}
-  for (const dep of report.deps) {
-    if (!dep.required) continue
-    next[dep.name] = completed || dep.status === 'ok' ? dep.status : (seen[dep.name] ?? dep.status)
+  for (const [name, status] of requiredStatuses(report)) {
+    next[name] = completed || status === 'ok' ? status : (seen[name] ?? status)
   }
   return next
+}
+
+// The folder of each agent CLI that is not on the login shell's PATH, on Linux and macOS: a terminal outside
+// lemongrass may not find it, which the row says, while lemongrass's own tabs find it (the app adds ~/.local/bin to
+// its own PATH and falls back to the checked path). An unread login PATH reports nothing. On Windows both vendor
+// folders are on the user's PATH (lemongrass adds ~/.local/bin, Codex's script adds its own), so nothing is reported.
+export function agentsOffPath(
+  report: DepsReport,
+  pathVar: string | null,
+  platform: string
+): Record<string, string> {
+  if (platform === 'win32' || pathVar === null) return {}
+  const dirs = new Set(pathVar.split(':').map((dir) => dir.replace(/\/+$/, '')))
+  const off: Record<string, string> = {}
+  for (const dep of report.deps) {
+    if (!dep.agent || !dep.path) continue
+    const dir = dep.path.slice(0, dep.path.lastIndexOf('/'))
+    if (dir && !dirs.has(dir)) off[dep.name] = dir
+  }
+  return off
 }
 
 // The sentence for a helper run that exited 0. dnf also exits 0 with "Nothing to do" when the

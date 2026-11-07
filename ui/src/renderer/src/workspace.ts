@@ -15,6 +15,8 @@ import {
   startShellDetached
 } from './shellRegistry'
 import { accountIsDeleted, preferredAccount, setPreferredAccount } from './accounts'
+import { depsStore } from './deps'
+import { agentMissing } from './depsView'
 import { defaultGroupColor, groupColorVar, isGroupColor, type GroupColor } from './groupColors'
 import { isWorkgroupMember, tabGroup, workgroupStateOf } from './workgroups'
 import { stopFiles } from './components/ssh/files/filesStore'
@@ -224,6 +226,8 @@ export function confirmShellPicker(agentId?: string): void {
   const placement = shellPicker.placement
   if (!placement) return
   const agent = shellAgentById(agentId ?? shellPicker.selectedId)
+  // The check found this agent's CLI missing, so a tab would only fail; the picker says where to install it.
+  if (agentMissing(depsStore.state?.report, agent.command)) return
   setPreferredShellAgentId(agent.id)
   const account = agent.id === 'claude' ? shellPicker.account : undefined
   if (agent.id === 'claude') setPreferredAccount(account)

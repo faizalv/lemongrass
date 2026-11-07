@@ -61,12 +61,21 @@ export function pickSSHAuthSock(current: string | undefined, login: string | nul
   return login
 }
 
+// The login shell's own PATH as read at startup, before the fallbacks were added, or null when it could not be read.
+// It is what a terminal outside lemongrass sees, which the app's PATH no longer tells.
+let loginShellPath: string | null = null
+
+export function loginShellPathVar(): string | null {
+  return loginShellPath
+}
+
 export function loadLoginEnv(): void {
   if (process.platform === 'win32') return
   const output = readLoginShell()
   const home = homedir()
   const fallbacks = [join(home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin']
-  process.env.PATH = mergePath(extractPath(output), process.env.PATH ?? '', fallbacks)
+  loginShellPath = extractPath(output)
+  process.env.PATH = mergePath(loginShellPath, process.env.PATH ?? '', fallbacks)
   const sock = pickSSHAuthSock(
     process.env.SSH_AUTH_SOCK,
     extractMarked(output, SSH_AUTH_SOCK_MARKER)

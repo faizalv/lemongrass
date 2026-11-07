@@ -6,10 +6,17 @@ import { computed } from 'vue'
 import { AppButton } from '@sankasten'
 import DepRow from './DepRow.vue'
 import { depsStore } from '../../deps'
-import { osText } from '../../depsView'
+import { agentDeps, agentGroupText, anyAgentReady, osText } from '../../depsView'
 import type { DepsState } from '../../../../preload/types'
 
 const state = computed(() => depsStore.state)
+const agents = computed(() => agentDeps(state.value?.report))
+const agentPending = computed(() => agents.value.length > 0 && !anyAgentReady(state.value?.report))
+// The agents come first, as on the startup layer.
+const ordered = computed(() => [
+  ...agents.value,
+  ...(state.value?.report?.deps.filter((dep) => !dep.agent) ?? [])
+])
 
 const status = computed((): { text: string; tone: '' | 'muted' | 'error' } => {
   const s = state.value
@@ -26,8 +33,8 @@ const check = (): Promise<DepsState> => window.api.deps.check()
 <template>
   <div v-if="state" class="deps">
     <p class="settings-text">
-      The tools lemongrass uses from your system. Installs and updates go through your system's own
-      package manager.
+      The tools lemongrass uses from your system. System tools install and update through your
+      system's own package manager, and the agent CLIs through their makers' official installers.
     </p>
 
     <dl v-if="state.report" class="settings-facts">
@@ -35,9 +42,12 @@ const check = (): Promise<DepsState> => window.api.deps.check()
       <dd>{{ osText(state.report.os) }}</dd>
     </dl>
 
-    <ul v-if="state.report" class="settings-rows">
-      <DepRow v-for="dep in state.report.deps" :key="dep.name" :dep="dep" :state="state" />
-    </ul>
+    <template v-if="state.report">
+      <p v-if="agentPending" class="settings-text">{{ agentGroupText(agents) }}</p>
+      <ul class="settings-rows">
+        <DepRow v-for="dep in ordered" :key="dep.name" :dep="dep" :state="state" />
+      </ul>
+    </template>
 
     <div class="settings-footer">
       <span class="settings-footer-status" :class="status.tone">{{ status.text }}</span>

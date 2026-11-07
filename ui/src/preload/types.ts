@@ -1389,6 +1389,8 @@ export interface DepsState {
   outcomes: Record<string, DepOutcome>
   unsupported: string | null
   setupDue: boolean
+  // The folder of each agent CLI that is not on the app's PATH (Linux and macOS), keyed by name.
+  offPath: Record<string, string>
 }
 
 // An ask is a model's request to the human, held in the vault daemon (biblio ask-ops seam). Every

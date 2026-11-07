@@ -6,6 +6,7 @@ import { execFile, spawn } from 'child_process'
 import { join } from 'path'
 import type { DepEntry, DepsReport, DepsState } from '../preload/types'
 import {
+  agentsOffPath,
   appendOutput,
   helperArch,
   helperExitText,
@@ -26,6 +27,7 @@ import {
 import { loadUiState, saveUiState } from './uiState'
 import { setGitPath } from './gitRun'
 import { setAgentPaths } from './agentPaths'
+import { loginShellPathVar } from './loginPath'
 import { stopAllDevices } from './device'
 
 // The check runs each tool's version command, and rpm -qf on a cold cache, so it gets more time than a plain lgrassd call.
@@ -50,7 +52,8 @@ let state: DepsState = {
   installing: null,
   outcomes: {},
   unsupported: installUnsupported(app.isPackaged, process.platform, process.arch),
-  setupDue: loadUiState().setupVersion !== app.getVersion()
+  setupDue: loadUiState().setupVersion !== app.getVersion(),
+  offPath: {}
 }
 
 function set(patch: Partial<DepsState>): void {
@@ -97,7 +100,8 @@ function check(fresh: boolean): Promise<void> {
       saveUiState({ setupSeen: nextSeen(seen, report, false) })
       setGitPath(report.deps.find((dep) => dep.name === 'git')?.path ?? '')
       setAgentPaths(report)
-      set({ phase: 'ready', report, setupDue: due })
+      const offPath = agentsOffPath(report, loginShellPathVar(), process.platform)
+      set({ phase: 'ready', report, setupDue: due, offPath })
     } catch (err) {
       set({ phase: 'failed', message: err instanceof Error ? err.message : String(err) })
     }

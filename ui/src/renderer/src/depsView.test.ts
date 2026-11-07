@@ -3,11 +3,17 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import type { DepEntry } from '../../preload/types'
+import type { DepEntry, DepsReport } from '../../preload/types'
 import {
   buttonWeight,
   featuresText,
   listText,
+  agentDeps,
+  agentGroupText,
+  agentMissing,
+  anyAgentReady,
+  depLabel,
+  offPathText,
   originText,
   osText,
   routeBlocked,
@@ -66,13 +72,79 @@ test('tone and route', () => {
   assert.equal(tone(git), 'warn')
   assert.equal(tone(adb), 'muted')
   assert.equal(tone({ ...adb, status: 'ok' }), 'ok')
-  assert.equal(routeBlocked(git.offer!), null)
-  assert.equal(routeBlocked({ ...git.offer!, route: 'winget' }), null)
-  assert.ok(routeBlocked({ ...git.offer!, route: 'brew' }))
-  assert.equal(routeNote(git.offer!), null)
+  assert.equal(routeBlocked(git.offer!, null), null)
+  assert.equal(routeBlocked({ ...git.offer!, route: 'winget' }, null), null)
+  assert.equal(routeBlocked(git.offer!, 'This is a source build.'), 'This is a source build.')
+  assert.ok(routeBlocked({ ...git.offer!, route: 'brew' }, null))
+  assert.equal(routeNote(git, 'fedora'), null)
   assert.match(
-    routeNote({ ...git.offer!, package: 'Git.Git', route: 'winget' }) ?? '',
+    routeNote(
+      { ...git, offer: { ...git.offer!, package: 'Git.Git', route: 'winget' } },
+      'windows'
+    ) ?? '',
     /license of Git\.Git/
+  )
+})
+
+const claude: DepEntry = {
+  ...git,
+  name: 'claude',
+  label: 'Claude Code',
+  required: false,
+  agent: true,
+  features: ['claudeTabs'],
+  floor: '',
+  path: '',
+  version: '',
+  origin: { kind: 'none' },
+  status: 'missing',
+  offer: { action: 'install', package: 'Claude Code', route: 'vendor' }
+}
+const codex: DepEntry = {
+  ...claude,
+  name: 'codex',
+  label: 'Codex',
+  features: ['codexTabs'],
+  offer: { action: 'install', package: 'Codex', route: 'vendor' }
+}
+const report = (...deps: DepEntry[]): DepsReport => ({
+  os: { family: 'macos', id: 'macos', version: '15' },
+  deps
+})
+
+test('agents: label, group, missing and the vendor route', () => {
+  assert.equal(depLabel(claude), 'Claude Code')
+  assert.equal(depLabel(git), 'git')
+  assert.equal(featuresText(claude.features), 'Used by Claude Code tabs.')
+  assert.deepEqual(agentDeps(report(git, claude, codex)), [claude, codex])
+  assert.equal(
+    agentGroupText([claude, codex]),
+    'Lemongrass runs Claude Code or Codex in its tabs. Install at least one.'
+  )
+  assert.equal(anyAgentReady(report(claude, codex)), false)
+  assert.equal(anyAgentReady(report(claude, { ...codex, status: 'ok', offer: null })), true)
+  assert.equal(agentMissing(report(claude), 'claude'), true)
+  assert.equal(agentMissing(report({ ...claude, status: 'ok' }), 'claude'), false)
+  assert.equal(agentMissing(null, 'claude'), false)
+  assert.equal(agentMissing(report(claude), 'agent'), false)
+  assert.equal(routeBlocked(claude.offer!, 'Installing system packages is not supported.'), null)
+  assert.match(routeNote(claude, 'macos') ?? '', /Anthropic's official installer/)
+  assert.match(routeNote(codex, 'macos') ?? '', /shell profile/)
+  assert.match(routeNote(codex, 'windows') ?? '', /PATH/)
+  assert.equal(
+    originText({ ...codex, origin: { kind: 'package', package: 'Codex', manager: 'vendor' } }),
+    'from its official installer'
+  )
+  assert.equal(
+    originText({
+      ...codex,
+      origin: { kind: 'package', package: '@openai/codex', manager: 'npm' }
+    }),
+    'from npm, @openai/codex'
+  )
+  assert.match(
+    offPathText(claude, '/Users/a/.local/bin'),
+    /add \/Users\/a\/.local\/bin to your shell profile/
   )
 })
 
