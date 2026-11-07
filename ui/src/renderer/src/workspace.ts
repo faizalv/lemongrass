@@ -18,7 +18,8 @@ import { accountIsDeleted, preferredAccount, setPreferredAccount } from './accou
 import { defaultGroupColor, groupColorVar, isGroupColor, type GroupColor } from './groupColors'
 import { isWorkgroupMember, tabGroup, workgroupStateOf } from './workgroups'
 import { stopFiles } from './components/ssh/files/filesStore'
-import { forgetRemoteFile } from './components/ssh/editor/remoteFiles'
+import { forgetServerEditor } from './components/ssh/editor/remoteFiles'
+import { isTabKind } from './tabKindNames'
 import {
   preferredShellAgentId,
   resumeArgs,
@@ -77,7 +78,6 @@ type DeviceTab = Extract<WorkspaceTab, { kind: 'device' }>
 type ResterClientTab = Extract<WorkspaceTab, { kind: 'resterClient' }>
 type SSHTab = Extract<WorkspaceTab, { kind: 'ssh' }>
 type SSHServerTab = Extract<WorkspaceTab, { kind: 'sshServer' }>
-type RemoteFileTab = Extract<WorkspaceTab, { kind: 'remoteFile' }>
 
 const AUTOSAVE_MS = 600
 const LAYOUT_SAVE_MS = 400
@@ -493,14 +493,28 @@ async function restoreShellSessions(
   }
 }
 
+// A saved layout can hold a tab of a kind this build no longer has, which no pane could render.
+function withKnownKinds(
+  root: tree.LayoutNode<WorkspaceTab> | null
+): tree.LayoutNode<WorkspaceTab> | null {
+  let next = root
+  for (const leaf of tree.allLeaves(root)) {
+    for (const tab of leaf.tabs) {
+      if (!isTabKind(tab.kind)) next = next && tree.closeTab(next, leaf.id, tab.id)
+    }
+  }
+  return next
+}
+
 async function init(project: ProjectRef): Promise<void> {
   subscribeFileChanges()
   const saved = await window.api.workspaceLayouts.load(project.id)
+  const savedRoot = withKnownKinds(saved?.root ?? null)
   await window.api.tabSessions.clear(project.path)
-  await restoreShellSessions(project, saved?.root ?? null)
+  await restoreShellSessions(project, savedRoot)
   workspaces[project.id] = {
     layout: {
-      root: saved?.root ?? null,
+      root: savedRoot,
       focusedPaneId: saved?.focusedPaneId ?? null,
       groupColors: saved?.groupColors ?? {}
     },
@@ -580,48 +594,6 @@ export function openFile(project: ProjectRef, path: string): void {
     () => newDocTab(path),
     () => void loadDoc(project, path)
   )
-}
-
-// One tab per server and path, served by the server tab's file helper.
-export function openRemoteFile(
-  project: ProjectRef,
-  alias: string,
-  path: string,
-  serverTabId: string
-): void {
-  openPathTab(
-    project,
-    (tab) => tab.kind === 'remoteFile' && tab.alias === alias && tab.path === path,
-    (): RemoteFileTab => ({
-      id: crypto.randomUUID(),
-      kind: 'remoteFile',
-      alias,
-      path,
-      serverTabId
-    }),
-    () => undefined
-  )
-}
-
-// The server tab a remote file talks through: the one it was opened from, or else the open tab
-// for the same server, since a server has one tab and reopening it gives it a new id. The file
-// tab follows the tab it found, so a restart restores the binding.
-export function serverTabFor(projectId: string, fileTabId: string): string | null {
-  if (!workspaces[projectId]) return null
-  const tabs = tabsOf(projectId)
-  const file = tabs.find(
-    (tab): tab is RemoteFileTab => tab.id === fileTabId && tab.kind === 'remoteFile'
-  )
-  if (!file) return null
-  const server =
-    tabs.find((tab) => tab.kind === 'sshServer' && tab.id === file.serverTabId) ??
-    tabs.find((tab): tab is SSHServerTab => tab.kind === 'sshServer' && tab.alias === file.alias)
-  if (!server) return null
-  if (file.serverTabId !== server.id) {
-    file.serverTabId = server.id
-    scheduleLayoutSave(projectId)
-  }
-  return server.id
 }
 
 export function openProjectFile(project: ProjectRef, path: string): void {
@@ -1061,14 +1033,15 @@ function hasTerminal(tab: WorkspaceTab): boolean {
   return tab.kind === 'shell' || tab.kind === 'sshServer'
 }
 
-// A server tab's terminal is never registered as an agent session, so it only needs disposing.
-// A remote file's unsaved buffer lives outside its tab and goes with it.
+// A server tab's terminal is never registered as an agent session, so it only needs disposing,
+// with its file helper and its editor's open files.
 function discardTerminal(project: ProjectRef, tab: WorkspaceTab): void {
   if (tab.kind === 'shell') discardShell(project, tab.id)
   else if (tab.kind === 'sshServer') {
     disposeShell(tab.id)
     stopFiles(tab.id)
-  } else if (tab.kind === 'remoteFile') forgetRemoteFile(tab.id)
+    forgetServerEditor(tab.id)
+  }
 }
 
 function discardShell(project: ProjectRef, tabId: string): void {

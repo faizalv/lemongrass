@@ -29,10 +29,10 @@ import {
   uploadPicked
 } from './filesStore'
 import { joinRemote } from './remotePath'
-import { openRemoteFile, type ProjectRef } from '../../../workspace'
+import { openServerFile } from '../editor/remoteFiles'
 import type { SSHFileEntry } from '../../../../../preload/types'
 
-const props = defineProps<{ project: ProjectRef; tabId: string; alias: string }>()
+const props = defineProps<{ tabId: string; alias: string }>()
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -58,11 +58,11 @@ function retry(): void {
   else void navigate(props.tabId, null)
 }
 
-// A folder is entered; a file opens in a remote file tab.
+// A folder is entered; a file opens in the server tab's editor, beside the layer.
 function open(entry: SSHFileEntry): void {
   const path = joinRemote(state.value.path ?? '/', entry.name)
   if (!entry.dir) {
-    openRemoteFile(props.project, props.alias, path, props.tabId)
+    openServerFile(props.tabId, props.alias, path)
     return
   }
   selected.value = null

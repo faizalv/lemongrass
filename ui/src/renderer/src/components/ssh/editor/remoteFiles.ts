@@ -6,15 +6,17 @@ import type { EditorState, Text } from '@codemirror/state'
 import type { SSHReadResult, SSHWriteResult } from '../../../../../preload/types'
 import { serverRequest } from '../files/filesStore'
 
-// A remote file tab's state lives here, keyed by the tab, not in the component: moving the tab to
-// another pane remounts its body, and unsaved edits with their undo history must survive that.
-// The live EditorState and the saved text stay out of Vue's reactivity, since a proxy around a
-// CodeMirror object breaks its identity checks and costs a walk of a 2 MB document.
+// The files a server tab has open in its editor live here, keyed by the server tab, not in the
+// component: moving the tab to another pane remounts its body, and unsaved edits with their undo
+// history must survive that. They end with the tab, in forgetServerEditor. The live EditorState
+// and the saved text stay out of Vue's reactivity, since a proxy around a CodeMirror object
+// breaks its identity checks and costs a walk of a 2 MB document.
 
 export type RemoteFileStatus =
   'loading' | 'ready' | 'binary' | 'tooLarge' | 'isDir' | 'notLoggedIn' | 'error'
 
 export interface RemoteFile {
+  path: string
   status: RemoteFileStatus
   error: string
   // The text last read, handed to the editor; revision rises on every read so the editor
@@ -30,12 +32,20 @@ export interface RemoteFile {
   notice: string
 }
 
+export interface ServerEditor {
+  alias: string
+  files: RemoteFile[]
+  active: string | null
+  // Folded into a bookmark on the Files layer, the terminal in front; files stay open as they were.
+  minimized: boolean
+}
+
 interface Buffer {
   saved: Text | null
   state: EditorState | null
 }
 
-const files = reactive<Record<string, RemoteFile>>({})
+const editors = reactive<Record<string, ServerEditor>>({})
 const buffers = new Map<string, Buffer>()
 
 // The helper prefixes its errors with its package name, which says nothing to the human.
@@ -43,54 +53,99 @@ function plain(error: string): string {
   return error.replace(/^sshsession: /, '')
 }
 
-export function remoteFileOf(tabId: string): RemoteFile {
-  if (!files[tabId]) {
-    files[tabId] = {
-      status: 'loading',
-      error: '',
-      content: '',
-      revision: 0,
-      mtime: 0,
-      dirty: false,
-      changed: false,
-      saving: false,
-      notice: ''
-    }
-  }
-  return files[tabId]
+function bufferKey(serverTabId: string, path: string): string {
+  return `${serverTabId}\n${path}`
 }
 
-function bufferOf(tabId: string): Buffer {
-  let buffer = buffers.get(tabId)
+export function serverEditorOf(serverTabId: string, alias: string): ServerEditor {
+  if (!editors[serverTabId]) {
+    editors[serverTabId] = { alias, files: [], active: null, minimized: false }
+  }
+  return editors[serverTabId]
+}
+
+function fileOf(serverTabId: string, path: string): RemoteFile | undefined {
+  return editors[serverTabId]?.files.find((f) => f.path === path)
+}
+
+function bufferOf(serverTabId: string, path: string): Buffer {
+  const key = bufferKey(serverTabId, path)
+  let buffer = buffers.get(key)
   if (!buffer) {
     buffer = { saved: null, state: null }
-    buffers.set(tabId, buffer)
+    buffers.set(key, buffer)
   }
   return buffer
 }
 
-export function isRemoteFileDirty(tabId: string): boolean {
-  return files[tabId]?.dirty ?? false
+export function serverHasDirtyFiles(serverTabId: string): boolean {
+  return editors[serverTabId]?.files.some((f) => f.dirty) ?? false
 }
 
-export function editorStateOf(tabId: string): EditorState | undefined {
-  return buffers.get(tabId)?.state ?? undefined
+export function editorStateOf(serverTabId: string, path: string): EditorState | undefined {
+  return buffers.get(bufferKey(serverTabId, path))?.state ?? undefined
 }
 
-export interface RemoteTarget {
-  serverTabId: string
-  alias: string
-  path: string
+// Shows the file in the server tab's editor, reading it the first time it opens.
+export function openServerFile(serverTabId: string, alias: string, path: string): void {
+  const editor = serverEditorOf(serverTabId, alias)
+  editor.active = path
+  editor.minimized = false
+  if (fileOf(serverTabId, path)) return
+  editor.files.push({
+    path,
+    status: 'loading',
+    error: '',
+    content: '',
+    revision: 0,
+    mtime: 0,
+    dirty: false,
+    changed: false,
+    saving: false,
+    notice: ''
+  })
+  void readServerFile(serverTabId, path)
+}
+
+export function showServerFile(serverTabId: string, path: string): void {
+  const editor = editors[serverTabId]
+  if (editor && fileOf(serverTabId, path)) editor.active = path
+}
+
+export function minimizeEditor(serverTabId: string): void {
+  const editor = editors[serverTabId]
+  if (editor?.files.length) editor.minimized = true
+}
+
+export function expandEditor(serverTabId: string): void {
+  const editor = editors[serverTabId]
+  if (editor) editor.minimized = false
+}
+
+// Closing the last file removes the editor and its bookmark; closing the shown one shows its
+// neighbour.
+export function closeServerFile(serverTabId: string, path: string): void {
+  const editor = editors[serverTabId]
+  if (!editor) return
+  const at = editor.files.findIndex((f) => f.path === path)
+  if (at < 0) return
+  editor.files.splice(at, 1)
+  buffers.delete(bufferKey(serverTabId, path))
+  if (!editor.files.length) {
+    editor.active = null
+    editor.minimized = false
+  } else if (editor.active === path) {
+    editor.active = editor.files[Math.min(at, editor.files.length - 1)].path
+  }
 }
 
 // Reads the file, replacing whatever the editor holds.
-export async function readRemoteFile(tabId: string, target: RemoteTarget): Promise<void> {
-  const file = remoteFileOf(tabId)
+export async function readServerFile(serverTabId: string, path: string): Promise<void> {
+  const editor = editors[serverTabId]
+  const file = fileOf(serverTabId, path)
+  if (!editor || !file) return
   file.status = 'loading'
-  const reply = await serverRequest<SSHReadResult>(target.serverTabId, target.alias, {
-    op: 'read',
-    path: target.path
-  })
+  const reply = await serverRequest<SSHReadResult>(serverTabId, editor.alias, { op: 'read', path })
   if (!reply.ok) {
     const code = reply.code
     file.status =
@@ -100,7 +155,7 @@ export async function readRemoteFile(tabId: string, target: RemoteTarget): Promi
     file.error = plain(reply.error)
     return
   }
-  const buffer = bufferOf(tabId)
+  const buffer = bufferOf(serverTabId, path)
   buffer.saved = null
   buffer.state = null
   Object.assign(file, {
@@ -116,45 +171,46 @@ export async function readRemoteFile(tabId: string, target: RemoteTarget): Promi
 }
 
 // The editor reports every state; the first one after a read is the saved text.
-export function editorChanged(tabId: string, state: EditorState): void {
-  const file = files[tabId]
+export function editorChanged(serverTabId: string, path: string, state: EditorState): void {
+  const file = fileOf(serverTabId, path)
   if (!file) return
-  const buffer = bufferOf(tabId)
+  const buffer = bufferOf(serverTabId, path)
   buffer.state = state
   if (!buffer.saved) buffer.saved = state.doc
   file.dirty = !state.doc.eq(buffer.saved)
 }
 
-export async function saveRemoteFile(
-  tabId: string,
-  target: RemoteTarget,
+export async function saveServerFile(
+  serverTabId: string,
+  path: string,
   force = false
 ): Promise<void> {
-  const file = files[tabId]
-  const state = buffers.get(tabId)?.state
-  if (!file || !state || file.saving || file.status !== 'ready') return
+  const editor = editors[serverTabId]
+  const file = fileOf(serverTabId, path)
+  const state = buffers.get(bufferKey(serverTabId, path))?.state
+  if (!editor || !file || !state || file.saving || file.status !== 'ready') return
   if (!file.dirty && !force) return
   file.saving = true
   try {
     const doc = state.doc
-    const reply = await serverRequest<SSHWriteResult>(target.serverTabId, target.alias, {
+    const reply = await serverRequest<SSHWriteResult>(serverTabId, editor.alias, {
       op: 'write',
-      path: target.path,
+      path,
       content: doc.toString(),
       mtime: file.mtime,
       force
     })
     if (reply.ok) {
-      bufferOf(tabId).saved = doc
+      bufferOf(serverTabId, path).saved = doc
       file.mtime = reply.result.mtime
       file.changed = false
       file.notice = ''
-      const current = buffers.get(tabId)?.state
+      const current = buffers.get(bufferKey(serverTabId, path))?.state
       file.dirty = !!current && !current.doc.eq(doc)
     } else if (reply.code === 'changed') {
       file.changed = true
     } else if (reply.code === 'notLoggedIn') {
-      file.notice = `Log in in the ${target.alias} terminal first, then save again.`
+      file.notice = `Log in in the ${editor.alias} terminal first, then save again.`
     } else {
       file.notice = plain(reply.error)
     }
@@ -163,7 +219,9 @@ export async function saveRemoteFile(
   }
 }
 
-export function forgetRemoteFile(tabId: string): void {
-  buffers.delete(tabId)
-  delete files[tabId]
+export function forgetServerEditor(serverTabId: string): void {
+  for (const file of editors[serverTabId]?.files ?? []) {
+    buffers.delete(bufferKey(serverTabId, file.path))
+  }
+  delete editors[serverTabId]
 }

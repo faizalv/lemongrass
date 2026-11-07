@@ -4,7 +4,7 @@
 <script lang="ts">
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { Compartment, EditorState } from '@codemirror/state'
-import { EditorView, keymap, lineNumbers } from '@codemirror/view'
+import { drawSelection, EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { readerLook } from '../readerHighlight'
 
 // A kept state outlives the component that made it, so its extensions are module-level: the
@@ -17,6 +17,17 @@ interface Handlers {
 
 const handlers = new WeakMap<EditorView, Handlers>()
 const language = new Compartment()
+
+// readerLook is made for reading; an editor also needs a caret and a selection that show on the
+// dark surface, since CodeMirror's base theme paints a black caret. Amber as in the conflict
+// editor, since it marks focus.
+const editLook = EditorView.theme({
+  '.cm-content': { caretColor: 'var(--color-amber)' },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-amber)' },
+  '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
+    backgroundColor: 'var(--color-amber-muted) !important'
+  }
+})
 
 function createState(doc: string): EditorState {
   return EditorState.create({
@@ -38,7 +49,9 @@ function createState(doc: string): EditorState {
       ]),
       EditorState.tabSize.of(4),
       lineNumbers(),
+      drawSelection(),
       readerLook,
+      editLook,
       language.of([]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) handlers.get(update.view)?.change(update.state)
@@ -62,6 +75,8 @@ const props = defineProps<{
   // Raised by the caller to load content again, discarding edits and undo history.
   revision: number
   restore?: EditorState
+  // Takes the keyboard when it mounts, for an editor that has just been put in front.
+  autofocus?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -83,6 +98,7 @@ onMounted(() => {
   handlers.set(view, { change: (state) => emit('change', state), save: () => emit('save') })
   if (!props.restore) emit('change', view.state)
   void applyLanguage(props.path)
+  if (props.autofocus) view.focus()
 })
 
 watch(

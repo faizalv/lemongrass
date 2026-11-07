@@ -975,8 +975,6 @@ export type WorkspaceTab =
   | { id: string; kind: 'resterClient' }
   | { id: string; kind: 'ssh' }
   | { id: string; kind: 'sshServer'; alias: string }
-  // A file on a server, edited through its server tab's helper; serverTabId follows that tab.
-  | { id: string; kind: 'remoteFile'; alias: string; path: string; serverTabId: string }
   | {
       id: string
       kind: 'shell'

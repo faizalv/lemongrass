@@ -2,7 +2,15 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppConfirmButton, AppIcon, AppIconButton, pointAnchor, useMenuPlacement } from '@sankasten'
+import {
+  AppConfirmButton,
+  AppIcon,
+  AppIconButton,
+  AppTabClose,
+  pointAnchor,
+  useMenuPlacement,
+  vWheelScrollX
+} from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TabIcon from './TabIcon.vue'
 import StripIcon from './StripIcon.vue'
@@ -94,12 +102,6 @@ const shellUsage = computed(() => {
 })
 
 const tabBar = ref<HTMLDivElement>()
-
-function onTabBarWheel(event: WheelEvent): void {
-  if (!tabBar.value || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
-  event.preventDefault()
-  tabBar.value.scrollLeft += event.deltaY
-}
 
 watch(
   () => props.leaf.activeTabId,
@@ -364,8 +366,8 @@ onBeforeUnmount(() => {
     <div class="tab-header">
       <div
         ref="tabBar"
-        class="tab-bar"
-        @wheel="onTabBarWheel"
+        v-wheel-scroll-x
+        class="tab-bar sk-scroll-slim"
         @dragover="onTabBarDragOver"
         @drop="onTabBarDrop"
       >
@@ -407,18 +409,12 @@ onBeforeUnmount(() => {
             {{ tabKindOf(tab).label(tab, tabContext(tab)).text }}
           </span>
           <!-- Unsaved edits: a dot until hovered, and a second click to close without saving. -->
-          <AppConfirmButton
+          <AppTabClose
             v-if="tabKindOf(tab).label(tab, tabContext(tab)).dirty"
-            v-slot="{ armed }"
-            class="tab-close dirty"
-            title="Unsaved changes"
-            confirm-label="Close without saving"
-            @click.stop
-            @confirm="closeTab(project, leaf.id, tab.id)"
-          >
-            <span class="dirty-dot" aria-hidden="true" />
-            <span class="dirty-close">{{ armed ? '!' : '×' }}</span>
-          </AppConfirmButton>
+            :label="`Close ${tabKindOf(tab).label(tab, tabContext(tab)).text}`"
+            dirty
+            @close="closeTab(project, leaf.id, tab.id)"
+          />
           <span v-else class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)"
             >&times;</span
           >
@@ -748,18 +744,6 @@ onBeforeUnmount(() => {
   overflow-y: hidden;
 }
 
-.tab-bar::-webkit-scrollbar {
-  height: 6px;
-}
-
-.tab-bar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.tab-bar::-webkit-scrollbar-thumb {
-  border-width: 1px;
-}
-
 .tab {
   flex-shrink: 0;
   display: flex;
@@ -868,38 +852,6 @@ onBeforeUnmount(() => {
 .tab-close:hover {
   background: var(--color-surface-2);
   color: var(--color-fg-primary);
-}
-
-.tab-close.dirty {
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: var(--text-lg);
-  cursor: pointer;
-}
-
-.dirty-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--color-fg-secondary);
-}
-
-.dirty-close {
-  display: none;
-}
-
-.tab-close.dirty:hover .dirty-dot,
-.tab-close.dirty:focus-visible .dirty-dot,
-.tab-close.dirty:not([data-confirm='idle']) .dirty-dot {
-  display: none;
-}
-
-.tab-close.dirty:hover .dirty-close,
-.tab-close.dirty:focus-visible .dirty-close,
-.tab-close.dirty:not([data-confirm='idle']) .dirty-close {
-  display: inline;
 }
 
 .pane-body {
