@@ -54,6 +54,8 @@ func addUserPath(home, dir string) error {
 	return nil
 }
 
+// removeUserPath takes out the PATH entry lemongrass added, unless another tool now lives in the folder; either way
+// the marker goes, so the entry is the user's from then on.
 func removeUserPath(home string) error {
 	marker, err := os.ReadFile(pathMarkerPath(home))
 	if errors.Is(err, os.ErrNotExist) {
@@ -63,6 +65,9 @@ func removeUserPath(home string) error {
 		return err
 	}
 	dir := strings.TrimSpace(string(marker))
+	if holdsOtherFiles(dir) {
+		return os.Remove(pathMarkerPath(home))
+	}
 	key, err := registry.OpenKey(registry.CURRENT_USER, environmentKey, registry.QUERY_VALUE|registry.SET_VALUE)
 	if err != nil {
 		return err
