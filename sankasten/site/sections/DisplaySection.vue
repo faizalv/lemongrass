@@ -14,6 +14,7 @@ import {
   AppIconButton,
   AppInfoPopover,
   AppModal,
+  AppModalActions,
   AppNavGroup,
   AppNavItem,
   AppPad,
@@ -38,6 +39,7 @@ const account = ref('second')
 const chips = ref(['orders', 'users', 'invoices'])
 const excluded = ref(false)
 const modal = ref(false)
+const actionsModal = ref(false)
 const anchor = ref<HTMLElement | null>(null)
 
 const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h-11z' } }]
@@ -261,6 +263,19 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
             <AppButton @click="modal = false">Cancel</AppButton>
             <AppButton variant="primary" @click="modal = false">Rename</AppButton>
           </template>
+        </AppModal>
+      </div>
+    </DocBlock>
+
+    <DocBlock name="AppModalActions">
+      <div class="modal-box">
+        <AppButton @click="actionsModal = true">Open a long modal</AppButton>
+        <AppModal v-if="actionsModal" title="Long content" @close="actionsModal = false">
+          <p v-for="n in 30" :key="n" class="out">Line {{ n }} of a body that scrolls.</p>
+          <AppModalActions>
+            <AppButton @click="actionsModal = false">Decline</AppButton>
+            <AppButton variant="primary" @click="actionsModal = false">Approve</AppButton>
+          </AppModalActions>
         </AppModal>
       </div>
     </DocBlock>

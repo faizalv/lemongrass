@@ -661,7 +661,8 @@ export const DOCS: Record<string, ComponentDoc> = {
   },
   AppModal: {
     name: 'AppModal',
-    summary: 'A dialog over an overlay. Escape and an overlay click emit close.',
+    summary:
+      'A dialog over an overlay, never taller than the window: the title and footer stay put and the body scrolls. Escape and an overlay click emit close.',
     props: [
       { name: 'title', type: 'string', doc: '' },
       { name: 'size', type: "'sm' | 'md' | 'lg'", default: "'sm'", doc: 'Dialog width.' },
@@ -678,6 +679,17 @@ export const DOCS: Record<string, ComponentDoc> = {
     slots: [
       { name: 'default', type: '', doc: 'The body.' },
       { name: 'footer', type: '', doc: 'Actions, md buttons.' }
+    ]
+  },
+  AppModalActions: {
+    name: 'AppModalActions',
+    summary:
+      'Actions written inside a component in the modal body, shown in the modal footer so they stay visible while the body scrolls. Outside a modal they render in place, right aligned.',
+    props: [],
+    slots: [{ name: 'default', type: '', doc: 'md buttons.' }],
+    notes: [
+      'Use it when the buttons belong to a child component with its own state; a modal that owns its buttons uses the footer slot.',
+      'Teleported content ignores a v-show on its parent: drop it with v-if when the part holding it is hidden.'
     ]
   },
   AppIcon: {

@@ -2,7 +2,8 @@
 <!-- Copyright (C) 2026 The Sankasten Authors -->
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, provide, useId } from 'vue'
+import { modalActionsKey } from './modalActions'
 
 withDefaults(
   defineProps<{
@@ -22,6 +23,11 @@ const emit = defineEmits<{
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') emit('close')
 }
+
+// AppModalActions inside the body teleports its buttons here, so actions owned by a child component
+// stay in the fixed footer instead of scrolling away with the body.
+const actionsId = `sk-modal-actions-${useId()}`
+provide(modalActionsKey, `#${CSS.escape(actionsId)}`)
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
@@ -56,6 +62,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div v-if="$slots.footer" class="modal-footer">
         <slot name="footer" />
       </div>
+      <div :id="actionsId" class="modal-footer modal-actions" />
     </div>
   </div>
 </template>
@@ -68,6 +75,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   justify-content: center;
   padding: var(--space-8);
   background: var(--color-bg-overlay);
+}
+
+/* A short window, such as a laptop at 125% scaling, keeps more of its height for the dialog. */
+@media (max-height: 720px) {
+  .modal-overlay {
+    padding: var(--space-4);
+  }
 }
 
 .modal-overlay.container {
@@ -137,6 +151,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 .modal-title {
+  flex-shrink: 0;
   padding-right: var(--space-6);
   overflow-wrap: anywhere;
   color: var(--color-fg-primary);
@@ -145,11 +160,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   font-weight: var(--weight-semibold);
 }
 
+/* The dialog never grows past the window: the title and footer stay put and the body scrolls between
+   them. The padding, taken back by the margin, keeps focus rings at the body's edges from being cut. */
 .modal-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-height: 0;
+  margin: calc(var(--space-1) * -1);
+  padding: var(--space-1);
+  overflow-y: auto;
   color: var(--color-fg-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
@@ -159,6 +179,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   flex: 1;
 }
 
+/* A large or flush dialog lays out its own scroll areas inside a body of fixed height. */
+.modal-dialog.lg .modal-body,
+.modal-dialog.flush .modal-body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .modal-dialog.flush .modal-body {
   flex: 1;
   gap: 0;
@@ -166,7 +194,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .modal-footer {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.modal-actions:empty {
+  display: none;
 }
 </style>

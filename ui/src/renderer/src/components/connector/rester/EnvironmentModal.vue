@@ -105,8 +105,5 @@ function save(): void {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  min-height: 0;
-  /* AppModal's body does not scroll, so a long form scrolls itself. */
-  overflow-y: auto;
 }
 </style>

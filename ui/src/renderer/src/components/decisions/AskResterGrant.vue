@@ -14,14 +14,21 @@ import {
   AppCheckbox,
   AppIconButton,
   AppInput,
+  AppModalActions,
   AppSegmented,
   AppSwitcher
 } from '@sankasten'
 
-const props = defineProps<{
-  ask: Ask
-  resters: string[]
-}>()
+// The grant stays mounted behind the decline step so Back keeps what was picked, but its actions,
+// teleported to the modal footer, are outside that hidden step and must be dropped explicitly.
+const props = withDefaults(
+  defineProps<{
+    ask: Ask
+    resters: string[]
+    showActions?: boolean
+  }>(),
+  { showActions: true }
+)
 
 const emit = defineEmits<{
   created: [result: VaultHTTPChannelWithShortId]
@@ -250,12 +257,12 @@ async function approve(): Promise<void> {
 
     <p v-if="createError" class="error-text">{{ createError }}</p>
     <p v-else-if="holdReason" class="hint">{{ holdReason }}</p>
-    <div class="create-actions">
+    <AppModalActions v-if="showActions">
       <AppButton :disabled="creating" @click="emit('decline')">Decline</AppButton>
       <AppButton variant="primary" :disabled="!canApprove" @click="approve">
         {{ creating ? 'Approving...' : 'Approve' }}
       </AppButton>
-    </div>
+    </AppModalActions>
   </div>
 </template>
 

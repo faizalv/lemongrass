@@ -9,12 +9,26 @@
 import { computed, ref, watch } from 'vue'
 import type { Ask, AskDeclineExtra, VaultChannelWithShortId } from '../../../../preload/types'
 import { describeError, vaultSession } from '../../vaultSession'
-import { AppButton, AppCheckbox, AppChip, AppInfoPopover, AppInput, AppSwitcher } from '@sankasten'
+import {
+  AppButton,
+  AppCheckbox,
+  AppChip,
+  AppInfoPopover,
+  AppInput,
+  AppModalActions,
+  AppSwitcher
+} from '@sankasten'
 
-const props = defineProps<{
-  ask: Ask
-  connections: string[]
-}>()
+// The grant stays mounted behind the decline step so Back keeps what was picked, but its actions,
+// teleported to the modal footer, are outside that hidden step and must be dropped explicitly.
+const props = withDefaults(
+  defineProps<{
+    ask: Ask
+    connections: string[]
+    showActions?: boolean
+  }>(),
+  { showActions: true }
+)
 
 const emit = defineEmits<{
   created: [result: VaultChannelWithShortId]
@@ -299,12 +313,12 @@ watch(remaining, (tables) => {
 
     <p v-if="createError" class="error-text">{{ createError }}</p>
     <p v-else-if="holdReason" class="hint">{{ holdReason }}</p>
-    <div class="create-actions">
+    <AppModalActions v-if="showActions">
       <AppButton :disabled="creating" @click="emit('decline')">Decline</AppButton>
       <AppButton variant="primary" :disabled="!canApprove" @click="approve">
         {{ creating ? 'Approving...' : 'Approve' }}
       </AppButton>
-    </div>
+    </AppModalActions>
   </div>
 </template>
 

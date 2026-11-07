@@ -10,6 +10,7 @@ import {
   AppConfirmButton,
   AppIcon,
   AppInfoPopover,
+  AppModalActions,
   AppProgressLine,
   AppSegmented,
   AppTextarea
@@ -372,7 +373,7 @@ async function decline(): Promise<void> {
           />
         </div>
         <p v-if="error" class="error-text">{{ error }}</p>
-        <div class="create-actions">
+        <AppModalActions>
           <AppButton :disabled="busy" @click="startDecline">Decline</AppButton>
           <AppConfirmButton
             v-if="!ask.never_execute"
@@ -383,7 +384,7 @@ async function decline(): Promise<void> {
           >
             {{ busy ? 'Starting...' : 'Execute' }}
           </AppConfirmButton>
-        </div>
+        </AppModalActions>
       </template>
 
       <template v-else>
@@ -399,22 +400,22 @@ async function decline(): Promise<void> {
           />
         </div>
         <p v-if="error" class="error-text">{{ error }}</p>
-        <div class="create-actions">
+        <AppModalActions>
           <AppButton :disabled="busy" @click="cancelDecline">Back</AppButton>
           <AppButton variant="primary" :disabled="busy" @click="decline">
             {{ busy ? 'Declining...' : 'Send decline' }}
           </AppButton>
-        </div>
+        </AppModalActions>
       </template>
     </template>
 
     <template v-else-if="running">
       <p v-if="error" class="error-text">{{ error }}</p>
-      <div class="create-actions">
+      <AppModalActions>
         <AppConfirmButton variant="danger" :disabled="busy || starting" @confirm="stop">
           Stop
         </AppConfirmButton>
-      </div>
+      </AppModalActions>
     </template>
 
     <template v-else-if="result">

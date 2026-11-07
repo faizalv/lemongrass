@@ -10,7 +10,7 @@ import '../../vault.css'
 import type { Ask } from '../../../../preload/types'
 import { askState, closeAsk } from '../../asks'
 import { describeError, noteVaultActivity, vaultSession } from '../../vaultSession'
-import { AppButton, AppEmptyState, AppModal, AppTextarea } from '@sankasten'
+import { AppButton, AppEmptyState, AppModal, AppModalActions, AppTextarea } from '@sankasten'
 import VaultUnlockGate from '../VaultUnlockGate.vue'
 import AskCommandCard from './AskCommandCard.vue'
 import AskDbGrant from './AskDbGrant.vue'
@@ -180,12 +180,17 @@ const removedLines = computed(() =>
 </script>
 
 <template>
-  <AppModal v-if="askState.openId" scope="app" size="md" :title="title" @close="closeAsk">
-    <div
-      class="vault-tab ask-body"
-      @click.capture="noteVaultActivity"
-      @keydown.capture="noteVaultActivity"
-    >
+  <!-- The activity listeners sit on the modal, not the body, so the footer's actions count too. -->
+  <AppModal
+    v-if="askState.openId"
+    scope="app"
+    size="md"
+    :title="title"
+    @close="closeAsk"
+    @click.capture="noteVaultActivity"
+    @keydown.capture="noteVaultActivity"
+  >
+    <div class="vault-tab ask-body">
       <VaultUnlockGate v-if="!vaultSession.unlocked" />
 
       <template v-else>
@@ -244,12 +249,13 @@ const removedLines = computed(() =>
                     :key="ask.id"
                     :ask="ask"
                     :connections="connections"
+                    :show-actions="!declineStep"
                     @created="onDbCreated"
                     @decline="startDecline"
                   />
-                  <div v-if="connections.length === 0" class="create-actions">
+                  <AppModalActions v-if="connections.length === 0 && !declineStep">
                     <AppButton @click="startDecline">Decline</AppButton>
-                  </div>
+                  </AppModalActions>
                 </template>
                 <template v-else>
                   <p class="hint">
@@ -262,12 +268,13 @@ const removedLines = computed(() =>
                     :key="ask.id"
                     :ask="ask"
                     :resters="resters"
+                    :show-actions="!declineStep"
                     @created="onHttpCreated"
                     @decline="startDecline"
                   />
-                  <div v-if="resters.length === 0" class="create-actions">
+                  <AppModalActions v-if="resters.length === 0 && !declineStep">
                     <AppButton @click="startDecline">Decline</AppButton>
-                  </div>
+                  </AppModalActions>
                 </template>
               </div>
 
@@ -282,12 +289,12 @@ const removedLines = computed(() =>
                   placeholder="Why you decline, or what to do instead"
                 />
                 <p v-if="declineError" class="error-text">{{ declineError }}</p>
-                <div class="create-actions">
+                <AppModalActions>
                   <AppButton :disabled="declining" @click="cancelDecline">Back</AppButton>
                   <AppButton variant="primary" :disabled="declining" @click="declineChannel">
                     {{ declining ? 'Declining...' : 'Send decline' }}
                   </AppButton>
-                </div>
+                </AppModalActions>
               </div>
             </template>
           </template>
@@ -300,6 +307,7 @@ const removedLines = computed(() =>
 <style>
 .vault-tab.ask-body {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: var(--space-3);
   overflow: visible;
@@ -327,8 +335,9 @@ const removedLines = computed(() =>
   display: block;
 }
 
+/* The cap follows the window so a short screen is not filled by nested scroll areas. */
 .vault-tab .untrusted {
-  max-height: 240px;
+  max-height: min(240px, 25vh);
   margin: 0;
   padding: var(--space-2) var(--space-3);
   overflow: auto;
