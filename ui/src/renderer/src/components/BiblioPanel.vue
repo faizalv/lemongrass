@@ -3,17 +3,24 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { AppButton, AppEmptyState, AppIconButton, AppInput, AppModal, AppNavItem } from '@sankasten'
+import {
+  AppButton,
+  AppCheckbox,
+  AppEmptyState,
+  AppIconButton,
+  AppInput,
+  AppModal,
+  AppNavItem,
+  AppSwitcher
+} from '@sankasten'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
-import SearchRows from './treeSearch/SearchRows.vue'
 import TreeSearchBar from './treeSearch/TreeSearchBar.vue'
 import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
 import { biblioExpandedOf } from '../explorerStore'
-import { biblioIconOf } from '../biblioIcons'
-import { useTreeSearch } from '../useTreeSearch'
-import type { SearchCandidate, SearchNode, SearchRow } from '../treeSearch'
-import type { BiblioNode, BiblioTree } from '../../../preload/types'
+import { useBiblioSearch } from '../useBiblioSearch'
+import type { BiblioScope } from '../biblioSearch'
+import type { BiblioTree } from '../../../preload/types'
 
 const props = defineProps<{
   tree: BiblioTree | null
@@ -25,8 +32,6 @@ const emit = defineEmits<{
 }>()
 
 const selectedPath = computed((): string | null => activePath(props.project.id))
-
-const expandedPaths = computed(() => biblioExpandedOf(props.project.id))
 
 function selectFile(path: string): void {
   openFile(props.project, path)
@@ -44,43 +49,31 @@ function expandDir(path: string): void {
 
 const panel = ref<HTMLElement | null>(null)
 
-function collect(nodes: BiblioNode[], out: SearchCandidate[]): SearchCandidate[] {
-  for (const node of nodes) {
-    out.push({ path: node.path, type: node.type })
-    if (node.children) collect(node.children, out)
-  }
-  return out
-}
-
-// A folder result opens the folders down to it in the tree and leaves the search; a file opens
-// in the focused pane and the search stays, so the next match is one arrow away.
-function openResult(row: SearchRow): void {
-  if (row.node.type === 'file') {
-    selectFile(row.node.path)
-    return
-  }
-  const segments = row.node.path.split('/')
-  for (let i = 1; i <= segments.length; i++) expandDir(segments.slice(0, i).join('/'))
-  search.close()
-}
-
-const search = useTreeSearch({
+const search = useBiblioSearch({
   panel,
-  candidates: () => ({
-    items: collect(props.tree?.toc ? [props.tree.toc] : [], collect(props.tree?.children ?? [], []))
-  }),
-  open: openResult
+  nodes: () => props.tree?.children ?? [],
+  expanded: () => biblioExpandedOf(props.project.id),
+  openFile: selectFile,
+  toggleOwn: toggleDir
 })
+
+const scopeItems: { id: BiblioScope; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'books', label: 'Books' },
+  { id: 'scratchpad', label: 'Scratchpad' },
+  { id: 'handover', label: 'Handover' },
+  { id: 'laws', label: 'Laws' }
+]
+
+function pickScope(id: string): void {
+  search.scope.value = id as BiblioScope
+}
 
 // The tree refetches when biblio/ changes on disk, and an open search follows it.
 watch(
   () => props.tree,
   () => search.refresh()
 )
-
-function resultLabel(node: SearchNode): string {
-  return node.type === 'file' ? node.name.replace(/\.md$/, '') : node.name
-}
 
 async function archiveScratchpad(taskPath: string): Promise<void> {
   const ok = await window.api.biblio.archiveScratchpad(props.project.path, taskPath)
@@ -200,26 +193,45 @@ async function submitCreate(): Promise<void> {
         </template>
       </AppNavItem>
 
-      <TreeSearchBar v-if="search.open.value" :search="search" placeholder="Search biblio" />
-
-      <SearchRows
-        v-if="search.active.value"
+      <TreeSearchBar
+        v-if="search.open.value"
         :search="search"
-        :icon-of="(node) => biblioIconOf(node.path, node.type)"
-        :label-of="resultLabel"
-        :active-path="selectedPath"
-      />
-      <div v-else class="tree-groups">
+        :status="search.status.value"
+        placeholder="Search biblio"
+      >
+        <div class="search-options">
+          <AppSwitcher
+            size="sm"
+            :items="scopeItems"
+            :active-id="search.scope.value"
+            placeholder="Scope"
+            empty-text="No scopes."
+            @select="pickScope"
+          />
+          <AppCheckbox
+            size="sm"
+            :checked="search.includeArchive.value"
+            @click="search.includeArchive.value = !search.includeArchive.value"
+          >
+            Include archive
+          </AppCheckbox>
+        </div>
+      </TreeSearchBar>
+
+      <div class="tree-groups">
         <template v-if="tree?.children?.length">
           <BiblioTreeItem
-            v-for="child in tree.children"
+            v-for="child in search.result.value?.tree ?? tree.children"
             :key="child.path"
             :node="child"
             :selected-path="selectedPath"
             :depth="0"
-            :expanded-paths="expandedPaths"
+            :expanded-paths="search.expandedPaths.value"
+            :matches="search.result.value?.matches"
+            :cursor-path="search.cursorPath.value"
+            :no-match="search.result.value?.noMatch"
             @select="selectFile"
-            @toggle="toggleDir"
+            @toggle="search.toggle"
             @expand="expandDir"
             @add-scratchpad="openCreateForm"
             @add-scratchpad-file="openCreateFileForm"
@@ -294,6 +306,14 @@ async function submitCreate(): Promise<void> {
 
 .toc-item {
   margin-bottom: var(--space-3);
+}
+
+.search-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
 }
 
 .tree-groups {

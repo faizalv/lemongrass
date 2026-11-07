@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-import type { FileIcon } from './fileIcons'
 import type { IconShape } from './tabKinds'
 
-// The biblio tree's drawn icons, shared by its rows and its search results.
+// The biblio tree's drawn icons.
 const path = (d: string): IconShape => ({ tag: 'path', attrs: { d } })
 
 const ARCHIVE: IconShape[] = [
@@ -47,10 +46,4 @@ export function biblioDirShapes(path: string): IconShape[] {
 export function biblioFileShapes(name: string): IconShape[] {
   if (name.endsWith('.md')) return PAGE
   return IMAGE_FILE.test(name) ? IMAGE : CODE_PAGE
-}
-
-export function biblioIconOf(path: string, type: 'dir' | 'file'): FileIcon {
-  if (type === 'dir') return { shapes: biblioDirShapes(path), color: 'var(--color-fg-secondary)' }
-  const name = path.slice(path.lastIndexOf('/') + 1)
-  return { shapes: biblioFileShapes(name), color: 'var(--color-fg-muted)' }
 }

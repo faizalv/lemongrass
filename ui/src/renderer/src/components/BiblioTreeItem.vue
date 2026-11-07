@@ -5,17 +5,29 @@
 import { computed } from 'vue'
 import { AppIconButton } from '@sankasten'
 import TabIcon from './TabIcon.vue'
+import MatchName from './treeSearch/MatchName.vue'
 import { archiveIcon, biblioDirShapes, biblioFileShapes } from '../biblioIcons'
+import { biblioLabel } from '../biblioSearch'
+import type { MatchRange } from '../treeSearch'
 import type { BiblioNode } from '../../../preload/types'
 
-// The expanded folders live in the panel, by path, so a search result can open the folders above
-// it and the tree keeps its shape across a switch to the Files view and back.
+// The expanded folders live in the panel, by path, so a search can open the folders above its
+// matches and the tree keeps its shape across a switch to the Files view and back.
 const props = defineProps<{
   node: BiblioNode
   selectedPath: string | null
   depth: number
   expandedPaths: Record<string, true>
+  // An active search: the matched rows with the ranges to highlight, and its keyboard cursor.
+  matches?: Map<string, MatchRange[]> | null
+  cursorPath?: string | null
+  // Categories the search found nothing in, which show a line saying so.
+  noMatch?: Set<string> | null
 }>()
+
+const ranges = computed((): MatchRange[] | undefined => props.matches?.get(props.node.path))
+
+const isCursor = computed((): boolean => !!props.cursorPath && props.cursorPath === props.node.path)
 
 const emit = defineEmits<{
   select: [path: string]
@@ -67,19 +79,19 @@ const isArchivableScratchpadTask = computed((): boolean => {
   <button
     v-if="node.type === 'file'"
     class="tree-item file"
-    :class="{ active: node.path === selectedPath }"
+    :class="{ active: node.path === selectedPath, 'search-cursor': isCursor }"
     :style="{ paddingLeft: `${depth * 14 + 10}px` }"
     @click="emit('select', node.path)"
   >
     <span class="indent" />
     <TabIcon class="icon" :shapes="biblioFileShapes(node.name)" />
-    <span class="label">{{ node.name.replace(/\.md$/, '') }}</span>
+    <MatchName class="label" :text="biblioLabel(node)" :ranges="ranges" />
   </button>
 
   <div
     v-else
     class="dir-row"
-    :class="{ 'archive-row': isArchive }"
+    :class="{ 'archive-row': isArchive, 'search-cursor': isCursor }"
     :style="isArchive ? { marginLeft: `${depth * 14}px`, width: 'auto' } : undefined"
   >
     <button
@@ -104,7 +116,7 @@ const isArchivableScratchpadTask = computed((): boolean => {
 
       <TabIcon class="icon" :shapes="biblioDirShapes(node.path)" />
 
-      <span class="label">{{ node.name }}</span>
+      <MatchName class="label" :text="node.name" :ranges="ranges" />
     </button>
     <AppIconButton
       v-if="isArchivableScratchpadTask"
@@ -127,6 +139,14 @@ const isArchivableScratchpadTask = computed((): boolean => {
     />
   </div>
 
+  <p
+    v-if="noMatch?.has(node.path)"
+    class="no-match"
+    :style="{ paddingLeft: `${(depth + 1) * 14 + 10}px` }"
+  >
+    No match
+  </p>
+
   <template v-if="node.children && expanded">
     <BiblioTreeItem
       v-for="child in node.children"
@@ -135,6 +155,9 @@ const isArchivableScratchpadTask = computed((): boolean => {
       :selected-path="selectedPath"
       :depth="depth + 1"
       :expanded-paths="expandedPaths"
+      :matches="matches"
+      :cursor-path="cursorPath"
+      :no-match="noMatch"
       @select="(path) => emit('select', path)"
       @toggle="(path) => emit('toggle', path)"
       @expand="(path) => emit('expand', path)"
@@ -200,6 +223,20 @@ const isArchivableScratchpadTask = computed((): boolean => {
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
   font-weight: var(--weight-medium);
+}
+
+.tree-item.search-cursor,
+.dir-row.search-cursor {
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.no-match {
+  margin: 0;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
 }
 
 .dir-row {

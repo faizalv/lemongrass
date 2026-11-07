@@ -652,7 +652,12 @@ function rowKey(row: Row): string {
       @dragleave="onScrollDragLeave"
       @drop="onDrop($event, null)"
     >
-      <TreeSearchBar v-if="search.open.value" :search="search" placeholder="Search files" />
+      <TreeSearchBar
+        v-if="search.open.value"
+        :search="search"
+        :status="search.status.value"
+        placeholder="Search files"
+      />
       <p v-if="opError" class="op-error" role="alert" @click="opError = null">{{ opError }}</p>
 
       <SearchRows

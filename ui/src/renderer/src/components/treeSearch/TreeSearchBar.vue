@@ -2,22 +2,15 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { AppInput } from '@sankasten'
-import type { TreeSearch } from '../../useTreeSearch'
+import type { SearchField } from '../../useSearchField'
 
-const props = defineProps<{
-  search: TreeSearch
+// The default slot holds a view's own search options under the field, such as Biblio's scope.
+defineProps<{
+  search: SearchField
+  status: string
   placeholder: string
 }>()
-
-const status = computed((): string => {
-  const result = props.search.result.value
-  if (!result) return ''
-  const matches = result.rows.filter((row) => row.node.match).length
-  if (result.hidden > 0 || props.search.truncated.value) return `Top ${matches} matches`
-  return matches === 1 ? '1 match' : `${matches} matches`
-})
 </script>
 
 <template>
@@ -34,6 +27,7 @@ const status = computed((): string => {
       @keydown="search.onInputKeydown"
       @blur="search.onInputBlur"
     />
+    <slot />
     <span v-if="status" class="status">{{ status }}</span>
   </div>
 </template>

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-import { computed, nextTick, ref, shallowRef, watch, type Ref } from 'vue'
-import { type AppInputHandle } from '@sankasten'
+import { computed, ref, shallowRef, watch, type Ref } from 'vue'
 import {
   buildSearchTree,
   normalizeQuery,
@@ -10,6 +9,7 @@ import {
   type SearchResult,
   type SearchRow
 } from './treeSearch'
+import { useSearchField, type SearchField } from './useSearchField'
 
 export interface CandidateSet {
   items: SearchCandidate[]
@@ -25,48 +25,43 @@ export interface TreeSearchOptions {
   debounceMs?: number
 }
 
-export interface TreeSearch {
-  open: Ref<boolean>
-  query: Ref<string>
+export interface TreeSearch extends SearchField {
   result: Ref<SearchResult | null>
   truncated: Ref<boolean>
   cursor: Ref<number>
-  input: Ref<AppInputHandle | null>
-  active: Ref<boolean>
-  onPanelKeydown: (event: KeyboardEvent) => void
-  onInputKeydown: (event: KeyboardEvent) => void
-  onInputBlur: () => void
-  show: () => void
-  close: () => void
+  status: Ref<string>
   refresh: () => void
-  setQuery: (text: string) => void
   pick: (index: number) => void
-  bindInput: (handle: unknown) => void
 }
 
-function typedIntoField(event: KeyboardEvent): boolean {
-  const target = event.target as HTMLElement | null
-  return !!target?.closest('input, textarea, [contenteditable="true"]')
-}
-
-// The sidebar's type-to-search, one piece for the Biblio and Files views: a printable key while
-// the panel has focus opens the query field with that key in it, the panel then shows the ranked
-// matches as a tree, arrows move, Enter opens and Escape clears.
+// The Files view's search: the field from useSearchField, and the panel shows the ranked fuzzy
+// matches as a pruned tree in place of the listing.
 export function useTreeSearch(options: TreeSearchOptions): TreeSearch {
-  const open = ref(false)
-  const query = ref('')
   const result = shallowRef<SearchResult | null>(null)
   const truncated = ref(false)
   const cursor = ref(0)
-  const input = ref<AppInputHandle | null>(null)
-  const active = computed(() => open.value && normalizeQuery(query.value) !== '')
 
   let sequence = 0
   let timer: ReturnType<typeof setTimeout> | undefined
 
+  const field = useSearchField({
+    panel: options.panel,
+    move,
+    enter: () => {
+      const row = result.value?.rows[cursor.value]
+      if (row) options.open(row)
+    },
+    onClose: () => {
+      clearTimeout(timer)
+      sequence++
+      result.value = null
+      cursor.value = 0
+    }
+  })
+
   async function run(): Promise<void> {
     const mine = ++sequence
-    const text = query.value
+    const text = field.query.value
     if (!normalizeQuery(text)) {
       result.value = null
       truncated.value = false
@@ -86,62 +81,16 @@ export function useTreeSearch(options: TreeSearchOptions): TreeSearch {
     timer = setTimeout(() => void run(), options.debounceMs ?? 0)
   }
 
-  watch(query, schedule)
+  watch(field.query, schedule)
 
   function refresh(): void {
-    if (active.value) void run()
-  }
-
-  function close(): void {
-    clearTimeout(timer)
-    sequence++
-    open.value = false
-    query.value = ''
-    result.value = null
-    cursor.value = 0
-    options.panel.value?.focus()
-  }
-
-  function onPanelKeydown(event: KeyboardEvent): void {
-    if (event.defaultPrevented || typedIntoField(event)) return
-    if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return
-    if (event.key === ' ' && !open.value) return
-    event.preventDefault()
-    open.value = true
-    query.value += event.key
-    void nextTick(() => input.value?.focus())
-  }
-
-  // The explicit way in, for a search button: opens the field as typing does, without a first key.
-  function show(): void {
-    open.value = true
-    void nextTick(() => input.value?.focus())
+    if (field.active.value) void run()
   }
 
   function move(delta: number): void {
     const rows = result.value?.rows.length ?? 0
     if (!rows) return
     cursor.value = (cursor.value + delta + rows) % rows
-  }
-
-  function onInputKeydown(event: KeyboardEvent): void {
-    if (event.key === 'ArrowDown') move(1)
-    else if (event.key === 'ArrowUp') move(-1)
-    else if (event.key === 'Enter') {
-      const row = result.value?.rows[cursor.value]
-      if (row) options.open(row)
-    } else if (event.key === 'Escape') close()
-    else return
-    event.preventDefault()
-    event.stopPropagation()
-  }
-
-  function onInputBlur(): void {
-    if (!query.value) open.value = false
-  }
-
-  function setQuery(text: string): void {
-    query.value = text
   }
 
   function pick(index: number): void {
@@ -151,26 +100,12 @@ export function useTreeSearch(options: TreeSearchOptions): TreeSearch {
     options.open(row)
   }
 
-  function bindInput(handle: unknown): void {
-    input.value = (handle as AppInputHandle | null) ?? null
-  }
+  const status = computed((): string => {
+    if (!result.value) return ''
+    const matches = result.value.rows.filter((row) => row.node.match).length
+    if (result.value.hidden > 0 || truncated.value) return `Top ${matches} matches`
+    return matches === 1 ? '1 match' : `${matches} matches`
+  })
 
-  return {
-    open,
-    query,
-    result,
-    truncated,
-    cursor,
-    input,
-    active,
-    onPanelKeydown,
-    onInputKeydown,
-    onInputBlur,
-    show,
-    close,
-    refresh,
-    setQuery,
-    pick,
-    bindInput
-  }
+  return { ...field, result, truncated, cursor, status, refresh, pick }
 }
