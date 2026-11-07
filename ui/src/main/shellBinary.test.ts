@@ -45,3 +45,12 @@ test('sh is the last fallback', () => {
   const dir = binDir('sh')
   assert.equal(resolveShellBinary('zsh', { PATH: dir }), 'sh')
 })
+
+test('an agent missing from PATH runs from where the dependency check found it', () => {
+  const local = binDir('claude')
+  const found = join(local, 'claude')
+  assert.equal(resolveShellBinary('claude', { PATH: '' }, found), found)
+  const onPath = binDir('claude')
+  assert.equal(resolveShellBinary('claude', { PATH: onPath }, found), 'claude')
+  assert.equal(resolveShellBinary('claude', { PATH: '' }, join(local, 'gone')), 'claude')
+})

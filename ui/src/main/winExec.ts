@@ -64,13 +64,16 @@ export type Launch = { file: string; args: string[] } | { error: string }
 
 // A .cmd or .bat is never run through cmd.exe: cmd re-parses the arguments, which mangles the JSON and free text a
 // tab passes, and turns Ctrl+C into a "Terminate batch job" prompt. The shim's own target is run instead.
+// checked is where the dependency check found the agent, used when PATH does not have it.
 export function windowsLaunch(
   command: string,
   args: string[],
   env: Env,
-  fs: FileReader = disk
+  fs: FileReader = disk,
+  checked?: string
 ): Launch {
-  const found = findOnPath(command, env, fs)
+  const found =
+    findOnPath(command, env, fs) ?? (checked && fs.isFile(checked) ? checked : undefined)
   if (!found) {
     return {
       error: `${command} was not found on PATH. Install the ${command} CLI, then open a new tab.`

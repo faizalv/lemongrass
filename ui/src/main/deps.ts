@@ -25,6 +25,7 @@ import {
 } from './depsModel'
 import { loadUiState, saveUiState } from './uiState'
 import { setGitPath } from './gitRun'
+import { setAgentPaths } from './agentPaths'
 import { stopAllDevices } from './device'
 
 // The check runs each tool's version command, and rpm -qf on a cold cache, so it gets more time than a plain lgrassd call.
@@ -95,6 +96,7 @@ function check(fresh: boolean): Promise<void> {
       const due = state.setupDue || requiredRegressed(seen, report)
       saveUiState({ setupSeen: nextSeen(seen, report, false) })
       setGitPath(report.deps.find((dep) => dep.name === 'git')?.path ?? '')
+      setAgentPaths(report)
       set({ phase: 'ready', report, setupDue: due })
     } catch (err) {
       set({ phase: 'failed', message: err instanceof Error ? err.message : String(err) })

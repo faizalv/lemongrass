@@ -15,6 +15,7 @@ import { startupTrimArgs, startupTrimEnv } from './startupTrim'
 import { classifyInput } from './humanInput'
 import { destroyInstance } from './web'
 import { resolveShellBinary } from './shellBinary'
+import { agentPath } from './agentPaths'
 import { SHELL_COMMAND, shellTabLaunch } from './shellTab'
 import { windowsLaunch, windowsShell, withPath, type Env, type Launch } from './winExec'
 import { freshWindowsPath } from './windowsPath'
@@ -88,10 +89,12 @@ async function launchFor(
   env: Env
 ): Promise<{ launch: Launch; env: Env }> {
   if (process.platform !== 'win32')
-    return { launch: { file: resolveShellBinary(command), args }, env }
+    return { launch: { file: resolveShellBinary(command, env, agentPath(command)), args }, env }
   const winEnv = withPath(env, await freshWindowsPath())
   const launch =
-    command === 'zsh' ? { file: windowsShell(winEnv), args } : windowsLaunch(command, args, winEnv)
+    command === 'zsh'
+      ? { file: windowsShell(winEnv), args }
+      : windowsLaunch(command, args, winEnv, undefined, agentPath(command))
   return { launch, env: winEnv }
 }
 

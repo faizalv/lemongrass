@@ -21,11 +21,16 @@ function onPath(name: string, pathVar: string): string | undefined {
 }
 
 // The Shell agent is stored as "zsh" in saved tabs, but a host may not have zsh, and a spawn of a missing binary makes the tab close at once.
+// An agent runs by its bare name when PATH has it, and otherwise from found, where the dependency check found it.
 export function resolveShellBinary(
   command: string,
-  env: Record<string, string | undefined> = process.env
+  env: Record<string, string | undefined> = process.env,
+  found?: string
 ): string {
-  if (command !== 'zsh') return command
+  if (command !== 'zsh') {
+    if (found && !onPath(command, env.PATH ?? '') && executable(found)) return found
+    return command
+  }
   const login = env.SHELL
   if (login && isAbsolute(login) && executable(login)) return login
   const pathVar = env.PATH ?? ''

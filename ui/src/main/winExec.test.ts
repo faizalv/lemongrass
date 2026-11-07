@@ -100,6 +100,17 @@ test('an npm shim without node beside it uses node from PATH', () => {
   assert.deepEqual(launch, { file: 'C:\\node\\node.exe', args: [script] })
 })
 
+test('an agent missing from PATH runs from where the dependency check found it', () => {
+  const checked = 'C:\\Users\\a\\.local\\bin\\claude.exe'
+  const fs = disk({ [checked]: '' })
+  assert.deepEqual(windowsLaunch('claude', ['-r'], { PATH: 'C:\\bin' }, fs, checked), {
+    file: checked,
+    args: ['-r']
+  })
+  const gone = windowsLaunch('claude', [], { PATH: 'C:\\bin' }, disk({}), checked)
+  assert.ok('error' in gone)
+})
+
 test('a missing agent or an unreadable shim is an error naming what to do', () => {
   const missing = windowsLaunch('claude', [], { PATH: 'C:\\bin' }, disk({}))
   assert.ok('error' in missing && missing.error.includes('Install the claude CLI'))
