@@ -68,7 +68,7 @@ func TestWorkResearchAndDebugBranch(t *testing.T) {
 	if strings.Contains(out, "Create `") {
 		t.Error("continue carries the start step")
 	}
-	wantAll(t, render(t, root, "work", "debug", "b"), "New debug b.", "symptom as observed", "wait for the go")
+	wantAll(t, render(t, root, "work", "debug", "b"), "New debug b.", "symptom as observed", "wait for the go", "describe wrongly or not at all")
 	writeFile(t, root, "biblio/scratchpad/b/debug.md", "x")
 	wantAll(t, render(t, root, "work", "debug", "b"), "Continue debug b.", "current theory")
 }

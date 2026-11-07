@@ -52,4 +52,4 @@ Run `lgrass workgroup thread` to see the thinkers and what is new, and note the 
 
 ### Finish
 
-When the work is done, run `lgrass workgroup disband <id>`.
+When the work is done, close its task with `lgrass how task close <slug>`, or pause it with `lgrass how task handover <slug>` when work is left, then run `lgrass workgroup disband <id>`.

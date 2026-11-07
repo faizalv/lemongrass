@@ -15,7 +15,7 @@ func TestManualsRender(t *testing.T) {
 		"book write":    {"Split.", "never how it broke", "toc.md"},
 		"git resolve":   {"lgrass git conflict show", "lgrass git conflict note", "lgrass git conflict submit", "never stage"},
 		"laws write":    {"explicit yes", "biblio/laws/summary.md", "Never write a law to memory"},
-		"leader create": {"lgrass workgroup create <config>", "lgrass how thinker start"},
+		"leader create": {"lgrass workgroup create <config>", "lgrass how thinker start", "lgrass how task close <slug>", "lgrass how task handover <slug>"},
 		"thinker start": {"lgrass workgroup thread", "wait for the leader's go"},
 	}
 	for cmd, wants := range cases {
@@ -51,7 +51,7 @@ func TestHandoverNew(t *testing.T) {
 	root := t.TempDir()
 	task(t, root, "feat", "- [x] a", "- [ ] b")
 	out := render(t, root, "task", "handover", "feat")
-	for _, want := range []string{"New handover for feat: 1 of 2", "biblio/handover/feat.md", "-> feat.md", "i-write-memory"} {
+	for _, want := range []string{"New handover for feat: 1 of 2", "biblio/handover/feat.md", "-> feat.md", "i-write-memory", "**Books.**", "lgrass how book write"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %q", want, out)
 		}
@@ -63,7 +63,7 @@ func TestHandoverUpdateChecksWhiteboard(t *testing.T) {
 	task(t, root, "feat", "- [ ] b")
 	writeFile(t, root, "biblio/handover/feat.md", "# feat")
 	out := render(t, root, "task", "handover", "feat")
-	if !strings.Contains(out, "Rewrite the Status") || !strings.Contains(out, "has no row") {
+	if !strings.Contains(out, "Rewrite the Status") || !strings.Contains(out, "has no row") || !strings.Contains(out, "lgrass how book write") {
 		t.Fatalf("out = %q", out)
 	}
 	writeFile(t, root, "biblio/handover/whiteboard.md", "1. feat [x] -> feat.md\n")
