@@ -16,6 +16,9 @@ import {
   requiredRegressed,
   stopsAdbServer,
   successText,
+  vendorCommand,
+  vendorExitText,
+  vendorRun,
   wingetArgs,
   wingetExitText,
   type RequiredStatuses
@@ -119,6 +122,12 @@ async function install(name: string): Promise<void> {
   const dep = state.report?.deps.find((entry) => entry.name === name)
   const offer = dep?.offer ?? null
   if (!dep || !offer || offerBlocked(offer, state.unsupported, process.platform)) return
+  // The script comes from main's own table by dependency name, never from the report.
+  const vendor =
+    offer.route === 'vendor'
+      ? vendorRun(name, process.platform, process.env.SystemRoot ?? '')
+      : null
+  if (offer.route === 'vendor' && !vendor) return
 
   const outcomes = { ...state.outcomes }
   delete outcomes[name]
@@ -140,11 +149,17 @@ async function install(name: string): Promise<void> {
   let lastError = ''
   let lastLine = ''
   let errorPartial = ''
-  const [file, args] = winget
-    ? ['winget', wingetArgs(offer)]
-    : ['pkexec', [HELPER, offer.action, offer.package]]
+  const [file, args] = vendor
+    ? [vendor.file, vendor.args]
+    : winget
+      ? ['winget', wingetArgs(offer)]
+      : ['pkexec', [HELPER, offer.action, offer.package]]
   const code = await new Promise<number | null>((resolve) => {
-    const child = spawn(file, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    const child = spawn(file, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+      ...(vendor ? { env: { ...process.env, ...vendor.env } } : {})
+    })
     const take = (chunk: Buffer): void => {
       if (!state.installing) return
       const [lines, rest] = appendOutput(state.installing.lines, partial, chunk.toString())
@@ -176,9 +191,17 @@ async function install(name: string): Promise<void> {
   const failure =
     code === -1
       ? lastError
-      : winget
-        ? wingetExitText(code, name, lastError || lastLine)
-        : helperExitText(code, lastError)
+      : vendor
+        ? vendorExitText(
+            code,
+            dep.label || name,
+            lastError || lastLine,
+            vendorCommand(name, process.platform) ?? '',
+            process.platform
+          )
+        : winget
+          ? wingetExitText(code, name, lastError || lastLine)
+          : helperExitText(code, lastError)
   const outcome =
     code === 0 ? successText(offer.action, after, offer.route) : { ok: false, text: failure }
   set({ outcomes: { ...state.outcomes, [name]: outcome } })

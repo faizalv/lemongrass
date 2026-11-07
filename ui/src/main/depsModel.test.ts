@@ -14,6 +14,9 @@ import {
   requiredRegressed,
   stopsAdbServer,
   successText,
+  vendorCommand,
+  vendorExitText,
+  vendorRun,
   wingetArgs,
   wingetExitText
 } from './depsModel.ts'
@@ -185,6 +188,57 @@ test('offerBlocked lets each platform run only its own route', () => {
   assert.ok(offerBlocked(offer, null, 'win32'))
   assert.ok(offerBlocked({ ...offer, route: 'brew' }, null, 'darwin'))
   assert.ok(offerBlocked(null, null, 'linux'))
+})
+
+test('offerBlocked runs the vendor route on every desktop OS, source builds included', () => {
+  const vendor = { action: 'install' as const, package: 'Claude Code', route: 'vendor' as const }
+  for (const platform of ['linux', 'darwin', 'win32']) {
+    assert.equal(offerBlocked(vendor, 'This is a source build.', platform), null)
+  }
+  assert.ok(offerBlocked(vendor, null, 'freebsd'))
+})
+
+test('vendorRun holds each agent script and runs it with failures kept', () => {
+  assert.deepEqual(vendorRun('claude', 'linux', ''), {
+    file: '/bin/bash',
+    args: ['-c', 'set -o pipefail; curl -fsSL https://claude.ai/install.sh | bash'],
+    env: {}
+  })
+  assert.deepEqual(vendorRun('codex', 'darwin', ''), {
+    file: '/bin/bash',
+    args: ['-c', 'set -o pipefail; curl -fsSL https://chatgpt.com/codex/install.sh | sh'],
+    env: { CODEX_NON_INTERACTIVE: '1' }
+  })
+  const win = vendorRun('claude', 'win32', 'C:\\Windows')
+  assert.equal(win?.file, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
+  assert.deepEqual(win?.args.slice(0, 5), [
+    '-NoProfile',
+    '-NonInteractive',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command'
+  ])
+  assert.equal(
+    win?.args[5],
+    "$ErrorActionPreference = 'Stop'; irm https://claude.ai/install.ps1 | iex"
+  )
+  assert.equal(vendorRun('codex', 'win32', '')?.file, 'powershell.exe')
+  assert.equal(vendorRun('git', 'linux', ''), null)
+  assert.equal(vendorRun('claude', 'freebsd', ''), null)
+})
+
+test('vendorExitText names the manual command for the platform', () => {
+  const manual = vendorCommand('codex', 'win32') ?? ''
+  assert.equal(manual, 'irm https://chatgpt.com/codex/install.ps1 | iex')
+  assert.equal(
+    vendorExitText(1, 'Codex', 'Download failed.', manual, 'win32'),
+    'The Codex installer ended with code 1. Download failed. You can run it yourself in PowerShell: irm https://chatgpt.com/codex/install.ps1 | iex'
+  )
+  assert.match(vendorExitText(22, 'Claude Code', '', 'curl ...', 'linux'), /in a terminal: curl/)
+  assert.equal(
+    vendorExitText(null, 'Codex', '', manual, 'win32'),
+    'The install was stopped before it finished.'
+  )
 })
 
 test('parseReport keeps a known Windows manager and drops an unknown one', () => {

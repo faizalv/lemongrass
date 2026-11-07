@@ -116,16 +116,22 @@ export function installUnsupported(
   return null
 }
 
-// The route each platform runs: the root helper on Linux, winget on Windows.
+// The route each platform runs for system packages: the root helper on Linux, winget on Windows.
 const ROUTE_OF_PLATFORM: Record<string, DepOffer['route']> = { linux: 'helper', win32: 'winget' }
 
-// Why one offer cannot run here, or null.
+// Why one offer cannot run here, or null. The vendor route needs nothing shipped in the package, so it runs in a
+// source build and on macOS too, where system package installs are not built yet.
 export function offerBlocked(
   offer: DepOffer | null,
   unsupported: string | null,
   platform: string
 ): string | null {
   if (!offer) return 'Lemongrass has nothing to install for this.'
+  if (offer.route === 'vendor') {
+    return VENDOR_PLATFORMS.includes(platform)
+      ? null
+      : 'Installing from lemongrass is not supported on this system yet.'
+  }
   if (unsupported) return unsupported
   if (ROUTE_OF_PLATFORM[platform] !== offer.route)
     return 'Installing from lemongrass is not supported on this system yet.'
@@ -149,6 +155,82 @@ export function wingetArgs(offer: DepOffer): string[] {
     '--accept-source-agreements',
     '--accept-package-agreements'
   ]
+}
+
+// Each agent CLI's official install scripts. They are held here, keyed by dependency name, so neither the check's
+// report nor the renderer can make the app fetch and run any other script. Claude's shell script needs bash; Codex's
+// is written for sh.
+const VENDOR_SCRIPTS: Record<string, { ps1: string; sh: string; shell: 'bash' | 'sh' }> = {
+  claude: {
+    ps1: 'https://claude.ai/install.ps1',
+    sh: 'https://claude.ai/install.sh',
+    shell: 'bash'
+  },
+  codex: {
+    ps1: 'https://chatgpt.com/codex/install.ps1',
+    sh: 'https://chatgpt.com/codex/install.sh',
+    shell: 'sh'
+  }
+}
+const VENDOR_PLATFORMS = ['linux', 'darwin', 'win32']
+
+// The command a user runs by hand for an agent CLI, in PowerShell on Windows and a terminal elsewhere: the one
+// shown when the app's own run fails.
+export function vendorCommand(name: string, platform: string): string | null {
+  const script = VENDOR_SCRIPTS[name]
+  if (!script || !VENDOR_PLATFORMS.includes(platform)) return null
+  return platform === 'win32'
+    ? `irm ${script.ps1} | iex`
+    : `curl -fsSL ${script.sh} | ${script.shell}`
+}
+
+export interface VendorRun {
+  file: string
+  args: string[]
+  env: Record<string, string>
+}
+
+// How the app runs an agent's install script. On Linux and macOS pipefail makes a failed download fail the run
+// instead of piping nothing into the shell, which exits 0. On Windows the stop preference makes a failed download or
+// a script that PowerShell refuses end with a non-zero code, and powershell.exe is named by its full path, so a
+// powershell.exe planted earlier on PATH is never run. Codex's script asks one question, about an npm copy, unless
+// CODEX_NON_INTERACTIVE is set.
+export function vendorRun(name: string, platform: string, systemRoot: string): VendorRun | null {
+  const command = vendorCommand(name, platform)
+  if (!command) return null
+  const env: Record<string, string> = name === 'codex' ? { CODEX_NON_INTERACTIVE: '1' } : {}
+  if (platform === 'win32') {
+    const file = systemRoot
+      ? `${systemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
+      : 'powershell.exe'
+    return {
+      file,
+      args: [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        `$ErrorActionPreference = 'Stop'; ${command}`
+      ],
+      env
+    }
+  }
+  return { file: '/bin/bash', args: ['-c', `set -o pipefail; ${command}`], env }
+}
+
+// The sentence for a vendor script that did not exit 0, with the command to run by hand.
+export function vendorExitText(
+  code: number | null,
+  label: string,
+  lastLine: string,
+  manual: string,
+  platform: string
+): string {
+  if (code === null) return 'The install was stopped before it finished.'
+  const where = platform === 'win32' ? 'in PowerShell' : 'in a terminal'
+  const last = lastLine ? ` ${lastLine}` : ''
+  return `The ${label} installer ended with code ${code}.${last} You can run it yourself ${where}: ${manual}`
 }
 
 // A running adb.exe is locked and cannot be replaced, and scrcpy's folder carries its own adb, so updating
@@ -244,7 +326,7 @@ export function successText(
           ? route === 'winget'
             ? `winget has no newer ${after.name}.`
             : `Your repositories have no newer ${after.name}.`
-          : `${after.name} is still not usable after the install.`
+          : `${after.label || after.name} is still not usable after the install.`
     }
   }
   return { ok: true, text: action === 'upgrade' ? 'Updated.' : 'Installed.' }
