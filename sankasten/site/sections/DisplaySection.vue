@@ -245,6 +245,7 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
     <DocBlock name="AppProgressLine">
       <AppProgressLine label="Running" />
       <AppProgressLine label="Uploading" tone="amber" :value="0.4" />
+      <pre class="running-block sk-running">npm ci</pre>
     </DocBlock>
 
     <DocBlock name="AppInfoPopover">
@@ -287,6 +288,16 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
 </template>
 
 <style scoped>
+.running-block {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;

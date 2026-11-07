@@ -2,8 +2,9 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { AppButton } from '@sankasten'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { AppButton, AppProgressLine } from '@sankasten'
+import { formatElapsed } from '../../elapsed'
 import {
   actionLabel,
   buttonWeight,
@@ -24,6 +25,30 @@ const props = defineProps<{
 const installing = computed(() =>
   props.state.installing?.name === props.dep.name ? props.state.installing : null
 )
+const verb = computed(() => (installing.value?.action === 'upgrade' ? 'Updating' : 'Installing'))
+
+// The elapsed counter ticks once a second only while this row's install runs.
+const now = ref(Date.now())
+let ticker: ReturnType<typeof setInterval> | undefined
+
+watch(
+  () => !!installing.value,
+  (on) => {
+    clearInterval(ticker)
+    ticker = undefined
+    if (!on) return
+    now.value = Date.now()
+    ticker = setInterval(() => (now.value = Date.now()), 1000)
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => clearInterval(ticker))
+
+const elapsed = computed(() =>
+  installing.value ? formatElapsed(Math.max(0, now.value - installing.value.startedAt)) : null
+)
+
 const outcome = computed(() => props.state.outcomes[props.dep.name] ?? null)
 const weight = computed(() => buttonWeight(props.dep))
 const blocked = computed(() => (props.dep.offer ? routeBlocked(props.dep.offer) : null))
@@ -71,10 +96,15 @@ function install(): void {
     <p v-if="blocked && weight" class="dep-text">{{ blocked }}</p>
     <p v-if="note && weight && !installing" class="dep-text">{{ note }}</p>
     <div v-if="installing" class="dep-output">
-      <p class="dep-text">
-        {{ installing.action === 'upgrade' ? 'Updating' : 'Installing' }} {{ installing.package }}.
-      </p>
-      <pre v-if="installing.lines.length" class="dep-lines">{{ installing.lines.join('\n') }}</pre>
+      <div class="dep-run">
+        <AppProgressLine class="dep-run-line" :label="`${verb} ${installing.package}`" />
+        <span class="dep-run-clock"
+          >{{ verb }} {{ installing.package }} <span class="dep-run-time">{{ elapsed }}</span></span
+        >
+      </div>
+      <pre v-if="installing.lines.length" class="dep-lines sk-running">{{
+        installing.lines.join('\n')
+      }}</pre>
     </div>
     <p v-else-if="outcome" class="dep-text" :class="outcome.ok ? 'dep-ok' : 'settings-error'">
       {{ outcome.text }}
@@ -145,9 +175,35 @@ function install(): void {
   gap: var(--space-1);
 }
 
+.dep-run {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dep-run-line {
+  flex: 1;
+  min-width: 0;
+}
+
+.dep-run-clock {
+  flex-shrink: 0;
+  color: var(--color-jade);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+/* The body font has no tabular digits, so the time is set in mono and the line beside it keeps still
+   while the counter ticks. */
+.dep-run-time {
+  font-family: var(--font-mono);
+}
+
+/* The transparent border is what sk-running colors while the install runs. */
 .dep-lines {
   margin: 0;
   padding: var(--space-2);
+  border: 1px solid transparent;
   overflow-x: auto;
   background: var(--color-surface-0);
   border-radius: var(--radius-sm, 4px);

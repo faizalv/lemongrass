@@ -1359,6 +1359,8 @@ export interface DepInstall {
   name: string
   action: 'install' | 'upgrade'
   package: string
+  // Epoch ms when main started the run, so a row mounted mid-run shows the true elapsed time.
+  startedAt: number
   // The newest lines of the package manager's output.
   lines: string[]
 }

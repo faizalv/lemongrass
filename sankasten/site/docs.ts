@@ -641,7 +641,10 @@ export const DOCS: Record<string, ComponentDoc> = {
         doc: '0 to 1 fills to that fraction.'
       }
     ],
-    notes: ['Pair it with text that changes, such as an elapsed counter.']
+    notes: [
+      'Pair it with text that changes, such as an elapsed counter.',
+      'Give the block the running work belongs to the global sk-running class: its border breathes in jade, still under reduced motion.'
+    ]
   },
   AppInfoPopover: {
     name: 'AppInfoPopover',

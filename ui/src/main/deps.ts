@@ -122,7 +122,16 @@ async function install(name: string): Promise<void> {
 
   const outcomes = { ...state.outcomes }
   delete outcomes[name]
-  set({ installing: { name, action: offer.action, package: offer.package, lines: [] }, outcomes })
+  set({
+    installing: {
+      name,
+      action: offer.action,
+      package: offer.package,
+      startedAt: Date.now(),
+      lines: []
+    },
+    outcomes
+  })
 
   const winget = offer.route === 'winget'
   if (winget && stopsAdbServer(name)) await stopAdbServer()

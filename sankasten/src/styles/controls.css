@@ -211,3 +211,29 @@
 .sk-scroll-slim::-webkit-scrollbar-thumb {
   border-width: 1px;
 }
+
+/* The block whose work is running, such as a command or its output, breathes in the running tone so
+   the state reads from across the room. Pair it with AppProgressLine and a counter, since a glow alone
+   says nothing about progress. The border color sits in the keyframes because animated values outrank
+   a component's own border rule whatever its specificity; under reduced motion the animation pauses
+   on its first frame, which keeps the border and drops the movement. */
+.sk-running {
+  animation: sk-breathe 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes sk-breathe {
+  from {
+    border-color: var(--color-jade-dim);
+    box-shadow: 0 0 0 0 var(--color-jade-muted);
+  }
+  to {
+    border-color: var(--color-jade-dim);
+    box-shadow: 0 0 10px 1px var(--color-jade-muted);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-running {
+    animation-play-state: paused;
+  }
+}

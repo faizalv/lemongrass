@@ -297,7 +297,7 @@ async function decline(): Promise<void> {
   <div class="command-card">
     <div class="field-block">
       <span class="field-label">Command</span>
-      <pre class="untrusted mono" :class="{ running }">{{ ask.command }}</pre>
+      <pre class="untrusted mono" :class="{ 'sk-running': running }">{{ ask.command }}</pre>
       <div v-if="running" class="run-status">
         <AppProgressLine class="run-line" label="The command is running" />
         <span
@@ -452,21 +452,6 @@ async function decline(): Promise<void> {
   vertical-align: -2px;
 }
 
-/* While the command runs its block's border breathes in the running tone, slowly. */
-.untrusted.running {
-  border-color: var(--color-jade-dim);
-  animation: command-breathe 2.4s ease-in-out infinite alternate;
-}
-
-@keyframes command-breathe {
-  from {
-    box-shadow: 0 0 0 0 var(--color-jade-muted);
-  }
-  to {
-    box-shadow: 0 0 10px 1px var(--color-jade-muted);
-  }
-}
-
 .run-status {
   display: flex;
   align-items: center;
@@ -515,11 +500,5 @@ async function decline(): Promise<void> {
   align-self: flex-end;
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .untrusted.running {
-    animation: none;
-  }
 }
 </style>

@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { AppButton, AppModal } from '@sankasten'
+import { AppButton, AppEmptyState, AppModal } from '@sankasten'
 import MarkedText from '../MarkedText.vue'
 import DepRow from './DepRow.vue'
 import { depsStore } from '../../deps'
@@ -64,10 +64,7 @@ async function finish(): Promise<void> {
   >
     <div class="setup">
       <template v-if="waiting">
-        <div v-if="spinnerShown" class="setup-checking">
-          <span class="setup-spinner" />
-          <p class="settings-text">Optimizing Lemongrass</p>
-        </div>
+        <AppEmptyState v-if="spinnerShown" loading title="Optimizing Lemongrass" />
       </template>
 
       <template v-else-if="state.phase === 'failed' && !state.report">
@@ -101,27 +98,5 @@ async function finish(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.setup-checking {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.setup-spinner {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--color-border-default);
-  border-top-color: var(--color-amber);
-  border-radius: 50%;
-  animation: setup-spin 0.8s linear infinite;
-}
-
-@keyframes setup-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>
