@@ -6,12 +6,17 @@ package hook
 import (
 	"encoding/json"
 	"os"
+	"strings"
 
 	"github.com/faizalv/lemongrass/internal/guard"
 	"github.com/faizalv/lemongrass/internal/project"
 )
 
-const claudeProjectDirEnv = "CLAUDE_PROJECT_DIR"
+const (
+	// launchProjectEnv is set by lemongrass on every agent tab it spawns, whatever the vendor.
+	launchProjectEnv    = "LGRASS_PROJECT_DIR"
+	claudeProjectDirEnv = "CLAUDE_PROJECT_DIR"
+)
 
 func dangerDecision(payload hookEvent) *guard.Verdict {
 	home, err := os.UserHomeDir()
@@ -30,7 +35,36 @@ func dangerDecision(payload hookEvent) *guard.Verdict {
 		input.Paths = dangerToolPaths(payload)
 		input.Writes = isMemoryWriteTool(payload.ToolName)
 	}
-	return guard.Decide(input, hookPolicy(launch.ID))
+	policy := hookPolicy(launch.ID)
+	verdict := guard.Decide(input, policy)
+	if verdict != nil && verdict.Mode == guard.ModeDeny {
+		return verdict
+	}
+	if deletion := patchDeletionVerdict(payload, input, policy); deletion != nil && (verdict == nil || deletion.Mode == guard.ModeDeny) {
+		return deletion
+	}
+	return verdict
+}
+
+// patchDeletionVerdict judges each file an apply_patch deletes as the guard judges `rm -- <path>`, so a patch is held to the same deletion rules and launch project exemption as a shell rm.
+func patchDeletionVerdict(payload hookEvent, input guard.Input, policy guard.Policy) *guard.Verdict {
+	deleted := patchDeletedPaths(payload)
+	if len(deleted) == 0 {
+		return nil
+	}
+	quoted := make([]string, len(deleted))
+	for i, p := range deleted {
+		quoted[i] = shellSingleQuote(p)
+	}
+	input.Tool = "Bash"
+	input.Paths = nil
+	input.Writes = false
+	input.Command = "rm -- " + strings.Join(quoted, " ")
+	return guard.Decide(input, policy)
+}
+
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func dangerToolPaths(payload hookEvent) []string {
@@ -51,9 +85,12 @@ func dangerToolPaths(payload hookEvent) []string {
 	return paths
 }
 
-// launchProject is the registered project Claude Code was started in, which a cd inside the session does not move. It is the zero Project when there is none.
+// launchProject is the registered project the agent was started in, which a cd inside the session does not move. It is the zero Project when there is none. CLAUDE_PROJECT_DIR covers a Claude Code session started outside lemongrass.
 func launchProject() project.Project {
-	dir := os.Getenv(claudeProjectDirEnv)
+	dir := os.Getenv(launchProjectEnv)
+	if dir == "" {
+		dir = os.Getenv(claudeProjectDirEnv)
+	}
 	if dir == "" {
 		return project.Project{}
 	}

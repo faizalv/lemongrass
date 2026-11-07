@@ -173,11 +173,17 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	return newHookResult("SessionStart", "", parts)
 }
 
+// SessionEnd never sets the tab's session: Codex sends none for the session a /clear leaves, and on /resume it names the session being resumed, sometimes a minute late for the one left.
 func hookSessionEnd(store *session.Store, payload hookEvent) {
 	store.End(payload.SessionID)
-	if payload.TabID != "" && payload.SessionID != "" {
-		store.RecordTabSession(payload.TabID, payload.SessionID)
+}
+
+// A Codex tab's session is the one its latest prompt or tool call names, since its SessionStart comes only at the first turn after a launch, /clear or /resume. Claude's SessionStart fires at each of those itself, so Claude tabs skip the per-call write.
+func recordCodexTabSession(store *session.Store, payload hookEvent) {
+	if payload.Vendor != "codex" || payload.TabID == "" || payload.SessionID == "" {
+		return
 	}
+	store.RecordTabSession(payload.TabID, payload.SessionID)
 }
 
 // A Claude tab spawned by lemongrass carries the laws in its system prompt, which a resumed session replays from its start.
@@ -195,6 +201,7 @@ func lawsSummary(projectPath string) string {
 }
 
 func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string) hookResult {
+	recordCodexTabSession(store, payload)
 	filePaths := toolFilePaths(payload)
 
 	if payload.ToolName == "EnterPlanMode" && hasBiblio(projectPath) {
@@ -323,6 +330,7 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 
 // The app holds typed nudges while the human writes a draft, so the human's own prompt carries whatever was held.
 func hookUserPromptSubmit(store *session.Store, payload hookEvent) hookResult {
+	recordCodexTabSession(store, payload)
 	return newHookResult("UserPromptSubmit", "", notificationContext(store, payload.TabID))
 }
 
@@ -387,8 +395,23 @@ func toolFilePaths(payload hookEvent) []string {
 	return patchFilePaths(patch.Command)
 }
 
+// patchFilePaths is every file a patch adds, deletes, updates or renames to, a rename's destination included.
 func patchFilePaths(command string) []string {
-	prefixes := []string{"*** Add File: ", "*** Delete File: ", "*** Update File: "}
+	return patchPaths(command, "*** Add File: ", "*** Delete File: ", "*** Update File: ", "*** Move to: ")
+}
+
+func patchDeletedPaths(payload hookEvent) []string {
+	if payload.ToolName != "apply_patch" {
+		return nil
+	}
+	var patch patchToolInput
+	if err := json.Unmarshal(payload.ToolInput, &patch); err != nil {
+		return nil
+	}
+	return patchPaths(patch.Command, "*** Delete File: ")
+}
+
+func patchPaths(command string, prefixes ...string) []string {
 	seen := map[string]bool{}
 	var paths []string
 	for _, line := range strings.Split(command, "\n") {

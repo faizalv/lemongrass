@@ -31,6 +31,7 @@ func CleanTabTitle(title string) string {
 // A tab record is refreshed on spawn and on hook activity, so one untouched for this long belongs to a tab that no longer exists.
 const tabRecordTTL = 30 * 24 * time.Hour
 
+// A Codex tab records on every prompt and tool call, so an unchanged session id leaves the row as it is.
 func (s *Store) RecordTabSession(tabID, sessionID string) error {
 	_, err := s.db.Exec(`
 		INSERT INTO lg_tab_sessions (project_id, tab_id, session_id, updated_at)
@@ -38,6 +39,7 @@ func (s *Store) RecordTabSession(tabID, sessionID string) error {
 		ON CONFLICT (project_id, tab_id) DO UPDATE SET
 			session_id = excluded.session_id,
 			updated_at = excluded.updated_at
+		WHERE lg_tab_sessions.session_id <> excluded.session_id
 	`, s.projectID, tabID, sessionID, now())
 	return err
 }

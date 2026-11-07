@@ -28,9 +28,9 @@ func openHookTestStore(t *testing.T) *session.Store {
 }
 
 func TestPatchFilePaths(t *testing.T) {
-	command := "*** Begin Patch\n*** Update File: one.txt\n*** Add File: two.txt\n*** Update File: one.txt\n*** Delete File: three.txt\n*** End Patch"
+	command := "*** Begin Patch\n*** Update File: one.txt\n*** Add File: two.txt\n*** Update File: one.txt\n*** Delete File: three.txt\n*** Update File: four.txt\n*** Move to: moved/four.txt\n*** End Patch"
 	got := patchFilePaths(command)
-	want := []string{"one.txt", "two.txt", "three.txt"}
+	want := []string{"one.txt", "two.txt", "three.txt", "four.txt", "moved/four.txt"}
 	if len(got) != len(want) {
 		t.Fatalf("patchFilePaths() = %v, want %v", got, want)
 	}
@@ -166,21 +166,6 @@ func TestMemoryFeedbackDenyRequiresBiblio(t *testing.T) {
 	result := hookPreToolUse(store, payload, projectPath)
 	if result.PermissionDecision == "deny" {
 		t.Errorf("PermissionDecision = %q, want no deny for a project without biblio/", result.PermissionDecision)
-	}
-}
-
-func TestSessionEndRecordsTheLastTabSession(t *testing.T) {
-	store := openHookTestStore(t)
-
-	hookSessionEnd(store, hookEvent{SessionID: "session-a", TabID: "tab-1"})
-	hookSessionEnd(store, hookEvent{SessionID: "session-b", TabID: "tab-1"})
-
-	tabs, err := store.TabSessions()
-	if err != nil {
-		t.Fatalf("TabSessions: %v", err)
-	}
-	if len(tabs) != 1 || tabs["tab-1"] != "session-b" {
-		t.Errorf("TabSessions = %v, want tab-1=session-b", tabs)
 	}
 }
 
