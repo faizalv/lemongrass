@@ -17,7 +17,9 @@ async function connectOnce<T>(name: 'vault' | 'agent', op: string, payload?: unk
   const socket = await ipcConnect(name)
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    socket.end(JSON.stringify({ op, payload }) + '\n')
+    // Never end(): on a Windows pipe a half-close starts libuv's 50 ms EOF timer, which closes the pipe before any
+    // reply slower than that, such as one behind the passphrase's key derivation. The daemon closes after replying.
+    socket.write(JSON.stringify({ op, payload }) + '\n')
     socket.on('data', (chunk) => chunks.push(chunk))
     socket.on('error', reject)
     socket.on('close', () => {

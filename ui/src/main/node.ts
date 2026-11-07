@@ -150,7 +150,9 @@ async function callDaemon(op: 'reload' | 'status'): Promise<DaemonStatus> {
     socket.setTimeout(40_000, () =>
       socket.destroy(new Error('node: the node daemon did not answer'))
     )
-    socket.end(JSON.stringify({ op }) + '\n')
+    // Never end(): on a Windows pipe a half-close starts libuv's 50 ms EOF timer, which closes the pipe before a
+    // slower reply arrives. The daemon closes after replying.
+    socket.write(JSON.stringify({ op }) + '\n')
     socket.on('data', (chunk) => chunks.push(chunk))
     socket.on('error', reject)
     socket.on('close', () => {
