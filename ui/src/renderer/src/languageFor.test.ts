@@ -32,3 +32,26 @@ test('a name that matches an object prototype key is plain text', () => {
   assert.equal(languageIdFor('a.constructor'), null)
   assert.equal(languageIdFor('toString'), null)
 })
+
+test('env files, ini-style config and systemd units are key and value config', () => {
+  assert.equal(languageIdFor('/srv/app/.env'), 'properties')
+  assert.equal(languageIdFor('/srv/app/.env.production'), 'properties')
+  assert.equal(languageIdFor('/srv/app/settings.ENV'), 'properties')
+  assert.equal(languageIdFor('/etc/php/8.3/php.ini'), 'properties')
+  assert.equal(languageIdFor('/etc/sysctl.conf'), 'properties')
+  assert.equal(languageIdFor('/etc/systemd/system/app.service'), 'properties')
+  assert.equal(languageIdFor('/etc/systemd/system/backup.timer'), 'properties')
+})
+
+test('nginx.conf and any .conf under an nginx folder are nginx config', () => {
+  assert.equal(languageIdFor('/etc/nginx/nginx.conf'), 'nginx')
+  assert.equal(languageIdFor('/etc/nginx/conf.d/default.conf'), 'nginx')
+  assert.equal(languageIdFor('/etc/nginx/sites-enabled/app.conf'), 'nginx')
+  assert.equal(languageIdFor('/srv/nginx.conf'), 'nginx')
+})
+
+test('shell startup dotfiles are shell', () => {
+  assert.equal(languageIdFor('/home/deploy/.bashrc'), 'shell')
+  assert.equal(languageIdFor('/root/.profile'), 'shell')
+  assert.equal(languageIdFor('.zshrc'), 'shell')
+})

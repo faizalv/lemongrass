@@ -4,7 +4,7 @@
 import { StreamLanguage, type StreamParser } from '@codemirror/language'
 import type { Extension } from '@codemirror/state'
 
-// The built-in grammars for the read-only reader. Every grammar is a dynamic import, so none of
+// The built-in grammars for the reader and the editor. Every grammar is a dynamic import, so none of
 // them lands in the startup chunk and a language loads the first time a file of it is opened.
 // Language packs are data only and cannot carry a grammar, so a pack names one of these ids.
 
@@ -27,11 +27,21 @@ export type LanguageId =
   | 'shell'
   | 'dockerfile'
   | 'toml'
+  | 'properties'
+  | 'nginx'
 
 // Whole names, lowercased, win over extensions.
 const byName = new Map<string, LanguageId>([
   ['dockerfile', 'dockerfile'],
-  ['containerfile', 'dockerfile']
+  ['containerfile', 'dockerfile'],
+  ['nginx.conf', 'nginx'],
+  ['.env', 'properties'],
+  ['.bashrc', 'shell'],
+  ['.bash_profile', 'shell'],
+  ['.bash_aliases', 'shell'],
+  ['.profile', 'shell'],
+  ['.zshrc', 'shell'],
+  ['.zprofile', 'shell']
 ])
 
 const byExtension = new Map<string, LanguageId>([
@@ -63,19 +73,37 @@ const byExtension = new Map<string, LanguageId>([
   ['zsh', 'shell'],
   ['dockerfile', 'dockerfile'],
   ['containerfile', 'dockerfile'],
-  ['toml', 'toml']
+  ['toml', 'toml'],
+  // Key and value config: env and ini files, generic .conf and .cfg, and systemd units.
+  ['env', 'properties'],
+  ['ini', 'properties'],
+  ['cfg', 'properties'],
+  ['conf', 'properties'],
+  ['properties', 'properties'],
+  ['service', 'properties'],
+  ['socket', 'properties'],
+  ['timer', 'properties'],
+  ['mount', 'properties'],
+  ['target', 'properties'],
+  ['path', 'properties']
 ])
 
 // The language of a path with `/` separators, or null for plain text. `Dockerfile.dev` and the
-// like count as Dockerfiles; a dotfile such as `.bashrc` has no extension.
+// like count as Dockerfiles and `.env.production` and the like as env files. Any other dotfile,
+// such as `.gitignore`, has no extension. A `.conf` under an `nginx` folder is nginx config, since
+// nginx splits its config across `conf.d` and `sites-enabled`.
 export function languageIdFor(path: string): LanguageId | null {
-  const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase()
+  const lower = path.toLowerCase()
+  const name = lower.slice(lower.lastIndexOf('/') + 1)
   const named = byName.get(name)
   if (named) return named
   if (name.startsWith('dockerfile.') || name.startsWith('containerfile.')) return 'dockerfile'
+  if (name.startsWith('.env.')) return 'properties'
   const dot = name.lastIndexOf('.')
   if (dot <= 0) return null
-  return byExtension.get(name.slice(dot + 1)) ?? null
+  const extension = name.slice(dot + 1)
+  if (extension === 'conf' && lower.split('/').includes('nginx')) return 'nginx'
+  return byExtension.get(extension) ?? null
 }
 
 // @codemirror/language is in the startup chunk already, through the conflict resolver, so only
@@ -105,7 +133,10 @@ const loaders: Record<LanguageId, () => Promise<Extension>> = {
   shell: () => legacy(async () => (await import('@codemirror/legacy-modes/mode/shell')).shell),
   dockerfile: () =>
     legacy(async () => (await import('@codemirror/legacy-modes/mode/dockerfile')).dockerFile),
-  toml: () => legacy(async () => (await import('@codemirror/legacy-modes/mode/toml')).toml)
+  toml: () => legacy(async () => (await import('@codemirror/legacy-modes/mode/toml')).toml),
+  properties: () =>
+    legacy(async () => (await import('@codemirror/legacy-modes/mode/properties')).properties),
+  nginx: () => legacy(async () => (await import('@codemirror/legacy-modes/mode/nginx')).nginx)
 }
 
 const loaded = new Map<LanguageId, Promise<Extension>>()
