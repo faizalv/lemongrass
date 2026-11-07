@@ -80,7 +80,7 @@ function fixture(
   }
 }
 
-test('Codex writes the notice before a separately delayed Enter', async () => {
+test('a notice is written before a separately delayed Enter for codex', async () => {
   const f = fixture('codex')
   const result = f.handleNudge('/tmp/lgrassd', TAB_ID)
   await Promise.resolve()
@@ -92,7 +92,7 @@ test('Codex writes the notice before a separately delayed Enter', async () => {
   assert.deepEqual(f.writes, [NOTICE, '\r'])
 })
 
-test('Claude gets the same separately delayed Enter', async () => {
+test('a notice is written before a separately delayed Enter for claude', async () => {
   const f = fixture('claude')
   const result = f.handleNudge('/tmp/lgrassd', TAB_ID)
   await Promise.resolve()

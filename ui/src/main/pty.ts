@@ -132,8 +132,6 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       ...((opts.command === 'claude' || opts.command === 'codex') && opts.cwd
         ? { LGRASS_PROJECT_DIR: opts.cwd }
         : {}),
-      // Temporary: turns on the hook payload probe for Codex tabs during the Codex revamp's probing phase.
-      ...(opts.command === 'codex' ? { LGRASS_HOOK_PROBE: '1' } : {}),
       ...(configDir ? { CLAUDE_CONFIG_DIR: configDir } : {})
     })
     if ('error' in launch) return { error: launch.error }

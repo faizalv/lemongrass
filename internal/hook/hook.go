@@ -17,12 +17,10 @@ import (
 )
 
 const (
-	collisionWindow  = 15 * time.Minute
-	idleThreshold    = 5 * time.Minute
-	nudgeThreshold   = 8 // tool calls between periodic nudges
-	hookProbeLogPath = "/tmp/lgrass-hook-probe.log"
-	hookProbeEnv     = "LGRASS_HOOK_PROBE"
-	lawsInPromptEnv  = "LGRASS_LAWS_IN_PROMPT"
+	collisionWindow = 15 * time.Minute
+	idleThreshold   = 5 * time.Minute
+	nudgeThreshold  = 8 // tool calls between periodic nudges
+	lawsInPromptEnv = "LGRASS_LAWS_IN_PROMPT"
 )
 
 // The full hook JSON carries more fields depending on hook_event_name; this is only the subset lgrass reads.
@@ -84,9 +82,6 @@ func Run(args []string, tabID string) {
 		payload.Vendor = "claude"
 	}
 	payload.Raw = raw
-	if (event == "SessionStart" || event == "SessionEnd" || event == "PreToolUse") && os.Getenv(hookProbeEnv) != "" {
-		logHookProbe(event, vendor, raw, payload)
-	}
 
 	proj, err := project.Resolve(payload.Cwd)
 	if err != nil {
@@ -120,19 +115,6 @@ func Run(args []string, tabID string) {
 		result = hookUserPromptSubmit(store, payload)
 	}
 	adapter.emit(result)
-}
-
-// Temporary probe that writes raw SessionStart, SessionEnd and PreToolUse payloads to a /tmp file, for the Codex lifecycle investigation. Off unless LGRASS_HOOK_PROBE is set.
-func logHookProbe(event, vendor string, raw []byte, payload hookEvent) {
-	if vendor == "" {
-		vendor = "claude"
-	}
-	f, err := os.OpenFile(hookProbeLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	fmt.Fprintf(f, "%s event=%s vendor=%s source=%s session_id=%s tab_id=%t payload=%s\n", time.Now().UTC().Format(time.RFC3339Nano), event, vendor, payload.SessionSource, payload.SessionID, payload.TabID != "", raw)
 }
 
 func hookSessionStart(store *session.Store, payload hookEvent, projectPath string) hookResult {
