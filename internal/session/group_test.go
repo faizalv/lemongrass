@@ -186,7 +186,7 @@ func TestFormatMemberHeaderGivesAThinkerItsRoleBack(t *testing.T) {
 		t.Errorf("leader header = %q", leader)
 	}
 	header := FormatMemberHeader(Member{Role: RoleThinker, Label: "reviewer", Prompt: "Review the diff.", Skills: []string{"lgrass-connector"}})
-	for _, want := range []string{`thinker "reviewer"`, "lgrass-howtobe-thinker, lgrass-connector", "Your assignment:", "Review the diff."} {
+	for _, want := range []string{`thinker "reviewer"`, "run `lgrass how thinker start`, then load these skills: lgrass-connector", "Your assignment:", "Review the diff."} {
 		if !strings.Contains(header, want) {
 			t.Errorf("header missing %q:\n%s", want, header)
 		}

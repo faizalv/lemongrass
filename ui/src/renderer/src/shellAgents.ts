@@ -52,7 +52,8 @@ const RESUME_ARGV: Record<string, (sessionId: string) => string[]> = {
 
 // The lgrass PreToolUse hook is the permission gate for these agents, so their own prompts are switched off.
 const BYPASS_ARGV: Record<string, string[]> = {
-  claude: ['--dangerously-skip-permissions']
+  claude: ['--dangerously-skip-permissions'],
+  codex: ['--dangerously-bypass-approvals-and-sandbox']
 }
 
 export function spawnArgs(command: string, tabId: string, args?: string[]): string[] | undefined {

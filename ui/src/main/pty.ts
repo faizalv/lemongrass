@@ -111,7 +111,8 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       opts.command,
       opts.orientation ?? 'tab',
       homedir(),
-      opts.cwd
+      opts.cwd,
+      opts.args ?? []
     )
     const args = [
       ...orientation.args,
@@ -127,6 +128,12 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       ...startupTrimEnv(opts.command),
       ...orientation.env,
       ...(opts.tabId ? { LGRASS_TAB_ID: opts.tabId } : {}),
+      // The launch project the lgrass hook scopes project policy and the deletion exemption to, for every vendor.
+      ...((opts.command === 'claude' || opts.command === 'codex') && opts.cwd
+        ? { LGRASS_PROJECT_DIR: opts.cwd }
+        : {}),
+      // Temporary: turns on the hook payload probe for Codex tabs during the Codex revamp's probing phase.
+      ...(opts.command === 'codex' ? { LGRASS_HOOK_PROBE: '1' } : {}),
       ...(configDir ? { CLAUDE_CONFIG_DIR: configDir } : {})
     })
     if ('error' in launch) return { error: launch.error }

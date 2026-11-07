@@ -158,8 +158,8 @@ func validateThinkers(thinkers []Thinker, taken []string, baseDir string) error 
 			if !skillPattern.MatchString(name) {
 				return fmt.Errorf("workgroup: thinker %q skill %q is not a valid skill name", c.Label, name)
 			}
-			if action, retired := session.RetiredClaudeSkills[name]; retired && name != ThinkerSkill && c.Vendor == "claude" {
-				return fmt.Errorf("workgroup: thinker %q skill %q is not installed for claude anymore, its procedure is `%s`, which the thinker runs itself when it needs it. Drop it from skills", c.Label, name, action)
+			if action, retired := session.RetiredSkills[name]; retired && name != ThinkerSkill {
+				return fmt.Errorf("workgroup: thinker %q skill %q is not installed anymore, its procedure is `%s`, which the thinker runs itself when it needs it. Drop it from skills", c.Label, name, action)
 			}
 			if name != ThinkerSkill && !containsString(skills, name) {
 				skills = append(skills, name)
@@ -266,7 +266,7 @@ var readOnlySubcommands = map[string]map[string]bool{
 const shellMetacharacters = ";&|<>`$\n\r\\"
 
 // Every lgrass command a thinker must run, in the order it runs them.
-func (c Thinker) RequiredCommands() []string { return session.ThinkerCommands(c.Vendor, c.Commands) }
+func (c Thinker) RequiredCommands() []string { return session.ThinkerCommands(c.Commands) }
 
 // Every skill a thinker must load, in the order it loads them.
 func (c Thinker) RequiredSkills() []string { return session.ThinkerSkills(c.Vendor, c.Skills) }

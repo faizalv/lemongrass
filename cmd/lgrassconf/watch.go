@@ -36,11 +36,6 @@ func (k *keeper) skillDirs() []string {
 			add(k.legacySkillDir(v, name))
 		}
 	}
-	for _, f := range k.skills {
-		for dir := filepath.Dir(f.path); dir != f.root; dir = filepath.Dir(dir) {
-			add(dir)
-		}
-	}
 	return dirs
 }
 

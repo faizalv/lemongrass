@@ -25,9 +25,10 @@ func TestUninstallReversesTheKeeperAndKeepsTheHumansConfig(t *testing.T) {
 	if err := k.reconcile(); err != nil {
 		t.Fatal(err)
 	}
-	if !exists(k.codexHooksPath()) || !exists(leaderSkillPath(k, codex)) {
+	if !exists(k.codexHooksPath()) {
 		t.Fatal("reconcile did not set up the codex side")
 	}
+	installRetired(t, k)
 
 	bin := filepath.Join(k.home, ".local", "bin")
 	os.MkdirAll(bin, 0o755)
@@ -60,8 +61,8 @@ func TestUninstallReversesTheKeeperAndKeepsTheHumansConfig(t *testing.T) {
 	if exists(k.codexHooksPath()) {
 		t.Error("codex hooks.json left behind with nothing of the human's in it")
 	}
-	if exists(filepath.Dir(leaderSkillPath(k, codex))) {
-		t.Error("codex skill left behind")
+	if exists(filepath.Join(k.skillsRoot(codex), "lgrass-howtobe-leader")) {
+		t.Error("retired codex skill left behind")
 	}
 	for _, path := range []string{lgrass, filepath.Join(bin, "lgrass"), filepath.Join(bin, "lgrassconf")} {
 		if exists(path) {

@@ -16,11 +16,11 @@ const (
 	// A collaborator is an open tab the human added to a live group. It keeps its own context, and the human directs it in its own tab, so it takes no assignment and no leader's go for its own work.
 	RoleCollaborator = "collaborator"
 
-	// Every thinker on a vendor that does not start with ThinkerStartCommand loads this skill.
+	// ThinkerSkill is the retired thinker skill, dropped wherever a config still lists it.
 	ThinkerSkill = "lgrass-howtobe-thinker"
-	// A Claude thinker reads its role with this command instead of loading ThinkerSkill, as the first of its required commands. Codex thinkers still load the skill.
+	// Every thinker reads its role with this command, as the first of its required commands.
 	ThinkerStartCommand = "lgrass how thinker start"
-	// BibliothekSkill is never required of a Claude thinker, whose system prompt already carries it.
+	// BibliothekSkill is never required of a thinker, whose system prompt already carries it.
 	BibliothekSkill = "bibliothek"
 )
 
@@ -383,10 +383,10 @@ func (s *Store) Labels(tabIDs []string) map[string]string {
 
 func (m Member) RequiredSkills() []string { return ThinkerSkills(m.Vendor, m.Skills) }
 
-func (m Member) RequiredCommands() []string { return ThinkerCommands(m.Vendor, m.Commands) }
+func (m Member) RequiredCommands() []string { return ThinkerCommands(m.Commands) }
 
-// RetiredClaudeSkills maps each lemongrass skill no longer installed for Claude to the lgrass how action that replaced it.
-var RetiredClaudeSkills = map[string]string{
+// RetiredSkills maps each lemongrass skill no longer installed for any vendor to the lgrass how action that replaced it.
+var RetiredSkills = map[string]string{
 	"lgrass-howtodo-work":        "lgrass how work",
 	"lgrass-howtodo-taskclosing": "lgrass how task close",
 	"lgrass-howtodo-newlaws":     "lgrass how laws write",
@@ -395,15 +395,10 @@ var RetiredClaudeSkills = map[string]string{
 	ThinkerSkill:                 ThinkerStartCommand,
 }
 
-func ThinkerStartsWithHow(vendor string) bool { return vendor == "claude" }
-
-// ThinkerSkills is the thinker skill first on a vendor that still loads it, then the skills the leader listed, each once, leaving out what the vendor's prompt already carries.
+// ThinkerSkills is the skills the leader listed, each once, leaving out the retired thinker skill and what the vendor's prompt already carries.
 func ThinkerSkills(vendor string, listed []string) []string {
 	// Never nil: the list reaches the app's workgroup bridge as JSON, which refuses null where it expects an array.
 	out := []string{}
-	if !ThinkerStartsWithHow(vendor) {
-		out = append(out, ThinkerSkill)
-	}
 	for _, name := range listed {
 		if name != ThinkerSkill && !containsString(out, name) && !CarriedInPrompt(vendor, name) {
 			out = append(out, name)
@@ -412,13 +407,10 @@ func ThinkerSkills(vendor string, listed []string) []string {
 	return out
 }
 
-// ThinkerCommands is ThinkerStartCommand first on a vendor that starts with it, then the commands the leader listed, each once.
-func ThinkerCommands(vendor string, listed []string) []string {
+// ThinkerCommands is ThinkerStartCommand first, then the commands the leader listed, each once.
+func ThinkerCommands(listed []string) []string {
 	// Never nil, for the same reason as ThinkerSkills.
-	out := []string{}
-	if ThinkerStartsWithHow(vendor) {
-		out = append(out, ThinkerStartCommand)
-	}
+	out := []string{ThinkerStartCommand}
 	for _, command := range listed {
 		if command != ThinkerStartCommand && !containsString(out, command) {
 			out = append(out, command)
@@ -448,6 +440,7 @@ func ThinkerStartSteps(commands, skills []string) string {
 	return strings.Join(steps, ", then ")
 }
 
+// CarriedInPrompt reports a skill whose text the vendor's orientation already holds, which lemongrass writes for Claude and Codex tabs.
 func CarriedInPrompt(vendor, skill string) bool {
-	return vendor == "claude" && skill == BibliothekSkill
+	return (vendor == "claude" || vendor == "codex") && skill == BibliothekSkill
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/internal/agentconf"
+	"github.com/faizalv/lemongrass/internal/session"
 )
 
 func fakeHome(t *testing.T) (*keeper, string) {
@@ -31,17 +32,20 @@ func fakeHome(t *testing.T) (*keeper, string) {
 	return k, lgrass
 }
 
-func leaderSkillPath(k *keeper, v vendor) string {
-	return filepath.Join(k.skillsRoot(v), "lgrass-howtobe-leader", "SKILL.md")
-}
-
-func embeddedLeaderSkill(t *testing.T, v vendor) string {
+// installRetired writes an old copy of every retired lemongrass skill into each vendor's skills folder.
+func installRetired(t *testing.T, k *keeper) {
 	t.Helper()
-	data, err := skillsFS.ReadFile(v.embedRoot + "/lgrass-howtobe-leader/SKILL.md")
-	if err != nil {
-		t.Fatal(err)
+	for _, v := range vendors {
+		for _, name := range v.retired {
+			dir := filepath.Join(k.skillsRoot(v), name)
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("old"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
-	return string(data)
 }
 
 func TestInvalidSettingsAreNeverOverwritten(t *testing.T) {
@@ -92,55 +96,36 @@ func TestNoLgrassBinaryRegistersNoHooks(t *testing.T) {
 	if _, err := os.Stat(k.claudeSettingsPath()); err == nil {
 		t.Error("settings written although no lgrassd binary exists")
 	}
-	if _, err := os.Stat(leaderSkillPath(k, codex)); err != nil {
-		t.Errorf("codex skill should still be installed: %v", err)
-	}
 	if _, err := os.Stat(k.codexHooksPath()); err == nil {
 		t.Error("Codex hooks written although no lgrassd binary exists")
 	}
 }
 
-func TestEachVendorGetsItsOwnSkillContent(t *testing.T) {
+func TestEveryVendorDropsTheRetiredSkillsAndKeepsTheHumansOwn(t *testing.T) {
 	k, _ := fakeHome(t)
-	if err := k.reconcile(); err != nil {
+	installRetired(t, k)
+	own := filepath.Join(k.skillsRoot(codex), session.BibliothekSkill, "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(own), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got, err := os.ReadFile(leaderSkillPath(k, codex))
-	if err != nil {
+	if err := os.WriteFile(own, []byte("the human's"), 0o644); err != nil {
 		t.Fatal(err)
-	}
-	if string(got) != embeddedLeaderSkill(t, codex) {
-		t.Error("codex skill differs from its embedded copy")
-	}
-	if strings.Contains(embeddedLeaderSkill(t, codex), "allowed-tools") {
-		t.Error("Codex skill carries a Claude-only header")
-	}
-}
-
-func TestCodexInstallsEverySkillAndClaudeTheRetiredNone(t *testing.T) {
-	k, _ := fakeHome(t)
-	for _, name := range claude.retired {
-		dir := filepath.Join(k.skillsRoot(claude), name)
-		os.MkdirAll(dir, 0o755)
-		os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("old"), 0o644)
 	}
 	if err := k.reconcile(); err != nil {
 		t.Fatal(err)
 	}
-	if len(claude.retired) != 6 {
-		t.Errorf("retired Claude skills = %v", claude.retired)
-	}
-	for _, name := range claude.retired {
-		if _, err := os.Stat(filepath.Join(k.skillsRoot(claude), name)); err == nil {
-			t.Errorf("retired Claude skill %s is still installed", name)
+	for _, v := range vendors {
+		if len(v.retired) != 6 {
+			t.Errorf("retired %s skills = %v", v.configDir, v.retired)
 		}
-	}
-	for _, v := range []vendor{codex} {
-		for _, name := range []string{"lgrass-howtobe-leader", "lgrass-howtobe-keeper", "lgrass-howtodo-taskclosing", "lgrass-howtodo-work", "lgrass-howtodo-newlaws", "lgrass-howtobe-thinker"} {
-			if _, err := os.Stat(filepath.Join(k.skillsRoot(v), name, "SKILL.md")); err != nil {
-				t.Errorf("%s skill %s missing: %v", v.configDir, name, err)
+		for _, name := range v.retired {
+			if _, err := os.Stat(filepath.Join(k.skillsRoot(v), name)); err == nil {
+				t.Errorf("retired %s skill %s is still installed", v.configDir, name)
 			}
 		}
+	}
+	if _, err := os.Stat(own); err != nil {
+		t.Errorf("the human's own skill was removed: %v", err)
 	}
 }
 
@@ -170,9 +155,6 @@ func TestLegacySkillIsRemoved(t *testing.T) {
 				t.Errorf("%s legacy %s SKILL.md still present", v.configDir, name)
 			}
 		}
-	}
-	if _, err := os.Stat(leaderSkillPath(k, codex)); err != nil {
-		t.Errorf("codex leader skill missing: %v", err)
 	}
 	for _, name := range legacySkillNames {
 		if _, err := os.Stat(k.legacySkillDir(claude, name)); err == nil {
@@ -244,12 +226,11 @@ func TestWatcherHealsDriftWithoutAnyOtherProcess(t *testing.T) {
 	}
 	w.waitFor(t, "matcher healed after drift", healthy)
 
-	if err := os.RemoveAll(filepath.Dir(leaderSkillPath(k, codex))); err != nil {
-		t.Fatal(err)
-	}
-	w.waitFor(t, "skill restored after deletion", func() bool {
-		data, err := os.ReadFile(leaderSkillPath(k, codex))
-		return err == nil && string(data) == embeddedLeaderSkill(t, codex)
+	retired := filepath.Join(k.skillsRoot(codex), "lgrass-howtobe-leader")
+	installRetired(t, k)
+	w.waitFor(t, "retired skill removed once it reappears", func() bool {
+		_, err := os.Stat(retired)
+		return err != nil
 	})
 	w.waitFor(t, "Codex hooks registered", func() bool {
 		data, err := os.ReadFile(k.codexHooksPath())
@@ -262,7 +243,10 @@ func TestWatcherRegistersHooksWhenLgrassAppears(t *testing.T) {
 	os.Remove(lgrass)
 	w := startWatcher(t, k)
 
-	w.waitFor(t, "skill installed", func() bool { _, err := os.Stat(leaderSkillPath(k, codex)); return err == nil })
+	w.waitFor(t, "orientation installed", func() bool {
+		_, err := os.Stat(filepath.Join(k.orientationDir(), "codex-tab.md"))
+		return err == nil
+	})
 	if _, err := os.Stat(k.claudeSettingsPath()); err == nil {
 		t.Fatal("settings written before the binary existed")
 	}

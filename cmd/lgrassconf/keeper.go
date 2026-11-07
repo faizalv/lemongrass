@@ -4,13 +4,11 @@
 package main
 
 import (
-	"embed"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/faizalv/lemongrass/internal/agentconf"
 	"github.com/faizalv/lemongrass/internal/claudeaccount"
@@ -18,27 +16,24 @@ import (
 	"github.com/faizalv/lemongrass/internal/session"
 )
 
-//go:embed skills
-var skillsFS embed.FS
-
 var legacySkillNames = []string{"lemongrass", "lgrass-staleness", "lgrass-closing", "lgrass-copilot", "lgrass-pilot", "lgrass-connector"}
 
+// No lemongrass skill is installed for any vendor anymore; the keeper only removes old copies from each vendor's skills folder.
 type vendor struct {
-	embedRoot string
 	configDir string
-	// retired are lemongrass skills this vendor no longer installs, removed like the legacy ones.
+	// retired are lemongrass skills replaced by lgrass how, removed like the legacy ones.
 	retired []string
 }
 
 var (
-	claude  = vendor{embedRoot: "skills/claude", configDir: ".claude", retired: retiredClaudeSkills()}
-	codex   = vendor{embedRoot: "skills/codex", configDir: ".codex"}
+	claude  = vendor{configDir: ".claude", retired: retiredSkills()}
+	codex   = vendor{configDir: ".codex", retired: retiredSkills()}
 	vendors = []vendor{claude, codex}
 )
 
-func retiredClaudeSkills() []string {
-	names := make([]string, 0, len(session.RetiredClaudeSkills))
-	for name := range session.RetiredClaudeSkills {
+func retiredSkills() []string {
+	names := make([]string, 0, len(session.RetiredSkills))
+	for name := range session.RetiredSkills {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -59,7 +54,6 @@ type skillFile struct {
 type keeper struct {
 	home        string
 	candidates  []string
-	skills      []skillFile
 	orientation []skillFile
 	plugin      []skillFile
 	// onPass, when set, runs as each watcher pass starts (finished false) and once it has reconciled and armed its watches (finished true). Tests use it to change a file only when no pass is in flight, since a pass writes files before addWatches arms them and kqueue arms a directory watch slowly; nil in production.
@@ -71,36 +65,9 @@ func newKeeper(home string) *keeper {
 		home:       home,
 		candidates: []string{config.LgrassdPath(home)},
 	}
-	k.skills = k.loadSkills()
 	k.orientation = k.loadOrientation()
 	k.plugin = k.loadPlugin()
 	return k
-}
-
-func (k *keeper) loadSkills() []skillFile {
-	var files []skillFile
-	for _, v := range vendors {
-		root := k.skillsRoot(v)
-		if _, err := fs.Stat(skillsFS, v.embedRoot); err != nil {
-			continue
-		}
-		err := fs.WalkDir(skillsFS, v.embedRoot, func(p string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return err
-			}
-			data, err := skillsFS.ReadFile(p)
-			if err != nil {
-				return err
-			}
-			rel := strings.TrimPrefix(p, v.embedRoot+"/")
-			files = append(files, skillFile{root: root, path: filepath.Join(root, filepath.FromSlash(rel)), content: data})
-			return nil
-		})
-		if err != nil {
-			panic(err)
-		}
-	}
-	return files
 }
 
 func (k *keeper) skillsRoot(v vendor) string {

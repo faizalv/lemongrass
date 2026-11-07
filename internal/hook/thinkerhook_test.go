@@ -107,21 +107,45 @@ func TestAThinkerWithARequiredSkillListMustLoadThemAll(t *testing.T) {
 	}
 }
 
-func TestCodexThinkerNeedsSkillsButNoListener(t *testing.T) {
-	store, _ := storeWithGroup(t, nil)
-	dir := t.TempDir()
-	ls := map[string]any{"command": []string{"bash", "-lc", "ls"}}
-	result := hookPreToolUse(store, preTool(gateTabCodex, "shell", ls), dir)
-	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass-howtobe-thinker") {
-		t.Fatalf("required skill did not hold the gate: %+v", result)
+// storeWithCodexThinker holds one Codex thinker, gateTabCodex, with the given row fields.
+func storeWithCodexThinker(t *testing.T, codex session.Member) *session.Store {
+	t.Helper()
+	store := openHookTestStore(t)
+	_, err := store.CreateGroup("review", session.Member{TabID: gateTabLeader, Label: "lead", Vendor: "claude"}, []session.Member{
+		{TabID: gateTabCodex, Label: "tester", Vendor: "codex", Skills: codex.Skills, Commands: codex.Commands},
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup: %v", err)
 	}
-	read := map[string]any{"command": []string{"bash", "-lc", "cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md"}}
+	return store
+}
 
-	if load := hookPreToolUse(store, preTool(gateTabCodex, "shell", read), dir); load.PermissionDecision == "deny" {
+// codexShell sends a shell call the way Codex 0.167 does: tool Bash, the script as a plain string.
+func codexShell(store *session.Store, dir, script string) hookResult {
+	return hookPreToolUse(store, preTool(gateTabCodex, "Bash", map[string]string{"command": script}), dir)
+}
+
+func TestCodexThinkerStartsWithHowThenLoadsItsListedSkills(t *testing.T) {
+	store := storeWithCodexThinker(t, session.Member{Skills: []string{"schema-check", "bibliothek"}})
+	dir := projectWithBiblio(t)
+
+	result := codexShell(store, dir, "ls")
+	if result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "run `lgrass how thinker start`, then load these skills: schema-check (") {
+		t.Fatalf("deny = %+v, want the thinker start then the listed skill, bibliothek left out", result)
+	}
+	if strings.Contains(result.PermissionDecisionReason, session.ThinkerSkill) {
+		t.Errorf("a Codex thinker was told to load the retired thinker skill: %s", result.PermissionDecisionReason)
+	}
+	codexShell(store, dir, "cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md")
+	codexShell(store, dir, "lgrass how thinker start")
+	if result := codexShell(store, dir, "ls"); result.PermissionDecision != "deny" || strings.Contains(result.PermissionDecisionReason, "thinker start") {
+		t.Fatalf("deny = %+v, want only the listed skill left", result)
+	}
+	if load := codexShell(store, dir, "cat ~/.codex/skills/schema-check/SKILL.md"); load.PermissionDecision == "deny" {
 		t.Fatalf("the skill read was denied: %s", load.PermissionDecisionReason)
 	}
-	if result := hookPreToolUse(store, preTool(gateTabCodex, "shell", ls), dir); result.PermissionDecision == "deny" {
-		t.Errorf("denied after the skill loaded without a listener: %s", result.PermissionDecisionReason)
+	if result := codexShell(store, dir, "ls"); result.PermissionDecision == "deny" {
+		t.Errorf("still denied after the start and the skill: %s", result.PermissionDecisionReason)
 	}
 }
 
@@ -188,10 +212,13 @@ func TestSessionStartSendsLawsAndTheStartLineAndResetsMarks(t *testing.T) {
 	if strings.Contains(codex.AdditionalContext, "lgrass listen") {
 		t.Error("a Codex thinker was told to keep a listener running")
 	}
-	for _, want := range []string{`thinker "tester"`, "lgrass-howtobe-thinker", "lgrass workgroup thread"} {
+	for _, want := range []string{`thinker "tester"`, "run `lgrass how thinker start`", "lgrass workgroup thread"} {
 		if !strings.Contains(codex.AdditionalContext, want) {
 			t.Errorf("Codex start context missing %q", want)
 		}
+	}
+	if strings.Contains(codex.AdditionalContext, session.ThinkerSkill) {
+		t.Error("a Codex thinker was told to load the retired thinker skill")
 	}
 	leader := hookSessionStart(store, hookEvent{SessionID: "s3", TabID: gateTabLeader}, dir)
 	if strings.Contains(leader.AdditionalContext, "thinker") || !strings.Contains(leader.AdditionalContext, "a law") {
@@ -224,24 +251,15 @@ func TestAThinkerMustRunEveryListedCommand(t *testing.T) {
 	}
 }
 
-func TestCodexThinkerRunsCommandsAndLoadsTheThinkerSkill(t *testing.T) {
-	store := openHookTestStore(t)
-	_, err := store.CreateGroup("review", session.Member{TabID: gateTabLeader, Label: "lead", Vendor: "claude"}, []session.Member{
-		{TabID: gateTabCodex, Label: "tester", Vendor: "codex", Commands: []string{"lgrass how book write"}},
-	})
-	if err != nil {
-		t.Fatalf("CreateGroup: %v", err)
-	}
+func TestCodexThinkerRunsTheThinkerStartAndItsListedCommands(t *testing.T) {
+	store := storeWithCodexThinker(t, session.Member{Commands: []string{"lgrass how book write"}})
 	dir := t.TempDir()
-	shell := func(script string) hookResult {
-		return hookPreToolUse(store, preTool(gateTabCodex, "shell", map[string]any{"command": []string{"bash", "-lc", script}}), dir)
+	if result := codexShell(store, dir, "ls"); result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "run `lgrass how thinker start`, then run `lgrass how book write`") {
+		t.Fatalf("deny = %+v, want both commands named", result)
 	}
-	shell("cat ~/.codex/skills/lgrass-howtobe-thinker/SKILL.md")
-	if result := shell("ls"); result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "lgrass how book write") || strings.Contains(result.PermissionDecisionReason, "thinker start") {
-		t.Fatalf("deny = %+v, want only the listed command", result)
-	}
-	shell("lgrass how book write")
-	if result := shell("ls"); result.PermissionDecision == "deny" {
+	codexShell(store, dir, "lgrass how thinker start")
+	codexShell(store, dir, "lgrass how book write")
+	if result := codexShell(store, dir, "ls"); result.PermissionDecision == "deny" {
 		t.Errorf("still denied: %s", result.PermissionDecisionReason)
 	}
 }

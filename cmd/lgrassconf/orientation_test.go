@@ -13,9 +13,16 @@ import (
 	"github.com/faizalv/lemongrass/internal/bibliothek"
 )
 
+var installedOrientations = []string{"tab.md", "thinker.md", "codex-tab.md", "codex-thinker.md"}
+
+// embeddedOrientation is the expected installed text for an installed name, codex- prefixed for Codex.
 func embeddedOrientation(t *testing.T, name string) string {
 	t.Helper()
-	data, err := orientationFS.ReadFile("orientation/" + name)
+	vendor, source := "claude", name
+	if rest, ok := strings.CutPrefix(name, "codex-"); ok {
+		vendor, source = "codex", rest
+	}
+	data, err := orientationFS.ReadFile("orientation/" + source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +30,7 @@ func embeddedOrientation(t *testing.T, name string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(data) + bibliothekHeading + string(convention)
+	return string(forVendor(data, vendor)) + bibliothekHeading + string(convention)
 }
 
 func TestOrientationCarriesBibliothekWithoutTheTrigger(t *testing.T) {
@@ -31,7 +38,7 @@ func TestOrientationCarriesBibliothekWithoutTheTrigger(t *testing.T) {
 	if err := k.reconcile(); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"tab.md", "thinker.md"} {
+	for _, name := range installedOrientations {
 		data, err := os.ReadFile(filepath.Join(k.orientationDir(), name))
 		if err != nil {
 			t.Fatal(err)
@@ -51,7 +58,7 @@ func TestOrientationIsInstalledForTabsAndThinkers(t *testing.T) {
 	if err := k.reconcile(); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"tab.md", "thinker.md"} {
+	for _, name := range installedOrientations {
 		got, err := os.ReadFile(filepath.Join(k.orientationDir(), name))
 		if err != nil {
 			t.Fatal(err)
@@ -59,6 +66,52 @@ func TestOrientationIsInstalledForTabsAndThinkers(t *testing.T) {
 		if string(got) != embeddedOrientation(t, name) {
 			t.Errorf("%s differs from its embedded copy", name)
 		}
+	}
+}
+
+func TestOrientationIsAdaptedPerVendor(t *testing.T) {
+	k, _ := fakeHome(t)
+	if err := k.reconcile(); err != nil {
+		t.Fatal(err)
+	}
+	read := func(name string) string {
+		data, err := os.ReadFile(filepath.Join(k.orientationDir(), name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	for _, name := range installedOrientations {
+		text := read(name)
+		if strings.Contains(text, "<!-- claude -->") || strings.Contains(text, "<!-- codex -->") || strings.Contains(text, vendorBlockEnd) || strings.Contains(text, "\n\n\n") {
+			t.Errorf("%s keeps a vendor marker or a doubled gap", name)
+		}
+	}
+	for _, role := range []string{"tab.md", "thinker.md"} {
+		// Only the orientation itself; the appended bibliothek text names agents on purpose.
+		claudeText, _, _ := strings.Cut(read(role), bibliothekHeading)
+		codexText, _, _ := strings.Cut(read("codex-"+role), bibliothekHeading)
+		for _, harness := range []string{"ToolSearch", "Claude Code's"} {
+			if !strings.Contains(claudeText, harness) {
+				t.Errorf("%s lost %q", role, harness)
+			}
+			if strings.Contains(codexText, harness) {
+				t.Errorf("codex-%s carries %q", role, harness)
+			}
+		}
+		if !strings.Contains(codexText, "changes to Codex's config, hooks or the lemongrass binaries") {
+			t.Errorf("codex-%s does not name Codex's config in the blocked list", role)
+		}
+	}
+}
+
+func TestForVendorKeepsOneParagraphGap(t *testing.T) {
+	src := "a\n\n<!-- claude -->\nb\n<!-- end -->\n<!-- codex -->\nc\n<!-- end -->\n\n<!-- claude -->\nd\n<!-- end -->\n\ne\n"
+	if got := string(forVendor([]byte(src), "claude")); got != "a\n\nb\n\nd\n\ne\n" {
+		t.Errorf("claude = %q", got)
+	}
+	if got := string(forVendor([]byte(src), "codex")); got != "a\n\nc\n\ne\n" {
+		t.Errorf("codex = %q", got)
 	}
 }
 

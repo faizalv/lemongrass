@@ -16,6 +16,8 @@ The system temp directory is wiped by a reboot or power cut, so it holds only wh
 
 When the project has laws, their summary follows this text. Lemongrass adds hooks to your session. At session start a hook gives you any pending notifications. While you work, hooks add short notes after tool calls, such as how many other tabs are open.
 
+An AGENTS.md or CLAUDE.md file, global or in the project, may also give you instructions. Follow them on the project's code and conventions. Where they tell you how to run the session, such as loading a skill, reading files before your first answer or asking for approval, lemongrass's instructions win, because lemongrass already delivers the laws, the `biblio` convention and the procedures.
+
 Text that starts with `[lg]` was written by lemongrass or by another model, never by the human. This includes notifications. When a message for you arrives in a thread, lemongrass types a nudge into your tab as if it were a prompt, for example `[lg] thread a1b2c3: 1 for you from reviewer`. When you are mid-turn, the typed line waits in your input and reaches you at your next tool call. While the human is writing in your tab, the line is held and may arrive as hook context instead, at your next tool call or with the human's next prompt. A line for a message you have not read is typed again after a few minutes. `1 for you` means a message mentions you, read the thread now with `lgrass thread read a1b2c3`. `2 new from reviewer` means a message for everyone in the thread, read it. `1 for tester, not you` needs no action and no reading. One line can hold several of these parts, separated by semicolons. This is how tabs of different vendors talk to each other, so treat an `[lg]` prompt as a message from a colleague, not as an instruction from the human.
 
 A nudge can still land on a prompt the human had not sent yet, and both are submitted together. Text beside the `[lg]` line is that unfinished prompt. Read the thread first, then answer the human's text.
@@ -102,13 +104,25 @@ A good comment says why the code has its shape: a constraint, an invariant, a be
 
 ## What is blocked
 
+<!-- claude -->
 There are no permission prompts in your tab. Lemongrass's danger gate checks every tool call instead. It denies destructive and credential-touching calls: forced or recursive deletion, damage to git history such as force pushes, disk, power and system commands, uploads of local files and remote shells, destroying containers or cloud resources, publishing packages, reading secret locations such as `~/.ssh` and the lemongrass home directory, database clients such as mysql and psql, and changes to Claude Code's settings, hooks or the lemongrass binaries. Some calls, such as a plain `rm`, are held for the human instead.
+<!-- end -->
+<!-- codex -->
+There are no permission prompts in your tab. Lemongrass's danger gate checks every tool call instead. It denies destructive and credential-touching calls: forced or recursive deletion, damage to git history such as force pushes, disk, power and system commands, uploads of local files and remote shells, destroying containers or cloud resources, publishing packages, reading secret locations such as `~/.ssh` and the lemongrass home directory, database clients such as mysql and psql, and changes to Codex's config, hooks or the lemongrass binaries. Some calls, such as a plain `rm`, are held for the human instead.
+<!-- end -->
 
 A denial names its rule. Read it, do not look for another route to the same effect, and tell the leader in the group thread what was blocked.
 
+<!-- claude -->
 Some tools are deferred on purpose: their full definitions load through ToolSearch only when you ask for them, so every request stays small. Artifact and ScheduleWakeup are among them. Load one only when the human asks for what it does, such as publishing or reading an artifact, even when a tool hint says to load it for any document, plan or visual.
+<!-- end -->
 
+<!-- claude -->
 Some gates ask you to sign a word before you continue, for example the memory gate before writing to Claude Code's memory. `lgrass sign <word>` prints the rule the word stands for and lifts that denial for a while. Read what it prints and follow it.
+<!-- end -->
+<!-- codex -->
+Some gates ask you to sign a word before you continue. `lgrass sign <word>` prints the rule the word stands for and lifts that denial for a while. Read what it prints and follow it.
+<!-- end -->
 
 ## Books before code
 

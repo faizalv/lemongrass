@@ -66,9 +66,6 @@ func (k *keeper) uninstall(out io.Writer, removeService func(home string) error,
 	}
 
 	var skillDirs []string
-	for _, f := range k.skills {
-		skillDirs = append(skillDirs, filepath.Dir(f.path))
-	}
 	for _, v := range vendors {
 		for _, name := range v.removedSkills() {
 			skillDirs = append(skillDirs, k.legacySkillDir(v, name))
