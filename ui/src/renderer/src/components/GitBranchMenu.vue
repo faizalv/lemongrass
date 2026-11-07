@@ -45,7 +45,14 @@ const open = ref(false)
 const triggerRef = ref<HTMLElement | null>(null)
 const menuRef = ref<HTMLElement | null>(null)
 const filterRef = ref<AppInputHandle | null>(null)
-const position = ref({ left: 0, top: 0, width: MENU_MIN_WIDTH, maxHeight: MENU_MAX_HEIGHT })
+// Exactly one of top or bottom is set: top when the menu opens downward, bottom when upward.
+const position = ref<{
+  left: number
+  top?: number
+  bottom?: number
+  width: number
+  maxHeight: number
+}>({ left: 0, top: 0, width: MENU_MIN_WIDTH, maxHeight: MENU_MAX_HEIGHT })
 const branches = ref<GitBranches | null>(null)
 const filter = ref('')
 const error = ref<string | null>(null)
@@ -174,8 +181,15 @@ function place(): void {
       maxHeight: Math.min(MENU_MAX_HEIGHT, below)
     }
   } else {
+    // Pinned by its bottom edge, since the menu is only as tall as its list and a top derived from
+    // maxHeight would leave a gap above the trigger.
     const maxHeight = Math.min(MENU_MAX_HEIGHT, above)
-    position.value = { left, top: rect.top - GAP - maxHeight, width, maxHeight }
+    position.value = {
+      left,
+      bottom: window.innerHeight - rect.top + GAP,
+      width,
+      maxHeight
+    }
   }
 }
 
@@ -330,7 +344,8 @@ onBeforeUnmount(removeListeners)
       class="branch-menu sk-float sk-menu--sm"
       :style="{
         left: `${position.left}px`,
-        top: `${position.top}px`,
+        top: position.top === undefined ? undefined : `${position.top}px`,
+        bottom: position.bottom === undefined ? undefined : `${position.bottom}px`,
         width: `${position.width}px`,
         maxHeight: `${position.maxHeight}px`
       }"
