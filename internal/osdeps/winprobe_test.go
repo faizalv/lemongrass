@@ -85,6 +85,9 @@ func TestCheckWindowsFreshMachine(t *testing.T) {
 			}
 			continue
 		}
+		if d.Agent {
+			continue
+		}
 		if d.Status != StatusOK || d.Version != "9.5p1" || d.Offer != nil ||
 			d.Origin != (Origin{Kind: OriginPackage, Package: "OpenSSH.Client", Manager: ManagerWindows}) {
 			t.Errorf("ssh = %+v", d)

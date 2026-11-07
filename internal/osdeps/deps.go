@@ -7,8 +7,13 @@ package osdeps
 
 // Dep is one tool lemongrass runs but does not ship.
 type Dep struct {
-	Name     string
+	Name string
+	// The name shown to the user when it is not the binary's, such as Claude Code for claude.
+	Label    string
 	Required bool
+	// An agent CLI a tab runs. Each is optional, but lemongrass needs at least one, and the app judges them as a group.
+	// Agents install through their vendor's own script on every OS and update themselves, so they are never upgraded.
+	Agent bool
 	// Fixed camelCase ids the app maps to its own copy.
 	Features []string
 	// The lowest version lemongrass works with, empty when any version does.
@@ -71,6 +76,20 @@ var Deps = []Dep{
 			FamilyFedora:  "ssh is not installed. Database channels over SSH need it, from the openssh-clients package.",
 			FamilyWindows: "ssh is not installed. Database channels over SSH need the OpenSSH Client, which Windows adds in Settings under System, Optional features.",
 		},
+	},
+	{
+		Name:        "claude",
+		Label:       "Claude Code",
+		Agent:       true,
+		Features:    []string{"claudeTabs"},
+		VersionArgs: []string{"--version"},
+	},
+	{
+		Name:        "codex",
+		Label:       "Codex",
+		Agent:       true,
+		Features:    []string{"codexTabs"},
+		VersionArgs: []string{"--version"},
 	},
 }
 

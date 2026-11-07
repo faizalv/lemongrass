@@ -18,7 +18,9 @@ import {
 
 const git: DepEntry = {
   name: 'git',
+  label: '',
   required: true,
+  agent: false,
   features: ['gitPane', 'rebaseForecast'],
   floor: '2.45.0',
   path: '/usr/bin/git',

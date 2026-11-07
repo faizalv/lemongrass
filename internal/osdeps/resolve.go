@@ -19,6 +19,11 @@ func candidates(sys System, name string) []string {
 		return windowsCandidates(sys, name)
 	}
 	var dirs []string
+	// Both agents' install scripts put the binary in ~/.local/bin, which is not on PATH for an app started from a
+	// launcher, and on macOS not by default at all.
+	if dep, ok := Find(name); ok && dep.Agent {
+		dirs = append(dirs, path.Join(sys.Home, ".local", "bin"))
+	}
 	if name == "adb" {
 		for _, env := range []string{"ANDROID_HOME", "ANDROID_SDK_ROOT"} {
 			if dir := sys.Getenv(env); dir != "" {

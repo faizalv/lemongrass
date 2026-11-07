@@ -25,9 +25,16 @@ const (
 	ManagerInstaller = "installer"
 	// Part of Windows itself, updated only by Windows Update.
 	ManagerWindows = "windows"
+	// An agent CLI's own install script, on any OS.
+	ManagerVendor = "vendor"
+	// npm's global folder, on any OS, for an agent CLI.
+	ManagerNpm = "npm"
+	// Homebrew, for an agent CLI on macOS or Linux.
+	ManagerBrew = "brew"
 )
 
-// Origin is who installed a dependency. Package is set only for OriginPackage, Manager only on Windows.
+// Origin is who installed a dependency. Package is set only for OriginPackage.
+// Manager is set on Windows, and for the agent CLIs on every OS, since no package database owns those.
 type Origin struct {
 	Kind    string `json:"kind"`
 	Package string `json:"package,omitempty"`
@@ -36,9 +43,14 @@ type Origin struct {
 
 // readOrigin asks the package database who owns the binary. It reads the real path, because /usr/bin entries can be
 // links through /etc/alternatives that no package owns themselves.
-func readOrigin(ctx context.Context, sys System, info OSInfo, path string) Origin {
+func readOrigin(ctx context.Context, sys System, info OSInfo, dep Dep, path string) Origin {
 	if path == "" {
 		return Origin{Kind: OriginNone}
+	}
+	if dep.Agent {
+		if origin, ok := agentOrigin(sys, dep, path); ok {
+			return origin
+		}
 	}
 	if info.Family == FamilyWindows {
 		return windowsOrigin(sys, path)
@@ -46,6 +58,10 @@ func readOrigin(ctx context.Context, sys System, info OSInfo, path string) Origi
 	if info.Family != FamilyFedora {
 		return Origin{Kind: OriginUnknown}
 	}
+	return rpmOrigin(ctx, sys, path)
+}
+
+func rpmOrigin(ctx context.Context, sys System, path string) Origin {
 	real, err := sys.EvalSymlinks(path)
 	if err != nil {
 		real = path

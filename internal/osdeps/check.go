@@ -46,7 +46,7 @@ func Check(ctx context.Context, sys System, cachePath string, fresh bool) (Repor
 					Size:    st.Size,
 					ModTime: st.ModTime,
 					Version: ParseVersion(dep.Name, string(out)),
-					Origin:  readOrigin(ctx, sys, info, path),
+					Origin:  readOrigin(ctx, sys, info, dep, path),
 				}
 			}
 			// A timeout or a held rpm lock must not stick until the binary changes, so an unread origin on a

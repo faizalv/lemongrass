@@ -21,6 +21,10 @@ var versionPatterns = map[string][]*regexp.Regexp{
 	"scrcpy": {regexp.MustCompile(`(?m)^scrcpy v?(\d+\.\d+(?:\.\d+)?)`)},
 	// Release builds print "7.1.5" or "n7.1"; a nightly prints "N-12345-g<hash>" and has no version.
 	"ffmpeg": {regexp.MustCompile(`ffmpeg version n?(\d+\.\d+(?:\.\d+)?)`)},
+	// "2.1.317 (Claude Code)".
+	"claude": {regexp.MustCompile(`(?m)^v?(\d+\.\d+\.\d+)`)},
+	// "codex-cli 0.166.0"; a prerelease such as 0.158.0-alpha.2 reads as 0.158.0.
+	"codex": {regexp.MustCompile(`codex-cli v?(\d+\.\d+\.\d+)`)},
 	// Windows' own client prints "OpenSSH_for_Windows_9.5p1".
 	"ssh": {regexp.MustCompile(`OpenSSH_(?:for_Windows_)?(\d+\.\d+(?:p\d+)?)`)},
 }

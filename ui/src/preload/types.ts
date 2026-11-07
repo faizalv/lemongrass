@@ -1324,7 +1324,11 @@ export type DepStatus = 'ok' | 'missing' | 'belowFloor' | 'unknownVersion'
 // unknown is reported on an OS family whose origin probe is not built yet.
 // manager is set on Windows only, naming where the tool came from.
 export type DepOrigin =
-  | { kind: 'package'; package: string; manager?: 'winget' | 'scoop' | 'installer' | 'windows' }
+  | {
+      kind: 'package'
+      package: string
+      manager?: 'winget' | 'scoop' | 'installer' | 'windows' | 'vendor' | 'npm' | 'brew'
+    }
   | { kind: 'manual' }
   | { kind: 'none' }
   | { kind: 'unknown' }
@@ -1332,12 +1336,17 @@ export type DepOrigin =
 export interface DepOffer {
   action: 'install' | 'upgrade'
   package: string
-  route: 'helper' | 'winget' | 'brew'
+  // vendor: the agent CLI's official install script, run per user on every OS.
+  route: 'helper' | 'winget' | 'brew' | 'vendor'
 }
 
 export interface DepEntry {
   name: string
+  // The name shown to the user, such as Claude Code for claude; empty when it is the binary's name.
+  label: string
   required: boolean
+  // An agent CLI. Each is optional, but lemongrass needs at least one.
+  agent: boolean
   // camelCase feature ids, mapped to their own copy in the renderer.
   features: string[]
   floor: string

@@ -7,7 +7,7 @@ import type { DepEntry, DepOffer, DepOrigin, DepOutcome, DepsReport } from '../p
 
 const STATUSES = ['ok', 'missing', 'belowFloor', 'unknownVersion']
 const ORIGINS = ['package', 'manual', 'none', 'unknown']
-const ROUTES = ['helper', 'winget', 'brew']
+const ROUTES = ['helper', 'winget', 'brew', 'vendor']
 export const KEPT_LINES = 6
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -19,14 +19,22 @@ function text(value: unknown): string {
 }
 
 type Manager = NonNullable<Extract<DepOrigin, { kind: 'package' }>['manager']>
-const MANAGERS: string[] = ['winget', 'scoop', 'installer', 'windows'] satisfies Manager[]
+const MANAGERS: string[] = [
+  'winget',
+  'scoop',
+  'installer',
+  'windows',
+  'vendor',
+  'npm',
+  'brew'
+] satisfies Manager[]
 
 function parseOrigin(value: unknown): DepOrigin | null {
   if (!isRecord(value) || !ORIGINS.includes(text(value.kind))) return null
   if (value.kind !== 'package') return { kind: value.kind as 'manual' | 'none' | 'unknown' }
   const name = text(value.package)
   if (!name) return null
-  // Only Windows reports a manager; an unknown one is dropped rather than refusing the report.
+  // Windows reports a manager, and so does every agent CLI; an unknown one is dropped rather than refusing the report.
   const manager = text(value.manager)
   return MANAGERS.includes(manager)
     ? { kind: 'package', package: name, manager: manager as Manager }
@@ -54,7 +62,9 @@ function parseEntry(value: unknown): DepEntry | null {
   if (!name || !origin || offer === undefined || !STATUSES.includes(status)) return null
   return {
     name,
+    label: text(value.label),
     required: value.required === true,
+    agent: value.agent === true,
     features: Array.isArray(value.features)
       ? value.features.filter((f) => typeof f === 'string')
       : [],

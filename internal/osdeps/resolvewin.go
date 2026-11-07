@@ -33,6 +33,11 @@ func windowsCandidates(sys System, name string) []string {
 		add(sys.Getenv("SystemRoot"), "System32", "OpenSSH")
 	case "winget":
 		add(local, "Microsoft", "WindowsApps")
+	// Where each vendor's install script puts its agent CLI.
+	case "claude":
+		add(sys.Home, ".local", "bin")
+	case "codex":
+		add(local, "Programs", "OpenAI", "Codex", "bin")
 	}
 	add(local, "Microsoft", "WinGet", "Links")
 	add(sys.Getenv("ProgramFiles"), "WinGet", "Links")

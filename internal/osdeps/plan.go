@@ -21,6 +21,9 @@ const (
 	RouteHelper = "helper"
 	// winget run by the app as the user; an installer that needs admin raises its own UAC prompt.
 	RouteWinget = "winget"
+	// The vendor's official install script run by the app as the user, for the agent CLIs on every OS. The app holds
+	// the script per dependency, so the offer names no command.
+	RouteVendor = "vendor"
 )
 
 // Offer is the one-click install or upgrade the app shows for a dependency.
@@ -33,7 +36,9 @@ type Offer struct {
 // DepStatus is one dependency's line in the check's output.
 type DepStatus struct {
 	Name     string   `json:"name"`
+	Label    string   `json:"label"`
 	Required bool     `json:"required"`
+	Agent    bool     `json:"agent"`
 	Features []string `json:"features"`
 	Floor    string   `json:"floor"`
 	Path     string   `json:"path"`
@@ -47,7 +52,9 @@ type DepStatus struct {
 func newStatus(dep Dep, path, version string, origin Origin) DepStatus {
 	return DepStatus{
 		Name:     dep.Name,
+		Label:    dep.Label,
 		Required: dep.Required,
+		Agent:    dep.Agent,
 		Features: dep.Features,
 		Floor:    dep.Floor,
 		Path:     path,
@@ -78,6 +85,9 @@ func status(dep Dep, path, version string) string {
 // evaluate decides a dependency's status, offer and message from what the check found. A binary installed by hand is
 // never updated, since lemongrass updates the user's own installation only through the OS's package manager.
 func evaluate(dep Dep, info OSInfo, path, version string, origin Origin) DepStatus {
+	if dep.Agent {
+		return evaluateAgent(dep, info, path, version, origin)
+	}
 	if info.Family == FamilyWindows {
 		return evaluateWindows(dep, info, path, version, origin)
 	}

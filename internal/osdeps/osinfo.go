@@ -30,10 +30,20 @@ type OSInfo struct {
 	// Windows only: the build number, and whether winget is there to install with.
 	Build  int  `json:"-"`
 	Winget bool `json:"-"`
+	// Linux and macOS: whether curl is there to fetch an agent's install script with.
+	Curl bool `json:"-"`
 }
 
 // DetectOS reads the OS and its release.
 func DetectOS(ctx context.Context, sys System) OSInfo {
+	info := detectRelease(ctx, sys)
+	if sys.GOOS != "windows" {
+		info.Curl = Resolve(ctx, sys, "curl") != ""
+	}
+	return info
+}
+
+func detectRelease(ctx context.Context, sys System) OSInfo {
 	switch sys.GOOS {
 	case "darwin":
 		out, _ := sys.Run(ctx, "sw_vers", "-productVersion")

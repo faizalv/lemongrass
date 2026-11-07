@@ -81,6 +81,34 @@ const fixture = {
       status: 'ok',
       offer: null,
       message: ''
+    },
+    {
+      name: 'claude',
+      label: 'Claude Code',
+      required: false,
+      agent: true,
+      features: ['claudeTabs'],
+      floor: '',
+      path: '',
+      version: '',
+      origin: { kind: 'none' },
+      status: 'missing',
+      offer: { action: 'install', package: 'Claude Code', route: 'vendor' },
+      message: ''
+    },
+    {
+      name: 'codex',
+      label: 'Codex',
+      required: false,
+      agent: true,
+      features: ['codexTabs'],
+      floor: '',
+      path: '/home/u/.local/bin/codex',
+      version: '0.166.0',
+      origin: { kind: 'package', package: 'Codex', manager: 'vendor' },
+      status: 'ok',
+      offer: null,
+      message: ''
     }
   ]
 }
@@ -103,9 +131,17 @@ test('parseReport reads every entry of the documented shape', () => {
       ['adb', 'missing', 'none'],
       ['scrcpy', 'missing', 'none'],
       ['ffmpeg', 'ok', 'manual'],
-      ['ssh', 'ok', 'unknown']
+      ['ssh', 'ok', 'unknown'],
+      ['claude', 'missing', 'none'],
+      ['codex', 'ok', 'package']
     ]
   )
+  assert.equal(report.deps[0].agent, false)
+  assert.equal(report.deps[0].label, '')
+  assert.equal(report.deps[5].agent, true)
+  assert.equal(report.deps[5].label, 'Claude Code')
+  assert.equal(report.deps[5].offer?.route, 'vendor')
+  assert.deepEqual(report.deps[6].origin, { kind: 'package', package: 'Codex', manager: 'vendor' })
   assert.deepEqual(report.deps[0].origin, { kind: 'package', package: 'git-core' })
   assert.deepEqual(report.deps[1].offer, {
     action: 'install',
