@@ -98,6 +98,7 @@ func TestDangerDecisionRmScopedToLaunchProject(t *testing.T) {
 	payload := bashPayload(t, "rm -rf build")
 	payload.Cwd = root
 
+	t.Setenv(launchProjectEnv, "")
 	t.Setenv(claudeProjectDirEnv, "")
 	if verdict := dangerDecision(payload); verdict == nil || verdict.RuleID != "rm-force" {
 		t.Errorf("without a launch project, verdict = %+v, want rm-force", verdict)

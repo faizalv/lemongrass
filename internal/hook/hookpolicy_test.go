@@ -71,6 +71,7 @@ func TestHookPolicyCombinesGlobalWithTheLaunchProject(t *testing.T) {
 	if err := client.PutPolicy("pw", proj.ID, guard.Policy{Binaries: []string{"cargo"}, Rules: map[string]string{"rm-plain": "allow"}}); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv(launchProjectEnv, "")
 	t.Setenv(claudeProjectDirEnv, root)
 	launch := launchProject()
 	if launch.ID != proj.ID {
