@@ -20,7 +20,7 @@ permissions:
 jobs:
   mac-debug:
     name: mac-debug
-    runs-on: macos-14
+    runs-on: macos-15
     # GitHub stops any job on a hosted runner at 6 hours, so the session tops out at 5 to leave room for the setup.
     timeout-minutes: 360
     steps:

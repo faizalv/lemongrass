@@ -60,7 +60,7 @@ jobs:
     name: mac
     # Pinned, so a change of the macos-latest image never changes the package unannounced. arm64; the x64 app is
     # packaged from the same runner.
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
         with:
@@ -126,8 +126,9 @@ jobs:
   windows:
     name: windows
     # The setup.exe is built on Linux like the rpm. Nothing native is compiled: node-pty ships win32-x64 prebuilds and
-    # the Go binaries cross-compile.
-    runs-on: ubuntu-latest
+    # the Go binaries cross-compile. Pinned like the mac job: ubuntu-latest moves between images, and the wine
+    # packages differ between them.
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v5
         with:
@@ -143,12 +144,13 @@ jobs:
           node-version: 24.22.2
 
       # electron-builder runs the 32-bit NSIS installer once under wine to extract its uninstaller, which needs the
-      # i386 wine. The exe's icon and version are written without wine.
+      # i386 wine. The wine command itself is its own package, only recommended by wine64, so it is named here. The
+      # exe's icon and version are written without wine.
       - name: Install wine
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends wine64 wine32:i386
+          sudo apt-get install -y --no-install-recommends wine wine64 wine32:i386
 
       # The version comes from the tag exactly as in the rpm job.
       - name: Build setup.exe

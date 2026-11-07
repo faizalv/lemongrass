@@ -20,7 +20,7 @@ jobs:
   # Separate from the package job, so a failing test never hides whether the package builds and starts.
   go-test:
     name: go-test
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
@@ -40,7 +40,7 @@ jobs:
 
   mac-check:
     name: mac-check
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5

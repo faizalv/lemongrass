@@ -144,7 +144,7 @@ The macOS app is free and needs no Apple account. It is signed ad hoc, not with 
 curl -fsSL https://raw.githubusercontent.com/faizalv/lemongrass/main/scripts/install-mac.sh | bash
 ```
 
-It downloads the dmg for your Mac's chip from the newest release, checks it against the release's `SHA256SUMS`, quits a running Lemongrass, puts the app in `/Applications` and opens it, with no warning. Run it again at any time to update. `LEMONGRASS_VERSION=v0.4.0-rc.1` before `bash` installs a given tag.
+It downloads the dmg for your Mac's chip from the newest release, checks it against the release's `SHA256SUMS`, quits a running Lemongrass, puts the app in `/Applications` and opens it, with no warning. Updates come from the app itself, see below. Running the script again reinstalls the newest release, for example to repair an install. `LEMONGRASS_VERSION=v0.4.0-rc.1` before `bash` installs a given tag.
 
 **Option 2: the dmg from the release page.**
 
