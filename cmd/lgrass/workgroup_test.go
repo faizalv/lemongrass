@@ -28,12 +28,12 @@ func TestDeclinedMessageSeparatesReasonNoReasonAndWithdrawal(t *testing.T) {
 }
 
 func TestJoinMessageNamesEveryNewThinker(t *testing.T) {
-	one := joinMessage([]workgroup.SpawnMember{{Label: "docs", Vendor: "codex"}})
-	if one != "docs (codex) joins the group as a new thinker, approved by the human." {
+	one := joinMessage([]workgroup.SpawnMember{{TabID: "aaaaaaaa-1111-4111-8111-111111111111", Label: "docs", Vendor: "codex"}})
+	if one != "aaaaaaaa docs (codex) joins the group as a new thinker, approved by the human." {
 		t.Errorf("one = %q", one)
 	}
-	two := joinMessage([]workgroup.SpawnMember{{Label: "docs", Vendor: "codex"}, {Label: "perf", Vendor: "claude"}})
-	if !strings.Contains(two, "docs (codex), perf (claude) join the group") || strings.Contains(two, "!>>") {
+	two := joinMessage([]workgroup.SpawnMember{{TabID: "aaaaaaaa-1111-4111-8111-111111111111", Label: "docs", Vendor: "codex"}, {TabID: "bbbbbbbb-2222-4222-8222-222222222222", Label: "perf", Vendor: "claude"}})
+	if !strings.Contains(two, "aaaaaaaa docs (codex), bbbbbbbb perf (claude) join the group") || strings.Contains(two, "!>>") {
 		t.Errorf("two = %q", two)
 	}
 }

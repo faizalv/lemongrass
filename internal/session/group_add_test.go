@@ -102,8 +102,8 @@ func TestSystemMessageNotifiesEveryMemberTheLeaderIncluded(t *testing.T) {
 			t.Errorf("PendingForTab(%s) = %+v, %v, want one message for everyone", tab, pending, err)
 		}
 	}
-	if labels := store.Labels([]string{SystemAuthor}); labels[SystemAuthor] != SystemAuthor {
-		t.Errorf("system author label = %q, want %q", labels[SystemAuthor], SystemAuthor)
+	if got := TabLabel(SystemAuthor); got != SystemAuthor {
+		t.Errorf("system author name = %q, want %q", got, SystemAuthor)
 	}
 }
 

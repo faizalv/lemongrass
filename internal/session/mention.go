@@ -47,7 +47,7 @@ func (s *Store) ResolveMentions(tokens []string) ([]string, error) {
 	seen := map[string]bool{}
 	for _, token := range tokens {
 		if len(token) < minMentionPrefix || !tabIDPrefix.MatchString(token) {
-			return nil, fmt.Errorf("session: mention %q is not a tab id or a prefix of at least %d characters of one", token, minMentionPrefix)
+			return nil, fmt.Errorf("session: mention %q is not a tab id or a prefix of at least %d characters of one, a group label is not accepted, see `lgrass session list` or the members in `lgrass workgroup thread`", token, minMentionPrefix)
 		}
 		prefix := strings.ToLower(token)
 		rows, err := s.db.Query(`

@@ -148,8 +148,8 @@ func TestFormatNotificationCarriesKindsOnOneLine(t *testing.T) {
 		All:      KindPart{Count: 2, Tabs: []string{tabA, tabC}},
 		Other:    KindPart{Count: 1, Tabs: []string{tabB}},
 		RowIDs:   []int64{1, 2, 3, 4},
-	}}, map[string]string{tabA: "lead", tabB: "reviewer", tabC: "tester"})
-	want := "[lg] thread t5: 1 for you from lead; 2 new from lead, tester; 1 for reviewer, not you"
+	}})
+	want := "[lg] thread t5: 1 for you from aaaaaaaa; 2 new from aaaaaaaa, bbbbbbbb; 1 for bbbbbbbb, not you"
 	if out != want {
 		t.Errorf("notification = %q, want %q", out, want)
 	}
@@ -162,7 +162,7 @@ func TestFormatThreadReadUsesClockTimesAndDatesOnlyAcrossDays(t *testing.T) {
 		{ID: 8, TabID: tabA, Body: "same day", CreatedAt: "2026-09-26T09:01:00Z"},
 		{ID: 7, TabID: tabA, Body: "day before", CreatedAt: "2026-09-25T23:59:00Z"},
 	}
-	out := FormatThreadRead(thread, msgs, false, true, nil)
+	out := FormatThreadRead(thread, msgs, false, true)
 	for _, want := range []string{"opened by aaaaaaaa 2026-09-25", "unread only", "times UTC", "#9 10:05 bbbbbbbb", "#8 09:01 aaaaaaaa", "#7 2026-09-25 23:59 aaaaaaaa"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
@@ -175,8 +175,8 @@ func TestFormatThreadReadUsesClockTimesAndDatesOnlyAcrossDays(t *testing.T) {
 
 func TestShortGroupAndNothingNewLines(t *testing.T) {
 	g := Group{ID: 3, Name: "toy", ThreadID: "t5"}
-	short := FormatGroupShort(g, Member{Label: "reviewer", Role: RoleThinker})
-	if !strings.HasPrefix(short, Prefix) || strings.Count(short, "\n") != 0 || !strings.Contains(short, "reviewer") {
+	short := FormatGroupShort(g, Member{TabID: tabB, Label: "reviewer", Role: RoleThinker})
+	if !strings.HasPrefix(short, Prefix) || strings.Count(short, "\n") != 0 || !strings.Contains(short, "you are bbbbbbbb reviewer (thinker)") {
 		t.Errorf("short group line = %q", short)
 	}
 	if text := FormatNothingNew(Thread{ID: "t5", Title: "toy"}); !strings.Contains(text, "nothing new") || !strings.Contains(text, "--all") {

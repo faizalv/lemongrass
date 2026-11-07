@@ -352,35 +352,6 @@ func (s *Store) DeleteGroup(id int64) error {
 	return tx.Commit()
 }
 
-// Maps every requested tab id to its group label, taken from its most recent membership in this project, or to its short id when it has none.
-func (s *Store) Labels(tabIDs []string) map[string]string {
-	out := make(map[string]string, len(tabIDs))
-	if len(tabIDs) == 0 {
-		return out
-	}
-	marks := strings.TrimSuffix(strings.Repeat("?,", len(tabIDs)), ",")
-	args := []interface{}{s.projectID}
-	for _, id := range tabIDs {
-		out[id] = TabLabel(id)
-		args = append(args, id)
-	}
-	rows, err := s.db.Query(`
-		SELECT m.tab_id, m.label FROM lg_group_members m JOIN lg_groups g ON g.id = m.group_id
-		WHERE g.project_id = ? AND m.tab_id IN (`+marks+`) ORDER BY g.id
-	`, args...)
-	if err != nil {
-		return out
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id, label string
-		if rows.Scan(&id, &label) == nil {
-			out[id] = label
-		}
-	}
-	return out
-}
-
 func (m Member) RequiredSkills() []string { return ThinkerSkills(m.Vendor, m.Skills) }
 
 func (m Member) RequiredCommands() []string { return ThinkerCommands(m.Commands) }

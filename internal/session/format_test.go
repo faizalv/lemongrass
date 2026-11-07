@@ -65,8 +65,8 @@ func TestPrefixNoteAndNotificationsStayShort(t *testing.T) {
 	if !strings.HasPrefix(note, Prefix) || len(note) > 140 {
 		t.Errorf("prefix note = %q, want the prefix and a short line", note)
 	}
-	text := FormatNotification([]PendingThread{{ThreadID: "t1", Title: "Review", All: KindPart{Count: 1, Tabs: []string{"aaaaaaaa"}}, RowIDs: []int64{1}}}, map[string]string{"aaaaaaaa": "reviewer"})
-	if text != "[lg] thread t1: 1 new from reviewer" {
+	text := FormatNotification([]PendingThread{{ThreadID: "t1", Title: "Review", All: KindPart{Count: 1, Tabs: []string{"aaaaaaaa"}}, RowIDs: []int64{1}}})
+	if text != "[lg] thread t1: 1 new from aaaaaaaa" {
 		t.Errorf("notification = %q", text)
 	}
 }

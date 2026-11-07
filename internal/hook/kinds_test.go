@@ -38,7 +38,7 @@ func TestHookSurfacesNotYouLinesButTheNudgeDoesNot(t *testing.T) {
 		t.Fatalf("a nudge for an unmentioned member was composed: %q", text)
 	}
 	got := notificationContext(store, kindsTwo)
-	if len(got) != 1 || !strings.Contains(got[0], "1 for reviewer, not you") {
+	if len(got) != 1 || !strings.Contains(got[0], "1 for bbbbbbbb, not you") {
 		t.Fatalf("hook context = %q, want the not you line", got)
 	}
 	if again := notificationContext(store, kindsTwo); len(again) != 0 {
@@ -52,7 +52,7 @@ func TestNudgeSettlesTheNotYouRowsOfThatTab(t *testing.T) {
 	store.PostMessage(kindsLeader, g.ThreadID, "to all")
 
 	text, ok := store.ConsumePending(kindsTwo)
-	if !ok || strings.Contains(text, "not you") || !strings.Contains(text, "1 new from lead") {
+	if !ok || strings.Contains(text, "not you") || !strings.Contains(text, "1 new from aaaaaaaa") {
 		t.Fatalf("nudge = %q, %v, want the plain message only", text, ok)
 	}
 	if got := notificationContext(store, kindsTwo); len(got) != 0 {

@@ -147,36 +147,69 @@ func TestDeleteGroupRemovesAnUnusedGroupAndKeepsOneWithMessages(t *testing.T) {
 	}
 }
 
-func TestLabelsUseGroupLabelsAndFallBackToShortIds(t *testing.T) {
-	store := openTestStore(t)
-	newTestGroup(t, store)
-	outsider := "eeeeeeee-5555-4555-8555-555555555555"
-
-	labels := store.Labels([]string{tabA, tabC, outsider})
-	if labels[tabA] != "lead" || labels[tabC] != "tester" || labels[outsider] != "eeeeeeee" {
-		t.Errorf("labels = %v, want lead, tester and the outsider's short id", labels)
-	}
-}
-
-func TestNotificationAndReadOutputShowGroupLabels(t *testing.T) {
+func TestNotificationAndReadOutputNameMembersByTabId(t *testing.T) {
 	store := openTestStore(t)
 	g := newTestGroup(t, store)
-	store.PostMessage(tabB, g.ThreadID, "hello team")
+	store.PostMessage(tabB, g.ThreadID, "hello team !>>"+tabA+"<<!")
 
 	pending, _ := threadsOf(store.PendingForTab(tabA))
-	if text := store.NotificationText(Pending{Threads: pending}); !strings.Contains(text, "from reviewer") {
-		t.Errorf("notification = %q, want the sender's group label", text)
+	if text := store.NotificationText(Pending{Threads: pending}); !strings.Contains(text, "1 for you from bbbbbbbb") || strings.Contains(text, "reviewer") {
+		t.Errorf("notification = %q, want the sender's tab id and no label", text)
 	}
 	msgs, _, _ := store.ReadThread(g.ThreadID, 0, 10)
 	thread, _ := store.ThreadByID(g.ThreadID)
-	labels := store.Labels([]string{thread.CreatedBy, msgs[0].TabID})
-	out := FormatThreadRead(thread, msgs, false, false, labels)
-	if !strings.Contains(out, "opened by lead") || !strings.Contains(out, "reviewer:") {
-		t.Errorf("read output missing group labels:\n%s", out)
+	out := FormatThreadRead(thread, msgs, false, false)
+	if !strings.Contains(out, "opened by aaaaaaaa") || !strings.Contains(out, "bbbbbbbb (mentions aaaaaaaa):") || strings.Contains(out, "lead") || strings.Contains(out, "reviewer") {
+		t.Errorf("read output should name members by tab id only:\n%s", out)
 	}
 	members, _ := store.GroupMembers(g.ID)
-	if header := FormatGroupHeader(g, members); !strings.Contains(header, "lead (leader, claude") || !strings.Contains(header, "tester (thinker, codex") {
-		t.Errorf("header = %q", header)
+	header := FormatGroupHeader(g, members)
+	for _, want := range []string{"mention by tab id", "aaaaaaaa lead (leader, claude)", "bbbbbbbb tester (thinker, codex)"} {
+		if !strings.Contains(header, want) {
+			t.Errorf("header = %q, missing %q", header, want)
+		}
+	}
+}
+
+// Two groups' leaders share the label lead; an ad hoc thread they both post in must tell them apart.
+func TestTwoLeadsInOneThreadReadAsTheirTabIds(t *testing.T) {
+	store := openTestStore(t)
+	newTestGroup(t, store)
+	otherLead := "dddddddd-4444-4444-8444-444444444444"
+	store.RegisterTab(otherLead, "codex")
+	if _, err := store.CreateGroup("Docs", Member{TabID: otherLead, Label: "lead", Vendor: "codex"}, []Member{
+		{TabID: "eeeeeeee-5555-4555-8555-555555555555", Label: "writer", Vendor: "claude"},
+	}); err != nil {
+		t.Fatalf("CreateGroup: %v", err)
+	}
+	id, err := store.CreateThread(tabA, "Shared", "question !>>"+otherLead+"<<!")
+	if err != nil {
+		t.Fatalf("CreateThread: %v", err)
+	}
+	if _, err := store.PostMessage(otherLead, id, "answer !>>"+tabA[:8]+"<<!"); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if _, err := store.PostMessage(otherLead, id, "again !>>lead<<!"); err == nil {
+		t.Error("a group label was accepted as a mention")
+	}
+
+	pending, _ := threadsOf(store.PendingForTab(tabA))
+	if text := store.NotificationText(Pending{Threads: pending}); !strings.Contains(text, "1 for you from dddddddd") {
+		t.Errorf("notification = %q, want the other lead's tab id", text)
+	}
+	thread, _ := store.ThreadByID(id)
+	msgs, _, _ := store.ReadThread(id, 0, 10)
+	out := FormatThreadRead(thread, msgs, false, false)
+	for _, want := range []string{"opened by aaaaaaaa", "aaaaaaaa (mentions dddddddd):", "dddddddd (mentions aaaaaaaa):"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("read missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "lead") {
+		t.Errorf("read names a member by its label:\n%s", out)
+	}
+	if list := FormatThreadList([]Thread{thread}); !strings.Contains(list, "opened by aaaaaaaa") {
+		t.Errorf("list = %q", list)
 	}
 }
 

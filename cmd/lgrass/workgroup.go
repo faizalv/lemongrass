@@ -76,7 +76,7 @@ func cmdWorkgroupCreate(args []string) {
 			Label:    c.Label,
 			Vendor:   c.Vendor,
 			Model:    c.Model,
-			Prompt:   workgroup.ComposePrompt(c.Label, cfg.Name, cfg.LeaderLabel, c.RequiredCommands(), c.RequiredSkills(), c.Prompt),
+			Prompt:   workgroup.ComposePrompt(c.Label, cfg.Name, cfg.LeaderLabel, tabID, c.RequiredCommands(), c.RequiredSkills(), c.Prompt),
 			Commands: c.RequiredCommands(),
 			Skills:   c.RequiredSkills(),
 		}
@@ -152,7 +152,7 @@ func cmdWorkgroupAdd(args []string) {
 			Label:    c.Label,
 			Vendor:   c.Vendor,
 			Model:    c.Model,
-			Prompt:   workgroup.ComposeAddedPrompt(c.Label, group.Name, me.Label, c.RequiredCommands(), c.RequiredSkills(), c.Prompt),
+			Prompt:   workgroup.ComposeAddedPrompt(c.Label, group.Name, me.Label, tabID, c.RequiredCommands(), c.RequiredSkills(), c.Prompt),
 			Commands: c.RequiredCommands(),
 			Skills:   c.RequiredSkills(),
 		}
@@ -270,7 +270,7 @@ func collaboratorJoinMessage(label, vendor string) string {
 func joinMessage(members []workgroup.SpawnMember) string {
 	names := make([]string, len(members))
 	for i, m := range members {
-		names[i] = fmt.Sprintf("%s (%s)", m.Label, m.Vendor)
+		names[i] = fmt.Sprintf("%s %s (%s)", session.TabLabel(m.TabID), m.Label, m.Vendor)
 	}
 	joins := " joins the group as a new thinker"
 	if len(members) > 1 {

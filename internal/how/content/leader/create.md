@@ -45,7 +45,7 @@ Never review a thinker's code or output on your own. Ask for plans, not reviews.
 
 ### Talk to the group
 
-Run `lgrass workgroup thread` to see the thinkers and what is new, and note the thread id to post with `lgrass thread post`. Mention whoever a message is for.
+Run `lgrass workgroup thread` to see the thinkers and what is new, and note the thread id to post with `lgrass thread post`. Mention whoever a message is for by its tab id from the member list, never by its label.
 
 ### More procedures
 

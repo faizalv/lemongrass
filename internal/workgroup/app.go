@@ -154,22 +154,22 @@ func NewTabID() string {
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
 }
 
-// The text a thinker starts with: its role, the commands it must run and the skills it must load, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text.
-func ComposePrompt(label, groupName, leaderLabel string, commands, skills []string, assignment string) string {
-	return composePrompt(label, groupName, leaderLabel, commands, skills, assignment, "")
+// The text a thinker starts with: its role, the commands it must run and the skills it must load, and its assignment. It holds no ids that are only known after the group exists, so the human approves the exact final text; the leader's tab id is known before, and is how the thinker mentions it.
+func ComposePrompt(label, groupName, leaderLabel, leaderTabID string, commands, skills []string, assignment string) string {
+	return composePrompt(label, groupName, leaderLabel, leaderTabID, commands, skills, assignment, "")
 }
 
 // ComposeAddedPrompt is ComposePrompt for a thinker added to a live group, who must catch up on a thread that started without it.
-func ComposeAddedPrompt(label, groupName, leaderLabel string, commands, skills []string, assignment string) string {
-	return composePrompt(label, groupName, leaderLabel, commands, skills, assignment,
+func ComposeAddedPrompt(label, groupName, leaderLabel, leaderTabID string, commands, skills []string, assignment string) string {
+	return composePrompt(label, groupName, leaderLabel, leaderTabID, commands, skills, assignment,
 		" The group was already working before you joined, so read the whole group thread first with `lgrass workgroup thread --all`, paging back with `--before` until its first message.")
 }
 
-func composePrompt(label, groupName, leaderLabel string, commands, skills []string, assignment, joined string) string {
-	text := fmt.Sprintf("You are the thinker \"%s\" in the lemongrass workgroup \"%s\", led by the leader \"%s\". "+
+func composePrompt(label, groupName, leaderLabel, leaderTabID string, commands, skills []string, assignment, joined string) string {
+	text := fmt.Sprintf("You are the thinker \"%s\" in the lemongrass workgroup \"%s\", led by the leader \"%s\" (tab %s). "+
 		"Before any other tool call, %s. Until you have, every tool except `lgrass` commands is denied. "+
 		"Then run `lgrass workgroup thread` to see your group and the group thread.%s "+
 		"Before you change anything, post your plan to the group thread and wait for the leader's go.",
-		label, groupName, leaderLabel, session.ThinkerStartSteps(commands, skills), joined)
+		label, groupName, leaderLabel, session.TabLabel(leaderTabID), session.ThinkerStartSteps(commands, skills), joined)
 	return text + "\n\nYour assignment:\n\n" + assignment
 }

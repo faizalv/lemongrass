@@ -172,7 +172,7 @@ func TestHumanMessagesMentionAndWakeTheAssignee(t *testing.T) {
 	if !ownedRows(t, store, tabB).Empty() {
 		t.Error("a tab other than the assignee was notified")
 	}
-	if line := FormatNotification(p.Threads, store.Labels([]string{HumanAuthor})); !strings.Contains(line, "2 for you from human") {
+	if line := FormatNotification(p.Threads); !strings.Contains(line, "2 for you from human") {
 		t.Errorf("nudge line = %q", line)
 	}
 
@@ -252,7 +252,7 @@ func TestThreadReadShowsAnchorsAndKinds(t *testing.T) {
 	store.PostSubmit(tabA, "Submitted.", []string{"a.go", "b.go"})
 	th, _ = store.ThreadByID(th.ID)
 	msgs, more, _ := store.ReadThread(th.ID, 0, 10)
-	out := FormatThreadRead(th, msgs, more, false, store.Labels([]string{HumanAuthor, tabA}))
+	out := FormatThreadRead(th, msgs, more, false)
 	for _, want := range []string{"opened by human", "human on a.go lines 4-5 (mentions aaaaaaaa):\n> one\n> two\nwhy this?", "aaaaaaaa note on a.go line 7:\n> seven\nkept both", "aaaaaaaa submitted a.go, b.go:\nSubmitted."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("read missing %q in:\n%s", want, out)

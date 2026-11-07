@@ -11,19 +11,12 @@ import (
 
 const shortTabLen = 8
 
-// The display name of a tab outside any group.
+// How a model reads a tab named in a thread, as sender, opener or mention: its short id, never a group label, because a label is not a valid mention and two groups' leaders would both read as their label. The reserved authors lgrass and human pass through unchanged.
 func TabLabel(tabID string) string {
 	if len(tabID) <= shortTabLen {
 		return tabID
 	}
 	return tabID[:shortTabLen]
-}
-
-func labelOf(labels map[string]string, tabID string) string {
-	if l, ok := labels[tabID]; ok {
-		return l
-	}
-	return TabLabel(tabID)
 }
 
 func formatTime(ts string) string {
@@ -55,15 +48,15 @@ func formatMessageTime(ts, newestTS string) string {
 }
 
 // unread says the page holds only what the reader had not seen.
-func FormatThreadRead(t Thread, msgs []Message, more, unread bool, labels map[string]string) string {
+func FormatThreadRead(t Thread, msgs []Message, more, unread bool) string {
 	var b strings.Builder
 	scope := ""
 	if unread {
 		scope = ", unread only"
 	}
-	fmt.Fprintf(&b, "%s thread %s [%s], opened by %s %s, %d msgs%s, newest first, times UTC\n", Prefix, t.ID, t.Title, labelOf(labels, t.CreatedBy), formatDate(t.CreatedAt), t.MessageCount, scope)
+	fmt.Fprintf(&b, "%s thread %s [%s], opened by %s %s, %d msgs%s, newest first, times UTC\n", Prefix, t.ID, t.Title, TabLabel(t.CreatedBy), formatDate(t.CreatedAt), t.MessageCount, scope)
 	for _, m := range msgs {
-		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatMessageTime(m.CreatedAt, msgs[0].CreatedAt), labelOf(labels, m.TabID))
+		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatMessageTime(m.CreatedAt, msgs[0].CreatedAt), TabLabel(m.TabID))
 		switch m.Kind {
 		case MessageNote:
 			b.WriteString(" note")
@@ -74,11 +67,7 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool, labels map[st
 			fmt.Fprintf(&b, " on %s %s", a.Path, lineSpan(a.StartLine, a.EndLine))
 		}
 		if len(m.Mentions) > 0 {
-			names := make([]string, len(m.Mentions))
-			for i, id := range m.Mentions {
-				names[i] = labelOf(labels, id)
-			}
-			fmt.Fprintf(&b, " (mentions %s)", strings.Join(names, ", "))
+			fmt.Fprintf(&b, " (mentions %s)", tabList(m.Mentions))
 		}
 		b.WriteString(":\n")
 		if a := m.Anchor; a != nil && a.Quote != "" {
@@ -101,13 +90,13 @@ func lineSpan(start, end int) string {
 	return fmt.Sprintf("lines %d-%d", start, end)
 }
 
-func FormatThreadList(threads []Thread, labels map[string]string) string {
+func FormatThreadList(threads []Thread) string {
 	if len(threads) == 0 {
 		return "lgrass: no threads yet in this project."
 	}
 	var b strings.Builder
 	for _, t := range threads {
-		fmt.Fprintf(&b, "%s [%s] %d message(s), last activity %s, opened by %s\n", t.ID, t.Title, t.MessageCount, formatTime(t.LastActivityAt), labelOf(labels, t.CreatedBy))
+		fmt.Fprintf(&b, "%s [%s] %d message(s), last activity %s, opened by %s\n", t.ID, t.Title, t.MessageCount, formatTime(t.LastActivityAt), TabLabel(t.CreatedBy))
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
@@ -116,43 +105,37 @@ func FormatThreadList(threads []Thread, labels map[string]string) string {
 const Prefix = "[lg]"
 
 // One line per thread, one part per kind: what is for the reader, what is for everyone, and what is for someone else.
-func FormatNotification(pending []PendingThread, labels map[string]string) string {
+func FormatNotification(pending []PendingThread) string {
 	lines := make([]string, len(pending))
 	for i, p := range pending {
 		var parts []string
 		if p.You.Count > 0 {
-			parts = append(parts, fmt.Sprintf("%d for you from %s", p.You.Count, labelList(labels, p.You.Tabs)))
+			parts = append(parts, fmt.Sprintf("%d for you from %s", p.You.Count, tabList(p.You.Tabs)))
 		}
 		if p.All.Count > 0 {
-			parts = append(parts, fmt.Sprintf("%d new from %s", p.All.Count, labelList(labels, p.All.Tabs)))
+			parts = append(parts, fmt.Sprintf("%d new from %s", p.All.Count, tabList(p.All.Tabs)))
 		}
 		if p.Other.Count > 0 {
-			parts = append(parts, fmt.Sprintf("%d for %s, not you", p.Other.Count, labelList(labels, p.Other.Tabs)))
+			parts = append(parts, fmt.Sprintf("%d for %s, not you", p.Other.Count, tabList(p.Other.Tabs)))
 		}
 		lines[i] = fmt.Sprintf("%s thread %s: %s", Prefix, p.ThreadID, strings.Join(parts, "; "))
 	}
 	return strings.Join(lines, "\n")
 }
 
-func labelList(labels map[string]string, ids []string) string {
+func tabList(ids []string) string {
 	names := make([]string, len(ids))
 	for i, id := range ids {
-		names[i] = labelOf(labels, id)
+		names[i] = TabLabel(id)
 	}
 	return strings.Join(names, ", ")
 }
 
-// Store-aware wrapper: resolves the senders' labels before formatting. Thread lines come first, then one line per event row.
+// Thread lines come first, then one line per event row.
 func (s *Store) NotificationText(pending Pending) string {
-	var ids []string
-	for _, p := range pending.Threads {
-		ids = append(ids, p.You.Tabs...)
-		ids = append(ids, p.All.Tabs...)
-		ids = append(ids, p.Other.Tabs...)
-	}
 	var lines []string
 	if len(pending.Threads) > 0 {
-		lines = append(lines, FormatNotification(pending.Threads, s.Labels(ids)))
+		lines = append(lines, FormatNotification(pending.Threads))
 	}
 	for _, e := range pending.Events {
 		lines = append(lines, formatEvent(e))
@@ -167,14 +150,14 @@ func FormatGroupHeader(g Group, members []Member) string {
 	}
 	parts := make([]string, len(members))
 	for i, m := range members {
-		parts[i] = fmt.Sprintf("%s (%s, %s, tab %s)", m.Label, m.Role, m.Vendor, TabLabel(m.TabID))
+		parts[i] = fmt.Sprintf("%s %s (%s, %s)", TabLabel(m.TabID), m.Label, m.Role, m.Vendor)
 	}
-	return fmt.Sprintf("lgrass workgroup %d [%s], thread %s, %s, members: %s", g.ID, g.Name, g.ThreadID, state, strings.Join(parts, "; "))
+	return fmt.Sprintf("lgrass workgroup %d [%s], thread %s, %s, members, mention by tab id: %s", g.ID, g.Name, g.ThreadID, state, strings.Join(parts, "; "))
 }
 
 // The repeat visit to a group thread: the full header is already in the reader's context.
 func FormatGroupShort(g Group, m Member) string {
-	return fmt.Sprintf("%s workgroup %d [%s], thread %s, you are %s (%s). lgrass workgroup thread --all repeats the members.", Prefix, g.ID, g.Name, g.ThreadID, m.Label, m.Role)
+	return fmt.Sprintf("%s workgroup %d [%s], thread %s, you are %s %s (%s). lgrass workgroup thread --all repeats the members.", Prefix, g.ID, g.Name, g.ThreadID, TabLabel(m.TabID), m.Label, m.Role)
 }
 
 func FormatNothingNew(t Thread) string {

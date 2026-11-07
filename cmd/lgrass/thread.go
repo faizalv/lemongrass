@@ -240,7 +240,7 @@ func printThread(store *session.Store, threadID string, parsed threadArgs, heade
 		fmt.Println(session.FormatNothingNew(thread))
 		return
 	}
-	fmt.Println(session.FormatThreadRead(thread, msgs, more, unread, threadLabels(store, thread, msgs)))
+	fmt.Println(session.FormatThreadRead(thread, msgs, more, unread))
 }
 
 func cmdThreadList(args []string) {
@@ -252,22 +252,5 @@ func cmdThreadList(args []string) {
 	if err != nil {
 		fail(err)
 	}
-	fmt.Println(session.FormatThreadList(threads, store.Labels(threadCreators(threads))))
-}
-
-func threadCreators(threads []session.Thread) []string {
-	ids := make([]string, len(threads))
-	for i, t := range threads {
-		ids[i] = t.CreatedBy
-	}
-	return ids
-}
-
-func threadLabels(store *session.Store, thread session.Thread, msgs []session.Message) map[string]string {
-	ids := []string{thread.CreatedBy}
-	for _, m := range msgs {
-		ids = append(ids, m.TabID)
-		ids = append(ids, m.Mentions...)
-	}
-	return store.Labels(ids)
+	fmt.Println(session.FormatThreadList(threads))
 }

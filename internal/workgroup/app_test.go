@@ -104,8 +104,8 @@ func TestNewTabIDIsAVersion4UUID(t *testing.T) {
 }
 
 func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
-	prompt := ComposePrompt("reviewer", "schema-review", "lead", nil, []string{"lgrass-howtobe-thinker", "lgrass-connector"}, "Review the diff.")
-	for _, want := range []string{`thinker "reviewer"`, `workgroup "schema-review"`, `leader "lead"`, "load these skills: lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the leader's go", "Review the diff."} {
+	prompt := ComposePrompt("reviewer", "schema-review", "lead", "dddddddd-1111-4111-8111-111111111111", nil, []string{"lgrass-howtobe-thinker", "lgrass-connector"}, "Review the diff.")
+	for _, want := range []string{`thinker "reviewer"`, `workgroup "schema-review"`, `leader "lead" (tab dddddddd)`, "load these skills: lgrass-howtobe-thinker, lgrass-connector", "lgrass workgroup thread", "post your plan to the group thread and wait for the leader's go", "Review the diff."} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt missing %q", want)
 		}
@@ -117,15 +117,15 @@ func TestComposePromptNamesTheRoleThreadAndAssignment(t *testing.T) {
 
 func TestComposePromptRunsEachCommandBeforeTheSkills(t *testing.T) {
 	commands := []string{"lgrass how thinker start", "lgrass how work task export-cli"}
-	prompt := ComposePrompt("reviewer", "schema-review", "lead", commands, []string{"lgrass-connector"}, "Review the diff.")
+	prompt := ComposePrompt("reviewer", "schema-review", "lead", "dddddddd-1111-4111-8111-111111111111", commands, []string{"lgrass-connector"}, "Review the diff.")
 	if !strings.Contains(prompt, "run `lgrass how thinker start`, then run `lgrass how work task export-cli`, then load these skills: lgrass-connector") {
 		t.Errorf("prompt = %q", prompt)
 	}
 }
 
 func TestComposeAddedPromptTellsTheThinkerToCatchUp(t *testing.T) {
-	added := ComposeAddedPrompt("docs", "schema-review", "lead", nil, []string{"lgrass-howtobe-thinker"}, "Write docs.")
-	plain := ComposePrompt("docs", "schema-review", "lead", nil, []string{"lgrass-howtobe-thinker"}, "Write docs.")
+	added := ComposeAddedPrompt("docs", "schema-review", "lead", "dddddddd-1111-4111-8111-111111111111", nil, []string{"lgrass-howtobe-thinker"}, "Write docs.")
+	plain := ComposePrompt("docs", "schema-review", "lead", "dddddddd-1111-4111-8111-111111111111", nil, []string{"lgrass-howtobe-thinker"}, "Write docs.")
 	for _, want := range []string{"already working before you joined", "lgrass workgroup thread --all", "wait for the leader's go", "Write docs."} {
 		if !strings.Contains(added, want) {
 			t.Errorf("added prompt missing %q", want)

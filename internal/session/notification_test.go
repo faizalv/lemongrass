@@ -202,7 +202,7 @@ func TestFormatNotificationCoalescesAndCarriesNoContent(t *testing.T) {
 	out := FormatNotification([]PendingThread{
 		{ThreadID: "t4", Title: "Review", All: KindPart{Count: 2, Tabs: []string{tabA, tabB}}, RowIDs: []int64{1, 2}},
 		{ThreadID: "t5", Title: "Other", All: KindPart{Count: 1, Tabs: []string{tabB}}, RowIDs: []int64{3}},
-	}, nil)
+	})
 	for _, want := range []string{"[lg] thread t4: 2 new from aaaaaaaa, bbbbbbbb", "[lg] thread t5: 1 new from bbbbbbbb"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
