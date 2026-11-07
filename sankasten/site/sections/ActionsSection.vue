@@ -10,7 +10,10 @@ import {
   AppIcon,
   AppIconButton,
   AppMenuButton,
+  AppEdgeTab,
   AppSplitButton,
+  AppTab,
+  AppTabClose,
   type MenuItem
 } from '../../src'
 import DemoRow from '../parts/DemoRow.vue'
@@ -31,6 +34,19 @@ const items: MenuItem[] = [
 ]
 
 const menuAt = ref<{ x: number; y: number } | null>(null)
+
+const tabs = ref([
+  { name: 'notes.txt', dirty: false },
+  { name: 'server.conf', dirty: true },
+  { name: 'a-rather-long-file-name.yaml', dirty: false }
+])
+const activeTab = ref('notes.txt')
+const parked = ref(0)
+
+function closeTab(name: string): void {
+  tabs.value = tabs.value.filter((t) => t.name !== name)
+  last.value = `Closed ${name}.`
+}
 
 function runBusy(): void {
   busy.value = true
@@ -148,6 +164,54 @@ function openMenu(event: MouseEvent): void {
       </DemoRow>
     </DocBlock>
 
+    <DocBlock name="AppTab">
+      <DemoRow label="a strip, one dirty">
+        <div class="tab-strip" role="tablist" aria-label="Open files">
+          <AppTab
+            v-for="t in tabs"
+            :key="t.name"
+            :label="t.name"
+            :title="`/srv/app/${t.name}`"
+            :active="activeTab === t.name"
+            :dirty="t.dirty"
+            :close-label="`Close ${t.name}`"
+            @select="activeTab = t.name"
+            @close="closeTab(t.name)"
+          >
+            <template #icon><AppIcon name="copy" /></template>
+          </AppTab>
+        </div>
+        <span class="out">{{ last }}</span>
+      </DemoRow>
+    </DocBlock>
+
+    <DocBlock name="AppTabClose">
+      <DemoRow v-for="s in sizes" :key="s" :label="`clean and dirty, ${s}`">
+        <AppTabClose :size="s" label="Close" @close="last = 'Closed.'" />
+        <AppTabClose :size="s" label="Close" dirty @close="last = 'Closed without saving.'" />
+      </DemoRow>
+    </DocBlock>
+
+    <DocBlock name="AppEdgeTab">
+      <DemoRow label="against a panel edge, left and right">
+        <div class="edge-demo">
+          <AppEdgeTab
+            class="edge-left"
+            :label="`Show the parked view, ${parked} open`"
+            :count="parked"
+            :dot="parked > 1"
+            @click="parked++"
+          >
+            <template #icon><AppIcon name="copy" /></template>
+          </AppEdgeTab>
+          <div class="edge-panel">Panel</div>
+          <AppEdgeTab class="edge-right" side="right" label="Show the other side">
+            <template #icon><AppIcon name="chevronRight" /></template>
+          </AppEdgeTab>
+        </div>
+      </DemoRow>
+    </DocBlock>
+
     <DocBlock name="AppSplitButton">
       <DemoRow v-for="s in sizes" :key="s" :label="s">
         <AppSplitButton :items="items" :size="s" variant="primary" @select="(k) => (last = k)">
@@ -204,6 +268,38 @@ function openMenu(event: MouseEvent): void {
 
 .list-row > span {
   flex: 1;
+}
+
+.tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 32px;
+  width: 420px;
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+
+/* The tabs touch the panel's sides; the panel is the layer they stick out from. */
+.edge-demo {
+  display: flex;
+  align-items: flex-start;
+}
+
+.edge-demo .edge-left,
+.edge-demo .edge-right {
+  margin-top: var(--space-4);
+}
+
+.edge-panel {
+  width: 160px;
+  height: 96px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-surface-1);
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
 }
 
 .target {

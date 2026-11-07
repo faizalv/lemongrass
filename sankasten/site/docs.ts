@@ -171,6 +171,98 @@ export const DOCS: Record<string, ComponentDoc> = {
       { name: 'default', type: '{ state, armed }', doc: 'The label; can change with the state.' }
     ]
   },
+  AppTab: {
+    name: 'AppTab',
+    summary:
+      'A small tab in a strip of open items, such as files in an editor. The caller lays tabs out in a row with role="tablist"; the active one is underlined in amber.',
+    props: [
+      { name: 'label', type: 'string', doc: 'The shown text, ellipsized past 200px.' },
+      {
+        name: 'title',
+        type: 'string',
+        doc: 'The tooltip, such as a full path; label when absent.'
+      },
+      {
+        name: 'active',
+        type: 'boolean',
+        default: 'false',
+        doc: 'The shown item; sets aria-selected.'
+      },
+      {
+        name: 'dirty',
+        type: 'boolean',
+        default: 'false',
+        doc: 'Unsaved work: the close mark is a dot and confirms in place.'
+      },
+      {
+        name: 'closeLabel',
+        type: 'string',
+        doc: 'Required. The close mark\'s name, such as "Close notes.txt".'
+      },
+      {
+        name: 'confirmLabel',
+        type: 'string',
+        default: "'Close without saving'",
+        doc: 'Title of an armed dirty close.'
+      }
+    ],
+    events: [
+      { name: 'select', type: '', doc: 'Click, or Enter or Space on the focused tab.' },
+      { name: 'close', type: '', doc: 'The close mark, after the confirm when dirty.' }
+    ],
+    slots: [{ name: 'icon', type: '', doc: 'A glyph before the label.' }],
+    notes: [
+      'Lay the strip out with the global sk-scroll-slim class and the v-wheel-scroll-x directive (exported as vWheelScrollX): the strip gets the slim scrollbar, and a mouse wheel over it scrolls the tabs sideways while they overflow.'
+    ]
+  },
+  AppTabClose: {
+    name: 'AppTabClose',
+    summary:
+      "A tab's close mark: a bare x, or while dirty a dot that turns into the x on hover and confirms in place through AppConfirmButton. Its click never reaches the tab.",
+    props: [
+      {
+        name: 'label',
+        type: 'string',
+        doc: 'Required. Title and aria-label, such as "Close notes.txt".'
+      },
+      { name: 'dirty', type: 'boolean', default: 'false', doc: 'Unsaved work behind the tab.' },
+      {
+        name: 'confirmLabel',
+        type: 'string',
+        default: "'Close without saving'",
+        doc: 'Title and aria-label while armed.'
+      },
+      { ...size, doc: '18px (sm) in a strip of small tabs, 22px (md) in a tab bar.' }
+    ],
+    events: [{ name: 'close', type: '', doc: 'A clean click, or the armed click when dirty.' }]
+  },
+  AppEdgeTab: {
+    name: 'AppEdgeTab',
+    summary:
+      'A tab sticking out from the edge of a panel, such as a minimized view parked on a side panel. Solid raised fill, since it can lie over text; the caller places it against the edge.',
+    props: [
+      {
+        name: 'label',
+        type: 'string',
+        doc: 'Required. What a click does, such as "Show editor, 2 files open"; title and aria-label.'
+      },
+      {
+        name: 'side',
+        type: "'left' | 'right'",
+        default: "'left'",
+        doc: 'The way it sticks out; the other side is flat and open where it meets the panel.'
+      },
+      { name: 'count', type: 'number', doc: 'A number after the icon, such as open items.' },
+      {
+        name: 'dot',
+        type: 'boolean',
+        default: 'false',
+        doc: 'An amber dot for unsaved or pending work.'
+      }
+    ],
+    slots: [{ name: 'icon', type: '', doc: 'The glyph of what is parked.' }],
+    notes: ['click and other attributes fall through to the native button.']
+  },
   AppSplitButton: {
     name: 'AppSplitButton',
     summary:

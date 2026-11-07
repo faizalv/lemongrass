@@ -21,6 +21,12 @@ body {
     1px 100% no-repeat;
 }
 
+/* A horizontal bar runs its guide line along its length, not across it. */
+::-webkit-scrollbar-track:horizontal {
+  background: linear-gradient(var(--color-border-default), var(--color-border-default)) center /
+    100% 1px no-repeat;
+}
+
 ::-webkit-scrollbar-thumb {
   background: var(--color-amber-dim);
   background-clip: padding-box;

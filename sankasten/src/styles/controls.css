@@ -196,3 +196,18 @@
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-xs);
 }
+
+/* A slim horizontal scrollbar for a strip of tabs, where the full bar would crowd the tabs. Never
+   pair it with scrollbar-width or scrollbar-color: Chromium then drops these rules for its default
+   bar. */
+.sk-scroll-slim::-webkit-scrollbar {
+  height: 6px;
+}
+
+.sk-scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sk-scroll-slim::-webkit-scrollbar-thumb {
+  border-width: 1px;
+}
