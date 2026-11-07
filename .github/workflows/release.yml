@@ -2,7 +2,8 @@
 # versioned from the tag, and publishes them with one SHA256SUMS as a GitHub Release. A manual run (Run workflow)
 # builds and checks every package from the chosen branch and attaches them to the run as an artifact, publishing
 # nothing. The in-app updater reads the latest release and verifies the rpm, the dmg or the setup.exe against
-# SHA256SUMS, so their names are fixed.
+# SHA256SUMS, so their names are fixed. A tag run also attests every package's build provenance, which is how a user
+# checks a download is ours, since the setup.exe is unsigned and the dmgs are signed only ad hoc.
 name: Release
 
 on:
@@ -186,6 +187,12 @@ jobs:
     name: release
     needs: [rpm, mac, windows]
     runs-on: ubuntu-latest
+    # Only this job signs attestations, so only it gets the OIDC token. Job permissions replace the workflow's, so
+    # contents: write is repeated for the publish step.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -195,6 +202,14 @@ jobs:
       - name: Write SHA256SUMS
         working-directory: release
         run: sha256sum lemongrass-* > SHA256SUMS
+
+      # Tag runs only: a manual run publishes nothing, and an attestation for a file never released would still be
+      # listed for the repository. Checked by users with gh attestation verify <file> --repo faizalv/lemongrass.
+      - name: Attest build provenance
+        if: github.ref_type == 'tag'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/lemongrass-*
 
       - name: Attach packages to the run
         if: github.event_name == 'workflow_dispatch'

@@ -93,7 +93,7 @@ Planned:
 
 Limits:
 
-- Linux is the primary platform. Releases carry macOS dmgs for arm64 and x64, but the app is not notarized, so a browser-downloaded dmg needs the steps under Install. An ad hoc signed app is a new app to macOS after every update, so folder access it was granted is asked again. Windows packaging is not wired.
+- Linux is the primary platform. Releases carry macOS dmgs for arm64 and x64, but the app is not notarized, so a browser-downloaded dmg needs the steps under Install. An ad hoc signed app is a new app to macOS after every update, so folder access it was granted is asked again. Windows x64 ships as an unsigned `setup.exe`, so SmartScreen warns on the first run of each download, see Install. Windows on arm64 runs it under emulation.
 - An HTTP channel's scope is declared and checked against the request. The database scope is checked against what the parsed statement touches, which is a stronger guarantee.
 - Codex tabs start with no bypass flag and run under Codex's own sandbox and approvals. A write by `lgrass` to its database, such as a thread post, asks for sandbox approval, so a Codex thinker cannot post unattended yet. Codex tabs also get no orientation in their system prompt, only the laws summary from the `SessionStart` hook, and Codex asks for review of the hook definitions through `/hooks`.
 - The guard does not see what a build tool fetches as a side effect (`go build`, `cargo build`, npm lifecycle scripts). Builds are left unlimited on purpose.
@@ -108,7 +108,7 @@ Limits:
 - `ui/` is the Electron app: terminal panes, project and layout management, the bibliothek tree and reader, and the Vault tab.
 - `cmd/lgrass` is the Go CLI models and users call: session and thread coordination, `lgrass db`, `lgrass rester`, `lgrass ask`, and `lgrass workgroup`.
 - `cmd/lgrassd` is the binary only the app and the agents' hooks call, installed off `PATH`: the hooks and their gates, the vault, agent and node daemons, tab records and account management.
-- `cmd/lgrassconf` is a small Go daemon, a systemd user service on Linux and a LaunchAgent on macOS. It registers the Claude Code and Codex hooks, installs the Codex skills and keeps every Claude account's hooks and shared folders in place.
+- `cmd/lgrassconf` is a small Go daemon, a systemd user service on Linux, a LaunchAgent on macOS and a Task Scheduler logon task on Windows. It registers the Claude Code and Codex hooks, installs the Codex skills and keeps every Claude account's hooks and shared folders in place.
 - `internal/` holds the Go packages the three binaries share, such as the vault, the guard, the hook engine, the session store and the account manager. It is importable only from inside this repository.
 
 The Go code is one module at the repo root, and `ui/` is the second toolchain beside it. Neither side's scripts reach across that boundary except through the `dist/` binaries. The binaries are bundled inside the Electron app at build time, and `lgrass` installs itself onto `PATH` when the app launches, so the two stay on the same version without a separate release pipeline.
@@ -144,11 +144,23 @@ It downloads the dmg for your Mac's chip from the newest release, checks it agai
 
 The app is signed ad hoc, not with an Apple Developer ID, and is not notarized, so a dmg downloaded with a browser opens to "Apple could not verify Lemongrass is free of malware". The installer avoids that. With the dmg, click Done, then either open System Settings > Privacy & Security and click Open Anyway, or run `xattr -dr com.apple.quarantine /Applications/Lemongrass.app`. The dmg carries a text file with the same steps. Either is needed once per version. An update the app installs itself does not need it.
 
+On Windows 10 or 11 (x64), download `lemongrass-<version>-setup.exe` from the [latest release](https://github.com/faizalv/lemongrass/releases) and run it. It installs for your user only, into `%LOCALAPPDATA%\Programs\lemongrass`, and needs no admin rights. The app updates itself from Settings, Updates.
+
+The `setup.exe` is not code signed, so Windows opens it with "Windows protected your PC". This is expected. Click More info, then Run anyway. Windows asks once per downloaded file, and an update the app installs itself does not ask.
+
+To check that a download is the one this repository built, use the [GitHub CLI](https://cli.github.com):
+
+```
+gh attestation verify lemongrass-<version>-setup.exe --repo faizalv/lemongrass
+```
+
+It confirms the file was built by this repository's release workflow from the tagged commit. The same works for the rpm and the dmgs. Without the GitHub CLI, compare the file's SHA-256 (`Get-FileHash <file>` in PowerShell) with its line in the release's `SHA256SUMS`.
+
 To be offered release candidates as well as stable releases, start the app with `LEMONGRASS_UPDATE_PRERELEASE=1` in its environment, on macOS with `LEMONGRASS_UPDATE_PRERELEASE=1 /Applications/Lemongrass.app/Contents/MacOS/Lemongrass`.
 
 ## Uninstall
 
-With the rpm, open Settings, Updates and click Uninstall Lemongrass. It asks for your system password and closes the app when done.
+With the rpm, open Settings, Updates and click Uninstall Lemongrass. It asks for your system password and closes the app when done. On Windows the same button needs no password: the app closes and its uninstaller removes it. Removing Lemongrass from Windows' Installed apps does the same, since the uninstaller runs `lgrassconf uninstall` itself.
 
 To do it by hand, or on macOS, first run as your own user:
 
@@ -166,7 +178,7 @@ It stops the keeper service, takes the Lemongrass hooks and status line out of y
 make build-linux
 ```
 
-Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `linux/amd64` and `linux/arm64` into `dist/`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `dist/` to exist already, so use the root `make` target. `make verify` compiles every Go package without writing a binary into the source tree. Every Go target first checks out the bibliothek submodule, and `make bibliothek-update` moves its pin to bibliothek's latest commit. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
+Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `linux/amd64` into `dist/`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `dist/` to exist already, so use the root `make` target. `make verify` compiles every Go package without writing a binary into the source tree. Every Go target first checks out the bibliothek submodule, and `make bibliothek-update` moves its pin to bibliothek's latest commit. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
 
 ```
 make build-rpm
@@ -180,7 +192,11 @@ make build-mac
 
 Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `darwin/amd64` and `darwin/arm64`, then packages a macOS `.app`, `.dmg` and `.zip` via electron-builder. On first launch the app copies the matching arch binaries into `~/.local/bin` and runs `lgrassconf install` (LaunchAgent). The app is signed ad hoc and not notarized, since both need an Apple Developer ID.
 
-Windows packaging is not wired up yet.
+```
+make build-windows
+```
+
+Cross-compiles the three binaries for `windows/amd64` as `.exe`, then builds the per-user NSIS `setup.exe` on Linux. electron-builder runs the installer once under the system wine to extract the uninstaller, so the host needs wine with 32-bit support. On first launch the app copies `lgrass` and `lgrassconf` into `%USERPROFILE%\.local\bin`, adds that folder to the user's `Path`, and runs `lgrassconf install`, which registers the keeper's logon task. The `setup.exe` is unsigned.
 
 ## Develop
 
