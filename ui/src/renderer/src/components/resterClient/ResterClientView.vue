@@ -203,7 +203,11 @@ const canSend = computed(
     !outcome.value?.sending
 )
 
+// Loads can overlap when resters change in quick succession; only the newest one is applied.
+let restersLoad = 0
+
 async function loadResters(): Promise<void> {
+  const load = ++restersLoad
   restersLoading.value = true
   restersError.value = ''
   try {
@@ -212,17 +216,18 @@ async function loadResters(): Promise<void> {
     for (const name of names) {
       loadedResters[name] = await window.api.vault.getRester(vaultSession.passphrase, name)
     }
-    resters.value = loadedResters
+    if (load === restersLoad) resters.value = loadedResters
   } catch (err) {
-    restersError.value = describeError(err)
+    if (load === restersLoad) restersError.value = describeError(err)
   } finally {
-    restersLoading.value = false
+    if (load === restersLoad) restersLoading.value = false
   }
 }
 
+// The tab is keep-alive, so it reloads on unlock and after every rester change made in the Vault.
 watch(
-  () => vaultSession.unlocked,
-  (unlocked) => {
+  () => [vaultSession.unlocked, vaultSession.resterVersion] as const,
+  ([unlocked]) => {
     if (unlocked) loadResters()
   },
   { immediate: true }

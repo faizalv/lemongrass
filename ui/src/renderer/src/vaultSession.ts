@@ -9,8 +9,15 @@ export const vaultSession = reactive({
   unlocked: false,
   passphrase: '',
   shortIdByChannel: {} as Record<string, string>,
-  shortIdByHTTPChannel: {} as Record<string, string>
+  shortIdByHTTPChannel: {} as Record<string, string>,
+  // Bumped after a rester is created, edited or deleted, so views that keep a copy of the resters,
+  // such as the keep-alive Rester Client, reload it at once.
+  resterVersion: 0
 })
+
+export function noteResterChange(): void {
+  vaultSession.resterVersion++
+}
 
 const knownErrors: Record<string, string> = {
   'vault: wrong passphrase': 'Wrong passphrase.'

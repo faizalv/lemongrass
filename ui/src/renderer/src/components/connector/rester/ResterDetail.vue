@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, toRef } from 'vue'
-import { vaultSession, describeError } from '../../../vaultSession'
+import { vaultSession, describeError, noteResterChange } from '../../../vaultSession'
 import type { VaultRester } from '../../../../../preload/types'
 import { AppButton, AppEmptyState } from '@sankasten'
 import EnvironmentsStrip from './EnvironmentsStrip.vue'
@@ -51,6 +51,7 @@ async function commit(mutate: (r: VaultRester) => void): Promise<string> {
     mutate(fresh)
     const next = plainCopy(fresh)
     await window.api.vault.updateRester(sessionPassphrase.value, props.name, next)
+    noteResterChange()
     rester.value = next
     return ''
   } catch (err) {

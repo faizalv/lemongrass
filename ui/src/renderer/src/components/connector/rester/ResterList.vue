@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { describeError, vaultSession } from '../../../vaultSession'
+import { describeError, noteResterChange, vaultSession } from '../../../vaultSession'
 import type { VaultResterSummary } from '../../../../../preload/types'
 import { matchesQuery, resterDomains } from '../listFilter'
 import { AppButton, AppEmptyState, AppInput } from '@sankasten'
@@ -58,6 +58,7 @@ async function deleteRester(name: string): Promise<void> {
   deletingName.value = name
   try {
     await window.api.vault.deleteRester(name)
+    noteResterChange()
     await refresh()
   } catch (err) {
     listError.value = describeError(err)

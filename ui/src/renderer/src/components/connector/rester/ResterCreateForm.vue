@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue'
-import { vaultSession, describeError } from '../../../vaultSession'
+import { vaultSession, describeError, noteResterChange } from '../../../vaultSession'
 import type { VaultRester } from '../../../../../preload/types'
 import { AppButton, AppCheckbox, AppInput } from '@sankasten'
 import { defaultResterAPI } from './resterDraft'
@@ -61,6 +61,7 @@ async function save(): Promise<void> {
   }
   try {
     await window.api.vault.putRester(sessionPassphrase.value, name.value.trim(), rester)
+    noteResterChange()
     emit('created', name.value.trim())
   } catch (err) {
     formError.value = describeError(err)
