@@ -2,15 +2,17 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { app } from 'electron'
-import { spawn } from 'child_process'
 import { existsSync } from 'fs'
 import { dirname, join } from 'path'
 import { winAssetName } from './updateVersion'
-import { afterExitCommand, WIN_UNINSTALLER, winUnsupportedReason } from './updaterWinScript'
+import { WIN_UNINSTALLER, winUnsupportedReason } from './updaterWinScript'
 import type { UpdatePlatform } from './updatePlatform'
+import { quitAndRun } from './winAfterQuit'
 
 // Windows cannot replace the files of a running app, so installing only keeps the verified setup.exe, and restart
-// runs it silently once the app has quit. --force-run makes the silent install start the new version.
+// starts it as the app exits. It runs without /S so its own progress window shows the update, and opens the new
+// version when done. --updated, which electron-updater passes too, marks it as an update of a quitting app, so it does
+// not ask about the running app and does not recreate a desktop shortcut the user deleted.
 
 let staged: string | null = null
 
@@ -30,12 +32,7 @@ async function install(
 
 function restart(): void {
   if (!staged) return
-  const command = afterExitCommand(process.env.SystemRoot ?? 'C:\\Windows', process.pid, staged, [
-    '/S',
-    '--force-run'
-  ])
-  spawn(command.file, command.args, { detached: true, stdio: 'ignore', windowsHide: true }).unref()
-  app.quit()
+  quitAndRun(staged, ['--updated', '--force-run'], join(dirname(staged), 'update.log'))
 }
 
 export const winPlatform: UpdatePlatform = {

@@ -175,7 +175,13 @@ app.whenReady().then(async () => {
   })
 })
 
+// The window's close handler defers the close to stop shells gracefully, and Electron treats a deferred close as
+// cancelling app.quit(), so a requested quit is finished in window-all-closed. Without this, a quit on macOS (Cmd+Q,
+// an update restart) would leave the app running with no window.
+let quitRequested = false
+
 app.on('before-quit', () => {
+  quitRequested = true
   stopWorkgroupBridge()
   flushBranchNotices()
 })
@@ -188,7 +194,7 @@ app.on('window-all-closed', () => {
   killDaemons()
   closeBiblioWatchers()
   closeProjectFileWatchers()
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' || quitRequested) {
     app.quit()
   }
 })

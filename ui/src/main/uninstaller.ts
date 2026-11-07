@@ -2,14 +2,16 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { app, BrowserWindow, ipcMain } from 'electron'
-import { execFile, spawn } from 'child_process'
+import { execFile } from 'child_process'
 import { existsSync } from 'fs'
+import { homedir } from 'os'
 import { dirname, join } from 'path'
 import type { UninstallState } from '../preload/types'
 import { resolveBundledBin } from './lgrassInstall'
 import { runUntilExec } from './updateRun'
 import { unsupportedReason as rpmUnsupportedReason } from './updaterRpm'
-import { afterExitCommand, WIN_UNINSTALLER } from './updaterWinScript'
+import { WIN_UNINSTALLER } from './updaterWinScript'
+import { quitAndRun } from './winAfterQuit'
 
 const RPM = '/usr/bin/rpm'
 
@@ -46,31 +48,17 @@ async function unsupportedReason(): Promise<string | null> {
   return rpmUnsupportedReason()
 }
 
-// The uninstaller kills whatever still runs from the install folder, so it starts only after the app has quit and
-// stopped its daemons. Its own first step runs the bundled `lgrassconf uninstall` (ui/build/installer.nsh), so the
-// account is cleaned with the app and its lgrassd daemons gone, which Windows needs to delete their binaries.
+// The uninstaller starts as the app exits and kills whatever still runs from the install folder. Its own first step
+// runs the bundled `lgrassconf uninstall` (ui/build/installer.nsh), so the account is cleaned with the app and its
+// lgrassd daemons gone, which Windows needs to delete their binaries. The log goes in the lemongrass home, which
+// uninstall keeps.
 function uninstallWindows(): void {
   set({ phase: 'removing', message: null, output: null })
-  const command = afterExitCommand(
-    process.env.SystemRoot ?? 'C:\\Windows',
-    process.pid,
+  quitAndRun(
     winUninstaller(),
-    ['/S', '/currentuser']
+    ['/S', '/currentuser'],
+    join(homedir(), '.lemongrass', 'uninstall.log')
   )
-  try {
-    spawn(command.file, command.args, {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    }).unref()
-  } catch (err) {
-    set({
-      phase: 'failed',
-      message: `uninstall: ${err instanceof Error ? err.message : String(err)}`
-    })
-    return
-  }
-  app.quit()
 }
 
 // The per-user cleanup runs before the package goes, so a dismissed password prompt leaves only a cleaned account,
