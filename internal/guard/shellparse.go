@@ -33,6 +33,9 @@ type shellScript struct {
 	Redirects []shellRedirect
 	Pipelines [][]string
 	Programs  []shellProgram
+	// Refusals are verdicts a parser reached without a call to match, such as a PowerShell construct the judge does
+	// not model; scriptVerdicts reports them with the rest.
+	Refusals []Verdict
 	// Depth counts the script files this script was read through, bounding a script that runs itself.
 	Depth int
 }

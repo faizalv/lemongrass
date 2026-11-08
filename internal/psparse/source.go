@@ -3,7 +3,7 @@
 
 package psparse
 
-import "unicode/utf16"
+import "sort"
 
 // Extent is a half-open range of UTF-16 code unit offsets into the parsed input. PowerShell strings are UTF-16, so
 // offsets in these units are the ones the reference parser reports and the oracle compares.
@@ -18,16 +18,51 @@ func (e Extent) Empty() bool { return e.End <= e.Start }
 // source is the input as the tokenizer reads it: UTF-16 code units, the way PowerShell indexes a string.
 type source struct {
 	text []uint16
+	// lineStarts holds the offset of each line's first unit, as the tokenizer's LineStartMap: \r\n, \r and \n
+	// each end a line.
+	lineStarts []int
 }
 
+// newSource reads input as .NET string units; a WTF-8 encoded lone surrogate is read back as that unit.
 func newSource(input string) source {
-	return source{text: utf16.Encode([]rune(input))}
+	text := stringToUTF16(input)
+	starts := []int{0}
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '\r':
+			if i+1 < len(text) && text[i+1] == '\n' {
+				i++
+			}
+			starts = append(starts, i+1)
+		case '\n':
+			starts = append(starts, i+1)
+		}
+	}
+	return source{text: text, lineStarts: starts}
 }
 
-// slice returns the input covered by e as a Go string.
+// line is PositionHelper.LineFromOffset: the 1-based line holding offset.
+func (s source) line(offset int) int {
+	return sort.Search(len(s.lineStarts), func(i int) bool { return s.lineStarts[i] > offset })
+}
+
+// column is PositionHelper.ColumnFromOffset: the 1-based column of offset on its line. EmptyScriptExtent's
+// columns are 0, so a negative offset yields 0.
+func (s source) column(offset int) int {
+	if offset < 0 {
+		return 0
+	}
+	return offset - s.lineStarts[s.line(offset)-1] + 1
+}
+
+// startColumn and endColumn are IScriptExtent.StartColumnNumber and EndColumnNumber.
+func (s source) startColumn(e Extent) int { return s.column(e.Start) }
+func (s source) endColumn(e Extent) int   { return s.column(e.End) }
+
+// slice returns the input covered by e as a Go string, a lone surrogate kept as WTF-8.
 func (s source) slice(e Extent) string {
 	start, end := clampExtent(e, len(s.text))
-	return string(utf16.Decode(s.text[start:end]))
+	return utf16ToString(s.text[start:end])
 }
 
 func clampExtent(e Extent, n int) (int, int) {

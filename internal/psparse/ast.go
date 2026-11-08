@@ -426,6 +426,19 @@ type CommandAst struct {
 
 func (c *CommandAst) GetRedirections() []RedirectionAst { return c.Redirections }
 
+// GetCommandName is CommandAst.GetCommandName: the value of the first element when it is a string constant. ok is
+// false where C# returns null, since an empty constant is still a name.
+func (c *CommandAst) GetCommandName() (name string, ok bool) {
+	if len(c.CommandElements) == 0 {
+		return "", false
+	}
+	s, ok := c.CommandElements[0].(*StringConstantExpressionAst)
+	if !ok {
+		return "", false
+	}
+	return s.Value, true
+}
+
 type CommandExpressionAst struct {
 	statementBase
 	Expression   ExpressionAst

@@ -10,7 +10,11 @@ import "unicode"
 type Result struct {
 	Ast    *ScriptBlockAst
 	Tokens []*Token
+	src    source
 }
+
+// Text returns the input an extent covers, as written.
+func (r *Result) Text(e Extent) string { return r.src.slice(e) }
 
 // Parse parses input as PowerShell's Parser.ParseInput does. It returns the first parse error, or one of the
 // Lemongrass errors for input past lim, and never a partial tree.
@@ -38,7 +42,7 @@ func Parse(input string, lim Limits) (res *Result, err error) {
 	}()
 	ast := p.scriptBlockRule(nil, false, nil)
 	ast.ScriptRequirements = p.tok.getScriptRequirements()
-	return &Result{Ast: ast, Tokens: tokens}, nil
+	return &Result{Ast: ast, Tokens: tokens, src: src}, nil
 }
 
 // parser is PowerShell's Parser. Its rule methods live in parser_statements.go and parser_expressions.go under
@@ -70,9 +74,17 @@ func (p *parser) reportError(ext Extent, id string, args ...any) {
 	panic(abortParse{newParseError(ext, id, false, args...)})
 }
 
-// reportIncompleteInput is ReportIncompleteInput: an error at the end of input, such as a missing closing brace.
+// reportIncompleteInput is ReportIncompleteInput: the error is marked incomplete input only when ext is at the
+// end of the script, comments and whitespace aside.
 func (p *parser) reportIncompleteInput(ext Extent, id string, args ...any) {
-	panic(abortParse{newParseError(ext, id, true, args...)})
+	p.reportIncompleteInputAt(ext, ext, id, args...)
+}
+
+// reportIncompleteInputAt is the two-extent ReportIncompleteInput: the error sits at pos, and whether it is
+// incomplete input is judged at detected.
+func (p *parser) reportIncompleteInputAt(pos, detected Extent, id string, args ...any) {
+	incomplete := p.tok.isAtEndOfScript(detected, true)
+	panic(abortParse{newParseError(pos, id, incomplete, args...)})
 }
 
 // skipNewlines is SkipNewlines.

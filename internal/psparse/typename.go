@@ -4,6 +4,8 @@
 
 package psparse
 
+import "strings"
+
 // ITypeName is a type as written in a type literal or constraint: [int], [List[string]], [byte[]]. Resolving it
 // to a real type is out of scope; the judge reads only the name.
 type ITypeName interface {
@@ -42,13 +44,35 @@ type GenericTypeName struct {
 	Ext              Extent
 	TypeName         ITypeName
 	GenericArguments []ITypeName
-	// FullNameText and NameText are filled by the parser owner while porting GenericTypeName's name building.
-	FullNameText string
-	NameText     string
 }
 
-func (t *GenericTypeName) FullName() string     { return t.FullNameText }
-func (t *GenericTypeName) Name() string         { return t.NameText }
+// FullName and Name are computed on read, as in C#, because the parser sets the open name's assembly after the
+// wrapper is built.
+func (t *GenericTypeName) FullName() string {
+	s := t.genericName(func(a ITypeName) string { return a.FullName() })
+	if asm := t.TypeName.AssemblyName(); asm != "" {
+		s += "," + asm
+	}
+	return s
+}
+func (t *GenericTypeName) Name() string {
+	return t.genericName(func(a ITypeName) string { return a.Name() })
+}
+
+func (t *GenericTypeName) genericName(arg func(ITypeName) string) string {
+	var b strings.Builder
+	b.WriteString(t.TypeName.Name())
+	b.WriteByte('[')
+	for i, a := range t.GenericArguments {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(arg(a))
+	}
+	b.WriteByte(']')
+	return b.String()
+}
+
 func (t *GenericTypeName) AssemblyName() string { return t.TypeName.AssemblyName() }
 func (t *GenericTypeName) IsArray() bool        { return false }
 func (t *GenericTypeName) IsGeneric() bool      { return true }
@@ -56,15 +80,26 @@ func (t *GenericTypeName) Extent() Extent       { return t.Ext }
 
 // ArrayTypeName is an array of an element type, such as byte[] or int[,].
 type ArrayTypeName struct {
-	Ext          Extent
-	ElementType  ITypeName
-	Rank         int
-	FullNameText string
-	NameText     string
+	Ext         Extent
+	ElementType ITypeName
+	Rank        int
 }
 
-func (t *ArrayTypeName) FullName() string     { return t.FullNameText }
-func (t *ArrayTypeName) Name() string         { return t.NameText }
+// FullName and Name are computed on read, as in C# (GetName).
+func (t *ArrayTypeName) FullName() string {
+	s := t.Name()
+	if asm := t.ElementType.AssemblyName(); asm != "" {
+		s += "," + asm
+	}
+	return s
+}
+func (t *ArrayTypeName) Name() string {
+	commas := ""
+	if t.Rank > 1 {
+		commas = strings.Repeat(",", t.Rank-1)
+	}
+	return t.ElementType.Name() + "[" + commas + "]"
+}
 func (t *ArrayTypeName) AssemblyName() string { return t.ElementType.AssemblyName() }
 func (t *ArrayTypeName) IsArray() bool        { return true }
 func (t *ArrayTypeName) IsGeneric() bool      { return false }

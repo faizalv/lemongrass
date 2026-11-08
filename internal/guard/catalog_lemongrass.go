@@ -16,6 +16,12 @@ var lemongrassRules = []rule{
 	{ID: "guard-config", Category: catLemongrass, Description: "changing the agent settings, hooks or the lgrass binaries", Mode: ModeDeny, Locked: true},
 	{ID: "dynamic-command", Category: catLemongrass, Description: "the command name is computed at runtime, so it cannot be checked", Mode: ModeDeny, Locked: true},
 	{ID: "unparseable-command", Category: catLemongrass, Description: "the shell command could not be parsed, so it cannot be checked", Mode: ModeDeny, Locked: true},
+	// The PowerShell judge reports these: constructs it does not model, and PowerShell-only ways to change what a
+	// later name or path means. They exist on every OS, since pwsh runs on every OS.
+	{ID: "powershell-construct", Category: catLemongrass, Description: "a PowerShell construct the guard does not model, such as a method call or loading code", Mode: ModeDeny, Locked: true},
+	{ID: "name-redefinition", Category: catLemongrass, Description: "redefining a PowerShell alias or function, which changes what later commands run", Mode: ModeDeny, Locked: true},
+	{ID: "drive-definition", Category: catLemongrass, Description: "defining a PowerShell drive, which changes what later paths mean", Mode: ModeDeny, Locked: true},
+	{ID: "history-replay", Category: catLemongrass, Description: "replaying a command from PowerShell history, which the guard cannot see", Mode: ModeDeny, Locked: true},
 	// cmd and PowerShell text is not POSIX shell, so what such a call runs cannot be checked, like a command the parser refuses.
 	{ID: "opaque-shell", Category: catLemongrass, Description: "running cmd, PowerShell or a script host, whose commands cannot be checked", Mode: ModeDeny, Locked: true, Forms: []form{
 		{Tools: []string{"cmd", "powershell", "pwsh", "powershell_ise", "cscript", "wscript", "mshta", "wsl", "rundll32", "regsvr32", "msiexec", "invoke-expression", "iex", "start-process", "invoke-command"}, Match: opaqueShell},
