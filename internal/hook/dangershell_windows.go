@@ -9,14 +9,12 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/faizalv/lemongrass/internal/gitbash"
 	"github.com/faizalv/lemongrass/internal/guard"
 )
 
 // windowsShellTools are the tool names that run a shell command on Windows: Claude's Bash and PowerShell tools and Codex's shell tools.
 var windowsShellTools = map[string]bool{"Bash": true, "PowerShell": true, "shell": true, "local_shell": true, "exec_command": true, "container.exec": true}
-
-// posixShells are the shells whose command text the gate parses. Git Bash's bash.exe qualifies; System32's bash.exe is WSL, whose paths are another filesystem, and is refused by the caller.
-var posixShells = map[string]bool{"bash": true, "sh": true, "dash": true, "zsh": true}
 
 // shellToolCommand returns the shell text the gate judges for a shell tool call, and isShell false for any other tool. Claude's Bash tool runs through Git Bash, so its command is judged as is. Every other shell call on Windows is judged only when it names a POSIX shell with -c explicitly, since Codex and the PowerShell tool run PowerShell by default, whose text the POSIX parser misreads; anything else is denied as opaque-shell.
 func shellToolCommand(payload hookEvent) (command string, verdict *guard.Verdict, isShell bool) {
@@ -60,8 +58,25 @@ func shellToolCommand(payload hookEvent) (command string, verdict *guard.Verdict
 		if len(fields) >= 3 && posixShellName(fields[0]) && strings.HasPrefix(fields[1], "-") && strings.Contains(fields[1], "c") {
 			return line, nil, true
 		}
+		if script, refusal, ok := powerShellPosixScript(line); ok {
+			if refusal != "" {
+				return "", guard.OpaqueShellVerdict(refusal), true
+			}
+			return script, nil, true
+		}
 	}
-	return "", guard.OpaqueShellVerdict("On Windows a " + payload.ToolName + " call runs PowerShell or cmd, whose text the guard cannot read. Run it as bash -c '<command>' instead."), true
+	return "", guard.OpaqueShellVerdict(opaqueShellHint(payload.ToolName)), true
+}
+
+// opaqueShellHint names both routes into Git Bash. Lemongrass puts Git Bash first on PATH in the Codex and
+// Antigravity tabs it starts, so bare bash is Git Bash there; where it is not, bare bash from PowerShell is
+// System32's WSL launcher, so the full path is named in the call-operator form powerShellPosixScript reads.
+func opaqueShellHint(tool string) string {
+	hint := "On Windows a " + tool + " call runs PowerShell or cmd, whose text the guard cannot read. Run it through Git Bash instead: bash -c '<command>'."
+	if bash, err := gitbash.Bash(); err == nil {
+		hint += " If bash is not Git Bash there, run & " + psSingleQuote(bash) + " -c '<command>', with each ' inside <command> written as '' and no double quote."
+	}
+	return hint
 }
 
 // posixScript returns the script of an argv that runs a POSIX shell with -c, such as ["bash", "-lc", "ls"].
@@ -79,15 +94,6 @@ func posixScript(argv []string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func posixShellName(name string) bool {
-	lower := strings.ToLower(strings.ReplaceAll(name, `\`, "/"))
-	if strings.Contains(lower, "/system32/") || strings.Contains(lower, "/sysnative/") {
-		return false
-	}
-	base := lower[strings.LastIndex(lower, "/")+1:]
-	return posixShells[strings.TrimSuffix(base, ".exe")]
 }
 
 func isCodexPayload(payload hookEvent) bool {

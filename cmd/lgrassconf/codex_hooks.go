@@ -14,7 +14,7 @@ func reconcileCodexHooks(data []byte, lgrassdPath string) ([]byte, bool, error) 
 	for _, event := range codexHookEvents {
 		handler := agentconf.HookHandler{
 			Type:    "command",
-			Command: agentconf.HookCommand(lgrassdPath, "hook", event, agentconf.VendorFlag, "codex"),
+			Command: agentconf.PowerShellHookCommand(lgrassdPath, "hook", event, agentconf.VendorFlag, "codex"),
 		}
 		matcher := ""
 		switch event {

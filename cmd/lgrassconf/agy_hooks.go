@@ -12,7 +12,7 @@ func reconcileAgyHooks(data []byte, lgrassdPath string) ([]byte, bool, error) {
 		if event == "PreInvocation" {
 			mapped = "UserPromptSubmit"
 		}
-		handler := agentconf.HookHandler{Type: "command", Command: agentconf.HookCommand(lgrassdPath, "hook", mapped, agentconf.VendorFlag, "agy")}
+		handler := agentconf.HookHandler{Type: "command", Command: agentconf.CmdHookCommand(lgrassdPath, "hook", mapped, agentconf.VendorFlag, "agy")}
 		if event == "PreToolUse" || event == "PostToolUse" {
 			events[event] = []agentconf.HookGroup{{Matcher: "*", Hooks: []agentconf.HookHandler{handler}}}
 		} else {

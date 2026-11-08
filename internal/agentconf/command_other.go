@@ -17,3 +17,13 @@ func quoteCommandPath(path string) string {
 	}
 	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
 }
+
+// powerShellCommandPath is quoteCommandPath outside Windows, where Codex runs hooks through the user's sh.
+func powerShellCommandPath(path string) string {
+	return quoteCommandPath(path)
+}
+
+// cmdCommandPath is quoteCommandPath outside Windows, where no runner goes through cmd.exe.
+func cmdCommandPath(path string) string {
+	return quoteCommandPath(path)
+}

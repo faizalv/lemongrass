@@ -52,9 +52,20 @@ test('with no lgrassd and no project an agy tab gets no settings', () => {
 test('an lgrassd path is quoted only when the shell needs it', () => {
   assert.equal(quoteCommandPath('/opt/it is/lgrassd', 'linux'), `'/opt/it is/lgrassd'`)
   assert.equal(quoteCommandPath(`/o'k/lgrassd`, 'darwin'), `'/o'\\''k/lgrassd'`)
+})
+
+test('on Windows an lgrassd path is caret escaped for cmd, never quoted', () => {
   assert.equal(quoteCommandPath('C:\\Users\\a\\lgrassd.exe', 'win32'), 'C:/Users/a/lgrassd.exe')
   assert.equal(
     quoteCommandPath('C:\\Users\\a b\\lgrassd.exe', 'win32'),
-    '"C:/Users/a b/lgrassd.exe"'
+    'C:/Users/a^ b/lgrassd.exe'
+  )
+  assert.equal(
+    quoteCommandPath('C:\\Users\\Tom & Kim (Work)\\lgrassd.exe', 'win32'),
+    'C:/Users/Tom^ ^&^ Kim^ ^(Work^)/lgrassd.exe'
+  )
+  assert.equal(
+    quoteCommandPath('C:\\Users\\a^b,c;d=e\\lgrassd.exe', 'win32'),
+    'C:/Users/a^^b^,c^;d^=e/lgrassd.exe'
   )
 })

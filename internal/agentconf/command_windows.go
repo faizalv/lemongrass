@@ -24,3 +24,19 @@ func quoteCommandPath(path string) string {
 	}
 	return `"` + path + `"`
 }
+
+// powerShellCommandPath keeps a safe path in the bare forward-slash form every Windows runner reads, so most Codex
+// configs stay as earlier keepers wrote them. Any other path becomes a PowerShell call with its native backslashes.
+// Only exit 2 makes Codex block a tool call, so a hook PowerShell cannot parse lets every call through unguarded.
+func powerShellCommandPath(path string) string {
+	slashed := filepath.ToSlash(path)
+	if path != "" && strings.Trim(slashed, windowsSafe) == "" {
+		return slashed
+	}
+	return powerShellCall(filepath.FromSlash(path))
+}
+
+// cmdCommandPath is the path with forward slashes, escaped for cmd.exe instead of quoted.
+func cmdCommandPath(path string) string {
+	return caretEscape(filepath.ToSlash(path))
+}

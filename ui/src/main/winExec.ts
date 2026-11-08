@@ -153,3 +153,48 @@ export function withPath(env: Env, value: string): Env {
   out.Path = value
   return out
 }
+
+// The bin folder of Git for Windows, which holds the bash.exe launcher, looked up in internal/gitbash's order:
+// CLAUDE_CODE_GIT_BASH_PATH, then git on PATH, then the two default installs. A root counts only with both
+// bin\bash.exe and usr\bin\bash.exe, and nothing under the Windows folder, where WSL's bash.exe lives, is one.
+export function gitBashBin(env: Env, fs: FileReader = disk): string | undefined {
+  const { dirname, basename, join } = win32
+  const named = (dir: string, name: string): boolean => basename(dir).toLowerCase() === name
+  const candidates: string[] = []
+  const override = envValue(env, 'CLAUDE_CODE_GIT_BASH_PATH')
+  if (override) {
+    const dir = dirname(override)
+    candidates.push(dirname(dir))
+    if (named(dir, 'bin') && named(dirname(dir), 'usr')) candidates.push(dirname(dirname(dir)))
+  }
+  const git = findOnPath('git.exe', env, fs)
+  if (git) {
+    const dir = dirname(git)
+    if (named(dir, 'cmd') || named(dir, 'bin')) candidates.push(dirname(dir))
+    if (named(dir, 'bin') && named(dirname(dir), 'mingw64')) candidates.push(dirname(dirname(dir)))
+  }
+  const programFiles = envValue(env, 'ProgramFiles')
+  if (programFiles) candidates.push(join(programFiles, 'Git'))
+  const localAppData = envValue(env, 'LOCALAPPDATA')
+  if (localAppData) candidates.push(join(localAppData, 'Programs', 'Git'))
+  const windows = envValue(env, 'SystemRoot')?.toLowerCase()
+  for (const root of candidates) {
+    if (!root || (windows && root.toLowerCase().startsWith(windows))) continue
+    const bin = join(root, 'bin')
+    if (fs.isFile(join(bin, 'bash.exe')) && fs.isFile(join(root, 'usr', 'bin', 'bash.exe')))
+      return bin
+  }
+  return undefined
+}
+
+// Puts Git Bash's bin folder first on PATH. Codex and Antigravity run shell commands in PowerShell, where bare bash
+// is otherwise System32's WSL launcher, and the danger gate only reads a command that runs through Git Bash.
+export function withGitBashFirst(env: Env, fs: FileReader = disk): Env {
+  const bin = gitBashBin(env, fs)
+  if (!bin) return env
+  const key = bin.replace(/\\+$/, '').toLowerCase()
+  const rest = (envValue(env, 'PATH') ?? '')
+    .split(';')
+    .filter((dir) => dir && dir.replace(/\\+$/, '').toLowerCase() !== key)
+  return withPath(env, [bin, ...rest].join(';'))
+}

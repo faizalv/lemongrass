@@ -7,11 +7,13 @@ import { test } from 'node:test'
 import {
   envValue,
   expandEnv,
+  gitBashBin,
   mergeWindowsPath,
   parseRegValue,
   shimTarget,
   windowsLaunch,
   windowsShell,
+  withGitBashFirst,
   withPath
   // @ts-ignore
 } from './winExec.ts'
@@ -161,4 +163,63 @@ test('machine, then user, then the app PATH, without repeats', () => {
 
 test('withPath replaces PATH whatever its casing', () => {
   assert.deepEqual(withPath({ Path: 'a', PATH: 'b', X: '1' }, 'c'), { X: '1', Path: 'c' })
+})
+
+const GIT = 'C:\\Program Files\\Git'
+const GIT_FILES = {
+  [`${GIT}\\cmd\\git.exe`]: '',
+  [`${GIT}\\bin\\bash.exe`]: '',
+  [`${GIT}\\usr\\bin\\bash.exe`]: ''
+}
+
+test('gitBashBin finds the install through git on PATH', () => {
+  const env = { PATH: `C:\\Windows\\System32;${GIT}\\cmd`, SystemRoot: 'C:\\Windows' }
+  assert.equal(gitBashBin(env, disk(GIT_FILES)), `${GIT}\\bin`)
+})
+
+test('gitBashBin falls back to the default install', () => {
+  const env = { PATH: 'C:\\Windows\\System32', ProgramFiles: 'C:\\Program Files' }
+  assert.equal(gitBashBin(env, disk(GIT_FILES)), `${GIT}\\bin`)
+})
+
+test('gitBashBin honours CLAUDE_CODE_GIT_BASH_PATH first', () => {
+  const other = 'D:\\PortableGit'
+  const env = {
+    CLAUDE_CODE_GIT_BASH_PATH: `${other}\\usr\\bin\\bash.exe`,
+    PATH: `${GIT}\\cmd`
+  }
+  const files = {
+    ...GIT_FILES,
+    [`${other}\\bin\\bash.exe`]: '',
+    [`${other}\\usr\\bin\\bash.exe`]: ''
+  }
+  assert.equal(gitBashBin(env, disk(files)), `${other}\\bin`)
+})
+
+test('gitBashBin never takes the Windows folder, where WSL bash lives', () => {
+  const env = { PATH: 'C:\\Windows\\cmd', SystemRoot: 'C:\\Windows' }
+  const files = {
+    'C:\\Windows\\cmd\\git.exe': '',
+    'C:\\Windows\\bin\\bash.exe': '',
+    'C:\\Windows\\usr\\bin\\bash.exe': ''
+  }
+  assert.equal(gitBashBin(env, disk(files)), undefined)
+})
+
+test('gitBashBin needs the launcher and usr\\bin\\bash.exe', () => {
+  const env = { PATH: `${GIT}\\cmd` }
+  assert.equal(gitBashBin(env, disk({ [`${GIT}\\cmd\\git.exe`]: '' })), undefined)
+})
+
+test('withGitBashFirst moves Git Bash to the front of PATH once', () => {
+  const env = { Path: `C:\\Windows\\System32;${GIT}\\bin\\;${GIT}\\cmd`, Other: 'x' }
+  assert.deepEqual(withGitBashFirst(env, disk(GIT_FILES)), {
+    Other: 'x',
+    Path: `${GIT}\\bin;C:\\Windows\\System32;${GIT}\\cmd`
+  })
+})
+
+test('withGitBashFirst leaves PATH alone without Git for Windows', () => {
+  const env = { Path: 'C:\\Windows\\System32' }
+  assert.equal(withGitBashFirst(env, disk({})), env)
 })

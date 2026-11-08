@@ -15,6 +15,7 @@ import (
 const tabIDEnv = "LGRASS_TAB_ID"
 
 func main() {
+	os.Args = programArgs()
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(1)

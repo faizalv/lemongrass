@@ -18,7 +18,14 @@ import { resolveShellBinary } from './shellBinary'
 import { agentPath } from './agentPaths'
 import { SHELL_COMMAND, shellTabLaunch } from './shellTab'
 import { agyLaunch } from './agyLaunch'
-import { windowsLaunch, windowsShell, withPath, type Env, type Launch } from './winExec'
+import {
+  windowsLaunch,
+  windowsShell,
+  withGitBashFirst,
+  withPath,
+  type Env,
+  type Launch
+} from './winExec'
 import { freshWindowsPath } from './windowsPath'
 
 // Every shell spawns an agent binary directly, never a login shell. Codex
@@ -84,6 +91,9 @@ function gracefulClose(command: string): boolean {
   return command === 'codex' || (command === 'claude' && process.platform === 'win32')
 }
 
+// Vendors that run shell commands in PowerShell on Windows, where the gate reads only a command run through Git Bash.
+const GIT_BASH_FIRST = new Set(['codex', 'agy'])
+
 // The program and argv for a tab. On Windows the PATH is reread from the registry for every tab, and a name is found
 // through PATHEXT, since ConPTY only appends .exe and an npm install is a .cmd shim.
 async function launchFor(
@@ -93,7 +103,8 @@ async function launchFor(
 ): Promise<{ launch: Launch; env: Env }> {
   if (process.platform !== 'win32')
     return { launch: { file: resolveShellBinary(command, env, agentPath(command)), args }, env }
-  const winEnv = withPath(env, await freshWindowsPath())
+  const freshEnv = withPath(env, await freshWindowsPath())
+  const winEnv = GIT_BASH_FIRST.has(command) ? withGitBashFirst(freshEnv) : freshEnv
   const launch =
     command === 'zsh'
       ? { file: windowsShell(winEnv), args }

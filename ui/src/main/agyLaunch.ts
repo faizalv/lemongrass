@@ -16,15 +16,13 @@ export interface AgyLaunch {
 export const AGY_RESUMED_ENV = 'LGRASS_AGY_RESUMED'
 
 const SHELL_SAFE = /^[A-Za-z0-9/._\-+@%:,=]+$/
-const WINDOWS_SAFE = /^[A-Za-z0-9/._\-+@:,=~]+$/
+const CMD_SPECIAL = /[ \t&|<>()^,;=]/g
 
-// Quoted the way agentconf.HookCommand quotes it, so the statusline command reads the same as the one the keeper
-// writes for Claude.
+// Written the way agentconf.CmdHookCommand writes it, so the statusline command reads like the agy hooks the keeper
+// registers. On Windows agy runs it as `cmd /c` through Go's os/exec, which turns a `"` into `\"` that cmd keeps, so
+// the path is never quoted there: cmd's special characters get a caret instead.
 export function quoteCommandPath(path: string, platform: NodeJS.Platform): string {
-  if (platform === 'win32') {
-    const slashed = path.replace(/\\/g, '/')
-    return WINDOWS_SAFE.test(slashed) ? slashed : `"${slashed}"`
-  }
+  if (platform === 'win32') return path.replace(/\\/g, '/').replace(CMD_SPECIAL, '^$&')
   return SHELL_SAFE.test(path) ? path : `'${path.replace(/'/g, `'\\''`)}'`
 }
 
