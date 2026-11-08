@@ -16,6 +16,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -242,6 +244,8 @@ func oracleConstant(v any) any {
 		name, value = "Double", strconv.FormatFloat(n, 'g', -1, 64)
 	case *big.Int:
 		name, value = "BigInteger", n.String()
+	case big.Int:
+		name, value = "BigInteger", n.String()
 	case Decimal:
 		name = "Decimal"
 		value = new(big.Rat).SetFrac(n.Unscaled, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n.Scale)), nil)).RatString()
@@ -387,6 +391,8 @@ const (
 	oracleDynamicKeyword   oracleClass = "dynamic-keyword"
 	oracleRelativeAssembly oracleClass = "relative-assembly"
 	oracleUnreachable      oracleClass = "unreachable"
+	oracleRequires         oracleClass = "requires-pending"
+	oracleUnresolvedEnum   oracleClass = "unresolved-enum"
 	oracleMismatch         oracleClass = "mismatch"
 )
 
@@ -402,6 +408,23 @@ var oracleSemanticIDs = map[string]bool{
 	"ExceptionTypeAlreadyCaught":                 true, // :573
 	"ReferenceNeedsToBeByItselfInTypeConstraint": true, // :812
 	"InvalidLeftHandSide":                        true, // :871
+	"SplattingNotPermitted":                      true, // :1077
+	"WorkflowNotSupportedInPowerShellCore":       true, // :451
+	"ControlLeavingFinally":                      true, // :659
+	"VoidMethodHasReturn":                        true, // :710
+	"ReferenceNeedsToBeByItselfInTypeSequence":   true, // :948
+	"ReferenceNeedsToBeLastTypeInTypeConversion": true, // :995
+	"UsingStatementNotSupported":                 true, // :1319
+	"InvalidNamespaceValue":                      true, // :1330
+	"KeywordParameterReservedForFutureUse":       true, // :465,500,510
+	"UnexpectedKeyword":                          true, // :1174
+	"CustomAttributeTypeNotFound":                true, // SymbolResolver.cs:671
+	"ModuleNotFoundDuringParse":                  true, // SymbolResolver.cs:580
+	"ThrottleLimitRequiresParallelFlag":          true, // :522
+	"TypeNotFound":                               true, // SymbolResolver.cs:676
+	"OperatorRequiresVariableOrProperty":         true, // :901
+	"InvalidUsingExpression":                     true, // :1024
+	"NonStaticMemberAccessInStaticMember":        true, // :1103
 }
 
 func compareOracle(goResult *Result, goErr error, reference oracleResult, schema oracleSchema) (oracleClass, string) {
@@ -415,6 +438,8 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 			return oracleLimit, e.ID
 		case ErrDynamicKeywords:
 			return oracleDynamicKeyword, e.ID
+		case ErrRequiresNotSupported:
+			return oracleRequires, e.ID
 		}
 		if len(reference.Errors) != 0 {
 			r := reference.Errors[0]
@@ -429,27 +454,193 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 		return oracleMismatch, "Go rejected reference success: " + goErr.Error()
 	}
 	if len(reference.Errors) != 0 {
+		requireExact := false
+		unresolvedEnum := false
 		for _, e := range reference.Errors {
-			if !oracleSemanticIDs[e.ID] {
+			if e.ID == "UnexpectedAttribute" && oracleAttributedSemanticError(reference.Tree, e) {
+				requireExact = true
+			} else if e.ID == "DuplicateNamedArgument" && oracleDuplicateNamedArgument(reference.Tree, e) {
+				requireExact = true
+			} else if e.ID == "InvalidUnderlyingType" && oracleUnresolvedEnumError(reference.Tree, e) {
+				requireExact, unresolvedEnum = true, true
+			} else if !oracleSemanticIDs[e.ID] {
 				return oracleMismatch, "unclassified reference error: " + e.ID
 			}
 		}
+		if requireExact {
+			if detail := oracleCompareSuccess(goResult, reference, schema); detail != "" {
+				return oracleMismatch, "shared-ID semantic shape requires exact parity: " + detail
+			}
+		}
+		if unresolvedEnum {
+			return oracleUnresolvedEnum, fmt.Sprint(reference.Errors)
+		}
 		return oracleSemantic, fmt.Sprint(reference.Errors)
 	}
+	if detail := oracleCompareSuccess(goResult, reference, schema); detail != "" {
+		return oracleMismatch, detail
+	}
+	return oracleMatch, ""
+}
+
+func oracleWalk(value any, match func(map[string]any) bool) bool {
+	switch v := value.(type) {
+	case []any:
+		for _, item := range v {
+			if oracleWalk(item, match) {
+				return true
+			}
+		}
+	case map[string]any:
+		if match(v) {
+			return true
+		}
+		for _, item := range v {
+			if oracleWalk(item, match) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func oracleDecodeString(value any) (string, bool) {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return "", false
+	}
+	units, ok := object["UTF16"].([]any)
+	if !ok {
+		return "", false
+	}
+	text := make([]uint16, len(units))
+	for i, unit := range units {
+		number, ok := unit.(float64)
+		if !ok {
+			return "", false
+		}
+		text[i] = uint16(number)
+	}
+	return utf16ToString(text), true
+}
+
+func oracleDuplicateNamedArgument(tree any, e oracleError) bool {
+	return oracleWalk(tree, func(node map[string]any) bool {
+		if node["Type"] != "AttributeAst" {
+			return false
+		}
+		arguments, ok := node["NamedArguments"].([]any)
+		if !ok {
+			return false
+		}
+		seen := make(map[string]bool)
+		for _, argument := range arguments {
+			item, ok := argument.(map[string]any)
+			if !ok {
+				return false
+			}
+			name, ok := oracleDecodeString(item["ArgumentName"])
+			if !ok {
+				return false
+			}
+			key := OrdinalUpper(name)
+			if seen[key] && item["Start"] == float64(e.Start) && item["End"] == float64(e.End) {
+				return true
+			}
+			seen[key] = true
+		}
+		return false
+	})
+}
+
+func oracleUnresolvedEnumError(tree any, e oracleError) bool {
+	return oracleWalk(tree, func(node map[string]any) bool {
+		if node["Type"] != "TypeDefinitionAst" || node["TypeAttributes"] != float64(TypeAttributesEnum) {
+			return false
+		}
+		bases, ok := node["BaseTypes"].([]any)
+		if !ok || len(bases) != 1 {
+			return false
+		}
+		constraint, ok := bases[0].(map[string]any)
+		if !ok {
+			return false
+		}
+		typeName, ok := constraint["TypeName"].(map[string]any)
+		if !ok {
+			return false
+		}
+		if typeName["Start"] != float64(e.Start) || typeName["End"] != float64(e.End) {
+			return false
+		}
+		name, ok := oracleDecodeString(typeName["Name"])
+		if !ok || name == "" {
+			return false
+		}
+		for _, known := range []string{"string", "datetime", "System.String", "System.DateTime"} {
+			if OrdinalEqualFold(name, known) {
+				return false
+			}
+		}
+		return true
+	})
+}
+
+func oracleCompareSuccess(goResult *Result, reference oracleResult, schema oracleSchema) string {
 	if goResult == nil || goResult.Ast == nil {
-		return oracleMismatch, "Go returned no AST without an error"
+		return "Go returned no AST without an error"
 	}
 	actual := oracleResult{Tree: oracleValue(reflect.ValueOf(goResult.Ast), oracleSpec{Kind: "node"}, schema), Tokens: make([]any, 0, len(goResult.Tokens))}
 	for _, token := range goResult.Tokens {
 		actual.Tokens = append(actual.Tokens, oracleToken(token))
 	}
 	if diff := oracleDiff(actual.Tree, reference.Tree); diff != "" {
-		return oracleMismatch, "tree " + diff
+		return "tree " + diff
 	}
 	if diff := oracleDiff(actual.Tokens, reference.Tokens); diff != "" {
-		return oracleMismatch, "tokens " + diff
+		return "tokens " + diff
 	}
-	return oracleMatch, ""
+	return ""
+}
+
+// UnexpectedAttribute is also a syntax error ID. Only the exact condition from
+// SemanticChecks.VisitAttributedExpression is eligible, with full tree/token
+// parity additionally required by compareOracle.
+func oracleAttributedSemanticError(value any, e oracleError) bool {
+	switch v := value.(type) {
+	case []any:
+		for _, item := range v {
+			if oracleAttributedSemanticError(item, e) {
+				return true
+			}
+		}
+	case map[string]any:
+		if v["Type"] == "AttributedExpressionAst" {
+			attribute, ok := v["Attribute"].(map[string]any)
+			if ok && attribute["Start"] == float64(e.Start) && attribute["End"] == float64(e.End) {
+				node := v
+				for {
+					child, ok := node["Child"].(map[string]any)
+					if !ok {
+						return true
+					}
+					if child["Type"] == "VariableExpressionAst" {
+						break
+					}
+					if child["Type"] != "AttributedExpressionAst" {
+						return true
+					}
+					node = child
+				}
+			}
+		}
+		for _, item := range v {
+			if oracleAttributedSemanticError(item, e) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func oracleHasRelativeAssembly(value any, extent Extent) bool {
@@ -508,12 +699,63 @@ func oracleDiff(actual, expected any) string {
 	_ = json.Unmarshal(b, &bv)
 	canonicalOracleNumbers(av)
 	canonicalOracleNumbers(bv)
-	if reflect.DeepEqual(av, bv) {
+	return oracleFirstDiff(av, bv, "$")
+}
+
+func oracleFirstDiff(a, b any, path string) string {
+	if reflect.DeepEqual(a, b) {
 		return ""
 	}
-	a, _ = json.Marshal(av)
-	b, _ = json.Marshal(bv)
-	return fmt.Sprintf("Go=%s\npwsh=%s", a, b)
+	switch av := a.(type) {
+	case map[string]any:
+		if bv, ok := b.(map[string]any); ok {
+			keys := make([]string, 0, len(av)+len(bv))
+			for key := range av {
+				keys = append(keys, key)
+			}
+			for key := range bv {
+				if _, ok := av[key]; !ok {
+					keys = append(keys, key)
+				}
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				x, xok := av[key]
+				y, yok := bv[key]
+				if xok != yok {
+					return fmt.Sprintf("%s.%s present: Go=%t pwsh=%t", path, key, xok, yok)
+				}
+				if diff := oracleFirstDiff(x, y, path+"."+key); diff != "" {
+					return diff
+				}
+			}
+		}
+	case []any:
+		if bv, ok := b.([]any); ok {
+			if len(av) != len(bv) {
+				return fmt.Sprintf("%s length: Go=%d pwsh=%d", path, len(av), len(bv))
+			}
+			for i := range av {
+				if diff := oracleFirstDiff(av[i], bv[i], fmt.Sprintf("%s[%d]", path, i)); diff != "" {
+					return diff
+				}
+			}
+		}
+	}
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return fmt.Sprintf("%s: Go=%.500s pwsh=%.500s", path, x, y)
+}
+
+func compareOracleInput(input string, reference oracleResult, schema oracleSchema) (class oracleClass, detail string, parseErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			class, detail = oracleMismatch, fmt.Sprintf("panic: %v\n%.3000s", r, debug.Stack())
+		}
+	}()
+	result, err := Parse(input, DefaultLimits)
+	class, detail = compareOracle(result, err, reference, schema)
+	return class, detail, err
 }
 
 func canonicalOracleNumbers(value any) {
@@ -640,18 +882,8 @@ func TestOracleReferenceCorpus(t *testing.T) {
 	t.Logf("reference protocol normalized %d cases; extracted %d pinned upstream inputs", len(cases), len(upstream))
 }
 
-// Remove the contract-stub guard when the port is complete. It only recognizes
-// the exact development stub panic, never a parse error or an unexpected panic.
 func requireOracleParser(t testing.TB) {
 	t.Helper()
-	defer func() {
-		if r := recover(); r != nil {
-			if r == notPorted {
-				t.Skip("oracle: parser contract stubs remain")
-			}
-			panic(r)
-		}
-	}()
 	if _, err := Parse("Get-Item foo", DefaultLimits); err != nil {
 		t.Fatalf("oracle: parser rejected readiness command: %v", err)
 	}
@@ -672,6 +904,7 @@ func runOracleCases(t *testing.T, o *oracleProcess, cases []oracleCase) {
 	counts := make(map[oracleClass]int)
 	firstErrorsEqual := 0
 	failures := 0
+	var report []map[string]any
 	for start := 0; start < len(cases); start += 16 {
 		end := min(start+16, len(cases))
 		inputs := make([]string, end-start)
@@ -684,9 +917,9 @@ func runOracleCases(t *testing.T, o *oracleProcess, cases []oracleCase) {
 		}
 		for i, reference := range response.Results {
 			entry := cases[start+i]
-			result, err := Parse(entry.Input, DefaultLimits)
-			class, detail := compareOracle(result, err, reference, o.schema)
+			class, detail, err := compareOracleInput(entry.Input, reference, o.schema)
 			counts[class]++
+			report = append(report, map[string]any{"Name": entry.Name, "Source": entry.Source, "Input": entry.Input, "Class": class, "Detail": detail})
 			if class == oracleBothError {
 				var e *ParseError
 				if errors.As(err, &e) && e.ID == reference.Errors[0].ID && e.Extent.Start == reference.Errors[0].Start {
@@ -706,6 +939,16 @@ func runOracleCases(t *testing.T, o *oracleProcess, cases []oracleCase) {
 	t.Logf("oracle classes: %v; first error ID+offset agreement %d/%d; failures %d", counts, firstErrorsEqual, counts[oracleBothError], failures)
 	if failures > 20 {
 		t.Errorf("%d additional mismatches omitted", failures-20)
+	}
+	if path := os.Getenv("LGRASS_PSPARSE_ORACLE_REPORT"); path != "" {
+		if t.Name() != "TestOracleCorpus" { path += "." + strings.ReplaceAll(t.Name(), "/", "_") + ".json" }
+		data, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, append(data, '\n'), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

@@ -1,0 +1,242 @@
+[
+ {
+  "Name": "enumtype/string",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : string { A }"
+ },
+ {
+  "Name": "enumtype/String",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : String { A }"
+ },
+ {
+  "Name": "enumtype/System.String",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : System.String { A }"
+ },
+ {
+  "Name": "enumtype/datetime",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : datetime { A }"
+ },
+ {
+  "Name": "enumtype/System.DateTime",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : System.DateTime { A }"
+ },
+ {
+  "Name": "enumtype/double",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : double { A }"
+ },
+ {
+  "Name": "enumtype/float",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : float { A }"
+ },
+ {
+  "Name": "enumtype/single",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : single { A }"
+ },
+ {
+  "Name": "enumtype/decimal",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : decimal { A }"
+ },
+ {
+  "Name": "enumtype/bool",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : bool { A }"
+ },
+ {
+  "Name": "enumtype/char",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : char { A }"
+ },
+ {
+  "Name": "enumtype/object",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : object { A }"
+ },
+ {
+  "Name": "enumtype/System.Object",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : System.Object { A }"
+ },
+ {
+  "Name": "enumtype/Foo",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : Foo { A }"
+ },
+ {
+  "Name": "enumtype/System.IO.FileInfo",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : System.IO.FileInfo { A }"
+ },
+ {
+  "Name": "enumtype/int[]",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : int[] { A }"
+ },
+ {
+  "Name": "enumtype/System.Collections.Generic.List[int]",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : System.Collections.Generic.List[int] { A }"
+ },
+ {
+  "Name": "enumtype/hashtable",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : hashtable { A }"
+ },
+ {
+  "Name": "enumtype/psobject",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : psobject { A }"
+ },
+ {
+  "Name": "enumtype/guid",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : guid { A }"
+ },
+ {
+  "Name": "enumtype/DBNull",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : DBNull { A }"
+ },
+ {
+  "Name": "enumtype/System.DayOfWeek",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : System.DayOfWeek { A }"
+ },
+ {
+  "Name": "enumtype/ConsoleColor",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : ConsoleColor { A }"
+ },
+ {
+  "Name": "enumtype/type",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : type { A }"
+ },
+ {
+  "Name": "enumtype/regex",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : regex { A }"
+ },
+ {
+  "Name": "enumtype/scriptblock",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : scriptblock { A }"
+ },
+ {
+  "Name": "enumtype/uri",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : uri { A }"
+ },
+ {
+  "Name": "enumtype/timespan",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : timespan { A }"
+ },
+ {
+  "Name": "enumtype/version",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : version { A }"
+ },
+ {
+  "Name": "enumtype/bigint",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : bigint { A }"
+ },
+ {
+  "Name": "enumtype/Int128",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : Int128 { A }"
+ },
+ {
+  "Name": "enumtype/System.Half",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : System.Half { A }"
+ },
+ {
+  "Name": "enumtype/nint",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : nint { A }"
+ },
+ {
+  "Name": "enumtype/IntPtr",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : IntPtr { A }"
+ },
+ {
+  "Name": "enumtype/switch",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : switch { A }"
+ },
+ {
+  "Name": "enumtype/ref",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : ref { A }"
+ },
+ {
+  "Name": "enumtype/xml",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : xml { A }"
+ },
+ {
+  "Name": "enumtype/array",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : array { A }"
+ },
+ {
+  "Name": "enumtype/wmi",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : wmi { A }"
+ },
+ {
+  "Name": "enumtype/ipaddress",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : ipaddress { A }"
+ },
+ {
+  "Name": "enumtype/mailaddress",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : mailaddress { A }"
+ },
+ {
+  "Name": "enumtype/cultureinfo",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : cultureinfo { A }"
+ },
+ {
+  "Name": "enumtype/securestring",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : securestring { A }"
+ },
+ {
+  "Name": "enumtype/pscustomobject",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : pscustomobject { A }"
+ },
+ {
+  "Name": "enumtype/ordered",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : ordered { A }"
+ },
+ {
+  "Name": "enumtype/void",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : void { A }"
+ },
+ {
+  "Name": "enumtype/byte[]",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : byte[] { A }"
+ },
+ {
+  "Name": "enumtype/E2",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "enum E : E2 { A }"
+ }
+]

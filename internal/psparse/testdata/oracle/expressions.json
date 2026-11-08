@@ -1,0 +1,902 @@
+[
+ {
+  "Name": "expr/000",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1 + 2 * 3 - 4 / 5 % 6"
+ },
+ {
+  "Name": "expr/001",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1 -band 2 -bor 3 -bxor 4"
+ },
+ {
+  "Name": "expr/002",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a -and $b -or -not $c -xor $d"
+ },
+ {
+  "Name": "expr/003",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1..10"
+ },
+ {
+  "Name": "expr/004",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-1..-5"
+ },
+ {
+  "Name": "expr/005",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1, 2 + 3, 4"
+ },
+ {
+  "Name": "expr/006",
+  "Source": "hand-written (parser-expressions)",
+  "Input": ",,1"
+ },
+ {
+  "Name": "expr/007",
+  "Source": "hand-written (parser-expressions)",
+  "Input": ", (1, 2)"
+ },
+ {
+  "Name": "expr/008",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a = 1, 2, 3"
+ },
+ {
+  "Name": "expr/009",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$x ?? $y ?? 3"
+ },
+ {
+  "Name": "expr/010",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$x ??= 5"
+ },
+ {
+  "Name": "expr/011",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a ? $b : $c"
+ },
+ {
+  "Name": "expr/012",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a ? ($b ? 1 : 2) : 3"
+ },
+ {
+  "Name": "expr/013",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1?2:3"
+ },
+ {
+  "Name": "expr/014",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$true ? 1 : 2"
+ },
+ {
+  "Name": "expr/015",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"{0} {1}\" -f 1, 2"
+ },
+ {
+  "Name": "expr/016",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "'a' -replace 'b', 'c'"
+ },
+ {
+  "Name": "expr/017",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "'a,b' -split ','"
+ },
+ {
+  "Name": "expr/018",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-split 'a b'"
+ },
+ {
+  "Name": "expr/019",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-join ('a', 'b')"
+ },
+ {
+  "Name": "expr/020",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "'a' -like '*' -and 'b' -notmatch 'c'"
+ },
+ {
+  "Name": "expr/021",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a -is [int]"
+ },
+ {
+  "Name": "expr/022",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a -as [string]"
+ },
+ {
+  "Name": "expr/023",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a -isnot [int[]]"
+ },
+ {
+  "Name": "expr/024",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]$x = '5'"
+ },
+ {
+  "Name": "expr/025",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int[]]$y = 1, 2"
+ },
+ {
+  "Name": "expr/026",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[string][int]'5'"
+ },
+ {
+  "Name": "expr/027",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[ValidateNotNull()][int]$z = 3"
+ },
+ {
+  "Name": "expr/028",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[Parameter()]$q"
+ },
+ {
+  "Name": "expr/029",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]"
+ },
+ {
+  "Name": "expr/030",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]::MaxValue"
+ },
+ {
+  "Name": "expr/031",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int] ::MaxValue"
+ },
+ {
+  "Name": "expr/032",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[System.Math]::Round(2.5)"
+ },
+ {
+  "Name": "expr/033",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[Math]::Pow(2, 10)"
+ },
+ {
+  "Name": "expr/034",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[System.Collections.Generic.List[string]]::new()"
+ },
+ {
+  "Name": "expr/035",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[System.Collections.Generic.Dictionary[string, int]]::new()"
+ },
+ {
+  "Name": "expr/036",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[System.Collections.Generic.Dictionary[[string], [int]]]"
+ },
+ {
+  "Name": "expr/037",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[System.Collections.Generic.List[int[]]]"
+ },
+ {
+  "Name": "expr/038",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int[][]]"
+ },
+ {
+  "Name": "expr/039",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int[,,]]"
+ },
+ {
+  "Name": "expr/040",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[string[]] @()"
+ },
+ {
+  "Name": "expr/041",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[System.Int32, mscorlib]"
+ },
+ {
+  "Name": "expr/042",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[System.Collections.Generic.List[[System.Int32, mscorlib]]]"
+ },
+ {
+  "Name": "expr/043",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[a.b+c]"
+ },
+ {
+  "Name": "expr/044",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[a`[b]"
+ },
+ {
+  "Name": "expr/045",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b"
+ },
+ {
+  "Name": "expr/046",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b.c.d"
+ },
+ {
+  "Name": "expr/047",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.'b c'"
+ },
+ {
+  "Name": "expr/048",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.\"b$c\""
+ },
+ {
+  "Name": "expr/049",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.$b"
+ },
+ {
+  "Name": "expr/050",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.($b)"
+ },
+ {
+  "Name": "expr/051",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.(1 + 2)"
+ },
+ {
+  "Name": "expr/052",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b()"
+ },
+ {
+  "Name": "expr/053",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b(1)"
+ },
+ {
+  "Name": "expr/054",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b(1, 2, 3)"
+ },
+ {
+  "Name": "expr/055",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b(\n1,\n2\n)"
+ },
+ {
+  "Name": "expr/056",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b{ 2 + 2 }"
+ },
+ {
+  "Name": "expr/057",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a::b"
+ },
+ {
+  "Name": "expr/058",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a::b()"
+ },
+ {
+  "Name": "expr/059",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a?.b"
+ },
+ {
+  "Name": "expr/060",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a?.b()"
+ },
+ {
+  "Name": "expr/061",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "${a}?.b"
+ },
+ {
+  "Name": "expr/062",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "${a}?[0]"
+ },
+ {
+  "Name": "expr/063",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a[0]"
+ },
+ {
+  "Name": "expr/064",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a[0][1]"
+ },
+ {
+  "Name": "expr/065",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a[0, 1]"
+ },
+ {
+  "Name": "expr/066",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a[-1]"
+ },
+ {
+  "Name": "expr/067",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a[1..3]"
+ },
+ {
+  "Name": "expr/068",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b[0].c()"
+ },
+ {
+  "Name": "expr/069",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.M[string]()"
+ },
+ {
+  "Name": "expr/070",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.M[string, int](1)"
+ },
+ {
+  "Name": "expr/071",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.M[System.Collections.Generic.List[int]]()"
+ },
+ {
+  "Name": "expr/072",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.Prop[0]"
+ },
+ {
+  "Name": "expr/073",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.\nb"
+ },
+ {
+  "Name": "expr/074",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@($a)[0]"
+ },
+ {
+  "Name": "expr/075",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$(1)[0]"
+ },
+ {
+  "Name": "expr/076",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "(1, 2)[0]"
+ },
+ {
+  "Name": "expr/077",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "'abc'.Length"
+ },
+ {
+  "Name": "expr/078",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"abc\".ToUpper()"
+ },
+ {
+  "Name": "expr/079",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{a = 1}.a"
+ },
+ {
+  "Name": "expr/080",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{}"
+ },
+ {
+  "Name": "expr/081",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{ a = 1; b = 2 }"
+ },
+ {
+  "Name": "expr/082",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{\n  a = 1\n  b = 2\n}"
+ },
+ {
+  "Name": "expr/083",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{ 'x y' = 1; 1 = 2; $k = 3 }"
+ },
+ {
+  "Name": "expr/084",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{ a = Get-Item foo }"
+ },
+ {
+  "Name": "expr/085",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{ a = if ($x) { 1 } else { 2 } }"
+ },
+ {
+  "Name": "expr/086",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{ a = 1;; b = 2 }"
+ },
+ {
+  "Name": "expr/087",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@{ a = @{ b = @{ c = 1 } } }"
+ },
+ {
+  "Name": "expr/088",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "{ }"
+ },
+ {
+  "Name": "expr/089",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "{ param($x) $x }"
+ },
+ {
+  "Name": "expr/090",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "{ 1 }.Invoke()"
+ },
+ {
+  "Name": "expr/091",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "& { 1 }"
+ },
+ {
+  "Name": "expr/092",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@()"
+ },
+ {
+  "Name": "expr/093",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@(1)"
+ },
+ {
+  "Name": "expr/094",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@(1; 2)"
+ },
+ {
+  "Name": "expr/095",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@(\n1\n2\n)"
+ },
+ {
+  "Name": "expr/096",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$()"
+ },
+ {
+  "Name": "expr/097",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$(1; 2)"
+ },
+ {
+  "Name": "expr/098",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$(Get-Item foo)"
+ },
+ {
+  "Name": "expr/099",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "(1)"
+ },
+ {
+  "Name": "expr/100",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "((1))"
+ },
+ {
+  "Name": "expr/101",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "(Get-Item foo).Name"
+ },
+ {
+  "Name": "expr/102",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "(1 + 2) * 3"
+ },
+ {
+  "Name": "expr/103",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$i++"
+ },
+ {
+  "Name": "expr/104",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$i--"
+ },
+ {
+  "Name": "expr/105",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "++$i"
+ },
+ {
+  "Name": "expr/106",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "--$i"
+ },
+ {
+  "Name": "expr/107",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a.b++"
+ },
+ {
+  "Name": "expr/108",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$a[0]--"
+ },
+ {
+  "Name": "expr/109",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-$x"
+ },
+ {
+  "Name": "expr/110",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "+$x"
+ },
+ {
+  "Name": "expr/111",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-not $x"
+ },
+ {
+  "Name": "expr/112",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "!$x"
+ },
+ {
+  "Name": "expr/113",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-bnot 5"
+ },
+ {
+  "Name": "expr/114",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "!!$x"
+ },
+ {
+  "Name": "expr/115",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-(1)"
+ },
+ {
+  "Name": "expr/116",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "- 1"
+ },
+ {
+  "Name": "expr/117",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "--1"
+ },
+ {
+  "Name": "expr/118",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1 - -1"
+ },
+ {
+  "Name": "expr/119",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1 --1"
+ },
+ {
+  "Name": "expr/120",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1-1"
+ },
+ {
+  "Name": "expr/121",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$x-1"
+ },
+ {
+  "Name": "expr/122",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$x -1"
+ },
+ {
+  "Name": "expr/123",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"plain\""
+ },
+ {
+  "Name": "expr/124",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a $b c\""
+ },
+ {
+  "Name": "expr/125",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a $($b.c) d\""
+ },
+ {
+  "Name": "expr/126",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a ${b} c\""
+ },
+ {
+  "Name": "expr/127",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a $b.c d\""
+ },
+ {
+  "Name": "expr/128",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a $b[0] d\""
+ },
+ {
+  "Name": "expr/129",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a $env:PATH\""
+ },
+ {
+  "Name": "expr/130",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a $using:x\""
+ },
+ {
+  "Name": "expr/131",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"nested $(\"inner $(\"deep\")\")\""
+ },
+ {
+  "Name": "expr/132",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"esc `$b\""
+ },
+ {
+  "Name": "expr/133",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"a $(1; 2) b\""
+ },
+ {
+  "Name": "expr/134",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"$a$b\""
+ },
+ {
+  "Name": "expr/135",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "\"$()\""
+ },
+ {
+  "Name": "expr/136",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@\"\nhere $a\n\"@"
+ },
+ {
+  "Name": "expr/137",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@\"\nhere $($a.b)\n\"@"
+ },
+ {
+  "Name": "expr/138",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "@'\nliteral $a\n'@"
+ },
+ {
+  "Name": "expr/139",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "'single $a'"
+ },
+ {
+  "Name": "expr/140",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1kb"
+ },
+ {
+  "Name": "expr/141",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1mb + 1gb"
+ },
+ {
+  "Name": "expr/142",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "0x10"
+ },
+ {
+  "Name": "expr/143",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "0b101"
+ },
+ {
+  "Name": "expr/144",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1e3"
+ },
+ {
+  "Name": "expr/145",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1.5d"
+ },
+ {
+  "Name": "expr/146",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "10n"
+ },
+ {
+  "Name": "expr/147",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "10u"
+ },
+ {
+  "Name": "expr/148",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "10ul"
+ },
+ {
+  "Name": "expr/149",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "10l"
+ },
+ {
+  "Name": "expr/150",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "10uy"
+ },
+ {
+  "Name": "expr/151",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "-10y"
+ },
+ {
+  "Name": "expr/152",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "0xFFFFFFFF"
+ },
+ {
+  "Name": "expr/153",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "9223372036854775808"
+ },
+ {
+  "Name": "expr/154",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "1.0"
+ },
+ {
+  "Name": "expr/155",
+  "Source": "hand-written (parser-expressions)",
+  "Input": ".5"
+ },
+ {
+  "Name": "expr/156",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "5."
+ },
+ {
+  "Name": "expr/157",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$using:x"
+ },
+ {
+  "Name": "expr/158",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$using:x.y"
+ },
+ {
+  "Name": "expr/159",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$using:x[0]"
+ },
+ {
+  "Name": "expr/160",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$using:x.y()"
+ },
+ {
+  "Name": "expr/161",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$env:PATH"
+ },
+ {
+  "Name": "expr/162",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "${env:Path}"
+ },
+ {
+  "Name": "expr/163",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$global:x"
+ },
+ {
+  "Name": "expr/164",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$script:x"
+ },
+ {
+  "Name": "expr/165",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$_"
+ },
+ {
+  "Name": "expr/166",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$_.Name"
+ },
+ {
+  "Name": "expr/167",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$$"
+ },
+ {
+  "Name": "expr/168",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$^"
+ },
+ {
+  "Name": "expr/169",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$?"
+ },
+ {
+  "Name": "expr/170",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "$args[0]"
+ },
+ {
+  "Name": "expr/171",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[ref]$x"
+ },
+ {
+  "Name": "expr/172",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[void](1)"
+ },
+ {
+  "Name": "expr/173",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]-1"
+ },
+ {
+  "Name": "expr/174",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int] -1"
+ },
+ {
+  "Name": "expr/175",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]$x.y"
+ },
+ {
+  "Name": "expr/176",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]($x)"
+ },
+ {
+  "Name": "expr/177",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[type]"
+ },
+ {
+  "Name": "expr/178",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]\n2"
+ },
+ {
+  "Name": "expr/179",
+  "Source": "hand-written (parser-expressions)",
+  "Input": "[int]"
+ }
+]

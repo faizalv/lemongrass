@@ -24,14 +24,17 @@ the real parser. Inputs carry their source filename and UTF-16 offset.
 `TestOracleProtocol`, `TestOracleNormalization`, and `TestOracleReferenceCorpus`
 validate the reference protocol without relying on the port. `TestOracleCorpus`
 compares the port, with both-error ID and offset agreement reported separately.
-Only the nine reviewed IDs in `oracleSemanticIDs` qualify for semantic-only
-acceptance. Explicit resource limits, unsupported dynamic keywords, and the
-relative-assembly filesystem divergence have distinct classes. An unreachable
-recovery branch fails if PowerShell accepts the input.
+Only reviewed IDs in `oracleSemanticIDs` qualify for semantic-only acceptance.
+The shared IDs `UnexpectedAttribute` and `DuplicateNamedArgument` additionally
+require the exact post-check AST shape and full tree/token parity. Explicit
+resource limits, unsupported dynamic keywords, unresolved enum base types, and
+the relative-assembly filesystem divergence have distinct classes. An unreachable
+recovery branch fails if PowerShell accepts the input. Each corpus panic is a
+failure, and the run continues to identify independent failures.
 
-During port development only the exact `notPorted` readiness panic skips the
-Go comparison and fuzz targets. Remove that guard when the port is complete.
-Any other panic or a rejected readiness command fails.
+Set `LGRASS_PSPARSE_ORACLE_REPORT` to write a JSON report of all comparison
+classes, sources, inputs and differences. Differences identify the first
+diverging field. The first-error ID and offset are a separate soft metric.
 
 Fuzz with `go test ./internal/psparse -run '^$' -fuzz '^FuzzParseOracle$' -fuzztime=30s`.
 Each worker keeps one reference process alive. `FuzzParseNoPanic` runs without
@@ -40,3 +43,7 @@ PowerShell and tests the bounded parser on arbitrary strings.
 `unicode-bmp.ps1` regenerates `testdata/dotnet-unicode-bmp.json` with the reference
 runtime's BMP category runs, invariant uppercase mapping, and selected ordinal
 comparisons. It is a fixture generator, never part of the shipped parser.
+
+`native-argv.ps1` is a separate fixed execution probe requested for the semantic
+tables. It does not consume corpus text. On pwsh 7.6.9 on Unix, a literal `a,b`
+reaches printf as one argument, while a two-element variable reaches it as two.
