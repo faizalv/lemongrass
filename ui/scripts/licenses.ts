@@ -48,7 +48,13 @@ const out = resolve(ui, args.includes('--out') ? args[args.indexOf('--out') + 1]
 const warnOnly = args.includes('--warn')
 
 const problems: string[] = []
-const entries = [...npmEntries(), sankastenEntry(), ...goEntries(), electronEntry()]
+const entries = [
+  ...npmEntries(),
+  sankastenEntry(),
+  ...goEntries(),
+  powerShellEntry(),
+  electronEntry()
+]
 entries.sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name))
 
 for (const e of entries) {
@@ -234,6 +240,20 @@ function sankastenEntry(): Entry {
     version: manifest.version,
     license: declaredLicense(manifest) ?? 'UNKNOWN',
     text: joinTexts(dir, licenseFiles(dir))
+  }
+}
+
+// internal/psparse ports PowerShell's tokenizer and parser into lgrass's own source, so no Go module
+// carries it for go list to find. The version is the upstream tag the port is pinned to (doc.go).
+function powerShellEntry(): Entry {
+  const text = readFileSync(join(repo, 'internal', 'psparse', 'LICENSE.PowerShell'), 'utf8')
+  return {
+    group: 'tools',
+    name: 'PowerShell',
+    version: '7.6.9',
+    license: detectLicense(text) ?? 'UNKNOWN',
+    homepage: 'https://github.com/PowerShell/PowerShell',
+    text
   }
 }
 
