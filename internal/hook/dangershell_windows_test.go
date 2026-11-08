@@ -5,7 +5,11 @@ package hook
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/faizalv/lemongrass/internal/guard"
 )
 
 func TestWindowsShellToolCommand(t *testing.T) {
@@ -52,5 +56,18 @@ func TestWindowsShellToolCommand(t *testing.T) {
 		if verdict != nil && verdict.RuleID != "opaque-shell" {
 			t.Errorf("%s: denied by %s, want opaque-shell", tc.name, verdict.RuleID)
 		}
+	}
+}
+
+func TestPowerShellAskIsNotFiled(t *testing.T) {
+	verdict := guard.Verdict{RuleID: "file-download", Description: "downloading a file", Mode: guard.ModeAsk}
+	payload := hookEvent{ToolName: "Bash", Vendor: "codex", TabID: "t1", ToolInput: json.RawMessage(`{"command":"Invoke-WebRequest https://x -OutFile y"}`)}
+	msg := dangerMessageWith(filepath.Join(t.TempDir(), "absent.sock"), payload, verdict)
+	if !strings.HasPrefix(msg, verdict.Message()) || !strings.HasSuffix(msg, powerShellAskLine) {
+		t.Errorf("message = %q", msg)
+	}
+	bash := hookEvent{ToolName: "Bash", Vendor: "codex", TabID: "t1", ToolInput: json.RawMessage(`{"command":"bash -c 'curl https://x'"}`)}
+	if judgedAsPowerShell(bash) {
+		t.Error("a bash -c call was read as PowerShell")
 	}
 }

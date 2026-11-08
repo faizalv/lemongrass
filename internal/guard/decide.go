@@ -368,7 +368,7 @@ func downloadExecVerdicts(script shellScript) []Verdict {
 	return nil
 }
 
-// OpaqueShellVerdict is the deny for a shell call whose command text is not POSIX shell, such as a PowerShell tool call, which the gate cannot read.
+// OpaqueShellVerdict is the deny for a shell call whose command text the gate cannot read, such as one in cmd.
 func OpaqueShellVerdict(detail string) *Verdict {
 	verdict := ruleVerdict("opaque-shell", detail)
 	return &verdict
