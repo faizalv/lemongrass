@@ -205,3 +205,20 @@ func TestPowerShellNonASCIIKeywordToken(t *testing.T) {
 		}
 	}
 }
+
+func TestPowerShellHasUnicodeEscape(t *testing.T) {
+	cases := map[string]bool{
+		"foo`u{41}":   true,
+		"`u{41}":      true,
+		"foo``u{41}":  false,
+		"foo```u{41}": true,
+		"foo`u41":     false,
+		"foo":         false,
+		"foo`":        false,
+	}
+	for text, want := range cases {
+		if got := psHasUnicodeEscape(text); got != want {
+			t.Errorf("psHasUnicodeEscape(%q) = %v, want %v", text, got, want)
+		}
+	}
+}

@@ -19,6 +19,7 @@ const (
 	psGuideDrive      = "A new PowerShell drive makes later paths point somewhere the guard cannot see. Write the full path instead."
 	psGuideHistory    = "Replaying a command from history runs a command the guard cannot see. Write the command itself."
 	psGuideDynamic    = "The command name is computed at runtime. Write the command name out, such as & 'C:\\tools\\tool.exe' <arguments>."
+	psGuideBareEscape = "Windows PowerShell 5.1 has no `u{..} escape and splits an unquoted word at its brace. Put the word in double quotes."
 	psGuideKeyword    = "Windows PowerShell 5.1 and pwsh 7 read such a keyword differently. Spell the keyword in ASCII letters."
 	psGuideUnknown    = "This PowerShell construct is not modelled by the guard. Write it as plain commands with literal arguments."
 )

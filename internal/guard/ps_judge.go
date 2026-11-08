@@ -392,6 +392,12 @@ func (j *psJudge) command(cmd *psparse.CommandAst, stage int, prev psparse.Comma
 	if _, ok := first.(*psparse.ScriptBlockExpressionAst); ok && (cmd.InvocationOperator == psparse.Ampersand || cmd.InvocationOperator == psparse.Dot) {
 		return nil
 	}
+	for _, element := range cmd.CommandElements {
+		if j.bareUnicodeEscape(element) {
+			j.refuse("powershell-construct", "the unquoted word "+j.text(element), psGuideBareEscape)
+			return nil
+		}
+	}
 	nameAst, ok := first.(*psparse.StringConstantExpressionAst)
 	if !ok || j.legacyString(nameAst, nameAst.Value, nil) != nameAst.Value {
 		j.refuse("dynamic-command", "the command name "+j.text(first), psGuideDynamic)
@@ -443,13 +449,18 @@ func (j *psJudge) command(cmd *psparse.CommandAst, stage int, prev psparse.Comma
 // legacyNumberCommand records 5.1's reading of a pipeline that starts with a number only pwsh 7 knows, such as
 // 0b101 or 2.5y: 5.1 rescans it as a bare word and runs a command of that name. It returns the stage name 5.1 sees.
 func (j *psJudge) legacyNumberCommand(e *psparse.CommandExpressionAst) map[psEdition]string {
-	constant, ok := e.Expression.(*psparse.ConstantExpressionAst)
-	if !ok {
+	constant := psLeftmostOperand(e.Expression)
+	if constant == nil || constant.Extent().Start != e.Expression.Extent().Start {
 		return nil
 	}
 	name := j.text(constant)
 	if !psSevenOnlyNumber(name) {
 		return nil
+	}
+	// The rest of the expression, such as + 1 in 2.5y + 1, is that command's arguments in 5.1.
+	var args []psElement
+	if constant.Extent() != e.Expression.Extent() {
+		args = []psElement{{Values: []psValue{{Text: psDynamicText, Dynamic: true}}}}
 	}
 	names := map[psEdition]string{}
 	j.seen = map[string]bool{}
@@ -460,13 +471,81 @@ func (j *psJudge) legacyNumberCommand(e *psparse.CommandExpressionAst) map[psEdi
 		}
 		if meaning.Cmdlet != "" {
 			names[psWin51] = meaning.Cmdlet
-			j.cmdletEffect(meaning.Cmdlet, name, append([]psElement(nil), meaning.Fixed...), false)
+			j.cmdletEffect(meaning.Cmdlet, name, append(append([]psElement(nil), meaning.Fixed...), args...), false)
 			continue
 		}
 		names[psWin51] = commandBase(meaning.Native)
-		j.native(meaning.Native, nil, nil)
+		j.native(meaning.Native, args, nil)
 	}
 	return names
+}
+
+// psLeftmostOperand is the constant an expression starts with, following the operand that comes first in the
+// source: the left side of an operator, the first array element, the target of an index or member access.
+func psLeftmostOperand(expr psparse.ExpressionAst) *psparse.ConstantExpressionAst {
+	for {
+		switch e := expr.(type) {
+		case *psparse.ConstantExpressionAst:
+			return e
+		case *psparse.BinaryExpressionAst:
+			expr = e.Left
+		case *psparse.ArrayLiteralAst:
+			if len(e.Elements) == 0 {
+				return nil
+			}
+			expr = e.Elements[0]
+		case *psparse.IndexExpressionAst:
+			expr = e.Target
+		case *psparse.MemberExpressionAst:
+			expr = e.Expression
+		case *psparse.InvokeMemberExpressionAst:
+			expr = e.Expression
+		case *psparse.TernaryExpressionAst:
+			expr = e.Condition
+		default:
+			return nil
+		}
+	}
+}
+
+// bareUnicodeEscape reports an unquoted command element holding a `u{..} escape. pwsh 6+ reads the escape inside the
+// word, while 5.1 has no such escape and splits the word at the brace into a word, a script block and a word, a
+// reading the pwsh 7 tree cannot show, so the judge refuses it.
+func (j *psJudge) bareUnicodeEscape(element psparse.CommandElementAst) bool {
+	if parameter, ok := element.(*psparse.CommandParameterAst); ok {
+		if parameter.Argument == nil {
+			return false
+		}
+		element = parameter.Argument
+	}
+	switch e := element.(type) {
+	case *psparse.StringConstantExpressionAst:
+		return e.StringConstantType == psparse.BareWord && psHasUnicodeEscape(j.text(e))
+	case *psparse.ExpandableStringExpressionAst:
+		return e.StringConstantType == psparse.BareWord && psHasUnicodeEscape(j.text(e))
+	case *psparse.ArrayLiteralAst:
+		for _, item := range e.Elements {
+			if j.bareUnicodeEscape(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// psHasUnicodeEscape reports a backtick-u-brace whose backtick is not itself escaped by the one before it.
+func psHasUnicodeEscape(text string) bool {
+	for i := 0; i+2 < len(text); i++ {
+		if text[i] != '`' {
+			continue
+		}
+		if text[i+1] == 'u' && text[i+2] == '{' {
+			return true
+		}
+		// An escaped character is skipped, so a doubled backtick is one literal backtick.
+		i++
+	}
+	return false
 }
 
 // elements reads the arguments under both readings; differs is false when they read alike.

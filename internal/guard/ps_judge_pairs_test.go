@@ -138,6 +138,9 @@ func TestPowerShellRefusedCommands(t *testing.T) {
 		{"Invoke-History 3", "history-replay", "history"},
 		{"r 3", "history-replay", "history"},
 		{"if ($x) { 0 } else { $f.Delete() }", "powershell-construct", "method calls"},
+		{"Write-Output foo`u{2195}abc", "powershell-construct", "double quotes"},
+		{"Remove-Item -Path:a`u{41}", "powershell-construct", "double quotes"},
+		{"Remove-Item a,b`u{41}", "powershell-construct", "double quotes"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.ps, func(t *testing.T) {
@@ -207,6 +210,18 @@ func TestPowerShellSevenOnlyNumbers(t *testing.T) {
 	script = judge("$a = 1 + 2.5y")
 	if len(script.Calls) != 0 {
 		t.Errorf("$a = 1 + 2.5y gave %v, want no call, since 5.1 cannot parse 2.5y as an operand", script.Calls)
+	}
+	for _, ps := range []string{"(2.5y)", "$(0b101)", "@(10u)", "if (2.5y) { 1 }", "while (10n) { break }", "& { 10s }", "@{ a = 10y }", "2.5y + 1", "10u, 2", "Get-Item ((10u))"} {
+		script = judge(ps)
+		found := false
+		for _, call := range script.Calls {
+			if call.Name == "2.5y" || call.Name == "0b101" || call.Name == "10u" || call.Name == "10n" || call.Name == "10s" || call.Name == "10y" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%q gave %v, want the 5.1 command named by the number", ps, script.Calls)
+		}
 	}
 	script = judge("Start-Sleep 0x10")
 	if len(script.Calls) != 1 {
