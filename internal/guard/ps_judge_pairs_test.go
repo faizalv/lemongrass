@@ -120,6 +120,7 @@ func TestPowerShellRefusedCommands(t *testing.T) {
 		{"Add-Type -TypeDefinition 'public class C {}'", "powershell-construct", "module"},
 		{"function f { ls }", "powershell-construct", "definition"},
 		{"filter f { ls }", "powershell-construct", "definition"},
+		{"workflow w { ls }", "powershell-construct", "definition"},
 		{"class C { }", "powershell-construct", "definition"},
 		{"enum E { A }", "powershell-construct", "definition"},
 		{"Invoke-Item x.txt", "powershell-construct", "Invoke-Item"},

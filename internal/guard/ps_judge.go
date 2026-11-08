@@ -210,8 +210,12 @@ func (j *psJudge) statement(statement psparse.StatementAst) {
 		j.statementBlock(s.Body)
 	case *psparse.FunctionDefinitionAst:
 		kind := "function"
-		if s.IsFilter {
+		switch {
+		case s.IsFilter:
 			kind = "filter"
+		case s.IsWorkflow:
+			// pwsh 7 rejects a workflow only in its post-parse checks, which are not ported, and 5.1 runs it.
+			kind = "workflow"
 		}
 		j.refuse("powershell-construct", "a "+kind+" definition "+s.Name, psGuideDefinition)
 	case *psparse.TypeDefinitionAst:
