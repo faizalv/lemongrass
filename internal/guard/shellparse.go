@@ -7,6 +7,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/faizalv/lemongrass/internal/psparse"
 	"mvdan.cc/sh/v3/syntax"
 )
 
@@ -177,9 +178,20 @@ func (s *shellScript) addCall(name string, dynamic bool, args []string, argDynam
 		return nil
 	}
 	if namesPath(name) {
-		s.addProgram("", "", name, depth)
+		lang := ""
+		if powerShellScriptName(name) {
+			lang = "powershell"
+		}
+		s.addProgram(lang, "", name, depth)
 	}
 	return nil
+}
+
+// powerShellScriptName reports a path naming a .ps1 script, which PowerShell runs whatever its first line says.
+// Windows drops trailing dots and spaces from a file name, so x.ps1. opens x.ps1.
+func powerShellScriptName(name string) bool {
+	name = strings.TrimRight(name, ". ")
+	return len(name) >= 4 && psparse.OrdinalEqualFold(name[len(name)-4:], ".ps1")
 }
 
 func (s *shellScript) addProgram(lang, code, file string, depth int) {

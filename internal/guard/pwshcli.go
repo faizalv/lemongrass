@@ -139,7 +139,7 @@ func (s *shellScript) addPwshCall(host string, args []string, argDynamic []bool,
 			if host == "powershell" {
 				return s.addPwshCommand(host, args[i:], sliceFlags(argDynamic, i, len(args)), depth, refuse)
 			}
-			return refuse("opaque-shell", "running the script file "+arg+", which the guard does not read. Pass its commands with -Command instead.")
+			return s.addPwshFile(host, arg, depth, refuse)
 		}
 		switch param.kind {
 		case pwshHelp:
@@ -163,7 +163,10 @@ func (s *shellScript) addPwshCall(host string, args []string, argDynamic []bool,
 		case pwshEncoded:
 			return refuse("powershell-construct", "with "+arg+", which hides the command text. Pass the command as text with -Command instead.")
 		case pwshFile:
-			return refuse("opaque-shell", "with "+arg+", which runs a script file the guard does not read. Pass its commands with -Command instead.")
+			if i+1 >= len(args) {
+				return nil
+			}
+			return s.addPwshFile(host, args[i+1], depth, refuse)
 		case pwshCommandWithArgs:
 			// The first value is the command; the rest reach it as $args, which the judge reads as values not known
 			// at parse time.
@@ -179,6 +182,16 @@ func (s *shellScript) addPwshCall(host string, args []string, argDynamic []bool,
 		}
 	}
 	return refuse("opaque-shell", "with no command, which starts an interactive PowerShell the guard cannot see. Pass the command with -Command.")
+}
+
+// addPwshFile records the script a host runs, read at judge time like a shell script; the words after it are the
+// script's arguments.
+func (s *shellScript) addPwshFile(host, file string, depth int, refuse func(rule, detail string) error) error {
+	if file == "-" {
+		return refuse("opaque-shell", "reading its commands from standard input, which the guard cannot see. Pass the command with -Command.")
+	}
+	s.addProgram("powershell", "", file, depth)
+	return nil
 }
 
 // addPwshCommand judges the words after -Command, which the host joins with spaces into one command text.

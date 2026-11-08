@@ -15,7 +15,7 @@ const maxScriptBytes = 256 << 10
 // maxScriptDepth bounds scripts that run other scripts, including one that runs itself.
 const maxScriptDepth = 4
 
-// scriptFileVerdicts reads a script file a command runs and judges its text: shell through the full catalog, other languages through the code scan. Every verdict except the locked lemongrass ones is re-labelled script-delete or script-command, so a project can switch script scanning off without touching the rule for the same command typed directly.
+// scriptFileVerdicts reads a script file a command runs and judges its text: shell and PowerShell through the full catalog, other languages through the code scan. Every verdict except the locked lemongrass ones is re-labelled script-delete or script-command, so a project can switch script scanning off without touching the rule for the same command typed directly; the PowerShell judge's locked refusals are re-labelled too (scriptRelabelledLocked).
 func (c checker) scriptFileVerdicts(script shellScript, program shellProgram, dir string, known bool) []Verdict {
 	if script.Depth >= maxScriptDepth || (!known && !writtenAbs(program.File)) {
 		return nil
@@ -37,9 +37,12 @@ func (c checker) scriptFileVerdicts(script shellScript, program shellProgram, di
 		nested.in.Cwd = dir
 	}
 	var found []Verdict
-	if lang == "sh" {
+	switch lang {
+	case "sh":
 		found = nested.nestedShellVerdicts(text, script.Depth+1)
-	} else {
+	case "powershell":
+		found = nested.nestedPowerShellVerdicts(text, script.Depth+1)
+	default:
 		found = nested.codeVerdicts(lang, text, dir, known, "script-delete", "script "+program.File)
 		for _, command := range subprocessCommands(lang, text) {
 			found = append(found, nested.nestedShellVerdicts(command, script.Depth+1)...)
@@ -61,12 +64,37 @@ func (c checker) nestedShellVerdicts(text string, depth int) []Verdict {
 	return c.scriptVerdicts(nested)
 }
 
+// nestedPowerShellVerdicts judges a .ps1 file's text as nestedShellVerdicts judges shell: PowerShell runs nothing
+// from a file with a parse error, so one is not judged, and a computed command name passes, as in a shell file.
+func (c checker) nestedPowerShellVerdicts(text string, depth int) []Verdict {
+	var nested shellScript
+	if err := nested.addPowerShell(text, 0); err != nil {
+		return nil
+	}
+	nested.Depth = depth
+	refusals := nested.Refusals[:0]
+	for _, refusal := range nested.Refusals {
+		if refusal.RuleID != "dynamic-command" {
+			refusals = append(refusals, refusal)
+		}
+	}
+	nested.Refusals = refusals
+	for i := range nested.Calls {
+		nested.Calls[i].Dynamic = false
+	}
+	return c.scriptVerdicts(nested)
+}
+
+// scriptRelabelledLocked are locked rules that become script-command inside a script file: the PowerShell judge's
+// refusals, which real scripts hit on functions, method calls and modules, so a project can switch them off there.
+var scriptRelabelledLocked = map[string]bool{"powershell-construct": true, "name-redefinition": true, "drive-definition": true, "history-replay": true}
+
 // scriptLabels applies each verdict's own policy first, so a rule the project allows stays allowed inside scripts, then re-labels what is left with a script rule id.
 func (c checker) scriptLabels(found []Verdict, file string) []Verdict {
 	var labelled []Verdict
 	for _, verdict := range found {
 		switch {
-		case isLocked(verdict.RuleID), verdict.RuleID == "script-delete", verdict.RuleID == "script-command":
+		case isLocked(verdict.RuleID) && !scriptRelabelledLocked[verdict.RuleID], verdict.RuleID == "script-delete", verdict.RuleID == "script-command":
 			labelled = append(labelled, verdict)
 			continue
 		}
