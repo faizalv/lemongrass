@@ -117,6 +117,12 @@ func (j *psJudge) values(expr psparse.ExpressionAst, reading psReading) []psValu
 		}
 		return []psValue{{Text: text, Dynamic: dynamic, Quoted: e.StringConstantType != psparse.BareWord}}
 	case *psparse.ConstantExpressionAst:
+		if reading == psLegacy {
+			if raw := j.text(e); psSevenOnlyNumber(raw) {
+				// 5.1 has no such number and rescans the word as a bare string.
+				return []psValue{{Text: raw}}
+			}
+		}
 		return []psValue{{Text: fmt.Sprint(e.Value)}}
 	case *psparse.VariableExpressionAst:
 		return []psValue{psVariableValue(e)}
@@ -313,4 +319,20 @@ func psLegacyEscape(r rune) rune {
 		return '\v'
 	}
 	return -1
+}
+
+// psSevenOnlyNumber reports a number literal pwsh 7.0 added: after an optional sign, a 0b binary or one holding a
+// u, ul, y, uy, s, us or n suffix. None of those letters is a hex digit, a multiplier or an exponent, so their
+// presence alone marks the form.
+func psSevenOnlyNumber(text string) bool {
+	for _, sign := range []string{"+", "-", "\u2013", "\u2014", "\u2015"} {
+		if strings.HasPrefix(text, sign) {
+			text = text[len(sign):]
+			break
+		}
+	}
+	if strings.HasPrefix(text, "0b") || strings.HasPrefix(text, "0B") {
+		return true
+	}
+	return strings.ContainsAny(text, "uUyYsSnN")
 }

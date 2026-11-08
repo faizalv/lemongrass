@@ -38,7 +38,37 @@ func (s *shellScript) addPowerShell(text string, depth int) error {
 	if err != nil {
 		return err
 	}
+	if keyword := psNonASCIIKeyword(res.Tokens); keyword != nil {
+		s.Refusals = append(s.Refusals, ruleVerdict("powershell-construct", "Matched: the keyword "+keyword.Text+" written with a non-ASCII letter. "+psGuideKeyword))
+	}
 	return s.judgePowerShell(res.Ast, res.Text, depth)
+}
+
+// psNonASCIIKeyword returns the first keyword token spelled with a non-ASCII letter, such as ſwitch or ıf. pwsh 7
+// folds such a spelling to the keyword while 5.1 reads a command of that name, and no real command needs it, so
+// the judge refuses it rather than judging both readings.
+func psNonASCIIKeyword(tokens []*psparse.Token) *psparse.Token {
+	for _, token := range tokens {
+		if token == nil {
+			continue
+		}
+		if (token.Kind.HasTrait(psparse.FlagKeyword) || token.Flags&psparse.FlagKeyword != 0) && !psASCII(token.Text) {
+			return token
+		}
+		if nested := psNonASCIIKeyword(token.NestedTokens); nested != nil {
+			return nested
+		}
+	}
+	return nil
+}
+
+func psASCII(text string) bool {
+	for i := 0; i < len(text); i++ {
+		if text[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }
 
 // judgePowerShell walks a parsed script; src returns the source text of an extent.
@@ -301,6 +331,9 @@ func (j *psJudge) pipeline(p *psparse.PipelineAst) {
 		case *psparse.CommandExpressionAst:
 			j.walk(e.Expression)
 			j.redirections(e.Redirections)
+			if i == 0 {
+				stage = j.legacyNumberCommand(e)
+			}
 		default:
 			j.refuse("powershell-construct", fmt.Sprintf("a pipeline element of type %T", element), psGuideUnknown)
 		}
@@ -401,6 +434,35 @@ func (j *psJudge) command(cmd *psparse.CommandAst, stage int, prev psparse.Comma
 			}
 			j.native(meaning.Native, elems, prev)
 		}
+	}
+	return names
+}
+
+// legacyNumberCommand records 5.1's reading of a pipeline that starts with a number only pwsh 7 knows, such as
+// 0b101 or 2.5y: 5.1 rescans it as a bare word and runs a command of that name. It returns the stage name 5.1 sees.
+func (j *psJudge) legacyNumberCommand(e *psparse.CommandExpressionAst) map[psEdition]string {
+	constant, ok := e.Expression.(*psparse.ConstantExpressionAst)
+	if !ok {
+		return nil
+	}
+	name := j.text(constant)
+	if !psSevenOnlyNumber(name) {
+		return nil
+	}
+	names := map[psEdition]string{}
+	j.seen = map[string]bool{}
+	defer func() { j.seen = nil }()
+	for _, meaning := range psResolveName(name) {
+		if meaning.Editions&psWin51 == 0 {
+			continue
+		}
+		if meaning.Cmdlet != "" {
+			names[psWin51] = meaning.Cmdlet
+			j.cmdletEffect(meaning.Cmdlet, name, append([]psElement(nil), meaning.Fixed...), false)
+			continue
+		}
+		names[psWin51] = commandBase(meaning.Native)
+		j.native(meaning.Native, nil, nil)
 	}
 	return names
 }

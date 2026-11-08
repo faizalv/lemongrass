@@ -170,3 +170,56 @@ func psDetail(verdict *Verdict) string {
 	}
 	return verdict.Detail
 }
+
+// TestPowerShellSevenOnlyNumbers holds the 5.1 reading of a number only pwsh 7 knows: a bare word as an argument,
+// and a command of that name as a statement; in expression mode 5.1 cannot parse it, so only 7's reading is recorded.
+func TestPowerShellSevenOnlyNumbers(t *testing.T) {
+	psJudgeReady(t)
+	hasCall := func(script shellScript, name string, args ...string) bool {
+		for _, call := range script.Calls {
+			if call.Name == name && strings.Join(call.Args, " ") == strings.Join(args, " ") {
+				return true
+			}
+		}
+		return false
+	}
+	judge := func(ps string) shellScript {
+		t.Helper()
+		var script shellScript
+		if err := script.addPowerShell(ps, 0); err != nil {
+			t.Fatalf("%q: %v", ps, err)
+		}
+		return script
+	}
+	script := judge("Remove-Item 10u")
+	if !hasCall(script, "rm", "--", "10") || !hasCall(script, "rm", "--", "10u") {
+		t.Errorf("Remove-Item 10u gave %v, want rm -- 10 and rm -- 10u", script.Calls)
+	}
+	script = judge("0b101")
+	if !hasCall(script, "0b101") {
+		t.Errorf("0b101 gave %v, want a command named 0b101", script.Calls)
+	}
+	script = judge("$a = 2.5y")
+	if len(script.Calls) != 0 {
+		t.Errorf("$a = 2.5y gave %v, want no call", script.Calls)
+	}
+	script = judge("Start-Sleep 0x10")
+	if len(script.Calls) != 1 {
+		t.Errorf("Start-Sleep 0x10 gave %v, want one reading", script.Calls)
+	}
+}
+
+// TestPowerShellNonASCIIKeywordSpelling holds that a keyword spelled with a non-ASCII letter is a command name to
+// pwsh 7.6 as it is to 5.1, so both read it alike and nothing is refused; the corpus's long-s-command is one.
+func TestPowerShellNonASCIIKeywordSpelling(t *testing.T) {
+	psJudgeReady(t)
+	for _, ps := range []string{"\u017Fwitch ($x) { default { 1 } }", "\u0131f ($x) { 1 }", "foreach ($i in 1..2) { brea\u212A }"} {
+		res, err := psparse.Parse(ps, psparse.DefaultLimits)
+		if err != nil {
+			t.Fatalf("%q: %v", ps, err)
+		}
+		if keyword := psNonASCIIKeyword(res.Tokens); keyword != nil {
+			t.Errorf("%q: %q is a keyword token; the judge refuses it, so recheck the version readings", ps, keyword.Text)
+		}
+	}
+}

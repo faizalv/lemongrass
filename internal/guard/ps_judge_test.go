@@ -184,3 +184,24 @@ func TestPowerShellRefusalGuidance(t *testing.T) {
 		t.Errorf("message %q holds a double dash used as a dash", message)
 	}
 }
+
+func TestPowerShellNonASCIIKeywordToken(t *testing.T) {
+	cases := []struct {
+		tokens []*psparse.Token
+		want   string
+	}{
+		{[]*psparse.Token{{Kind: psparse.Switch, Text: "\u017Fwitch"}}, "\u017Fwitch"},
+		{[]*psparse.Token{{Kind: psparse.Switch, Text: "SWITCH"}, {Kind: psparse.If, Text: "if"}}, ""},
+		{[]*psparse.Token{{Kind: psparse.Identifier, Text: "\u0131f"}}, ""},
+		{[]*psparse.Token{{Kind: psparse.StringExpandable, Text: `"$(x)"`, NestedTokens: []*psparse.Token{{Kind: psparse.If, Text: "\u0131f"}}}}, "\u0131f"},
+	}
+	for _, tc := range cases {
+		got := ""
+		if token := psNonASCIIKeyword(tc.tokens); token != nil {
+			got = token.Text
+		}
+		if got != tc.want {
+			t.Errorf("psNonASCIIKeyword = %q, want %q", got, tc.want)
+		}
+	}
+}
