@@ -102,11 +102,10 @@ const (
 	netSeparator          // Zs, Zl, Zp
 )
 
-// netClassOverrides holds the BMP code units whose .NET 10 category class differs from Go's unicode tables, which
-// lag behind .NET's Unicode version. A token boundary decided by the older table would split a name PowerShell
-// keeps whole. Generated from pwsh's [char]::GetUnicodeCategory dump and held to it by a parity test.
-var netClassOverrides = map[uint16]netClass{}
-
+// netClassOf classifies a .NET char, through netClassOverrides (chartraits_tables.go) where Go's unicode tables,
+// an older Unicode than .NET 10's, disagree: a token boundary decided by the older table would split a name
+// PowerShell keeps whole. A surrogate half is no letter, digit or separator, as in .NET.
+//
 // netClassOf classifies a .NET char; a surrogate half is no letter, digit or separator, as in .NET.
 func netClassOf(c uint16) netClass {
 	if isSurrogate(c) {
@@ -260,6 +259,9 @@ func upperOrdinalUnit(c uint16) uint16 {
 	}
 	if isSurrogate(c) || c == 0x0131 || c == 0x017f {
 		return c
+	}
+	if u, ok := upperOverrides[c]; ok {
+		return u
 	}
 	u := unicode.ToUpper(rune(c))
 	if u > 0xffff || u < 128 {
