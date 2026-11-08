@@ -28,17 +28,20 @@ type hookEvent struct {
 	SessionID        string          `json:"session_id"`
 	TranscriptPath   string          `json:"transcript_path"`
 	Cwd              string          `json:"cwd"`
+	ProjectDir       string          `json:"-"`
 	ToolName         string          `json:"tool_name"`
 	ToolInput        json.RawMessage `json:"tool_input"`
 	SessionSource    string          `json:"source"`
 	NotificationType string          `json:"notification_type"`
 	Message          string          `json:"message"`
+	Prompt           string          `json:"prompt"`
 	TabID            string
-	// Vendor is the agent that sent the payload, "claude" or "codex", from hookVendor.
+	// Vendor is the agent that sent the payload, from hookVendor.
 	Vendor               string
 	EnforceBibliothek    bool
 	Raw                  []byte `json:"-"`
 	PreserveSessionState bool
+	Continuation         bool
 }
 
 type fileToolInput struct {
@@ -52,7 +55,7 @@ type patchToolInput struct {
 // Every failure here fails soft so a hook-side problem never breaks the agent's own hook chain.
 func Run(args []string, tabID string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrassd hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop|PermissionRequest|Interrupt> [--vendor codex]")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop|PermissionRequest|Interrupt> [--vendor <id>]")
 		os.Exit(1)
 	}
 	event := args[0]
@@ -83,7 +86,11 @@ func Run(args []string, tabID string) {
 	}
 	payload.Raw = raw
 
-	proj, err := project.Resolve(payload.Cwd)
+	projectDir := payload.Cwd
+	if payload.ProjectDir != "" {
+		projectDir = payload.ProjectDir
+	}
+	proj, err := project.Resolve(projectDir)
 	if err != nil {
 		if event == "PreToolUse" && payload.TabID != "" {
 			if verdict := dangerDecision(payload); verdict != nil {
@@ -135,6 +142,9 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	}
 
 	var parts []string
+	if payload.Vendor == "agy" && payload.TabID != "" {
+		parts = append(parts, agyOrientation(store, payload.TabID))
+	}
 	if lawsNeeded(payload) {
 		if summary := lawsSummary(projectPath); summary != "" {
 			parts = append(parts, summary)
@@ -160,9 +170,9 @@ func hookSessionEnd(store *session.Store, payload hookEvent) {
 	store.End(payload.SessionID)
 }
 
-// A Codex tab's session is the one its latest prompt or tool call names, since its SessionStart comes only at the first turn after a launch, /clear or /resume. Claude's SessionStart fires at each of those itself, so Claude tabs skip the per-call write.
-func recordCodexTabSession(store *session.Store, payload hookEvent) {
-	if payload.Vendor != "codex" || payload.TabID == "" || payload.SessionID == "" {
+// Codex and Antigravity identify the active conversation on each prompt and tool call. Claude's SessionStart fires on every conversation switch, so its tabs skip the per-call write.
+func recordPromptTabSession(store *session.Store, payload hookEvent) {
+	if (payload.Vendor != "codex" && payload.Vendor != "agy") || payload.TabID == "" || payload.SessionID == "" {
 		return
 	}
 	store.RecordTabSession(payload.TabID, payload.SessionID)
@@ -170,7 +180,7 @@ func recordCodexTabSession(store *session.Store, payload hookEvent) {
 
 // A Claude tab spawned by lemongrass carries the laws in its system prompt, which a resumed session replays from its start.
 func lawsNeeded(payload hookEvent) bool {
-	return os.Getenv(lawsInPromptEnv) == "" || payload.SessionSource == "resume"
+	return payload.Vendor == "agy" || os.Getenv(lawsInPromptEnv) == "" || payload.SessionSource == "resume"
 }
 
 // Missing biblio/laws/summary.md is not an error -- most projects have no laws to deliver.
@@ -183,7 +193,7 @@ func lawsSummary(projectPath string) string {
 }
 
 func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string) hookResult {
-	recordCodexTabSession(store, payload)
+	recordPromptTabSession(store, payload)
 	filePaths := toolFilePaths(payload)
 
 	if payload.ToolName == "EnterPlanMode" && hasBiblio(projectPath) {
@@ -221,7 +231,7 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 
 	var parts []string
 
-	if isFileEdit(payload) {
+	if isFileEdit(payload) && payload.Vendor != "agy" {
 		for _, filePath := range filePaths {
 			if hits, err := store.RecentActivity(payload.SessionID, filePath, collisionWindow); err == nil && len(hits) > 0 {
 				if w := session.FormatCollisionWarning(hits); w != "" {
@@ -230,7 +240,7 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 			}
 		}
 	}
-	if os.Getenv(replayEnv) == "" {
+	if os.Getenv(replayEnv) == "" && payload.Vendor != "agy" {
 		parts = append(parts, notificationContext(store, payload.TabID)...)
 	}
 
@@ -290,6 +300,10 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 	}
 
 	var parts []string
+	if payload.Vendor == "agy" {
+		// Tool hook context is not documented by agy; the next PreInvocation delivers pending notes.
+		return hookResult{}
+	}
 	parts = append(parts, notificationContext(store, payload.TabID)...)
 
 	if fire, err := store.IncrementNudgeCounter(payload.SessionID, nudgeThreshold); err == nil && fire {
@@ -312,8 +326,16 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 
 // The app holds typed nudges while the human writes a draft, so the human's own prompt carries whatever was held.
 func hookUserPromptSubmit(store *session.Store, payload hookEvent) hookResult {
-	recordCodexTabSession(store, payload)
-	return newHookResult("UserPromptSubmit", "", notificationContext(store, payload.TabID))
+	if payload.Vendor == "agy" && payload.Continuation {
+		return newHookResult("UserPromptSubmit", "", notificationContext(store, payload.TabID))
+	}
+	recordPromptTabSession(store, payload)
+	var parts []string
+	if payload.Vendor == "agy" {
+		parts = append(parts, agyResumeLaws(store, payload))
+	}
+	parts = append(parts, notificationContext(store, payload.TabID)...)
+	return newHookResult("UserPromptSubmit", "", parts)
 }
 
 func hasBiblio(projectPath string) bool {
@@ -347,6 +369,9 @@ func hookVendor(args []string) string {
 }
 
 func hookAdapterFor(vendor string) hookAdapter {
+	if vendor == "agy" {
+		return agyHookAdapter{}
+	}
 	if vendor == "codex" {
 		return codexHookAdapter{}
 	}

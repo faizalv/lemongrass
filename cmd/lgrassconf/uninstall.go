@@ -64,6 +64,11 @@ func (k *keeper) uninstall(out io.Writer, removeService func(home string) error,
 	} else if removed {
 		fmt.Fprintf(out, "cleaned %s\n", k.codexHooksPath())
 	}
+	if removed, err := agentconf.RemoveNamedHookConfig(k.agyHooksPath(), "lemongrass"); err != nil {
+		fail("removing the hooks from "+k.agyHooksPath(), err)
+	} else if removed {
+		fmt.Fprintf(out, "cleaned %s\n", k.agyHooksPath())
+	}
 
 	var skillDirs []string
 	for _, v := range vendors {

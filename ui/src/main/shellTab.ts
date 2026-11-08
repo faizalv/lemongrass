@@ -16,7 +16,11 @@ export const SHELL_TAB_ENV = 'LGRASS_SHELL_TAB'
 const USER_ZDOTDIR_ENV = 'LGRASS_USER_ZDOTDIR'
 
 // An agent started inside a Shell tab has no tab id, so lemongrass cannot route, restore or orient it.
-const BLOCKED_AGENTS: Record<string, string> = { claude: 'Claude', codex: 'Codex' }
+const BLOCKED_AGENTS: Record<string, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  agy: 'Antigravity'
+}
 
 export interface ShellTabLaunch {
   args: string[]

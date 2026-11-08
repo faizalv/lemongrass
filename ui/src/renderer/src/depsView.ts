@@ -14,7 +14,8 @@ const FEATURES: Record<string, string> = {
   flutterRecording: 'Flutter test recording',
   sshChannels: 'database channels over SSH',
   claudeTabs: 'Claude Code tabs',
-  codexTabs: 'Codex tabs'
+  codexTabs: 'Codex tabs',
+  agyTabs: 'Antigravity tabs'
 }
 
 export function listText(items: string[], last: 'and' | 'or' = 'and'): string {
@@ -135,6 +136,9 @@ export function routeNote(dep: DepEntry, family: string): string | null {
     return family === 'windows'
       ? "Runs OpenAI's official installer for your user, which adds its folder to your PATH."
       : "Runs OpenAI's official installer for your user, which adds ~/.local/bin to your shell profile."
+  }
+  if (dep.name === 'agy') {
+    return "Runs Google's official installer for your user. Antigravity then updates itself."
   }
   return `Runs the official installer of ${offer.package} for your user.`
 }

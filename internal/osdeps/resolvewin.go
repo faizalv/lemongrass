@@ -38,6 +38,8 @@ func windowsCandidates(sys System, name string) []string {
 		add(sys.Home, ".local", "bin")
 	case "codex":
 		add(local, "Programs", "OpenAI", "Codex", "bin")
+	case "agy":
+		add(local, "agy", "bin")
 	}
 	add(local, "Microsoft", "WinGet", "Links")
 	add(sys.Getenv("ProgramFiles"), "WinGet", "Links")

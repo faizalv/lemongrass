@@ -34,7 +34,7 @@ const MAX_SKILLS = 9
 // lgrass checks each command against its read-only allowlist; this only bounds what the modal renders and refuses shell syntax.
 const COMMAND = /^lgrass [^;&|<>`$\n\r\\]{1,200}$/
 const MAX_COMMANDS = 9
-const VENDORS = new Set(['claude', 'codex'])
+const VENDORS = new Set(['claude', 'codex', 'agy'])
 
 interface Proposal {
   op: string

@@ -118,7 +118,7 @@ func TestSkillsAreDedupedAndTheThinkerSkillIsImplicit(t *testing.T) {
 }
 
 func TestARetiredSkillIsRefusedForEveryVendor(t *testing.T) {
-	for _, vendor := range []string{"claude", "codex"} {
+	for _, vendor := range []string{"claude", "codex", "agy"} {
 		_, err := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: "+vendor+", prompt: x, skills: [lgrass-howtodo-work]}"), t.TempDir())
 		if err == nil || !strings.Contains(err.Error(), "lgrass how work") || !strings.HasPrefix(err.Error(), "workgroup: ") {
 			t.Errorf("%s err = %v, want a refusal naming lgrass how work", vendor, err)
@@ -147,8 +147,9 @@ func TestCheckSkillsInstalledPerVendor(t *testing.T) {
 	}
 	install(".claude", "review-notes")
 	install(".codex", "schema-check")
+	install(filepath.Join(".gemini", "config"), "api-tour")
 
-	cfg, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [review-notes, bibliothek]}\n  - {label: b, vendor: codex, prompt: y, skills: [schema-check, bibliothek]}"), t.TempDir())
+	cfg, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: claude, prompt: x, skills: [review-notes, bibliothek]}\n  - {label: b, vendor: codex, prompt: y, skills: [schema-check, bibliothek]}\n  - {label: c, vendor: agy, prompt: z, skills: [api-tour, bibliothek]}"), t.TempDir())
 	if err := cfg.CheckSkillsInstalled(home); err != nil {
 		t.Fatalf("CheckSkillsInstalled: %v", err)
 	}

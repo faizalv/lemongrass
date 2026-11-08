@@ -211,6 +211,15 @@ test('vendorRun holds each agent script and runs it with failures kept', () => {
     args: ['-c', 'set -o pipefail; curl -fsSL https://chatgpt.com/codex/install.sh | sh'],
     env: { CODEX_NON_INTERACTIVE: '1' }
   })
+  assert.deepEqual(vendorRun('agy', 'linux', ''), {
+    file: '/bin/bash',
+    args: ['-c', 'set -o pipefail; curl -fsSL https://antigravity.google/cli/install.sh | bash'],
+    env: {}
+  })
+  assert.equal(
+    vendorCommand('agy', 'win32'),
+    'irm https://antigravity.google/cli/install.ps1 | iex'
+  )
   const win = vendorRun('claude', 'win32', 'C:\\Windows')
   assert.equal(win?.file, 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe')
   assert.deepEqual(win?.args.slice(0, 5), [

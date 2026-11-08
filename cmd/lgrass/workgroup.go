@@ -227,8 +227,8 @@ func cmdWorkgroupJoin(args []string) {
 		os.Exit(1)
 	}
 	vendor, _ := store.VendorForTab(grant.TabID)
-	if vendor != "claude" && vendor != "codex" {
-		fmt.Fprintln(os.Stderr, "lgrass workgroup: only a Claude or Codex tab can join a workgroup")
+	if vendor != "claude" && vendor != "codex" && vendor != "agy" {
+		fmt.Fprintln(os.Stderr, "lgrass workgroup: only a Claude, Codex or Antigravity tab can join a workgroup")
 		os.Exit(1)
 	}
 	if _, err := store.LiveGroupForTab(grant.TabID); err == nil {

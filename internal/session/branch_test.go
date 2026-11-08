@@ -4,6 +4,7 @@
 package session
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ const (
 	tabCursor = "dddddddd-5555-4555-8555-555555555555"
 	tabStale  = "eeeeeeee-6666-4666-8666-666666666666"
 	tabQuiet  = "ffffffff-7777-4777-8777-777777777777"
+	tabAgy    = "abababab-8888-4888-8888-888888888888"
 )
 
 // Version 2 turns every old row into a thread row whose ref is its message id, keeping its state.
@@ -68,7 +70,7 @@ func setTabStateAge(t *testing.T, s *Store, tab string, age time.Duration) {
 	}
 }
 
-func TestBranchRowsGoOnlyToRecentlyActiveClaudeAndCodexTabs(t *testing.T) {
+func TestBranchRowsGoOnlyToRecentlyActiveAgentTabs(t *testing.T) {
 	store := openTestStore(t)
 	other, err := Open(DBPath(), "otherproj")
 	if err != nil {
@@ -76,12 +78,13 @@ func TestBranchRowsGoOnlyToRecentlyActiveClaudeAndCodexTabs(t *testing.T) {
 	}
 	defer other.Close()
 
-	for tab, vendor := range map[string]string{tabA: "claude", tabCodex: "codex", tabCursor: "cursor", tabStale: "claude", tabQuiet: "codex"} {
+	for tab, vendor := range map[string]string{tabA: "claude", tabCodex: "codex", tabAgy: "agy", tabCursor: "cursor", tabStale: "claude", tabQuiet: "codex"} {
 		store.RegisterTab(tab, vendor)
 	}
 	other.RegisterTab(tabB, "claude")
 	setTabStateAge(t, store, tabA, time.Minute)
 	setTabStateAge(t, store, tabCodex, 4*time.Minute)
+	setTabStateAge(t, store, tabAgy, 2*time.Minute)
 	setTabStateAge(t, store, tabCursor, time.Minute)
 	setTabStateAge(t, store, tabStale, 6*time.Minute)
 	setTabStateAge(t, store, tabB, time.Minute)
@@ -90,8 +93,8 @@ func TestBranchRowsGoOnlyToRecentlyActiveClaudeAndCodexTabs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InsertBranchChanged: %v", err)
 	}
-	if len(tabs) != 2 || tabs[0] != tabA || tabs[1] != tabCodex {
-		t.Fatalf("notified tabs = %v, want the claude and codex tabs active in the last 5 minutes", tabs)
+	if !slices.Equal(tabs, []string{tabA, tabAgy, tabCodex}) {
+		t.Fatalf("notified tabs = %v, want the claude, agy and codex tabs active in the last 5 minutes", tabs)
 	}
 	for _, tab := range []string{tabCursor, tabStale, tabQuiet, tabB} {
 		if pending, _ := store.PendingForTab(tab); !pending.Empty() {

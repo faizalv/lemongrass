@@ -20,6 +20,8 @@ func TestWindowsShellToolCommand(t *testing.T) {
 	}{
 		{"claude bash is judged as is", "Bash", "claude", `{"command":"rm -rf x"}`, "rm -rf x", false, true},
 		{"codex bash string runs powershell", "Bash", "codex", `{"command":"Remove-Item x"}`, "", true, true},
+		{"agy normalized bash runs powershell", "Bash", "agy", `{"command":"Remove-Item x"}`, "", true, true},
+		{"agy normalized bash explicitly starts bash", "Bash", "agy", `{"command":"bash -lc 'ls'"}`, "bash -lc 'ls'", false, true},
 		{"codex bash string starting bash", "Bash", "codex", `{"command":"bash -lc 'ls'"}`, "bash -lc 'ls'", false, true},
 		{"codex shell argv with bash", "shell", "codex", `{"command":["bash","-lc","ls -la"]}`, "ls -la", false, true},
 		{"codex shell argv with git bash path", "shell", "codex", `{"command":["C:\\Program Files\\Git\\bin\\bash.exe","-c","ls"]}`, "ls", false, true},

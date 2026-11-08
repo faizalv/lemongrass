@@ -158,8 +158,8 @@ export function wingetArgs(offer: DepOffer): string[] {
 }
 
 // Each agent CLI's official install scripts. They are held here, keyed by dependency name, so neither the check's
-// report nor the renderer can make the app fetch and run any other script. Claude's shell script needs bash; Codex's
-// is written for sh.
+// report nor the renderer can make the app fetch and run any other script. Claude's and Antigravity's shell scripts
+// need bash; Codex's is written for sh.
 const VENDOR_SCRIPTS: Record<string, { ps1: string; sh: string; shell: 'bash' | 'sh' }> = {
   claude: {
     ps1: 'https://claude.ai/install.ps1',
@@ -170,6 +170,11 @@ const VENDOR_SCRIPTS: Record<string, { ps1: string; sh: string; shell: 'bash' | 
     ps1: 'https://chatgpt.com/codex/install.ps1',
     sh: 'https://chatgpt.com/codex/install.sh',
     shell: 'sh'
+  },
+  agy: {
+    ps1: 'https://antigravity.google/cli/install.ps1',
+    sh: 'https://antigravity.google/cli/install.sh',
+    shell: 'bash'
   }
 }
 const VENDOR_PLATFORMS = ['linux', 'darwin', 'win32']

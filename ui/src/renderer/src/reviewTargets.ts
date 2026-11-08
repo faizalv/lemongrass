@@ -12,7 +12,7 @@ export interface ReviewTarget {
 }
 
 // Only agents that read a typed prompt can take a review; a plain shell would run it as commands.
-const REVIEW_COMMANDS = new Set(['claude', 'codex'])
+const REVIEW_COMMANDS = new Set(['claude', 'codex', 'agy'])
 
 export function reviewTargetsOf(projectId: string): ReviewTarget[] {
   const root = workspaceOf(projectId)?.layout.root ?? null
@@ -25,7 +25,7 @@ export function reviewTargetsOf(projectId: string): ReviewTarget[] {
     )
 }
 
-// The Claude and Codex tabs in picker order, the ones each pane shows first.
+// The Claude, Codex and Antigravity tabs in picker order, the ones each pane shows first.
 export function resolveTargetsOf(projectId: string): ResolveTarget[] {
   return orderTargets(allLeaves(workspaceOf(projectId)?.layout.root ?? null), shellTitles)
 }

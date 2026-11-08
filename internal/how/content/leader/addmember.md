@@ -14,7 +14,7 @@ Add a thinker when the work needs an area or a view that no current thinker owns
          Own the user docs for the new export command. The CLI shape is settled in the group thread.
    ```
 
-   Each thinker follows the same rules as at create: a label of letters, digits, `-` and `_` up to 30 characters that no member of the group already uses, the vendor `claude` or `codex`, read-only `lgrass` commands only, every skill installed for that vendor, and a prompt (or `prompt_file`) of up to 3000 characters.
+   Each thinker follows the same rules as at create: a label of letters, digits, `-` and `_` up to 30 characters that no member of the group already uses, the vendor `claude`, `codex` or `agy`, read-only `lgrass` commands only, every skill installed for that vendor, and a prompt (or `prompt_file`) of up to 3000 characters.
 
 2. Run `lgrass workgroup add <path-to-config>` from your tab. It checks the config, then waits while the human reads the new thinkers' full starting text in the app. A decline prints the human's reason when there is one, so revise and propose again. A withdrawal means nobody answered, so ask the human before trying again.
 

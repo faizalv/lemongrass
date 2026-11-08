@@ -19,13 +19,13 @@ interface ShellLike {
 }
 
 // Only agents that read a typed prompt can take a conflict; a plain shell would run it as commands.
-const AGENT_COMMANDS = new Set(['claude', 'codex'])
+const AGENT_COMMANDS = new Set(['claude', 'codex', 'agy'])
 
 function isAgent(tab: ShellLike): boolean {
   return tab.kind === 'shell' && AGENT_COMMANDS.has(tab.command ?? '')
 }
 
-// The tab picker's order: the tab each pane shows, in pane order, then every other Claude or Codex
+// The tab picker's order: the tab each pane shows, in pane order, then every other Claude, Codex or Antigravity
 // tab in layout order. With many tabs open the ones already on screen are the likely picks.
 export function orderTargets(
   leaves: LayoutLeaf<ShellLike>[],

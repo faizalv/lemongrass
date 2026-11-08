@@ -54,7 +54,7 @@ func (v Verdict) Message() string {
 var secretComponents = map[string]bool{".ssh": true, ".aws": true, ".gnupg": true, ".kube": true, ".lemongrass": true, ".netrc": true}
 
 // Compared lowercased in slash spelling on Windows, where the keeper is the scheduled task \Lemongrass\lgrassconf and the app installs per user.
-var guardFragments = []string{".claude/settings", "/.local/bin/lgrass", "/usr/local/bin/lgrass", "lgrassconf.service", ".codex/hooks.json", ".codex/config.toml", "/windows/system32/tasks/lemongrass/", "/appdata/local/programs/lemongrass/"}
+var guardFragments = []string{".claude/settings", "/.local/bin/lgrass", "/usr/local/bin/lgrass", "lgrassconf.service", ".codex/hooks.json", ".codex/config.toml", ".gemini/config/hooks.json", ".gemini/antigravity-cli/settings.json", ".agents/hooks.json", "/windows/system32/tasks/lemongrass/", "/appdata/local/programs/lemongrass/"}
 
 var accountSettingsPattern = regexp.MustCompile(`\.claude-[a-z0-9-]+/settings`)
 

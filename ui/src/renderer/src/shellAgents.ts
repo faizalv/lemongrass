@@ -26,11 +26,17 @@ export const SHELL_AGENTS: readonly ShellAgent[] = [
     hint: 'codex'
   },
   {
+    id: 'agy',
+    command: 'agy',
+    label: 'Antigravity',
+    hint: 'agy'
+  },
+  {
     id: 'cursor',
     command: 'agent',
     label: 'Cursor Agent',
     hint: 'agent',
-    warning: 'Cursor support is still under development. Use Claude Code or Codex.',
+    warning: 'Cursor support is still under development. Use Claude Code, Codex or Antigravity.',
     hidden: true
   },
   {
@@ -47,13 +53,16 @@ export const PICKABLE_SHELL_AGENTS: readonly ShellAgent[] = SHELL_AGENTS.filter(
 
 const RESUME_ARGV: Record<string, (sessionId: string) => string[]> = {
   claude: (sessionId) => ['--resume', sessionId],
-  codex: (sessionId) => ['resume', sessionId]
+  codex: (sessionId) => ['resume', sessionId],
+  // An unknown id starts a new conversation with exit 0, so a failed agy resume never shows the restore banner.
+  agy: (sessionId) => ['--conversation', sessionId]
 }
 
 // The lgrass PreToolUse hook is the permission gate for these agents, so their own prompts are switched off.
 const BYPASS_ARGV: Record<string, string[]> = {
   claude: ['--dangerously-skip-permissions'],
-  codex: ['--dangerously-bypass-approvals-and-sandbox']
+  codex: ['--dangerously-bypass-approvals-and-sandbox'],
+  agy: ['--dangerously-skip-permissions']
 }
 
 export function spawnArgs(command: string, tabId: string, args?: string[]): string[] | undefined {

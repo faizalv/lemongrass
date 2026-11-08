@@ -34,3 +34,16 @@ test('a Claude tab skips its permission prompts', () => {
 test('a plain shell gets no arguments', () => {
   assert.equal(spawnArgs('zsh', 'tab-1'), undefined)
 })
+
+test('an Antigravity tab skips its approvals ahead of the resume flag', () => {
+  assert.deepEqual(spawnArgs('agy', 'tab-1', resumeArgs('agy', 'conv-1') ?? []), [
+    '--dangerously-skip-permissions',
+    '--conversation',
+    'conv-1'
+  ])
+})
+
+test('an Antigravity initial prompt stays last, after every flag', () => {
+  const args = spawnArgs('agy', 'tab-1', ['--model', 'm', '-i', 'Read a.md'])
+  assert.deepEqual(args, ['--dangerously-skip-permissions', '--model', 'm', '-i', 'Read a.md'])
+})

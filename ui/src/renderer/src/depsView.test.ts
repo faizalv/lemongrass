@@ -107,6 +107,13 @@ const codex: DepEntry = {
   features: ['codexTabs'],
   offer: { action: 'install', package: 'Codex', route: 'vendor' }
 }
+const agy: DepEntry = {
+  ...claude,
+  name: 'agy',
+  label: 'Antigravity',
+  features: ['agyTabs'],
+  offer: { action: 'install', package: 'Antigravity', route: 'vendor' }
+}
 const report = (...deps: DepEntry[]): DepsReport => ({
   os: { family: 'macos', id: 'macos', version: '15' },
   deps
@@ -116,11 +123,13 @@ test('agents: label, group, missing and the vendor route', () => {
   assert.equal(depLabel(claude), 'Claude Code')
   assert.equal(depLabel(git), 'git')
   assert.equal(featuresText(claude.features), 'Used by Claude Code tabs.')
-  assert.deepEqual(agentDeps(report(git, claude, codex)), [claude, codex])
+  assert.deepEqual(agentDeps(report(git, claude, codex, agy)), [claude, codex, agy])
   assert.equal(
-    agentGroupText([claude, codex]),
-    'Lemongrass runs Claude Code or Codex in its tabs. Install at least one.'
+    agentGroupText([claude, codex, agy]),
+    'Lemongrass runs Claude Code, Codex or Antigravity in its tabs. Install at least one.'
   )
+  assert.equal(featuresText(agy.features), 'Used by Antigravity tabs.')
+  assert.match(routeNote(agy, 'linux') ?? '', /Google's official installer/)
   assert.equal(anyAgentReady(report(claude, codex)), false)
   assert.equal(anyAgentReady(report(claude, { ...codex, status: 'ok', offer: null })), true)
   assert.equal(agentMissing(report(claude), 'claude'), true)

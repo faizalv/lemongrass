@@ -44,7 +44,15 @@ const emit = defineEmits<{
 }>()
 
 type Section =
-  'general' | 'appearance' | 'claude' | 'codex' | 'safety' | 'updates' | 'dependencies' | 'credits'
+  | 'general'
+  | 'appearance'
+  | 'claude'
+  | 'codex'
+  | 'agy'
+  | 'safety'
+  | 'updates'
+  | 'dependencies'
+  | 'credits'
 
 const section = ref<Section>(props.initialSection ?? 'general')
 
@@ -73,7 +81,7 @@ const hasOwnCommand = computed(() =>
 )
 
 watch(section, (value) => {
-  if (value !== 'claude' && value !== 'codex') return
+  if (value !== 'claude' && value !== 'codex' && value !== 'agy') return
   void refreshUsage()
   if (value === 'claude') void loadChain()
 })
@@ -127,6 +135,9 @@ async function onRemove(name: string): Promise<void> {
           </AppNavItem>
           <AppNavItem :active="section === 'codex'" label="Codex" @click="section = 'codex'">
             <template #icon><SettingsIcon name="codex" /></template>
+          </AppNavItem>
+          <AppNavItem :active="section === 'agy'" label="Antigravity" @click="section = 'agy'">
+            <template #icon><SettingsIcon name="agy" /></template>
           </AppNavItem>
         </AppNavGroup>
         <AppNavItem :active="section === 'safety'" label="Safety" @click="section = 'safety'">
@@ -203,6 +214,24 @@ async function onRemove(name: string): Promise<void> {
         </p>
       </section>
 
+      <section v-else-if="section === 'agy'" class="settings-section">
+        <h4 class="settings-title">Antigravity</h4>
+        <p class="settings-text">
+          Antigravity runs under one login. Several accounts are for Claude only for now.
+        </p>
+        <ul class="settings-rows">
+          <li class="settings-row">
+            <span class="settings-row-title">Antigravity</span>
+            <span class="settings-row-meta">~/.gemini/antigravity-cli</span>
+            <UsageMeters :windows="usageStore.agy?.windows" :seen-at="usageStore.agy?.seen_at" />
+          </li>
+        </ul>
+        <p class="settings-text">
+          Weekly Gemini and third-party quota comes from Antigravity's statusline. When Antigravity
+          is idle, its last known figures are shown. Your own statusline command still runs.
+        </p>
+      </section>
+
       <section v-else class="settings-section">
         <h4 class="settings-title">Claude</h4>
         <p class="settings-text">
@@ -260,22 +289,23 @@ async function onRemove(name: string): Promise<void> {
             <AppCheckbox
               :checked="chain.enabled"
               :disabled="chainBusy"
-              title="When this is off, your own statusline command is put back in every account and Claude usage is no longer recorded."
+              title="Controls Claude and Antigravity quota and context recording. Your own statusline commands keep running."
               @click="toggleChain"
             >
               Record usage
             </AppCheckbox>
           </div>
           <p class="settings-text statusline-text">
-            Lemongrass runs your own statusline unchanged and reads the usage Claude Code passes to
-            it.
+            Lemongrass runs your own statusline commands and reads the quota and context Claude Code
+            and Antigravity pass to them. Codex usage is independent of this switch. Antigravity
+            tabs opened while recording is off need reopening to start recording.
           </p>
           <div class="statusline-body">
             <AppEmptyState
               v-if="!chain.enabled"
               size="sm"
               title="Off."
-              detail="Your own statusline is back in place and Claude usage is not recorded."
+              detail="Your own statusline commands keep running. Claude and Antigravity quota and context are not recorded."
             />
             <dl v-else-if="hasOwnCommand" class="settings-facts">
               <template v-for="name in chainAccounts" :key="name">

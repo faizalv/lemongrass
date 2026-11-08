@@ -12,6 +12,9 @@ import (
 
 // Records which of the agent's own hook events fired last for the tab, so a typed nudge never lands on an open permission prompt or question picker.
 func recordTabState(store *session.Store, event string, payload hookEvent) {
+	if payload.Vendor == "agy" && event == "UserPromptSubmit" && payload.Continuation {
+		return
+	}
 	tab := payload.TabID
 	if tab == "" {
 		return

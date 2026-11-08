@@ -14,7 +14,12 @@ export interface NamePart {
   mark?: boolean
 }
 
-const AGENT_NAMES: Record<string, string> = { claude: 'Claude', codex: 'Codex', agent: 'Cursor' }
+const AGENT_NAMES: Record<string, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  agy: 'Antigravity',
+  agent: 'Cursor'
+}
 
 // Agent CLIs prefix their terminal title with a status glyph, which is not part of the name.
 export function cleanTitle(title: string): string {

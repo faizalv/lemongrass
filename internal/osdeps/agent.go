@@ -28,6 +28,8 @@ func evaluateAgent(dep Dep, info OSInfo, binPath, version string, origin Origin)
 var agentPackages = map[string]struct{ npm, brew string }{
 	"claude": {npm: "@anthropic-ai/claude-code", brew: "claude-code"},
 	"codex":  {npm: "@openai/codex", brew: "codex"},
+	// Google ships Antigravity only through its own install scripts.
+	"agy": {},
 }
 
 // agentOrigin names who installed an agent CLI from the folder its real file is in; a vendor script's copy carries
@@ -47,12 +49,14 @@ func agentOrigin(sys System, dep Dep, binPath string) (Origin, bool) {
 	under := func(root string) bool {
 		return strings.HasPrefix(real, root+"/") || strings.HasPrefix(binPath, root+"/")
 	}
+	brew := agentPackages[dep.Name].brew
 	switch {
-	// npm's global prefix can itself sit under ~/.local, so it is told apart first.
-	case strings.Contains(real, "/node_modules/"):
+	// npm's global prefix can itself sit under ~/.local, so it is told apart first. An agent with no npm or Homebrew
+	// package falls through, since the app refuses a package origin that names none.
+	case npm.Package != "" && strings.Contains(real, "/node_modules/"):
 		return npm, true
-	case under("/opt/homebrew"), under("/usr/local/Caskroom"), under("/usr/local/Cellar"), under("/home/linuxbrew/.linuxbrew"):
-		return Origin{Kind: OriginPackage, Package: agentPackages[dep.Name].brew, Manager: ManagerBrew}, true
+	case brew != "" && (under("/opt/homebrew") || under("/usr/local/Caskroom") || under("/usr/local/Cellar") || under("/home/linuxbrew/.linuxbrew")):
+		return Origin{Kind: OriginPackage, Package: brew, Manager: ManagerBrew}, true
 	case home != "" && (under(path.Join(home, ".local")) || under(path.Join(home, ".codex", "packages"))):
 		return vendor, true
 	}
@@ -67,12 +71,13 @@ func windowsAgentOrigin(sys System, binPath, real string, npm, vendor Origin) (O
 		_, ok := winUnder(binPath, root)
 		return ok
 	}
-	if appData := sys.Getenv("APPDATA"); appData != "" && under(winJoin(appData, "npm")) {
+	if appData := sys.Getenv("APPDATA"); npm.Package != "" && appData != "" && under(winJoin(appData, "npm")) {
 		return npm, true
 	}
 	local := sys.Getenv("LOCALAPPDATA")
 	if (sys.Home != "" && under(winJoin(sys.Home, ".local"))) ||
-		(local != "" && under(winJoin(local, "Programs", "OpenAI", "Codex"))) {
+		(local != "" && under(winJoin(local, "Programs", "OpenAI", "Codex"))) ||
+		(local != "" && under(winJoin(local, "agy"))) {
 		return vendor, true
 	}
 	return Origin{}, false

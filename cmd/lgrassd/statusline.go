@@ -5,11 +5,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/faizalv/lemongrass/internal/agentconf"
@@ -17,12 +19,22 @@ import (
 	"github.com/faizalv/lemongrass/internal/claudeaccount"
 )
 
-// cmdStatusline is Claude Code's statusLine command, put there by lgrassconf. The visible row must look exactly as it
-// did before lemongrass took the slot, so the human's own command gets the same stdin and its stdout and exit code
-// pass through unchanged; recording the usage never changes what is shown.
+// cmdStatusline records the vendor's payload and chains the human's command with unchanged stdin and stdout.
+// Claude preserves the command's exit status; Antigravity always succeeds to keep its feed enabled.
 func cmdStatusline(args []string) {
+	if len(args) == 2 && args[0] == "--vendor" && args[1] == "agy" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			fail(err)
+		}
+		payload, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fail(err)
+		}
+		os.Exit(runAgyStatusLine(home, os.Getenv(tabIDEnv), payload, time.Now(), os.Stdout, os.Stderr))
+	}
 	if len(args) != 2 || args[0] != "--account" {
-		fmt.Fprintln(os.Stderr, "usage: lgrassd statusline --account <name>")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd statusline --account <name> | --vendor agy")
 		os.Exit(1)
 	}
 	account := args[1]
@@ -67,6 +79,10 @@ func runHumanStatusLine(home, account string, payload []byte, stdout, stderr io.
 	if command == "" {
 		return 0
 	}
+	return runStatusLineCommand(command, payload, stdout, stderr)
+}
+
+func runStatusLineCommand(command string, payload []byte, stdout, stderr io.Writer) int {
 	cmd, err := statusLineCommand(command)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -85,6 +101,39 @@ func runHumanStatusLine(home, account string, payload []byte, stdout, stderr io.
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1
+	}
+	return 0
+}
+
+func runAgyStatusLine(home, tabID string, payload []byte, now time.Time, stdout, stderr io.Writer) int {
+	if agentconf.StatusLineOn(home) {
+		if err := agentusage.RecordAgy(home, payload, now); err != nil {
+			fmt.Fprintln(stderr, err)
+		}
+		if err := agentusage.RecordContext(home, tabID, payload, now); err != nil {
+			fmt.Fprintln(stderr, err)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".gemini", "antigravity-cli", "settings.json"))
+	if os.IsNotExist(err) {
+		return 0
+	}
+	if err != nil {
+		fmt.Fprintln(stderr, "lgrassd: reading Antigravity statusline settings:", err)
+		return 0
+	}
+	var settings struct {
+		StatusLine struct {
+			Command string `json:"command"`
+		} `json:"statusLine"`
+	}
+	if json.Unmarshal(data, &settings) != nil {
+		fmt.Fprintln(stderr, "lgrassd: invalid Antigravity statusline settings")
+		return 0
+	}
+	if settings.StatusLine.Command != "" {
+		// Antigravity disables the statusline after repeated failures, which would stop quota and context updates too.
+		runStatusLineCommand(settings.StatusLine.Command, payload, stdout, stderr)
 	}
 	return 0
 }

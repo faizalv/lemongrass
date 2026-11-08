@@ -69,7 +69,7 @@ export const GUIDE_CARDS: GuideCard[] = [
     title: 'Workgroups',
     where: 'The workgroup icon under the sidebar tree, and the thread in a workgroup tab',
     purpose:
-      'A leader agent can start a group of thinkers, each on Claude Code or Codex, to work on one task together. They talk in a shared thread, and you approve the group before any of them starts.',
+      'A leader agent can start a group of thinkers, each on Claude Code, Codex or Antigravity, to work on one task together. They talk in a shared thread, and you approve the group before any of them starts.',
     when: 'When a task is big enough to split across several agents that need to discuss it.',
     example:
       'Ask a Claude tab to start a workgroup for a review. Read its approval request, then approve the thinkers you want.'
@@ -108,7 +108,7 @@ export const GUIDE_CARDS: GuideCard[] = [
     title: 'Settings',
     where: 'The cog icon in the header',
     purpose:
-      'Settings holds the app-wide options: Claude and Codex accounts and Safety rules. Use it to change how Lemongrass runs, not to change a project.',
+      'Settings holds the app-wide options: Claude, Codex and Antigravity accounts and Safety rules. Use it to change how Lemongrass runs, not to change a project.',
     when: 'When you want to add an account or change a Safety rule.',
     example: 'Open the cog, choose Safety, and add a rule.'
   }

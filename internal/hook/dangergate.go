@@ -24,6 +24,9 @@ func dangerDecision(payload hookEvent) *guard.Verdict {
 		home = ""
 	}
 	launch := launchProject()
+	if launch.Path == "" && payload.Vendor == "agy" && payload.ProjectDir != "" {
+		launch, _ = project.Resolve(payload.ProjectDir)
+	}
 	input := guard.Input{Tool: payload.ToolName, Cwd: payload.Cwd, Home: home, ProjectRoot: launch.Path}
 	if command, verdict, isShell := shellToolCommand(payload); isShell {
 		if verdict != nil {

@@ -3,7 +3,14 @@
 
 <script setup lang="ts">
 import { IconFrame } from '@sankasten'
-import { CLAUDE_MARK, CLAUDE_MARK_BOX, CODEX_MARK, CODEX_MARK_BOX } from '../vendorMarks'
+import {
+  AGY_MARK,
+  AGY_MARK_BOX,
+  CLAUDE_MARK,
+  CLAUDE_MARK_BOX,
+  CODEX_MARK,
+  CODEX_MARK_BOX
+} from '../vendorMarks'
 type Shape = { d: string; filled?: true }
 
 // The account glyph matches StripIcon's, so Accounts reads as the same thing as the strip's account switch.
@@ -36,7 +43,7 @@ const SHAPES = {
   ]
 } as const satisfies Record<string, readonly Shape[]>
 
-export type SettingsIconName = keyof typeof SHAPES | 'claude' | 'codex'
+export type SettingsIconName = keyof typeof SHAPES | 'claude' | 'codex' | 'agy'
 
 withDefaults(defineProps<{ name: SettingsIconName; size?: number }>(), { size: 13 })
 </script>
@@ -61,6 +68,16 @@ withDefaults(defineProps<{ name: SettingsIconName; size?: number }>(), { size: 1
     fill="currentColor"
   >
     <path :d="CODEX_MARK" />
+  </IconFrame>
+  <IconFrame
+    v-else-if="name === 'agy'"
+    class="settings-icon"
+    :size="size"
+    :box="AGY_MARK_BOX"
+    :stroke-width="null"
+    fill="currentColor"
+  >
+    <path :d="AGY_MARK" />
   </IconFrame>
   <IconFrame v-else class="settings-icon" :size="size">
     <path

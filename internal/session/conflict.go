@@ -66,8 +66,8 @@ func (s *Store) OpenConflict(scope, assignee, baseline string) (Thread, error) {
 	if err != nil {
 		return Thread{}, err
 	}
-	if vendor != "claude" && vendor != "codex" {
-		return Thread{}, fmt.Errorf("session: tab %s is not an open Claude or Codex tab in this project", TabLabel(assignee))
+	if vendor != "claude" && vendor != "codex" && vendor != "agy" {
+		return Thread{}, fmt.Errorf("session: tab %s is not an open Claude, Codex or Antigravity tab in this project", TabLabel(assignee))
 	}
 
 	tx, err := s.db.Begin()

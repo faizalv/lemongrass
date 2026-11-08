@@ -76,7 +76,7 @@ const shellAccount = computed(() => {
 
 const shellContext = computed(() => {
   const active = props.leaf.tabs.find((tab) => tab.id === props.leaf.activeTabId)
-  if (active?.kind !== 'shell' || active.command !== 'claude') return null
+  if (active?.kind !== 'shell' || !['claude', 'agy'].includes(active.command ?? '')) return null
   return contextStore.tabs[active.id] ?? null
 })
 
@@ -92,6 +92,9 @@ const shellUsage = computed(() => {
   } else if (active.command === 'codex') {
     windows = usageStore.codex?.windows
     seenAt = usageStore.codex?.seen_at ?? 0
+  } else if (active.command === 'agy') {
+    windows = usageStore.agy?.windows
+    seenAt = usageStore.agy?.seen_at ?? 0
   }
   if (!windows || windows.length === 0) return null
   return {

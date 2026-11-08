@@ -91,6 +91,13 @@ var Deps = []Dep{
 		Features:    []string{"codexTabs"},
 		VersionArgs: []string{"--version"},
 	},
+	{
+		Name:        "agy",
+		Label:       "Antigravity",
+		Agent:       true,
+		Features:    []string{"agyTabs"},
+		VersionArgs: []string{"--version"},
+	},
 }
 
 // Find returns the dependency by name.

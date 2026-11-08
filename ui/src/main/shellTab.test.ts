@@ -22,12 +22,12 @@ function onPath(name: string): string | undefined {
   return found.status === 0 ? found.stdout.trim() : undefined
 }
 
-// A home whose rc files put a fake real `claude` and `codex` in front of PATH, the way an installer's line does.
+// A home whose rc files put a fake real `claude`, `codex` and `agy` in front of PATH, the way an installer's line does.
 function homeWithReorderingRc(): string {
   const home = mkdtempSync(join(tmpdir(), 'shellhome-'))
   const bin = join(home, 'bin')
   mkdirSync(bin)
-  for (const name of ['claude', 'codex']) {
+  for (const name of ['claude', 'codex', 'agy']) {
     writeFileSync(join(bin, name), '#!/bin/sh\necho REAL-AGENT\n')
     chmodSync(join(bin, name), 0o755)
   }
@@ -50,24 +50,24 @@ function runShell(file: string, home: string, input: string): string {
   return `${result.stdout}${result.stderr}`
 }
 
-const TYPED = 'claude\ncodex\ncommand claude\nexit\n'
+const TYPED = 'claude\ncodex\nagy\ncommand claude\nexit\n'
 
 for (const shell of ['bash', 'zsh', 'fish']) {
   const file = onPath(shell)
   test(`${shell}: the agents stay blocked after an rc that reorders PATH`, { skip: !file }, () => {
     const out = runShell(file!, homeWithReorderingRc(), TYPED)
     assert.doesNotMatch(out, /REAL-AGENT/)
-    assert.equal(out.match(/Shell tab/g)?.length, 3, out)
+    assert.equal(out.match(/Shell tab/g)?.length, 4, out)
   })
 }
 
 test(
-  'the shims shadow claude and codex and exit nonzero',
+  'the shims shadow every agent and exit nonzero',
   { skip: process.platform === 'win32' },
   () => {
     const dir = writeShellShims(mkdtempSync(join(tmpdir(), 'shellhome-')), 'linux')
     assert.ok(dir)
-    for (const name of ['claude', 'codex']) {
+    for (const name of ['claude', 'codex', 'agy']) {
       assert.throws(
         () =>
           execFileSync(name, [], {
@@ -88,7 +88,7 @@ test('Windows gets cmd shims and no posix init files', () => {
     readdirSync(dir)
       .filter((name) => name !== 'zsh')
       .sort(),
-    ['claude.cmd', 'codex.cmd']
+    ['agy.cmd', 'claude.cmd', 'codex.cmd']
   )
 })
 

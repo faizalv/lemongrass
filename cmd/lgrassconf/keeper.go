@@ -90,6 +90,10 @@ func (k *keeper) codexHooksPath() string {
 	return filepath.Join(k.home, ".codex", "hooks.json")
 }
 
+func (k *keeper) agyHooksPath() string {
+	return filepath.Join(k.home, ".gemini", "config", "hooks.json")
+}
+
 func (k *keeper) lgrassdPath() string {
 	for _, c := range k.candidates {
 		if info, err := os.Stat(c); err == nil && !info.IsDir() {
@@ -135,6 +139,9 @@ func (k *keeper) reconcile() error {
 			errs = append(errs, err)
 		}
 		if err := agentconf.SyncHookConfig(k.codexHooksPath(), path, reconcileCodexHooks); err != nil {
+			errs = append(errs, err)
+		}
+		if err := agentconf.SyncHookConfig(k.agyHooksPath(), path, reconcileAgyHooks); err != nil {
 			errs = append(errs, err)
 		}
 	}

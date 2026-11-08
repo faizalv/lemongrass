@@ -1158,13 +1158,18 @@ export interface CodexUsage {
   seen_at: number
 }
 
+export interface AgyUsage {
+  windows: UsageWindow[]
+  seen_at: number
+}
+
 // commands holds each account's own statusline command that lemongrass runs, keyed by account name.
 export interface StatusLineChainState {
   enabled: boolean
   commands: Record<string, string>
 }
 
-// One Claude tab's context window use as of its latest response, from its statusline payload.
+// One agent tab's context window use as of its latest response, from its statusline payload.
 export interface ContextUsage {
   used_tokens: number
   window_tokens: number
@@ -1174,6 +1179,7 @@ export interface ContextUsage {
 export interface UsageReport {
   claude: AccountUsage[]
   codex: CodexUsage | null
+  agy: AgyUsage | null
   errors?: string[]
 }
 

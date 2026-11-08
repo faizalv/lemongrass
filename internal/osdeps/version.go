@@ -25,6 +25,8 @@ var versionPatterns = map[string][]*regexp.Regexp{
 	"claude": {regexp.MustCompile(`(?m)^v?(\d+\.\d+\.\d+)`)},
 	// "codex-cli 0.166.0"; a prerelease such as 0.158.0-alpha.2 reads as 0.158.0.
 	"codex": {regexp.MustCompile(`codex-cli v?(\d+\.\d+\.\d+)`)},
+	// A bare "1.5.3".
+	"agy": {regexp.MustCompile(`(?m)^v?(\d+\.\d+\.\d+)`)},
 	// Windows' own client prints "OpenSSH_for_Windows_9.5p1".
 	"ssh": {regexp.MustCompile(`OpenSSH_(?:for_Windows_)?(\d+\.\d+(?:p\d+)?)`)},
 }

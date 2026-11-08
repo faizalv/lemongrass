@@ -28,9 +28,15 @@ type CodexUsage struct {
 	SeenAt   int64          `json:"seen_at"`
 }
 
+type AgyUsage struct {
+	Windows []ReportWindow `json:"windows"`
+	SeenAt  int64          `json:"seen_at"`
+}
+
 type Report struct {
 	Claude []AccountUsage `json:"claude"`
 	Codex  *CodexUsage    `json:"codex"`
+	Agy    *AgyUsage      `json:"agy"`
 	Errors []string       `json:"errors,omitempty"`
 }
 
@@ -56,8 +62,8 @@ func reportWindow(w Window, now time.Time) ReportWindow {
 	return r
 }
 
-// Collect reads every account's last statusline record and the newest Codex snapshot. An account with no record yet,
-// and Codex with no rollout, are left out; a read failure is reported beside the rest instead of failing them.
+// Collect reads the last statusline records and the newest Codex snapshot. Sources without data are left out;
+// a read failure is reported beside the rest instead of failing them.
 func Collect(home, codexHome string, accounts []string, now time.Time) Report {
 	report := Report{Claude: []AccountUsage{}}
 	for _, account := range accounts {
@@ -86,6 +92,23 @@ func Collect(home, codexHome string, accounts []string, now time.Time) Report {
 			usage.Windows = append(usage.Windows, reportWindow(w, now))
 		}
 		report.Codex = usage
+	}
+	agy, ok, err := ReadAgy(home)
+	if err != nil {
+		report.Errors = append(report.Errors, err.Error())
+	} else if ok {
+		usage := &AgyUsage{Windows: []ReportWindow{}, SeenAt: agy.SeenAt}
+		for _, bucket := range []struct {
+			label  string
+			window *Window
+		}{{"Gemini", agy.Gemini}, {"Third-party", agy.ThirdParty}} {
+			if bucket.window != nil {
+				w := reportWindow(*bucket.window, now)
+				w.Label = bucket.label
+				usage.Windows = append(usage.Windows, w)
+			}
+		}
+		report.Agy = usage
 	}
 	return report
 }

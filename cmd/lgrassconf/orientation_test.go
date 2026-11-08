@@ -13,14 +13,16 @@ import (
 	"github.com/faizalv/lemongrass/internal/bibliothek"
 )
 
-var installedOrientations = []string{"tab.md", "thinker.md", "codex-tab.md", "codex-thinker.md"}
+var installedOrientations = []string{"tab.md", "thinker.md", "codex-tab.md", "codex-thinker.md", "agy-tab.md", "agy-thinker.md"}
 
-// embeddedOrientation is the expected installed text for an installed name, codex- prefixed for Codex.
+// embeddedOrientation is the expected installed text for an installed name, codex- prefixed for Codex and agy- for Antigravity.
 func embeddedOrientation(t *testing.T, name string) string {
 	t.Helper()
 	vendor, source := "claude", name
-	if rest, ok := strings.CutPrefix(name, "codex-"); ok {
-		vendor, source = "codex", rest
+	for _, v := range []string{"codex", "agy"} {
+		if rest, ok := strings.CutPrefix(name, v+"-"); ok {
+			vendor, source = v, rest
+		}
 	}
 	data, err := orientationFS.ReadFile("orientation/" + source)
 	if err != nil {
@@ -83,7 +85,8 @@ func TestOrientationIsAdaptedPerVendor(t *testing.T) {
 	}
 	for _, name := range installedOrientations {
 		text := read(name)
-		if strings.Contains(text, "<!-- claude -->") || strings.Contains(text, "<!-- codex -->") || strings.Contains(text, vendorBlockEnd) || strings.Contains(text, "\n\n\n") {
+		orientation, _, _ := strings.Cut(text, bibliothekHeading)
+		if strings.Contains(orientation, "<!--") || strings.Contains(text, "\n\n\n") {
 			t.Errorf("%s keeps a vendor marker or a doubled gap", name)
 		}
 	}
@@ -91,16 +94,31 @@ func TestOrientationIsAdaptedPerVendor(t *testing.T) {
 		// Only the orientation itself; the appended bibliothek text names agents on purpose.
 		claudeText, _, _ := strings.Cut(read(role), bibliothekHeading)
 		codexText, _, _ := strings.Cut(read("codex-"+role), bibliothekHeading)
-		for _, harness := range []string{"ToolSearch", "Claude Code's"} {
+		agyText, _, _ := strings.Cut(read("agy-"+role), bibliothekHeading)
+		for _, harness := range []string{"ToolSearch", "Claude Code's", "memory gate"} {
 			if !strings.Contains(claudeText, harness) {
 				t.Errorf("%s lost %q", role, harness)
 			}
 			if strings.Contains(codexText, harness) {
 				t.Errorf("codex-%s carries %q", role, harness)
 			}
+			if strings.Contains(agyText, harness) {
+				t.Errorf("agy-%s carries %q", role, harness)
+			}
 		}
 		if !strings.Contains(codexText, "changes to Codex's config, hooks or the lemongrass binaries") {
 			t.Errorf("codex-%s does not name Codex's config in the blocked list", role)
+		}
+		for _, own := range []string{"changes to Antigravity's settings, hooks or the lemongrass binaries", "A GEMINI.md or AGENTS.md file", "running Claude, Codex or Antigravity"} {
+			if !strings.Contains(agyText, own) {
+				t.Errorf("agy-%s lacks %q", role, own)
+			}
+		}
+		// A mid-turn note reaches Antigravity at its next model call, so its text never promises one at the next tool call.
+		for _, other := range []string{"Codex's config", "CLAUDE.md", "at your next tool call"} {
+			if strings.Contains(agyText, other) {
+				t.Errorf("agy-%s carries %q", role, other)
+			}
 		}
 	}
 }
@@ -112,6 +130,15 @@ func TestForVendorKeepsOneParagraphGap(t *testing.T) {
 	}
 	if got := string(forVendor([]byte(src), "codex")); got != "a\n\nc\n\ne\n" {
 		t.Errorf("codex = %q", got)
+	}
+}
+
+func TestForVendorBlockNamesSeveralVendors(t *testing.T) {
+	src := "a\n\n<!-- claude -->\nb\n<!-- end -->\n<!-- codex agy -->\nc\n<!-- end -->\n<!-- agy -->\nd\n<!-- end -->\n\ne\n"
+	for vendor, want := range map[string]string{"claude": "a\n\nb\n\ne\n", "codex": "a\n\nc\n\ne\n", "agy": "a\n\nc\nd\n\ne\n"} {
+		if got := string(forVendor([]byte(src), vendor)); got != want {
+			t.Errorf("%s = %q, want %q", vendor, got, want)
+		}
 	}
 }
 

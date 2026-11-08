@@ -33,7 +33,7 @@ func NewDeliverer(store *session.Store) *Deliverer {
 // Types a coalesced nudge into a supported agent's terminal unless a prompt is open or the human is typing there. A failure leaves the rows owed for the service's next tick, so a tab whose process starts late still gets them.
 func (d *Deliverer) DeliverTab(tabID string) (bool, error) {
 	vendor, err := d.Store.VendorForTab(tabID)
-	if err != nil || (vendor != "claude" && vendor != "codex") {
+	if err != nil || (vendor != "claude" && vendor != "codex" && vendor != "agy") {
 		return false, err
 	}
 	pending, err := d.Store.PendingForTab(tabID)

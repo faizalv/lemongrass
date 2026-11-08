@@ -36,7 +36,7 @@ var (
 	labelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,29}$`)
 	modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$`)
 	skillPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
-	vendors      = map[string]bool{"claude": true, "codex": true}
+	vendors      = map[string]bool{"claude": true, "codex": true, "agy": true}
 )
 
 type Thinker struct {
@@ -145,7 +145,7 @@ func validateThinkers(thinkers []Thinker, taken []string, baseDir string) error 
 		}
 		seen[strings.ToLower(c.Label)] = true
 		if !vendors[c.Vendor] {
-			return fmt.Errorf("workgroup: thinker %q vendor %q must be claude or codex", c.Label, c.Vendor)
+			return fmt.Errorf("workgroup: thinker %q vendor %q must be claude, codex or agy", c.Label, c.Vendor)
 		}
 		if c.Model != "" && !modelPattern.MatchString(c.Model) {
 			return fmt.Errorf("workgroup: thinker %q model %q is not a valid model name", c.Label, c.Model)
@@ -271,7 +271,8 @@ func (c Thinker) RequiredCommands() []string { return session.ThinkerCommands(c.
 // Every skill a thinker must load, in the order it loads them.
 func (c Thinker) RequiredSkills() []string { return session.ThinkerSkills(c.Vendor, c.Skills) }
 
-var skillDirs = map[string]string{"claude": ".claude", "codex": ".codex"}
+// Antigravity reads global skills from ~/.gemini/config/skills, its global customization root.
+var skillDirs = map[string]string{"claude": ".claude", "codex": ".codex", "agy": filepath.Join(".gemini", "config")}
 
 // Checks that each thinker's required skills are installed for its vendor, so a group is never approved with a skill nobody can load.
 func (cfg Config) CheckSkillsInstalled(home string) error {

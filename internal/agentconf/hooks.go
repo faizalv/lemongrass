@@ -49,11 +49,15 @@ func ownedByEvent(group json.RawMessage, event string) bool {
 }
 
 // OwnsHookCommand reports whether command is a lemongrass hook for event, whatever lgrassd path or quoting it was
-// written with: ` hook <event>` at the end, or followed by the vendor argument Codex hooks carry. The older Codex form,
+// written with: ` hook <event>` at the end, or followed by a vendor argument. The older Codex form,
 // with an LGRASS_HOOK_VENDOR=codex prefix, ends the same way, so reconcile replaces it in place.
 func OwnsHookCommand(command, event string) bool {
 	marker := " hook " + event
-	return strings.HasSuffix(command, marker) || strings.HasSuffix(command, marker+" "+VendorFlag+" codex")
+	if strings.HasSuffix(command, marker) {
+		return true
+	}
+	before, vendor, ok := strings.Cut(command, marker+" "+VendorFlag+" ")
+	return ok && before != "" && vendor != "" && !strings.ContainsAny(vendor, " \t\r\n")
 }
 
 // VendorFlag names the agent whose hook payload lgrassd reads; without it the payload is read as Claude's.

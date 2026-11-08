@@ -41,6 +41,7 @@ func (k *keeper) skillDirs() []string {
 
 func (k *keeper) watchedDirs() []string {
 	dirs := append(append(k.skillDirs(), k.orientationDir()), k.pluginDirs()...)
+	dirs = append(dirs, filepath.Join(k.home, ".gemini"), filepath.Dir(k.agyHooksPath()))
 	for _, c := range k.candidates {
 		dirs = append(dirs, filepath.Dir(c))
 	}
@@ -55,8 +56,10 @@ func (k *keeper) watchedDirs() []string {
 
 func (k *keeper) relevant() map[string]bool {
 	set := map[string]bool{
-		k.claudeSettingsPath(): true,
-		k.codexHooksPath():     true,
+		k.claudeSettingsPath():         true,
+		k.codexHooksPath():             true,
+		k.agyHooksPath():               true,
+		filepath.Dir(k.agyHooksPath()): true,
 	}
 	for _, dir := range k.skillDirs() {
 		set[dir] = true

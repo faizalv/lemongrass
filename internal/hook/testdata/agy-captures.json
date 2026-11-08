@@ -1,0 +1,131 @@
+{
+  "SessionStart": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  },
+  "PreInvocation": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "initialNumSteps": 1,
+    "invocationNum": 0,
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  },
+  "run_command": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "stepIdx": 2,
+    "toolCall": {
+      "args": {
+        "CommandLine": "cat a.txt",
+        "WaitMsBeforeAsync": 5000,
+        "toolSummary": "Read the project file"
+      },
+      "name": "run_command"
+    },
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  },
+  "Stop": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "error": "",
+    "executionNum": 0,
+    "fullyIdle": true,
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "terminationReason": "NO_TOOL_CALL",
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  },
+  "read_file": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "stepIdx": 4,
+    "toolCall": {
+      "args": {
+        "Path": "/workspace/project/a.txt"
+      },
+      "name": "read_file"
+    },
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  },
+  "write_file": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "stepIdx": 30,
+    "toolCall": {
+      "args": {
+        "Content": "one\n",
+        "Overwrite": true,
+        "Path": "/workspace/project/a.txt"
+      },
+      "name": "write_file"
+    },
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  },
+  "edit_file": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "stepIdx": 32,
+    "toolCall": {
+      "args": {
+        "Path": "/workspace/project/a.txt",
+        "Replacement": "two",
+        "Target": "one"
+      },
+      "name": "edit_file"
+    },
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  },
+  "manage_task": {
+    "artifactDirectoryPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a",
+    "conversationId": "conversation-a",
+    "lastUserInput": "Perform the requested operation.",
+    "modelName": "gemini-3.8-flash-high",
+    "stepIdx": 42,
+    "toolCall": {
+      "args": {
+        "Action": "send_input",
+        "Input": "hello\n",
+        "TaskId": "conversation-a/task-40"
+      },
+      "name": "manage_task"
+    },
+    "transcriptPath": "/home/example/.gemini/antigravity-cli/brain/conversation-a/transcript.jsonl",
+    "workspacePaths": [
+      "/workspace/project"
+    ]
+  }
+}

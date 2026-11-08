@@ -3,13 +3,21 @@
 
 <script setup lang="ts">
 import { IconFrame } from '@sankasten'
-import { CLAUDE_MARK, CLAUDE_MARK_BOX, CODEX_MARK, CODEX_MARK_BOX } from '../vendorMarks'
+import {
+  AGY_MARK,
+  AGY_MARK_BOX,
+  CLAUDE_MARK,
+  CLAUDE_MARK_BOX,
+  CODEX_MARK,
+  CODEX_MARK_BOX
+} from '../vendorMarks'
 
 // The vendor marks fill with currentColor here, unlike Settings, so a pad's icon follows its text
 // from muted to white.
 const MARKS: Record<string, { d: string; box: number }> = {
   claude: { d: CLAUDE_MARK, box: CLAUDE_MARK_BOX },
-  codex: { d: CODEX_MARK, box: CODEX_MARK_BOX }
+  codex: { d: CODEX_MARK, box: CODEX_MARK_BOX },
+  agy: { d: AGY_MARK, box: AGY_MARK_BOX }
 }
 
 const SHELL_PROMPT = ['M1.5 2l5 5l-5 5', 'M7.5 12h5']

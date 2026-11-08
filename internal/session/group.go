@@ -411,7 +411,7 @@ func ThinkerStartSteps(commands, skills []string) string {
 	return strings.Join(steps, ", then ")
 }
 
-// CarriedInPrompt reports a skill whose text the vendor's orientation already holds, which lemongrass writes for Claude and Codex tabs.
+// CarriedInPrompt reports a skill whose text the vendor's orientation already holds, which lemongrass writes for Claude, Codex and Antigravity tabs.
 func CarriedInPrompt(vendor, skill string) bool {
-	return (vendor == "claude" || vendor == "codex") && skill == BibliothekSkill
+	return (vendor == "claude" || vendor == "codex" || vendor == "agy") && skill == BibliothekSkill
 }

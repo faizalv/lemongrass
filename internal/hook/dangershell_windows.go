@@ -38,7 +38,7 @@ func shellToolCommand(payload hookEvent) (command string, verdict *guard.Verdict
 			return "", guard.OpaqueShellVerdict("The tool input could not be read."), true
 		}
 	}
-	if payload.ToolName == "Bash" && !isCodexPayload(payload) {
+	if payload.ToolName == "Bash" && !isCodexPayload(payload) && payload.Vendor != "agy" {
 		return text, nil, true
 	}
 	switch {

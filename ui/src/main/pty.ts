@@ -17,6 +17,7 @@ import { destroyInstance } from './web'
 import { resolveShellBinary } from './shellBinary'
 import { agentPath } from './agentPaths'
 import { SHELL_COMMAND, shellTabLaunch } from './shellTab'
+import { agyLaunch } from './agyLaunch'
 import { windowsLaunch, windowsShell, withPath, type Env, type Launch } from './winExec'
 import { freshWindowsPath } from './windowsPath'
 
@@ -25,6 +26,8 @@ import { freshWindowsPath } from './windowsPath'
 // run its SessionEnd hook before the PTY is force-killed. On Windows Claude
 // does too, because killing a ConPTY terminates every process on its console
 // at once, while on Unix the hangup lets Claude end its session itself.
+// Antigravity has no SessionEnd and writes its steps to disk as they happen, so
+// it is killed at once like any other shell.
 
 interface SpawnOptions {
   /** The agent binary to spawn, e.g. "claude". Never a shell like bash/zsh. */
@@ -98,13 +101,20 @@ async function launchFor(
   return { launch, env: winEnv }
 }
 
+// Antigravity is trusted per session through agyLaunch's --settings, so it has no trust file to write.
 function trustTarget(opts: SpawnOptions): string | undefined {
   if (opts.command === 'codex') return 'codex'
   if (opts.command !== 'claude') return undefined
   return opts.account && ACCOUNT_NAME.test(opts.account) ? opts.account : 'primary'
 }
 
-export function registerPtyHandlers(getSender: () => WebContents | undefined): void {
+// Vendors whose hook scopes project policy and the deletion exemption to LGRASS_PROJECT_DIR.
+const PROJECT_DIR_COMMANDS = new Set(['claude', 'codex', 'agy'])
+
+export function registerPtyHandlers(
+  getSender: () => WebContents | undefined,
+  lgrassdPath: string | null
+): void {
   ipcMain.handle('pty:spawn', async (_event, opts: SpawnOptions) => {
     const id = randomUUID()
     const orientation = orientationLaunch(
@@ -114,7 +124,13 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       opts.cwd,
       opts.args ?? []
     )
+    // First, ahead of the bypass flag and any prompt, because agy takes the argument after -p as its prompt.
+    const agy =
+      opts.command === 'agy'
+        ? agyLaunch(opts.args ?? [], opts.cwd, lgrassdPath, homedir())
+        : { args: [], env: {} }
     const args = [
+      ...agy.args,
       ...orientation.args,
       ...startupTrimArgs(opts.command, homedir()),
       ...(opts.args ?? [])
@@ -127,9 +143,9 @@ export function registerPtyHandlers(getSender: () => WebContents | undefined): v
       ...process.env,
       ...startupTrimEnv(opts.command),
       ...orientation.env,
+      ...agy.env,
       ...(opts.tabId ? { LGRASS_TAB_ID: opts.tabId } : {}),
-      // The launch project the lgrass hook scopes project policy and the deletion exemption to, for every vendor.
-      ...((opts.command === 'claude' || opts.command === 'codex') && opts.cwd
+      ...(PROJECT_DIR_COMMANDS.has(opts.command) && opts.cwd
         ? { LGRASS_PROJECT_DIR: opts.cwd }
         : {}),
       ...(configDir ? { CLAUDE_CONFIG_DIR: configDir } : {})

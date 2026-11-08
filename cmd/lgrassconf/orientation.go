@@ -7,6 +7,7 @@ import (
 	"embed"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/faizalv/lemongrass/internal/bibliothek"
@@ -21,13 +22,13 @@ func (k *keeper) orientationDir() string {
 
 const bibliothekHeading = "\n# The bibliothek convention\n\n"
 
-// Each orientation source is installed once per vendor; Codex's copies carry a codex- prefix.
-var orientationVendors = []struct{ name, prefix string }{{"claude", ""}, {"codex", "codex-"}}
+// Each orientation source is installed once per vendor; Codex's and Antigravity's copies carry their prefix.
+var orientationVendors = []struct{ name, prefix string }{{"claude", ""}, {"codex", "codex-"}, {"agy", "agy-"}}
 
 const vendorBlockEnd = "<!-- end -->"
 
-// forVendor keeps the lines outside any vendor block and the lines of this vendor's blocks. A block is a
-// "<!-- claude -->" or "<!-- codex -->" line through the next "<!-- end -->" line.
+// forVendor keeps the lines outside any vendor block and the lines of this vendor's blocks. A block is a line
+// such as "<!-- claude -->" or "<!-- codex agy -->", naming one or more vendors, through the next "<!-- end -->" line.
 func forVendor(src []byte, vendor string) []byte {
 	lines := strings.SplitAfter(string(src), "\n")
 	var out strings.Builder
@@ -36,7 +37,7 @@ func forVendor(src []byte, vendor string) []byte {
 		trimmed := strings.TrimSpace(line)
 		switch {
 		case !inBlock && strings.HasPrefix(trimmed, "<!-- ") && strings.HasSuffix(trimmed, " -->") && trimmed != vendorBlockEnd:
-			inBlock, keep = true, trimmed == "<!-- "+vendor+" -->"
+			inBlock, keep = true, slices.Contains(strings.Fields(strings.TrimSuffix(strings.TrimPrefix(trimmed, "<!--"), "-->")), vendor)
 			continue
 		case inBlock && trimmed == vendorBlockEnd:
 			// Only a block that stood as its own paragraph leaves a doubled gap behind.

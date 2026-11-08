@@ -171,9 +171,9 @@ export const joining = reactive<{
   notice: string | null
 }>({ draft: null, busy: false, error: null, notice: null })
 
-const JOINABLE_COMMANDS: Record<string, string> = { claude: 'claude', codex: 'codex' }
+const JOINABLE_COMMANDS: Record<string, string> = { claude: 'claude', codex: 'codex', agy: 'agy' }
 
-// A Claude or Codex shell in no live group can be added; Cursor and plain shells have no hooks, so no gate would hold them.
+// A Claude, Codex or Antigravity shell in no live group can be added; Cursor and plain shells have no hooks, so no gate would hold them.
 export function joinVendor(projectId: string, tab: WorkspaceTab): string | null {
   if (tab.kind !== 'shell' || isWorkgroupMember(projectId, tab.id)) return null
   return JOINABLE_COMMANDS[tab.command] ?? null

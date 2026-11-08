@@ -30,7 +30,7 @@ func ValidCarry(carry string) bool {
 	return carry == CarryNone || carry == CarryCarried || carry == CarryConflict
 }
 
-// Inserts one branch row for each Claude or Codex tab of the project that was active within the window, and returns those tabs.
+// Inserts one branch row for each Claude, Codex or Antigravity tab of the project that was active within the window, and returns those tabs.
 func (s *Store) InsertBranchChanged(change BranchChange, at time.Time) ([]string, error) {
 	if !ValidCarry(change.Carry) {
 		return nil, fmt.Errorf("session: unknown carry %q, want none, carried or conflict", change.Carry)
@@ -47,7 +47,7 @@ func (s *Store) InsertBranchChanged(change BranchChange, at time.Time) ([]string
 	cutoff := at.Add(-BranchNoticeWindow).UTC().Format(time.RFC3339Nano)
 	rows, err := tx.Query(`
 		SELECT t.tab_id FROM lg_tabs t JOIN lg_tab_state st ON st.tab_id = t.tab_id
-		WHERE t.project_id = ? AND t.vendor IN ('claude', 'codex') AND st.updated_at > ?
+		WHERE t.project_id = ? AND t.vendor IN ('claude', 'codex', 'agy') AND st.updated_at > ?
 		ORDER BY t.tab_id
 	`, s.projectID, cutoff)
 	if err != nil {

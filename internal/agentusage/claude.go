@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-// Package agentusage records and reads the rate-limit usage that Claude Code and Codex hand over themselves: the
-// statusline payload and the Codex rollout files. It never reads a credential or calls a vendor API.
+// Package agentusage records and reads quota from Claude Code and Antigravity statusline payloads and Codex rollout
+// files. It never reads a credential or calls a vendor API.
 package agentusage
 
 import (

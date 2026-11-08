@@ -140,7 +140,7 @@ app.whenReady().then(async () => {
   }
 
   registerNotificationHandlers(() => mainWindow)
-  registerPtyHandlers(() => mainWindow?.webContents)
+  registerPtyHandlers(() => mainWindow?.webContents, lgrassdPath)
   registerAskTerminal()
   registerAccountHandlers(lgrassdPath)
   registerUsageHandlers(lgrassdPath, () => mainWindow?.webContents)

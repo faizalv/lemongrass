@@ -13,7 +13,7 @@ import (
 	"github.com/faizalv/lemongrass/internal/claudeaccount"
 )
 
-// cmdUsage prints the last known rate-limit usage of every Claude account and of Codex as JSON, for the app.
+// cmdUsage prints the last known quota of every supported agent as JSON, for the app.
 func cmdUsage(args []string) {
 	if len(args) == 1 && args[0] == "context" {
 		cmdUsageContext()
@@ -38,7 +38,7 @@ func cmdUsage(args []string) {
 	}
 }
 
-// cmdUsageContext prints each Claude tab's context window use by tab id, and the directory those records live in so
+// cmdUsageContext prints each agent tab's context window use by tab id, and the directory those records live in so
 // the app can watch it without knowing the layout. The directory is created here, since a watch needs it to exist.
 func cmdUsageContext() {
 	home, err := os.UserHomeDir()

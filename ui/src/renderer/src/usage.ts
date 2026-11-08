@@ -2,17 +2,25 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { reactive } from 'vue'
-import type { AccountUsage, CodexUsage, ContextUsage, UsageWindow } from '../../preload/types'
+import type {
+  AccountUsage,
+  AgyUsage,
+  CodexUsage,
+  ContextUsage,
+  UsageWindow
+} from '../../preload/types'
 
 const REFRESH_MS = 60_000
 
 export const usageStore = reactive<{
   claude: Record<string, AccountUsage>
   codex: CodexUsage | null
+  agy: AgyUsage | null
   loadedAt: number
 }>({
   claude: {},
   codex: null,
+  agy: null,
   loadedAt: 0
 })
 
@@ -23,6 +31,7 @@ export async function refreshUsage(): Promise<void> {
   for (const account of report.claude) claude[account.account] = account
   usageStore.claude = claude
   usageStore.codex = report.codex
+  usageStore.agy = report.agy
   usageStore.loadedAt = Date.now()
 }
 
@@ -38,7 +47,7 @@ export function startUsagePolling(): void {
   })
 }
 
-// Each Claude tab's context window use by tab id. The main process pushes a fresh copy whenever a tab's figure
+// Each agent tab's context window use by tab id. The main process pushes a fresh copy whenever a tab's figure
 // changes, so this needs no poll.
 export const contextStore = reactive<{ tabs: Record<string, ContextUsage> }>({ tabs: {} })
 

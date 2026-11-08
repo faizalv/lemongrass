@@ -1010,9 +1010,13 @@ function openInNewShellWithAgent(
   const tab = newShellTab(project, agent, account)
   // The 'shell' agent spawns zsh directly, which treats a positional prompt argument as a script path to source.
   if (agent.id !== 'shell') {
-    setShellArgs(tab.id, [
-      `Read ${path} and discuss it with the user. Discussing does not replace your usual procedure: orient yourself first, as your instructions say.`
-    ])
+    setShellArgs(
+      tab.id,
+      startingPromptArgs(
+        agent.command,
+        `Read ${path} and discuss it with the user. Discussing does not replace your usual procedure: orient yourself first, as your instructions say.`
+      )
+    )
   }
   const next = tree.splitWithTab(root, paneId, 'right', tab)
   commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
@@ -1223,9 +1227,17 @@ export async function reopenWorkgroupMember(
   )
 }
 
+// agy drops a bare positional prompt, so its starting prompt goes through -i, which opens the TUI and submits it.
+function startingPromptArgs(command: string, prompt: string): string[] {
+  return command === 'agy' ? ['-i', prompt] : [prompt]
+}
+
 function workgroupArgs(member: WorkgroupSpawnMember): string[] {
-  const modelFlag = member.vendor === 'claude' ? '--model' : '-m'
-  return [...(member.model ? [modelFlag, member.model] : []), member.prompt]
+  const modelFlag = member.vendor === 'codex' ? '-m' : '--model'
+  return [
+    ...(member.model ? [modelFlag, member.model] : []),
+    ...startingPromptArgs(member.vendor, member.prompt)
+  ]
 }
 
 function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {

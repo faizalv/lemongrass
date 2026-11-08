@@ -11,7 +11,7 @@ const shellTabEnv = "LGRASS_SHELL_TAB"
 // The hidden `lgrassd hook` argument that runs the detached ender, see startShellTabEnd.
 const shellTabEndArg = "end-shell-job"
 
-const shellTabMessage = "lemongrass: Claude Code and Codex do not run inside a Shell tab, because lemongrass cannot track them there. Open an agent tab from New shell instead."
+const shellTabMessage = "lemongrass: Claude Code, Codex and Antigravity do not run inside a Shell tab, because lemongrass cannot track them there. Open an agent tab from New shell instead."
 
 func inShellTab(tabID string, marker string) bool {
 	return tabID == "" && marker != ""
