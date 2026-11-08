@@ -333,7 +333,8 @@ func tryGetNumberValue(strNum string, format numberFormat, suffix numberSuffix, 
 			// new BigInteger(double) throws on infinity, and the catch makes the literal no number.
 			return nil, false
 		}
-		bf := new(big.Float).SetFloat64(math.Trunc(f))
+		// AsBigInt (Utils.cs) is new BigInteger(Math.Round(d)): banker's rounding, so 3.72y is 4 and 2.5y is 2.
+		bf := new(big.Float).SetFloat64(math.RoundToEven(f))
 		bi, _ := bf.Int(nil)
 		return castBig(bi, suffix)
 	}
