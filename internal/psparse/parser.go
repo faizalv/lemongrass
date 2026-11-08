@@ -4,8 +4,6 @@
 
 package psparse
 
-import "unicode"
-
 // Result is a successful parse: the tree and every token, as Parser.ParseInput returns them.
 type Result struct {
 	Ast    *ScriptBlockAst
@@ -187,19 +185,9 @@ func (p *parser) resync(restorePoint int) {
 	p.tok.resync(restorePoint)
 }
 
-// isSpecificParameter is IsSpecificParameter: the token's name is a prefix of parameter, compared the way .NET's
-// OrdinalIgnoreCase does, by upper-casing each character.
+// isSpecificParameter is IsSpecificParameter: the token's name is a prefix of parameter, under OrdinalIgnoreCase.
 func isSpecificParameter(t *Token, parameter string) bool {
-	name, full := []rune(t.ParameterName), []rune(parameter)
-	if len(name) > len(full) {
-		return false
-	}
-	for i, r := range name {
-		if unicode.ToUpper(r) != unicode.ToUpper(full[i]) {
-			return false
-		}
-	}
-	return true
+	return ordinalHasPrefixFold(parameter, t.ParameterName)
 }
 
 // requireStatementTerminator is RequireStatementTerminator.
