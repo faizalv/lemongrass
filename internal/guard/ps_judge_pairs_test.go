@@ -172,7 +172,8 @@ func psDetail(verdict *Verdict) string {
 }
 
 // TestPowerShellSevenOnlyNumbers holds the 5.1 reading of a number only pwsh 7 knows: a bare word as an argument,
-// and a command of that name as a statement; in expression mode 5.1 cannot parse it, so only 7's reading is recorded.
+// and a command of that name where a pipeline starts, an assignment's right side included; as an operand 5.1 cannot
+// parse it, so only 7's reading is recorded.
 func TestPowerShellSevenOnlyNumbers(t *testing.T) {
 	psJudgeReady(t)
 	hasCall := func(script shellScript, name string, args ...string) bool {
@@ -200,8 +201,12 @@ func TestPowerShellSevenOnlyNumbers(t *testing.T) {
 		t.Errorf("0b101 gave %v, want a command named 0b101", script.Calls)
 	}
 	script = judge("$a = 2.5y")
+	if !hasCall(script, "2.5y") {
+		t.Errorf("$a = 2.5y gave %v, want the 5.1 command 2.5y, since 5.1 reads an assignment's right side as a pipeline", script.Calls)
+	}
+	script = judge("$a = 1 + 2.5y")
 	if len(script.Calls) != 0 {
-		t.Errorf("$a = 2.5y gave %v, want no call", script.Calls)
+		t.Errorf("$a = 1 + 2.5y gave %v, want no call, since 5.1 cannot parse 2.5y as an operand", script.Calls)
 	}
 	script = judge("Start-Sleep 0x10")
 	if len(script.Calls) != 1 {

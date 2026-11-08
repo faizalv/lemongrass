@@ -175,8 +175,10 @@ func (j *psJudge) statement(statement psparse.StatementAst) {
 	case *psparse.AssignmentStatementAst:
 		j.assignment(s)
 	case *psparse.CommandExpressionAst:
+		// A lone expression standing as a statement, such as an assignment's right side, is a pipeline to 5.1 too.
 		j.walk(s.Expression)
 		j.redirections(s.Redirections)
+		j.legacyNumberCommand(s)
 	case *psparse.CommandAst:
 		j.command(s, 0, nil)
 	case *psparse.IfStatementAst:
