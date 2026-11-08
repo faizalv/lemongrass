@@ -13,3 +13,16 @@ export const CLAUDE_MARK_BOX = 100
 // Provisional, until Antigravity's own path data replaces it.
 export const AGY_MARK = 'M1 23L12 1l11 22h-5.5L12 11.5L6.5 23z'
 export const AGY_MARK_BOX = 24
+
+export interface VendorMark {
+  d: string
+  box: number
+}
+
+// Keyed by the agent's command, which is also its id in SHELL_AGENTS for these three. An agent missing here, such as
+// Cursor or the Shell entry, is drawn with the terminal glyph instead.
+export const VENDOR_MARKS: Readonly<Record<string, VendorMark>> = {
+  claude: { d: CLAUDE_MARK, box: CLAUDE_MARK_BOX },
+  codex: { d: CODEX_MARK, box: CODEX_MARK_BOX },
+  agy: { d: AGY_MARK, box: AGY_MARK_BOX }
+}

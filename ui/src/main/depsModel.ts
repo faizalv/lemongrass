@@ -333,8 +333,9 @@ export function nextSeen(
 
 // The folder of each agent CLI that is not on the login shell's PATH, on Linux and macOS: a terminal outside
 // lemongrass may not find it, which the row says, while lemongrass's own tabs find it (the app adds ~/.local/bin to
-// its own PATH and falls back to the checked path). An unread login PATH reports nothing. On Windows both vendor
-// folders are on the user's PATH (lemongrass adds ~/.local/bin, Codex's script adds its own), so nothing is reported.
+// its own PATH and falls back to the checked path). An unread login PATH reports nothing. On Windows Claude's and
+// Codex's folders are on the user's PATH (lemongrass adds ~/.local/bin, Codex's script adds its own), so nothing is
+// reported; whether `agy install` adds Antigravity's %LOCALAPPDATA%\agy\bin is unverified.
 export function agentsOffPath(
   report: DepsReport,
   pathVar: string | null,

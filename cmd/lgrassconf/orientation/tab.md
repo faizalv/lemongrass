@@ -158,6 +158,8 @@ A denial names its rule. Read it, do not look for another route to the same effe
 A denial names its rule. Read it, do not look for another route to the same effect, and tell the human what was blocked. A command only the human can approve, whether the guard held it or it needs a password, a confirmation or a login, goes to the human as a command ask through `lgrass ask`. The human runs it from the decision card in a terminal they can type into. Never ask the human to type a command with a `!` prefix.
 <!-- end -->
 
+When you would tell the human to run a command themselves, in a terminal or anywhere else, file it as a command ask instead, even when you chose not to run it yourself.
+
 <!-- claude -->
 Some tools are deferred on purpose: their full definitions load through ToolSearch only when you ask for them, so every request stays small. Artifact and ScheduleWakeup are among them. Load one only when the human asks for what it does, such as publishing or reading an artifact, even when a tool hint says to load it for any document, plan or visual.
 <!-- end -->

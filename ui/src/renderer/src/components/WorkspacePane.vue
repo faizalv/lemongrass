@@ -404,7 +404,11 @@ onBeforeUnmount(() => {
               :style="{ background: tabBand(project.id, tab)?.color }"
             />
           </template>
-          <TabIcon v-if="tabKindOf(tab).icon.length" :shapes="tabKindOf(tab).icon" />
+          <TabIcon
+            v-if="tabKindOf(tab).icon.length"
+            :shapes="tabKindOf(tab).icon"
+            :mark="tabKindOf(tab).mark?.(tab)"
+          />
           <span class="tab-label">
             <span v-if="tabKindOf(tab).label(tab, tabContext(tab)).prefix" class="tab-parent">
               {{ tabKindOf(tab).label(tab, tabContext(tab)).prefix }} /

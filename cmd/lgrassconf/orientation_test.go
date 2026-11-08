@@ -106,6 +106,12 @@ func TestOrientationIsAdaptedPerVendor(t *testing.T) {
 				t.Errorf("agy-%s carries %q", role, harness)
 			}
 		}
+		// A command the model would hand the human goes through lemongrass instead, worded the same for every vendor.
+		for vendor, text := range map[string]string{"claude": claudeText, "codex": codexText, "agy": agyText} {
+			if !strings.Contains(text, "When you would tell the human to run a command themselves") {
+				t.Errorf("%s %s lacks the hand-off sentence", vendor, role)
+			}
+		}
 		if !strings.Contains(codexText, "changes to Codex's config, hooks or the lemongrass binaries") {
 			t.Errorf("codex-%s does not name Codex's config in the blocked list", role)
 		}

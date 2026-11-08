@@ -21,6 +21,7 @@ import WorkgroupPane from './components/WorkgroupPane.vue'
 import { shellTitles } from './shellRegistry'
 import { workgroupStateOf } from './workgroups'
 import { deviceIcon, historyIcon, resterClientIcon, sshIcon, vaultIcon } from './icons'
+import { VENDOR_MARKS, type VendorMark } from './vendorMarks'
 import type { ProjectRef } from './workspace'
 import type { WorkspaceTab } from '../../preload/types'
 
@@ -44,6 +45,8 @@ type TabOf<K extends KindName> = Extract<WorkspaceTab, { kind: K }>
 
 interface TabKind<T extends WorkspaceTab> {
   icon: IconShape[]
+  // Drawn in place of icon for a tab that runs a vendor's agent.
+  mark?: (tab: T) => VendorMark | undefined
   label: (tab: T, ctx: TabContext) => TabLabel
   title: (tab: T, ctx: TabContext) => string
   body: Component
@@ -69,6 +72,7 @@ function shellLabel(tab: TabOf<'shell'>): string {
 const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
   shell: {
     icon: [{ tag: 'path', attrs: { d: 'M2.5 4.5l3 2.5-3 2.5M7 10h4.5' } }],
+    mark: (tab) => VENDOR_MARKS[tab.command],
     label: (tab) => ({ text: shellLabel(tab) }),
     title: shellLabel,
     body: ShellView,
