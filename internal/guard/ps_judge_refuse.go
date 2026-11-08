@@ -35,6 +35,7 @@ var psRefusedCmdlets = map[string]psRefusal{
 	"start-job":         {"powershell-construct", psGuideJob},
 	"import-module":     {"powershell-construct", psGuideModule},
 	"add-pssnapin":      {"powershell-construct", psGuideModule},
+	"add-type":          {"powershell-construct", psGuideModule},
 	"invoke-item":       {"powershell-construct", psGuideInvokeItem},
 	"set-alias":         {"name-redefinition", psGuideAlias},
 	"new-alias":         {"name-redefinition", psGuideAlias},
