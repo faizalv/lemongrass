@@ -273,6 +273,9 @@ type oracleResult struct {
 	Tokens             []any
 	Errors             []oracleError
 	ReferenceException string
+	// DepthCapped means the reference tree and tokens were too deep to send, so
+	// only Errors exist and no comparison that reads the tree may pass.
+	DepthCapped bool
 }
 
 type oracleResponse struct {
@@ -458,6 +461,9 @@ func oracleRefusedConstruct(result *Result) bool {
 func compareOracle(goResult *Result, goErr error, reference oracleResult, schema oracleSchema) (oracleClass, string) {
 	if reference.ReferenceException != "" {
 		return oracleMismatch, "reference ParseInput exception: " + reference.ReferenceException
+	}
+	if reference.DepthCapped && (goErr == nil || len(reference.Errors) == 0) {
+		return oracleMismatch, "reference tree past the dump's depth cap was omitted"
 	}
 	if goErr != nil {
 		var e *ParseError
@@ -905,6 +911,76 @@ func TestOracleDeepSerialization(t *testing.T) {
 	}
 }
 
+// The deepest nesting the Go parser accepts must still compare exactly, and a
+// recovery tree past PowerShell's script call-depth limit must serialize whole.
+func TestOracleDeepNestingLimits(t *testing.T) {
+	o := startOracle(t)
+	limits := Limits{MaxInput: 4096, MaxDepth: 200}
+	for _, shape := range []struct{ open, inner, close string }{{"(", "1", ")"}, {"{", "1", "}"}, {"@(", "1", ")"}, {"$(", "1", ")"}, {"\"$(", "1", ")\""}, {"-(", "1", ")"}, {"[int]", "1", ""}} {
+		deepest := ""
+		for n := 1; n <= 400; n++ {
+			input := strings.Repeat(shape.open, n) + shape.inner + strings.Repeat(shape.close, n)
+			var limit *ParseError
+			if _, err := Parse(input, limits); errors.As(err, &limit) && limit.ID == ErrNestingTooDeep {
+				break
+			} else if err != nil {
+				t.Fatalf("%q at depth %d: %v", shape.open, n, err)
+			}
+			deepest = input
+		}
+		if deepest == "" {
+			t.Fatalf("%q: no accepted depth", shape.open)
+		}
+		result, err := Parse(deepest, limits)
+		response, batchErr := o.batch([]string{deepest})
+		if batchErr != nil {
+			t.Fatal(batchErr)
+		}
+		if response.Results[0].DepthCapped {
+			t.Fatalf("%q: Go-accepted depth reached the dump's depth cap", shape.open)
+		}
+		if class, detail := compareOracle(result, err, response.Results[0], o.schema); class != oracleMatch {
+			t.Fatalf("%q at its deepest accepted nesting: %s %s", shape.open, class, detail)
+		}
+	}
+	recovery := "enum : a" + strings.Repeat("(", 600)
+	response, err := o.batch([]string{recovery, "enum : a" + strings.Repeat("(", 1400)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := response.Results[0]; r.DepthCapped || r.Tree == nil || len(r.Errors) == 0 {
+		t.Fatalf("600-level recovery tree was not serialized whole: capped=%v errors=%d", r.DepthCapped, len(r.Errors))
+	}
+	if r := response.Results[1]; !r.DepthCapped || r.Tree != nil || r.Tokens != nil || len(r.Errors) == 0 {
+		t.Fatalf("1400-level recovery tree was not depth-capped with errors only: capped=%v errors=%d", r.DepthCapped, len(r.Errors))
+	}
+}
+
+func TestOracleDepthCappedReference(t *testing.T) {
+	success, err := Parse("1", DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, goErr := Parse("enum : a", DefaultLimits)
+	if goErr == nil {
+		t.Fatal("expected a Go parse error")
+	}
+	capped := oracleResult{DepthCapped: true, Errors: []oracleError{{ID: "MissingNameAfterKeyword", Start: 4, End: 5}}}
+	schema := makeOracleSchema()
+	if class, _ := compareOracle(success, nil, capped, schema); class != oracleMismatch {
+		t.Fatalf("Go success against an omitted tree: %s", class)
+	}
+	if class, _ := compareOracle(nil, goErr, oracleResult{DepthCapped: true}, schema); class != oracleMismatch {
+		t.Fatalf("Go error against an omitted error-free tree: %s", class)
+	}
+	if class, _ := compareOracle(nil, goErr, capped, schema); class != oracleBothError {
+		t.Fatalf("Go error against omitted tree with errors: %s", class)
+	}
+	if label, _ := oracleCompareWindows51("1", success, nil, oracleResult{}, capped, schema); label != string(oracleMismatch) {
+		t.Fatalf("5.1 Go success against an omitted tree: %s", label)
+	}
+}
+
 func TestOracleNormalization(t *testing.T) {
 	o := startOracle(t)
 	for _, test := range []struct {
@@ -1305,7 +1381,7 @@ func TestOracleWindows51(t *testing.T) {
 
 func oracleCompareWindows51(input string, result *Result, err error, modern, legacy oracleResult, schema oracleSchema) (string, string) {
 	class, detail := compareOracle(result, err, legacy, schema)
-	if class != oracleMismatch {
+	if class != oracleMismatch || modern.DepthCapped || legacy.DepthCapped {
 		return string(class), detail
 	}
 	var e *ParseError

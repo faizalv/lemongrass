@@ -10,6 +10,12 @@ $script:schema = $null
 $script:binding = [Reflection.BindingFlags]'Instance,Public,NonPublic'
 $script:culture = [Globalization.CultureInfo]::InvariantCulture
 $script:jsonEscapes = [char[]](@(0..31) + @(34, 92))
+# Container levels per converted tree, far beyond any tree the Go parser accepts
+# under Limits.MaxDepth and well inside encoding/json's 10000 nesting limit.
+$script:depthCap = 4000
+$script:nodeSpec = [pscustomobject]@{ Kind = 'node' }
+$script:tokenSpec = [pscustomobject]@{ Kind = 'token' }
+$script:tokenListSpec = [pscustomobject]@{ Kind = 'list'; Element = $script:tokenSpec }
 
 function Write-OracleJsonString([string]$Value, [Text.StringBuilder]$Output) {
     if ($Value.IndexOfAny($script:jsonEscapes) -lt 0) {
@@ -19,56 +25,65 @@ function Write-OracleJsonString([string]$Value, [Text.StringBuilder]$Output) {
     }
 }
 
-# ConvertTo-Json truncates containers beyond depth 100. The normalized protocol
-# has only these value kinds; rejecting every other kind prevents silent loss.
-function Write-OracleJsonValue($Value, [Text.StringBuilder]$Output) {
-    if ($null -eq $Value) { [void]$Output.Append('null'); return }
-    if ($Value -is [string]) { Write-OracleJsonString $Value $Output; return }
-    if ($Value -is [bool]) {
-        if ($Value) { [void]$Output.Append('true') } else { [void]$Output.Append('false') }
-        return
-    }
-    if ($Value -is [Collections.IDictionary]) {
-        [void]$Output.Append('{')
-        $first = $true
-        foreach ($key in $Value.Keys) {
-            if ($key -isnot [string]) { throw 'oracle: JSON object key is not a string' }
-            if (-not $first) { [void]$Output.Append(',') }
-            $first = $false
-            Write-OracleJsonString $key $Output
-            [void]$Output.Append(':')
-            Write-OracleJsonValue $Value[$key] $Output
-        }
-        [void]$Output.Append('}')
-        return
-    }
-    if ($Value -is [int[]]) {
-        [void]$Output.Append('[').Append(($Value -join ',')).Append(']')
-        return
-    }
-    if ($Value -is [Collections.IEnumerable]) {
-        [void]$Output.Append('[')
-        $first = $true
-        foreach ($item in $Value) {
-            if (-not $first) { [void]$Output.Append(',') }
-            $first = $false
-            Write-OracleJsonValue $item $Output
-        }
-        [void]$Output.Append(']')
-        return
-    }
-    if ([Type]::GetTypeCode($Value.GetType()).ToString() -in @('Byte', 'SByte', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64', 'Single', 'Double', 'Decimal')) {
-        $number = [Convert]::ToString($Value, $script:culture)
-        if ($number -in @('NaN', 'Infinity', '-Infinity')) { throw 'oracle: non-finite JSON number' }
-        [void]$Output.Append($number)
-        return
-    }
-    throw "oracle: unsupported JSON value $($Value.GetType().FullName)"
-}
-
+# ConvertTo-Json truncates containers beyond depth 100, and recursion would hit
+# PowerShell's script call-depth limit, so containers are written from an
+# explicit stack. Rejecting every other value kind prevents silent loss.
 function Convert-OracleJson($Value) {
     $output = New-Object Text.StringBuilder
-    Write-OracleJsonValue $Value $output
+    $stack = New-Object Collections.Stack
+    $pending = $Value
+    $hasPending = $true
+    while ($true) {
+        if ($hasPending) {
+            $hasPending = $false
+            if ($null -eq $pending) {
+                [void]$output.Append('null')
+            } elseif ($pending -is [string]) {
+                Write-OracleJsonString $pending $output
+            } elseif ($pending -is [bool]) {
+                if ($pending) { [void]$output.Append('true') } else { [void]$output.Append('false') }
+            } elseif ($pending -is [Collections.IDictionary]) {
+                $keys = New-Object Collections.ArrayList
+                foreach ($key in $pending.Keys) {
+                    if ($key -isnot [string]) { throw 'oracle: JSON object key is not a string' }
+                    [void]$keys.Add($key)
+                }
+                [void]$output.Append('{')
+                $stack.Push(@{ Items = $keys; Dictionary = $pending; Index = 0 })
+            } elseif ($pending -is [int[]]) {
+                [void]$output.Append('[').Append(($pending -join ',')).Append(']')
+            } elseif ($pending -is [Collections.IEnumerable]) {
+                $items = New-Object Collections.ArrayList
+                foreach ($item in $pending) { [void]$items.Add($item) }
+                [void]$output.Append('[')
+                $stack.Push(@{ Items = $items; Dictionary = $null; Index = 0 })
+            } elseif ([Type]::GetTypeCode($pending.GetType()).ToString() -in @('Byte', 'SByte', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64', 'Single', 'Double', 'Decimal')) {
+                $number = [Convert]::ToString($pending, $script:culture)
+                if ($number -in @('NaN', 'Infinity', '-Infinity')) { throw 'oracle: non-finite JSON number' }
+                [void]$output.Append($number)
+            } else {
+                throw "oracle: unsupported JSON value $($pending.GetType().FullName)"
+            }
+        }
+        if ($stack.Count -eq 0) { break }
+        $frame = $stack.Peek()
+        if ($frame.Index -ge $frame.Items.Count) {
+            if ($null -eq $frame.Dictionary) { [void]$output.Append(']') } else { [void]$output.Append('}') }
+            [void]$stack.Pop()
+            continue
+        }
+        if ($frame.Index -gt 0) { [void]$output.Append(',') }
+        $item = $frame.Items[$frame.Index]
+        $frame.Index = $frame.Index + 1
+        if ($null -eq $frame.Dictionary) {
+            $pending = $item
+        } else {
+            Write-OracleJsonString $item $output
+            [void]$output.Append(':')
+            $pending = $frame.Dictionary[$item]
+        }
+        $hasPending = $true
+    }
     return $output.ToString()
 }
 
@@ -104,12 +119,7 @@ function Convert-String([string]$Value) {
     return @{ UTF16 = [int[]]($Value.ToCharArray()) }
 }
 
-function Convert-Token($Token) {
-    if ($null -eq $Token) { return $null }
-    $nested = @()
-    if ($Token -is [System.Management.Automation.Language.StringExpandableToken]) {
-        $nested = @(foreach ($item in $Token.NestedTokens) { Convert-Token $item })
-    }
+function Convert-TokenRecord($Token) {
     $flags = [long]$Token.TokenFlags
     if ($PSVersionTable.PSVersion.Major -lt 6) {
         $precedence = $flags -band $script:precedenceMask
@@ -123,70 +133,101 @@ function Convert-Token($Token) {
         Kind = $Token.Kind.ToString(); Flags = $flags
         Class = $Token.GetType().Name
         Start = $Token.Extent.StartOffset; End = $Token.Extent.EndOffset
-        NestedTokens = $nested
+        NestedTokens = @()
     }
 }
 
-function Convert-Value($Value, $Spec) {
-    if ($null -eq $Value) {
-        if ($Spec.Kind -eq 'list') { return ,@() }
-        if ($Spec.Kind -eq 'string') { return (Convert-String '') }
-        return $null
-    }
-    switch ($Spec.Kind) {
-        'node' {
-            $name = $Value.GetType().Name
-            $result = @{ Type = $name; Start = $Value.Extent.StartOffset; End = $Value.Extent.EndOffset }
-            # These constructs are explicitly refused by the Go parser on every
-            # OS. Windows registers DSC even in a fresh ParseInput process.
-            if ($name -in @('ConfigurationDefinitionAst', 'DynamicKeywordStatementAst')) { return $result }
-            # Recovery nodes have no counterpart in the fail-fast Go parser.
-            if ($script:hasParseErrors -and $name -in @('ErrorStatementAst', 'ErrorExpressionAst')) { return $result }
-            if ($null -eq $script:schema.Nodes.$name) { throw "oracle: unknown AST $name" }
-            foreach ($field in $script:schema.Nodes.$name.PSObject.Properties) {
-                $property = $field.Name
-                if ($name -eq 'ExpandableStringExpressionAst' -and $property -eq 'FormatString') { $property = 'FormatExpression' }
-                $result[$field.Name] = Convert-Value (Read-Property $Value $property) $field.Value
-            }
-            return $result
+# Converts from an explicit work stack: recursion would hit PowerShell's script
+# call-depth limit on deep recovery trees. Past $script:depthCap container levels
+# the result is $null with Capped set, because Go's encoding/json refuses nesting
+# past 10000 and the harness must never compare a truncated reference.
+function Convert-OracleTree($Root, $RootSpec) {
+    $holder = @{ Value = $null }
+    $stack = New-Object Collections.Stack
+    $stack.Push(@($Root, $RootSpec, $holder, 'Value', 0))
+    while ($stack.Count -ne 0) {
+        $task = $stack.Pop()
+        $Value = $task[0]; $Spec = $task[1]; $target = $task[2]; $slot = $task[3]; $depth = $task[4]
+        if ($depth -gt $script:depthCap) { return @{ Value = $null; Capped = $true } }
+        if ($null -eq $Value) {
+            if ($Spec.Kind -eq 'list') { $target[$slot] = @() }
+            elseif ($Spec.Kind -eq 'string') { $target[$slot] = (Convert-String '') }
+            else { $target[$slot] = $null }
+            continue
         }
-        'list' {
-            $items = @(foreach ($item in $Value) { Convert-Value $item $Spec.Element })
-            return ,$items
-        }
-        'object' {
-            $result = @{}
-            foreach ($field in $script:schema.Objects.($Spec.Name).PSObject.Properties) {
-                $property = $field.Name
-                if ($Spec.Name -eq 'ScriptRequirements' -and $property -eq 'RequiredApplicationID') { $property = 'RequiredApplicationId' }
-                # ast.cs represents these helper records as Tuple<T1,T2>.
-                if ($Spec.Name -in @('IfClause', 'SwitchClause', 'KeyValuePair')) {
-                    $property = if ($field.Name -in @('Condition', 'Key')) { 'Item1' } else { 'Item2' }
+        switch ($Spec.Kind) {
+            'node' {
+                $name = $Value.GetType().Name
+                $result = @{ Type = $name; Start = $Value.Extent.StartOffset; End = $Value.Extent.EndOffset }
+                $target[$slot] = $result
+                # These constructs are explicitly refused by the Go parser on every
+                # OS. Windows registers DSC even in a fresh ParseInput process.
+                if ($name -in @('ConfigurationDefinitionAst', 'DynamicKeywordStatementAst')) { break }
+                # Recovery nodes have no counterpart in the fail-fast Go parser.
+                if ($script:hasParseErrors -and $name -in @('ErrorStatementAst', 'ErrorExpressionAst')) { break }
+                if ($null -eq $script:schema.Nodes.$name) { throw "oracle: unknown AST $name" }
+                foreach ($field in $script:schema.Nodes.$name.PSObject.Properties) {
+                    $property = $field.Name
+                    if ($name -eq 'ExpandableStringExpressionAst' -and $property -eq 'FormatString') { $property = 'FormatExpression' }
+                    $stack.Push(@((Read-Property $Value $property), $field.Value, $result, $field.Name, ($depth + 1)))
                 }
-                $result[$field.Name] = Convert-Value (Read-Property $Value $property) $field.Value
             }
-            return $result
-        }
-        'typename' {
-            return @{
-                Type = $Value.GetType().Name; Start = $Value.Extent.StartOffset; End = $Value.Extent.EndOffset
-                Name = Convert-String $Value.Name; FullName = Convert-String $Value.FullName; AssemblyName = Convert-String $Value.AssemblyName
-                IsArray = $Value.IsArray; IsGeneric = $Value.IsGeneric
+            'list' {
+                $source = New-Object Collections.ArrayList
+                foreach ($item in $Value) { [void]$source.Add($item) }
+                $items = New-Object object[] $source.Count
+                $target[$slot] = $items
+                for ($i = 0; $i -lt $source.Count; $i++) {
+                    $stack.Push(@($source[$i], $Spec.Element, $items, $i, ($depth + 1)))
+                }
             }
+            'object' {
+                $result = @{}
+                $target[$slot] = $result
+                foreach ($field in $script:schema.Objects.($Spec.Name).PSObject.Properties) {
+                    $property = $field.Name
+                    if ($Spec.Name -eq 'ScriptRequirements' -and $property -eq 'RequiredApplicationID') { $property = 'RequiredApplicationId' }
+                    # ast.cs represents these helper records as Tuple<T1,T2>.
+                    if ($Spec.Name -in @('IfClause', 'SwitchClause', 'KeyValuePair')) {
+                        $property = if ($field.Name -in @('Condition', 'Key')) { 'Item1' } else { 'Item2' }
+                    }
+                    $stack.Push(@((Read-Property $Value $property), $field.Value, $result, $field.Name, ($depth + 1)))
+                }
+            }
+            'token' {
+                $result = Convert-TokenRecord $Value
+                $target[$slot] = $result
+                if ($Value -is [System.Management.Automation.Language.StringExpandableToken] -and $null -ne $Value.NestedTokens) {
+                    $nested = New-Object Collections.ArrayList
+                    foreach ($item in $Value.NestedTokens) { [void]$nested.Add($item) }
+                    $items = New-Object object[] $nested.Count
+                    $result.NestedTokens = $items
+                    for ($i = 0; $i -lt $nested.Count; $i++) {
+                        $stack.Push(@($nested[$i], $script:tokenSpec, $items, $i, ($depth + 2)))
+                    }
+                }
+            }
+            'typename' {
+                $target[$slot] = @{
+                    Type = $Value.GetType().Name; Start = $Value.Extent.StartOffset; End = $Value.Extent.EndOffset
+                    Name = Convert-String $Value.Name; FullName = Convert-String $Value.FullName; AssemblyName = Convert-String $Value.AssemblyName
+                    IsArray = $Value.IsArray; IsGeneric = $Value.IsGeneric
+                }
+            }
+            'variable' { $target[$slot] = @{ UserPath = Convert-String $Value.UserPath } }
+            'extent' { $target[$slot] = (Convert-Extent $Value) }
+            'constant' {
+                if ($Value -is [string]) { $target[$slot] = (Convert-String $Value) }
+                elseif ($Value -is [bool]) { $target[$slot] = $Value }
+                else { $target[$slot] = (Convert-Number $Value) }
+            }
+            'string' { $target[$slot] = (Convert-String $Value) }
+            'bool' { $target[$slot] = [bool]$Value }
+            'int' { $target[$slot] = [long]$Value }
+            default { throw "oracle: unknown normalization kind $($Spec.Kind)" }
         }
-        'variable' { return @{ UserPath = Convert-String $Value.UserPath } }
-        'extent' { return (Convert-Extent $Value) }
-        'token' { return (Convert-Token $Value) }
-        'constant' {
-            if ($Value -is [string]) { return (Convert-String $Value) }
-            if ($Value -is [bool]) { return $Value }
-            return (Convert-Number $Value)
-        }
-        'string' { return (Convert-String $Value) }
-        'bool' { return [bool]$Value }
-        'int' { return [long]$Value }
-        default { throw "oracle: unknown normalization kind $($Spec.Kind)" }
     }
+    return @{ Value = $holder.Value; Capped = $false }
 }
 
 while ($null -ne ($line = [Console]::ReadLine())) {
@@ -241,15 +282,18 @@ while ($null -ne ($line = [Console]::ReadLine())) {
                 continue
             }
             $script:hasParseErrors = $parseErrors.Count -ne 0
-            @{
-                Tree = Convert-Value $tree ([pscustomobject]@{ Kind = 'node' })
-                Tokens = @(foreach ($token in $tokens) { Convert-Token $token })
-                Errors = @(foreach ($parseError in $parseErrors) {
-                    @{
-                        ID = $parseError.ErrorId; Start = $parseError.Extent.StartOffset
-                        End = $parseError.Extent.EndOffset; Incomplete = $parseError.IncompleteInput
-                    }
-                })
+            $errors = @(foreach ($parseError in $parseErrors) {
+                @{
+                    ID = $parseError.ErrorId; Start = $parseError.Extent.StartOffset
+                    End = $parseError.Extent.EndOffset; Incomplete = $parseError.IncompleteInput
+                }
+            })
+            $convertedTree = Convert-OracleTree $tree $script:nodeSpec
+            $convertedTokens = Convert-OracleTree $tokens $script:tokenListSpec
+            if ($convertedTree.Capped -or $convertedTokens.Capped) {
+                @{ DepthCapped = $true; Errors = $errors }
+            } else {
+                @{ Tree = $convertedTree.Value; Tokens = $convertedTokens.Value; Errors = $errors }
             }
         })
         $response = @{ Version = $PSVersionTable.PSVersion.ToString(); Results = $results; Precedence = $script:rawPrecedence }

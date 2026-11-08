@@ -5,9 +5,13 @@ contains a batch of UTF-16 arrays. The first request also supplies a schema deri
 from the exported fields of the Go AST. Responses contain the normalized tree,
 tokens (runtime class, kind, flags, extents, nested tokens), and parse errors.
 The server parses text without invoking the supplied scripts.
-Protocol containers use a strict recursive JSON writer, with native scalar
-string escaping only, so nested trees cannot be truncated by ConvertTo-Json's
-container depth limit. Unsupported value kinds fail rather than losing fields.
+Tree conversion and the JSON writer run from explicit stacks, with native
+scalar string escaping only, so nested trees are cut neither by ConvertTo-Json's
+container depth limit nor by PowerShell's script call-depth limit. Unsupported
+value kinds fail rather than losing fields. A tree or token list deeper than
+4000 container levels, far past anything the Go parser accepts, is sent as
+`DepthCapped` with its errors only, because Go's `encoding/json` refuses nesting
+past 10000; the harness accepts such a result only where it compares errors.
 
 String fields use UTF-16 arrays too, preserving unpaired surrogate values that
 ordinary Go JSON strings would replace. Empty collections normalize to `[]` and
