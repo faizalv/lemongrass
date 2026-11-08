@@ -54,3 +54,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON vault_archive.* TO 'vaultapp'@'%';
 GRANT SELECT ON performance_schema.* TO 'vaultapp'@'%';
 GRANT SELECT, EXECUTE ON sys.* TO 'vaultapp'@'%';
 GRANT PROCESS ON *.* TO 'vaultapp'@'%';
+
+-- A plain app user with no performance_schema access, so the function check falls back to ROUTINES alone (catalogcheck_mysql_realdb_test.go). EXECUTE keeps the stored sum trap visible to it in ROUTINES.
+CREATE USER 'vaultplain'@'%' IDENTIFIED BY 'vaultplain-pass';
+GRANT SELECT, EXECUTE ON vaultapp.* TO 'vaultplain'@'%';

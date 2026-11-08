@@ -129,6 +129,14 @@ export interface ProjectFilesChange {
   dir: string
 }
 
+// A caveat on a passing connection test, such as a reduced function check. fix is a statement
+// the human can run to clear it.
+export interface ConnectionTestNotice {
+  title: string
+  detail: string
+  fix?: string
+}
+
 export interface VaultScope {
   Tables: string[]
   Operations: string[]

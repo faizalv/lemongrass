@@ -6,6 +6,7 @@ import { ref } from 'vue'
 import {
   APP_ICONS,
   AppBadge,
+  AppBanner,
   AppButton,
   AppChip,
   AppDisclosure,
@@ -245,6 +246,15 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
           <template #action><AppButton variant="primary">Open a file</AppButton></template>
         </AppEmptyState>
       </div>
+    </DocBlock>
+
+    <DocBlock name="AppBanner">
+      <AppBanner title="Config not linked">
+        Servers added here work in ssh only once your config reads their file.
+        <template #actions><AppButton size="sm">Link config</AppButton></template>
+      </AppBanner>
+      <AppBanner tone="info">A short note with no title.</AppBanner>
+      <AppBanner tone="danger" title="The last sync failed." />
     </DocBlock>
 
     <DocBlock name="AppProgressLine">

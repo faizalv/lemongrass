@@ -120,7 +120,8 @@ import type {
   WorkgroupPending,
   WorkgroupSpawnRequest,
   WorkgroupSpawnResult,
-  WorkgroupThreadResult
+  WorkgroupThreadResult,
+  ConnectionTestNotice
 } from './types'
 
 interface Api {
@@ -479,8 +480,8 @@ interface Api {
     getConnection: (passphrase: string, name: string) => Promise<string>
     updateConnection: (passphrase: string, name: string, connectionString: string) => Promise<void>
     deleteConnection: (name: string) => Promise<void>
-    testConnection: (connectionString: string) => Promise<void>
-    testSavedConnection: (passphrase: string, name: string) => Promise<void>
+    testConnection: (connectionString: string) => Promise<ConnectionTestNotice | null>
+    testSavedConnection: (passphrase: string, name: string) => Promise<ConnectionTestNotice | null>
     listTables: (passphrase: string, name: string) => Promise<string[]>
     connectionSSHHosts: (passphrase: string) => Promise<Record<string, string>>
     listSSHHosts: () => Promise<string[]>

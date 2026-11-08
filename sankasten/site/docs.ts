@@ -632,6 +632,28 @@ export const DOCS: Record<string, ComponentDoc> = {
     ],
     slots: [{ name: 'action', type: '', doc: 'A button under the text.' }]
   },
+  AppBanner: {
+    name: 'AppBanner',
+    summary:
+      'A framed message inside a surface that asks the reader to know or do something. Not for status or an empty view.',
+    props: [
+      {
+        name: 'tone',
+        type: "'warning' | 'info' | 'danger'",
+        default: "'warning'",
+        doc: 'Fill, border and icon color. danger is announced as an alert.'
+      },
+      { name: 'title', type: 'string', doc: 'Or the title slot. One short line.' }
+    ],
+    slots: [
+      {
+        name: 'default',
+        type: '',
+        doc: 'The detail under the title, smaller and secondary. Without a title it is the message, at full size.'
+      },
+      { name: 'actions', type: '', doc: 'Buttons on the right, centered on the banner.' }
+    ]
+  },
   AppProgressLine: {
     name: 'AppProgressLine',
     summary:

@@ -5,7 +5,7 @@
 // The SSH tab: the servers you connect to and the keys you log in with, shaped like the Vault. It
 // reads the ssh setup each time the tab is shown and runs nothing while hidden.
 import { computed, ref, watch } from 'vue'
-import { AppButton, AppEmptyState, AppInput, AppNavItem } from '@sankasten'
+import { AppBanner, AppButton, AppEmptyState, AppInput, AppNavItem } from '@sankasten'
 import '../../ssh.css'
 import { describeError } from '../../vaultSession'
 import { keyIcon, sshIcon } from '../../icons'
@@ -168,12 +168,12 @@ function addPrimary(): void {
             </AppButton>
           </div>
 
-          <div v-if="unlinked && section === 'servers'" class="ssh-banner">
-            <span>
-              Servers added in lemongrass work in ssh only once your ssh config reads their file.
-            </span>
-            <AppButton size="sm" @click="linkModal = true">Link ssh config</AppButton>
-          </div>
+          <AppBanner v-if="unlinked && section === 'servers'">
+            Servers added in lemongrass work in ssh only once your ssh config reads their file.
+            <template #actions>
+              <AppButton size="sm" @click="linkModal = true">Link ssh config</AppButton>
+            </template>
+          </AppBanner>
 
           <p v-if="error" class="settings-error">{{ error }}</p>
 

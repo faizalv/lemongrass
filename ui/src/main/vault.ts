@@ -4,6 +4,7 @@
 import { ipcMain } from 'electron'
 import { ipcConnect } from './ipcAddress'
 import { listSSHHosts, resolveSSHHost } from './sshHosts'
+import type { ConnectionTestNotice } from '../preload/types'
 
 interface RPCResponse<T> {
   ok: boolean
@@ -329,14 +330,26 @@ async function deleteConnection(name: string): Promise<void> {
 
 // Tests a connection string that hasn't been saved yet -- no passphrase involved, since
 // nothing here is encrypted or stored.
-async function testConnection(connectionString: string): Promise<void> {
-  await vaultCall<void>('test_connection', { connection_string: connectionString })
+// Resolves to a notice for the human when the test passed with a caveat, such as a reduced
+// function check, and to null otherwise.
+async function testConnection(connectionString: string): Promise<ConnectionTestNotice | null> {
+  const result = await vaultCall<{ notice?: ConnectionTestNotice } | undefined>('test_connection', {
+    connection_string: connectionString
+  })
+  return result?.notice ?? null
 }
 
 // Tests an already-saved connection, decrypting it under the master passphrase to actually
 // open it.
-async function testSavedConnection(passphrase: string, name: string): Promise<void> {
-  await vaultCall<void>('test_connection_saved', { root_secret: passphrase, db_name: name })
+async function testSavedConnection(
+  passphrase: string,
+  name: string
+): Promise<ConnectionTestNotice | null> {
+  const result = await vaultCall<{ notice?: ConnectionTestNotice } | undefined>(
+    'test_connection_saved',
+    { root_secret: passphrase, db_name: name }
+  )
+  return result?.notice ?? null
 }
 
 // Lists the tables in an already-saved connection's database, for the Channels form's table

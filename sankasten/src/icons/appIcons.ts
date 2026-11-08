@@ -52,6 +52,15 @@ export const APP_ICONS = {
       { tag: 'circle', attrs: { cx: 8, cy: 4.9, r: 0.4, fill: 'currentColor' } }
     ]
   },
+  warning: {
+    box: 16,
+    stroke: 1.4,
+    shapes: [
+      path('M8 2.2L14.3 13.2H1.7Z'),
+      path('M8 6.4V9.4'),
+      { tag: 'circle', attrs: { cx: 8, cy: 11.4, r: 0.4, fill: 'currentColor' } }
+    ]
+  },
   spinner: { box: 14, stroke: 1.6, shapes: [path('M7 2a5 5 0 1 1-5 5')] },
   dragHandle: {
     box: [10, 14],

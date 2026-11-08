@@ -122,7 +122,8 @@ import type {
   WorkgroupPending,
   WorkgroupSpawnRequest,
   WorkgroupSpawnResult,
-  WorkgroupThreadResult
+  WorkgroupThreadResult,
+  ConnectionTestNotice
 } from './types'
 
 // Custom APIs for renderer -- raw PTY bytes only, never a control-signal
@@ -549,9 +550,9 @@ const vault = {
     ipcRenderer.invoke('vault:updateConnection', passphrase, name, connectionString),
   deleteConnection: (name: string): Promise<void> =>
     ipcRenderer.invoke('vault:deleteConnection', name),
-  testConnection: (connectionString: string): Promise<void> =>
+  testConnection: (connectionString: string): Promise<ConnectionTestNotice | null> =>
     ipcRenderer.invoke('vault:testConnection', connectionString),
-  testSavedConnection: (passphrase: string, name: string): Promise<void> =>
+  testSavedConnection: (passphrase: string, name: string): Promise<ConnectionTestNotice | null> =>
     ipcRenderer.invoke('vault:testSavedConnection', passphrase, name),
   listTables: (passphrase: string, name: string): Promise<string[]> =>
     ipcRenderer.invoke('vault:listTables', passphrase, name),

@@ -144,6 +144,11 @@ type testConnectionPayload struct {
 	ConnectionString string `json:"connection_string"`
 }
 
+// testConnectionResult carries a passing test's notice for the human, empty when there is none.
+type testConnectionResult struct {
+	Notice *dbgate.TestNotice `json:"notice,omitempty"`
+}
+
 type testConnectionSavedPayload struct {
 	RootSecret string `json:"root_secret"`
 	DBName     string `json:"db_name"`
@@ -495,10 +500,11 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 		if err := json.Unmarshal(req.Payload, &p); err != nil {
 			return errResponse(err)
 		}
-		if err := svc.DB.TestConnection(p.ConnectionString); err != nil {
+		notice, err := svc.DB.TestConnection(p.ConnectionString)
+		if err != nil {
 			return errResponse(err)
 		}
-		return response{OK: true}
+		return payloadResponse(testConnectionResult{Notice: notice})
 
 	case opTestConnectionSaved:
 		var p testConnectionSavedPayload
@@ -506,7 +512,8 @@ func dispatch(svc *Backend, adminLimiter *vault.FailureLimiter, req request) res
 			return errResponse(err)
 		}
 		return adminOp(adminLimiter, func() (response, error) {
-			return response{OK: true}, svc.DB.TestConnectionSaved(p.RootSecret, p.DBName)
+			notice, err := svc.DB.TestConnectionSaved(p.RootSecret, p.DBName)
+			return payloadResponse(testConnectionResult{Notice: notice}), err
 		})
 
 	case opGetConnection:
@@ -956,12 +963,16 @@ func (c *Client) DeleteConnection(dbName string) error {
 	return c.call(opDeleteConnection, dbNamePayload{DBName: dbName}, nil)
 }
 
-func (c *Client) TestConnection(connectionString string) error {
-	return c.call(opTestConnection, testConnectionPayload{ConnectionString: connectionString}, nil)
+func (c *Client) TestConnection(connectionString string) (*dbgate.TestNotice, error) {
+	var out testConnectionResult
+	err := c.call(opTestConnection, testConnectionPayload{ConnectionString: connectionString}, &out)
+	return out.Notice, err
 }
 
-func (c *Client) TestConnectionSaved(rootSecret, dbName string) error {
-	return c.call(opTestConnectionSaved, testConnectionSavedPayload{RootSecret: rootSecret, DBName: dbName}, nil)
+func (c *Client) TestConnectionSaved(rootSecret, dbName string) (*dbgate.TestNotice, error) {
+	var out testConnectionResult
+	err := c.call(opTestConnectionSaved, testConnectionSavedPayload{RootSecret: rootSecret, DBName: dbName}, &out)
+	return out.Notice, err
 }
 
 func (c *Client) GetConnection(rootSecret, dbName string) (string, error) {

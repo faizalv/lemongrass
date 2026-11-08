@@ -5,7 +5,8 @@
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
 import { AppButton, AppCheckbox, AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
-import type { ResolvedSSHHost } from '../../../../preload/types'
+import type { ConnectionTestNotice, ResolvedSSHHost } from '../../../../preload/types'
+import ConnectionNoticeBanner from './ConnectionNoticeBanner.vue'
 import {
   composeConnectionString as composeFields,
   parseConnectionString,
@@ -54,18 +55,26 @@ async function refreshSSHHostByConnection(): Promise<void> {
   }
 }
 
-const rowStatus = ref<Record<string, 'verifying' | 'ok' | 'error'>>({})
+type RowStatus = 'verifying' | 'ok' | 'error'
+
+const rowStatus = ref<Record<string, RowStatus>>({})
 const rowStatusMessage = ref<Record<string, string>>({})
+// A caveat on a passing test, which stays a green Connected since the connection itself works.
+const rowNotice = ref<Record<string, ConnectionTestNotice | null>>({})
 
 async function verifyRow(name: string): Promise<void> {
   rowStatus.value[name] = 'verifying'
   try {
-    await window.api.vault.testSavedConnection(sessionPassphrase.value, name)
+    rowNotice.value[name] = await window.api.vault.testSavedConnection(
+      sessionPassphrase.value,
+      name
+    )
     rowStatus.value[name] = 'ok'
     rowStatusMessage.value[name] = 'Connected'
   } catch (err) {
     rowStatus.value[name] = 'error'
     rowStatusMessage.value[name] = describeError(err)
+    rowNotice.value[name] = null
   }
 }
 
@@ -79,7 +88,7 @@ async function testRow(name: string): Promise<void> {
   await verifyRow(name)
 }
 
-function capsuleLabel(status?: 'verifying' | 'ok' | 'error'): string {
+function capsuleLabel(status?: RowStatus): string {
   switch (status) {
     case 'verifying':
       return 'Testing…'
@@ -123,6 +132,8 @@ const creatingConnection = ref(false)
 
 const newConnectionTestStatus = ref<TestStatus>('idle')
 const newConnectionTestError = ref('')
+// A passing test can still carry a caveat, such as a reduced function check, which does not block Save.
+const newConnectionTestNotice = ref<ConnectionTestNotice | null>(null)
 
 // Any field the composed string is built from invalidates a previous test.
 watch(
@@ -139,6 +150,7 @@ watch(
   () => {
     newConnectionTestStatus.value = 'idle'
     newConnectionTestError.value = ''
+    newConnectionTestNotice.value = null
   }
 )
 
@@ -224,6 +236,7 @@ function openConnectionForm(): void {
   connectionFormError.value = ''
   newConnectionTestStatus.value = 'idle'
   newConnectionTestError.value = ''
+  newConnectionTestNotice.value = null
   showConnectionForm.value = true
 }
 
@@ -253,6 +266,7 @@ async function openConnectionEdit(name: string): Promise<void> {
     connectionFormError.value = ''
     newConnectionTestStatus.value = 'idle'
     newConnectionTestError.value = ''
+    newConnectionTestNotice.value = null
     showConnectionForm.value = true
   } catch (err) {
     connectionsError.value = describeError(err)
@@ -290,8 +304,9 @@ async function testNewConnection(): Promise<void> {
   if (!canTestNewConnection.value) return
   newConnectionTestStatus.value = 'testing'
   newConnectionTestError.value = ''
+  newConnectionTestNotice.value = null
   try {
-    await window.api.vault.testConnection(composeConnectionString())
+    newConnectionTestNotice.value = await window.api.vault.testConnection(composeConnectionString())
     newConnectionTestStatus.value = 'ok'
   } catch (err) {
     newConnectionTestStatus.value = 'error'
@@ -341,6 +356,7 @@ async function deleteConnection(name: string): Promise<void> {
     await window.api.vault.deleteConnection(name)
     delete rowStatus.value[name]
     delete rowStatusMessage.value[name]
+    delete rowNotice.value[name]
     await refreshConnections()
   } catch (err) {
     connectionsError.value = describeError(err)
@@ -484,6 +500,11 @@ watch(
           <template v-else-if="newConnectionTestStatus === 'testing'">Testing...</template>
           <template v-else>Not tested yet</template>
         </span>
+        <ConnectionNoticeBanner
+          v-if="newConnectionTestStatus === 'ok' && newConnectionTestNotice"
+          class="test-row-notice"
+          :notice="newConnectionTestNotice"
+        />
       </div>
 
       <p v-if="!vaultUnlocked" class="hint">Unlock the vault above before saving.</p>
@@ -576,6 +597,11 @@ watch(
             {{ deletingConnectionName === name ? 'Deleting...' : 'Delete' }}
           </AppButton>
         </div>
+        <ConnectionNoticeBanner
+          v-if="rowStatus[name] === 'ok' && rowNotice[name]"
+          class="channel-row-notice"
+          :notice="rowNotice[name]!"
+        />
       </div>
     </div>
   </div>

@@ -4,6 +4,7 @@
 // The package's one entry. Styles are not imported here: an app imports '@sankasten/styles/index.css'
 // once at startup, so the global token and control rules load exactly once.
 export { default as AppBadge } from './components/AppBadge.vue'
+export { default as AppBanner } from './components/AppBanner.vue'
 export { default as AppButton } from './components/AppButton.vue'
 export { default as AppCheckbox } from './components/AppCheckbox.vue'
 export { default as AppChip } from './components/AppChip.vue'

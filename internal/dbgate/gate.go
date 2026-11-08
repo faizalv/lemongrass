@@ -33,22 +33,48 @@ func New(svc *vault.Service) *Gate {
 	return g
 }
 
-// TestConnection opens connString directly and pings it, with no root secret involved since the string never touches the credential store.
-func (g *Gate) TestConnection(connString string) error {
+// TestNotice is a caveat on a passing connection test, shown to the human, never to a model.
+type TestNotice struct {
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
+	// Fix is a statement the human can run to clear the caveat, empty when there is none.
+	Fix string `json:"fix,omitempty"`
+}
+
+// TestConnection opens connString directly and pings it, with no root secret involved since the string never touches the credential store. A passing test may still return a notice for the human, such as a reduced function check.
+func (g *Gate) TestConnection(connString string) (*TestNotice, error) {
+	engine, err := engineOf(connString)
+	if err != nil {
+		return nil, err
+	}
 	db, err := openDB(connString)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer db.Close()
-	return pingWithTimeout(db)
+	return testDB(db, engine)
 }
 
 // TestConnectionSaved decrypts dbName's stored credential and pings it, to check an
 // already-saved connection still works without creating a channel against it.
-func (g *Gate) TestConnectionSaved(rootSecret, dbName string) error {
-	return g.withConnection(rootSecret, dbName, func(db *sql.DB, _ Engine) error {
-		return pingWithTimeout(db)
+func (g *Gate) TestConnectionSaved(rootSecret, dbName string) (*TestNotice, error) {
+	var notice *TestNotice
+	err := g.withConnection(rootSecret, dbName, func(db *sql.DB, engine Engine) error {
+		var err error
+		notice, err = testDB(db, engine)
+		return err
 	})
+	return notice, err
+}
+
+func testDB(db *sql.DB, engine Engine) (*TestNotice, error) {
+	if err := pingWithTimeout(db); err != nil {
+		return nil, err
+	}
+	if engine != EngineMySQL {
+		return nil, nil
+	}
+	return mysqlFunctionCheckNotice(db), nil
 }
 
 // ConnectionSSHHosts returns the ssh host alias of every saved connection that names one, keyed

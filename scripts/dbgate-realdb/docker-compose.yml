@@ -6,7 +6,8 @@
 #
 #   export LGRASS_TEST_MYSQL_DSN='mysql://vaultapp:vaultapp-pass@127.0.0.1:33306/vaultapp'
 #   export LGRASS_TEST_POSTGRES_DSN='postgres://vaultapp:vaultapp-pass@127.0.0.1:55432/vaultapp?sslmode=disable'
-#   go test ./internal/dbgate/ -run 'RealMySQL|RealPostgres'
+#   export LGRASS_TEST_MYSQL_PLAIN_DSN='mysql://vaultplain:vaultplain-pass@127.0.0.1:33306/vaultapp'
+#   go test ./internal/dbgate/ -run 'RealMySQL|RealPostgres|WithoutPerformanceSchema'
 #
 # The seeds run only on a fresh volume, so `docker compose down -v` before `up` resets every table, sequence and function.
 
