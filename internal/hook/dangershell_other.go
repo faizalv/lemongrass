@@ -11,14 +11,16 @@ import (
 	"github.com/faizalv/lemongrass/internal/guard"
 )
 
-// shellToolCommand returns the shell text the gate judges for a Bash call, and isShell false for any other tool, whose paths are judged instead. A verdict, never set off Windows, denies the call without judging it.
-func shellToolCommand(payload hookEvent) (command string, verdict *guard.Verdict, isShell bool) {
+// shellToolCommand returns the shell text the gate judges for a Bash call, the guard tool that reads it, and isShell
+// false for any other tool, whose paths are judged instead. A verdict, never set off Windows, denies the call
+// without judging it. Off Windows every shell tool runs bash; pwsh -c inside it is unwrapped by the guard.
+func shellToolCommand(payload hookEvent) (command, tool string, verdict *guard.Verdict, isShell bool) {
 	if payload.ToolName != "Bash" {
-		return "", nil, false
+		return "", "", nil, false
 	}
 	var shell shellToolInput
 	if err := json.Unmarshal(payload.ToolInput, &shell); err != nil {
-		return "", nil, true
+		return "", "Bash", nil, true
 	}
-	return shell.Command, nil, true
+	return shell.Command, "Bash", nil, true
 }

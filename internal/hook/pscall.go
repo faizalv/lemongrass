@@ -19,6 +19,13 @@ func posixShellName(name string) bool {
 	return posixShells[strings.TrimSuffix(base, ".exe")]
 }
 
+// powerShellHostName reports a shell name or path naming pwsh or Windows PowerShell.
+func powerShellHostName(name string) bool {
+	lower := strings.ToLower(strings.ReplaceAll(name, `\`, "/"))
+	base := strings.TrimSuffix(lower[strings.LastIndex(lower, "/")+1:], ".exe")
+	return base == "pwsh" || base == "powershell"
+}
+
 // psSingleQuote writes s as a PowerShell single-quoted string, in which only a doubled quote is special.
 func psSingleQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
