@@ -23,21 +23,39 @@ type psNativeArg struct {
 // psNativeArgv builds the argv a native program receives from the written elements under every way PowerShell passes
 // arguments (5.1, pwsh Legacy, pwsh 7.3+ Windows and Standard). It refuses, with guidance, an argument the models pass
 // differently: empty, holding a double quote, or holding whitespace with a trailing backslash. One reading takes ~ as
-// written, another as the home directory where an edition expands it.
+// written, another as the home directory where an edition expands it. An array literal is one argument joined with
+// commas on pwsh 7.6 on Unix; until the Windows editions are checked, it is also read as separate arguments.
 func psNativeArgv(program string, elems []psElement) (readings []psNativeReading, refusal string) {
-	args, refusal := psNativeArgs(program, elems)
-	if refusal != "" {
-		return nil, refusal
+	splits := []bool{false}
+	for _, elem := range elems {
+		if len(elem.Values) > 1 && !elem.Colon {
+			splits = append(splits, true)
+			break
+		}
 	}
+	for _, split := range splits {
+		args, refusal := psNativeArgs(program, elems, split)
+		if refusal != "" {
+			return nil, refusal
+		}
+		for _, arg := range args {
+			if !arg.Dynamic {
+				if refusal := psNativeArgRefusal(program, arg.Text); refusal != "" {
+					return nil, refusal
+				}
+			}
+		}
+		readings = append(readings, psTildeReadings(args)...)
+	}
+	return readings, ""
+}
+
+// psTildeReadings returns the argv with ~ as home and, when an argument would expand it, the argv with ~ as written.
+func psTildeReadings(args []psNativeArg) []psNativeReading {
 	home := psNativeReading{Args: []string{}, ArgDynamic: []bool{}}
 	literal := psNativeReading{Args: []string{}, ArgDynamic: []bool{}}
 	tilde := false
 	for _, arg := range args {
-		if !arg.Dynamic {
-			if refusal := psNativeArgRefusal(program, arg.Text); refusal != "" {
-				return nil, refusal
-			}
-		}
 		home.Args = append(home.Args, arg.Text)
 		home.ArgDynamic = append(home.ArgDynamic, arg.Dynamic)
 		text := arg.Text
@@ -50,14 +68,14 @@ func psNativeArgv(program string, elems []psElement) (readings []psNativeReading
 		literal.ArgDynamic = append(literal.ArgDynamic, arg.Dynamic)
 	}
 	if !tilde {
-		return []psNativeReading{home}, ""
+		return []psNativeReading{home}
 	}
-	return []psNativeReading{home, literal}, ""
+	return []psNativeReading{home, literal}
 }
 
 // psNativeArgs renders elements as the arguments PowerShell builds: -Name:value is one argument, an array literal is
-// one argument joined with commas, and -- passes through.
-func psNativeArgs(program string, elems []psElement) ([]psNativeArg, string) {
+// one argument joined with commas (or, with split, one argument per element), and -- passes through.
+func psNativeArgs(program string, elems []psElement, split bool) ([]psNativeArg, string) {
 	var args []psNativeArg
 	for _, elem := range elems {
 		if elem.Splat {
@@ -77,6 +95,12 @@ func psNativeArgs(program string, elems []psElement) ([]psNativeArg, string) {
 			if len(elem.Values) == 0 {
 				continue
 			}
+		}
+		if split && len(elem.Values) > 1 {
+			for _, value := range elem.Values {
+				args = append(args, psNativeArg{Text: value.Text, Dynamic: value.Dynamic, Tilde: !value.Quoted && psExpandsTilde(value.Text)})
+			}
+			continue
 		}
 		tilde := len(elem.Values) == 1 && !elem.Values[0].Quoted && psExpandsTilde(text)
 		args = append(args, psNativeArg{Text: text, Dynamic: dynamic, Tilde: tilde})

@@ -15,8 +15,8 @@ func TestPsNativeArgv(t *testing.T) {
 		t.Fatalf("git argv = %+v %q", readings, refusal)
 	}
 	readings, _ = psNativeArgv("tool", []psElement{psParamElem("out", "f.txt"), psArg("a", "b")})
-	if !reflect.DeepEqual(readings[0].Args, []string{"-out:f.txt", "a,b"}) {
-		t.Fatalf("colon and array argv = %q", readings[0].Args)
+	if len(readings) != 2 || !reflect.DeepEqual(readings[0].Args, []string{"-out:f.txt", "a,b"}) || !reflect.DeepEqual(readings[1].Args, []string{"-out:f.txt", "a", "b"}) {
+		t.Fatalf("colon and array argv = %+v", readings)
 	}
 	readings, _ = psNativeArgv("rm", []psElement{psArg("-rf"), psArg(`~\x`)})
 	if len(readings) != 2 || readings[0].Args[1] != `~\x` || readings[1].Args[1] != `./~\x` {
