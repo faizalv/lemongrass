@@ -84,5 +84,18 @@ func opaqueShell(call shellCall, _ matchEnv) (string, bool) {
 			return "", false
 		}
 	}
-	return "Matched: " + call.Name + ", whose command text the guard cannot read. Run the command in bash directly.", true
+	return "Matched: " + call.Name + ", whose command text the guard cannot read. Run the command directly instead.", true
+}
+
+// wslShell matches System32's bash.exe, the WSL launcher, whose paths are another filesystem the guard does not map.
+func wslShell(call shellCall, _ matchEnv) (string, bool) {
+	path := strings.ToLower(strings.ReplaceAll(call.Path, `\`, "/"))
+	base := strings.TrimSuffix(path[strings.LastIndex(path, "/")+1:], ".exe")
+	if base != "bash" && base != "sh" {
+		return "", false
+	}
+	if strings.Contains(path, "/system32/") || strings.Contains(path, "/sysnative/") {
+		return "Matched: " + call.Path + ", the WSL launcher, whose paths the guard cannot check. Run Git Bash's bash instead.", true
+	}
+	return "", false
 }

@@ -148,6 +148,9 @@ func (s *shellScript) addCall(name string, dynamic bool, args []string, argDynam
 		}
 		return nil
 	}
+	if pwshHosts[base] {
+		return s.addPwshCall(base, args, argDynamic, depth)
+	}
 	if shellInterpreters[base] {
 		if script, ok := commandStringArg(args); ok {
 			return s.add(script, depth+1)

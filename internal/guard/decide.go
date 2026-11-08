@@ -4,9 +4,12 @@
 package guard
 
 import (
+	"errors"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/faizalv/lemongrass/internal/psparse"
 )
 
 // Input is one agent tool call, reduced to what the guard inspects.
@@ -98,8 +101,11 @@ type checker struct {
 
 func Decide(in Input, policy Policy) *Verdict {
 	c := checker{in: in, policy: policy, home: ResolveDir(in.Home)}
-	if in.Tool == "Bash" {
+	switch in.Tool {
+	case "Bash":
 		return c.bash()
+	case "PowerShell":
+		return c.powerShell()
 	}
 	return c.toolPaths()
 }
@@ -109,14 +115,39 @@ func (c checker) bash() *Verdict {
 		return nil
 	}
 	script, err := parseShell(c.in.Command)
+	return c.judgeParsed(script, err)
+}
+
+// powerShell judges a call whose command text is PowerShell, such as Claude's PowerShell tool or a Codex shell call
+// on Windows, through the PowerShell judge into the same records bash yields.
+func (c checker) powerShell() *Verdict {
+	if strings.TrimSpace(c.in.Command) == "" {
+		return nil
+	}
+	var script shellScript
+	err := script.addPowerShell(c.in.Command, 0)
+	return c.judgeParsed(script, err)
+}
+
+func (c checker) judgeParsed(script shellScript, err error) *Verdict {
 	if err != nil {
-		return c.pick([]Verdict{ruleVerdict("unparseable-command", "")})
+		return c.pick([]Verdict{ruleVerdict("unparseable-command", parseErrorDetail(err))})
 	}
 	var found []Verdict
 	if c.in.Cwd != "" && hasSecretComponent(c.in.Cwd) {
 		found = append(found, secretVerdict())
 	}
 	return c.pick(append(found, c.scriptVerdicts(script)...))
+}
+
+// parseErrorDetail names a PowerShell parse error, so the model sees what PowerShell itself would reject; a bash
+// parse error keeps the plain description.
+func parseErrorDetail(err error) string {
+	var pe *psparse.ParseError
+	if errors.As(err, &pe) {
+		return "PowerShell reports " + pe.ID + ": " + pe.Message
+	}
+	return ""
 }
 
 // scriptVerdicts judges one parsed script: every call against the catalog and the engine checks, its redirects and its pipelines. A script read at judge time, such as a shell file run by an interpreter, is judged through it too.

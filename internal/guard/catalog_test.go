@@ -72,7 +72,7 @@ var catalogCases = map[string]struct{ match, pass []string }{
 	"scheduled-task":    {[]string{"schtasks /Create /TN x /XML t.xml", "schtasks //delete //tn x", "schtasks -run -tn x", "register-scheduledtask -TaskName x"}, []string{"schtasks /query", "schtasks"}},
 	"registry-write":    {[]string{"reg add HKCU/Software/x /v y", "reg DELETE HKCU/x", "reg import x.reg", "regedit /s x.reg", "set-itemproperty -Path x", "set-item HKCU:/Software/x 1", "remove-item Registry::HKEY_CURRENT_USER/x"}, []string{"reg query HKCU/x", "reg export HKCU/x out.reg", "get-item HKCU:/Software/x", "set-item C:/x 1"}},
 	"security-settings": {[]string{"set-executionpolicy Bypass", "add-mppreference -ExclusionPath C:/", "icacls x /grant Everyone:F", "takeown /f x"}, []string{"icacls x", "get-executionpolicy"}},
-	"opaque-shell":      {[]string{"cmd /c dir", "cmd //c rd /s x", "powershell -c Get-Date", "pwsh -Command x", "pwsh -EncodedCommand AAAA", "powershell", "wsl rm -rf ~", "cscript x.vbs", "mshta x.hta"}, []string{"pwsh --version", "cmd /?", "powershell -Version", "iex x", "invoke-expression x", "invoke-command x"}},
+	"opaque-shell":      {[]string{"cmd /c dir", "cmd //c rd /s x", "wsl rm -rf ~", "cscript x.vbs", "mshta x.hta", "C:/Windows/System32/bash.exe -c ls"}, []string{"cmd /?", "pwsh -Command x", "powershell", "bash -c ls", "iex x", "invoke-expression x", "invoke-command x"}},
 }
 
 // windowsFormCases are the Windows forms added to rules that predate them, keyed by rule; the casing a Windows shell folds is tested in catalog_windows_test.go.
