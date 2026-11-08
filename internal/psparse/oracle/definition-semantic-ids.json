@@ -277,5 +277,25 @@
     "WorkflowNotSupportedInPowerShellCore": [
       "SemanticChecks.cs:451"
     ]
+  },
+  "RequiresSyntaxRefs": {
+    "RequiresArgumentMustBeConstant": [
+      "tokenizer.cs:2039",
+      "tokenizer.cs:2040"
+    ],
+    "RequiresModuleInvalid": [
+      "tokenizer.cs:2190",
+      "tokenizer.cs:2191",
+      "tokenizer.cs:2198",
+      "tokenizer.cs:2199"
+    ]
+  },
+  "UsingModuleIDs": {
+    "RequiresArgumentMustBeConstant": [
+      "SymbolResolver.cs:545"
+    ],
+    "RequiresModuleInvalid": [
+      "SymbolResolver.cs:552"
+    ]
   }
 }

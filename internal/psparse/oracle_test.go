@@ -420,45 +420,48 @@ const (
 // Reviewed against SemanticChecks.cs at bf5fc434120666e5f1a8d1dfd6ecac7efc17a4be.
 // DuplicateNamedArgument is deliberately excluded: Parser.cs also reports it.
 var oracleSemanticIDs = map[string]bool{
-	"DuplicateFormalParameter":                   true, // SemanticChecks.cs:96
-	"VoidTypeConstraintNotAllowed":               true, // :107,801
-	"AttributeNotAllowedOnDeclaration":           true, // :187
-	"OrderedAttributeOnlyOnHashLiteralNode":      true, // :307,920
-	"OnlyOneParameterListAllowed":                true, // :440
-	"EmptyCatchNotLast":                          true, // :546
-	"ExceptionTypeAlreadyCaught":                 true, // :573
-	"ReferenceNeedsToBeByItselfInTypeConstraint": true, // :812
-	"InvalidLeftHandSide":                        true, // :871
-	"SplattingNotPermitted":                      true, // :1077
-	"WorkflowNotSupportedInPowerShellCore":       true, // :451
-	"ControlLeavingFinally":                      true, // :659
-	"VoidMethodHasReturn":                        true, // :710
-	"ReferenceNeedsToBeByItselfInTypeSequence":   true, // :948
-	"ReferenceNeedsToBeLastTypeInTypeConversion": true, // :995
-	"UsingStatementNotSupported":                 true, // :1319
-	"InvalidNamespaceValue":                      true, // :1330
-	"KeywordParameterReservedForFutureUse":       true, // :465,500,510
-	"UnexpectedKeyword":                          true, // :1174
-	"CustomAttributeTypeNotFound":                true, // SymbolResolver.cs:671
-	"ModuleNotFoundDuringParse":                  true, // SymbolResolver.cs:580
-	"ThrottleLimitRequiresParallelFlag":          true, // :522
-	"TypeNotFound":                               true, // SymbolResolver.cs:676
-	"OperatorRequiresVariableOrProperty":         true, // :901
-	"InvalidUsingExpression":                     true, // :1024
-	"NonStaticMemberAccessInStaticMember":        true, // :1103
-	"VariableNotLocal":                           true, // :1093
+	"ParameterAttributeArgumentNeedsToBeConstantOrScriptBlock": true, // SemanticChecks.cs:81
+	"DuplicateFormalParameter":                                 true, // SemanticChecks.cs:96
+	"VoidTypeConstraintNotAllowed":                             true, // :107,801
+	"AttributeNotAllowedOnDeclaration":                         true, // :187
+	"OrderedAttributeOnlyOnHashLiteralNode":                    true, // :307,920
+	"OnlyOneParameterListAllowed":                              true, // :440
+	"EmptyCatchNotLast":                                        true, // :546
+	"ExceptionTypeAlreadyCaught":                               true, // :573
+	"ReferenceNeedsToBeByItselfInTypeConstraint":               true, // :812
+	"InvalidLeftHandSide":                                      true, // :871
+	"SplattingNotPermitted":                                    true, // :1077
+	"WorkflowNotSupportedInPowerShellCore":                     true, // :451
+	"ControlLeavingFinally":                                    true, // :659
+	"VoidMethodHasReturn":                                      true, // :710
+	"ReferenceNeedsToBeByItselfInTypeSequence":                 true, // :948
+	"ReferenceNeedsToBeLastTypeInTypeConversion":               true, // :995
+	"UsingStatementNotSupported":                               true, // :1319
+	"InvalidNamespaceValue":                                    true, // :1330
+	"KeywordParameterReservedForFutureUse":                     true, // :465,500,510
+	"UnexpectedKeyword":                                        true, // :1174
+	"CustomAttributeTypeNotFound":                              true, // SymbolResolver.cs:671
+	"ModuleNotFoundDuringParse":                                true, // SymbolResolver.cs:580
+	"ThrottleLimitRequiresParallelFlag":                        true, // :522
+	"TypeNotFound":                                             true, // SymbolResolver.cs:676
+	"OperatorRequiresVariableOrProperty":                       true, // :901
+	"InvalidUsingExpression":                                   true, // :1024
+	"NonStaticMemberAccessInStaticMember":                      true, // :1103
+	"VariableNotLocal":                                         true, // :1093
 }
 
 //go:embed oracle/definition-semantic-ids.json
 var oracleDefinitionSemanticData []byte
 
-var oracleDefinitionSemanticIDs = func() map[string][]string {
-	var data struct{ IDs map[string][]string }
+var oracleSemanticEligibility = func() struct{ IDs, UsingModuleIDs map[string][]string } {
+	var data struct{ IDs, UsingModuleIDs map[string][]string }
 	if err := json.Unmarshal(oracleDefinitionSemanticData, &data); err != nil {
 		panic(err)
 	}
-	return data.IDs
+	return data
 }()
+
+var oracleDefinitionSemanticIDs = oracleSemanticEligibility.IDs
 
 func oracleDefinitionSemanticSources(result *Result, id string) []string {
 	lines := oracleDefinitionSemanticIDs[id]
@@ -554,7 +557,8 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 }
 
 func oracleUsingModuleSemanticSources(result *Result, tree any, e oracleError) []string {
-	if result == nil || e.ID != "RequiresModuleInvalid" {
+	lines := oracleSemanticEligibility.UsingModuleIDs[e.ID]
+	if result == nil || len(lines) == 0 {
 		return nil
 	}
 	for _, line := range strings.FieldsFunc(result.Text(Extent{0, len(result.src.text)}), func(r rune) bool { return r == '\r' || r == '\n' }) {
@@ -566,7 +570,7 @@ func oracleUsingModuleSemanticSources(result *Result, tree any, e oracleError) [
 	if oracleWalk(tree, func(node map[string]any) bool {
 		return node["Type"] == "UsingStatementAst" && node["UsingStatementKind"] == float64(UsingModule) && float64(e.Start) >= node["Start"].(float64) && float64(e.End) <= node["End"].(float64)
 	}) {
-		return []string{"SymbolResolver.cs:552"}
+		return lines
 	}
 	return nil
 }
@@ -2109,7 +2113,13 @@ func TestOracleDefinitionSemanticQualification(t *testing.T) {
 
 func TestOracleUsingModuleSharedSemantic(t *testing.T) {
 	o := startOracle(t)
-	for _, input := range []string{"using module .", "#requires -version 1.0\nusing module ."} {
+	for _, test := range []struct{ input, id, line string }{
+		{"using module .", "RequiresModuleInvalid", "SymbolResolver.cs:552"},
+		{"#requires -version 1.0\nusing module .", "RequiresModuleInvalid", "SymbolResolver.cs:552"},
+		{"using module 00A = @{A00000000000=A}", "RequiresArgumentMustBeConstant", "SymbolResolver.cs:545"},
+		{"#requires -version 1.0\nusing module 00A = @{A00000000000=A}", "RequiresArgumentMustBeConstant", "SymbolResolver.cs:545"},
+	} {
+		input := test.input
 		result, err := Parse(input, DefaultLimits)
 		if err != nil {
 			t.Fatal(err)
@@ -2121,7 +2131,7 @@ func TestOracleUsingModuleSharedSemantic(t *testing.T) {
 		reference := response.Results[0]
 		var observed *oracleError
 		for i := range reference.Errors {
-			if reference.Errors[i].ID == "RequiresModuleInvalid" {
+			if reference.Errors[i].ID == test.id {
 				observed = &reference.Errors[i]
 				break
 			}
@@ -2136,7 +2146,7 @@ func TestOracleUsingModuleSharedSemantic(t *testing.T) {
 			}
 			continue
 		}
-		if !reflect.DeepEqual(lines, []string{"SymbolResolver.cs:552"}) {
+		if !reflect.DeepEqual(lines, []string{test.line}) {
 			t.Fatalf("source evidence=%v", lines)
 		}
 		if class, detail := compareOracle(result, nil, reference, o.schema); class != oracleSemantic {

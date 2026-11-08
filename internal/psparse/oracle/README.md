@@ -103,10 +103,13 @@ never gain eligibility from the generated data. Windows reports retain source
 lines for each accepted generated ID. Fuzzing writes the same evidence, and
 reference exceptions with a Go rejection, to the JSON-lines path selected by
 `LGRASS_PSPARSE_ORACLE_DEFINITION_REPORT` (use an absolute path).
-Shared `RequiresModuleInvalid` has a separate rule: the reference error extent
-must be contained by a module UsingStatementAst, there must be no #requires line,
-and the successfully parsed Go tree and tokens must match exactly. Its source
-is SymbolResolver.cs:552; the tokenizer's #requires error path stays excluded.
+Shared module IDs have a separate generated subset: their only syntax-source
+references must be inside tokenizer.cs's Requires region, with no Parser.cs or
+other tokenizer references. The reference error extent must be contained by a
+module UsingStatementAst, there must be no #requires line, and the successfully
+parsed Go tree and tokens must match exactly. This admits RequiresModuleInvalid
+(SymbolResolver.cs:552) and RequiresArgumentMustBeConstant (:545); generated
+provenance retains every syntax-reference line as well as the semantic origins.
 
 `windows51-regressions.json` holds 60 short exact reference snapshots from run
 42485566814. Inputs retain their original source attribution and the upstream
