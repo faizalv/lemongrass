@@ -102,3 +102,51 @@ func FuzzScanTokens(f *testing.F) {
 		_, _ = scanTokens(input, TokenizerMode(mode%4))
 	})
 }
+
+func TestScriptRequirements(t *testing.T) {
+	ok := []struct {
+		in   string
+		want ScriptRequirements
+	}{
+		{"#requires -Version 5.1\na", ScriptRequirements{RequiredPSVersion: "5.1"}},
+		{"#Requires -Version 7", ScriptRequirements{RequiredPSVersion: "7.0"}},
+		{"#requires -RunAsAdministrator", ScriptRequirements{IsElevationRequired: true}},
+		{"#requires -PSEdition Core,Desktop", ScriptRequirements{RequiredPSEditions: []string{"Core", "Desktop"}}},
+		{"#requires -Modules Az, @{ModuleName='B';RequiredVersion='1.2'}", ScriptRequirements{
+			RequiredModules: []string{"Az", "@{ ModuleName = 'B'; RequiredVersion = '1.2' }"}}},
+		{"#requires -ShellId x -Assembly a.dll", ScriptRequirements{RequiredApplicationID: "x", RequiredAssemblies: []string{"a.dll"}}},
+	}
+	for _, c := range ok {
+		res, err := Parse(c.in, DefaultLimits)
+		if err != nil {
+			t.Errorf("%q: %v", c.in, err)
+			continue
+		}
+		got := fmt.Sprintf("%+v", *res.Ast.ScriptRequirements)
+		want := c.want
+		for _, l := range []*[]string{&want.RequiredPSEditions, &want.RequiredAssemblies, &want.RequiredModules} {
+			if *l == nil {
+				*l = []string{}
+			}
+		}
+		if w := fmt.Sprintf("%+v", want); got != w {
+			t.Errorf("%q:\n got %s\nwant %s", c.in, got, w)
+		}
+	}
+	for in, id := range map[string]string{
+		"#requires -Foo 1":                           "ScriptRequiresInvalidFormat",
+		"#requires -Version":                         "ParameterRequiresArgument",
+		"#requires -Version x":                       "RequiresVersionInvalid",
+		"#requires -Version 1\n#requires -Version 2": "ParameterAlreadyBound",
+		"#requires -PSEdition Home":                  "RequiresPSEditionInvalid",
+		"#requires -Version $x":                      "RequiresArgumentMustBeConstant",
+		"#requires -Modules @{ModuleName='a'}":       "RequiresModuleInvalid",
+		"#requires -PSSnapin a/b":                    "InvalidPSSnapInName",
+		"#requires -Version (1+1)":                   ErrRequiresNotSupported,
+	} {
+		_, err := Parse(in, DefaultLimits)
+		if pe, ok := err.(*ParseError); !ok || pe.ID != id {
+			t.Errorf("%q: %v, want %s", in, err, id)
+		}
+	}
+}

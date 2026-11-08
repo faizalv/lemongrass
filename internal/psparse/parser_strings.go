@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 // Derived from PowerShell (github.com/PowerShell/PowerShell), Copyright (c) Microsoft Corporation, MIT; see LICENSE.PowerShell.
 
-// Code generated from PowerShell v7.6.9 ParserStrings.resx; DO NOT EDIT.
+// Code generated from PowerShell v7.6.9 ParserStrings.resx and three #requires IDs; DO NOT EDIT.
 
 package psparse
 
@@ -170,6 +170,7 @@ var parserStrings = map[string]string{
 	"InvalidLocalConfigurationManagerProperty":                 "'{0}' cannot be specified in LocalConfigurationManager resource. Please switch to Settings instead or use only following values: {1}.",
 	"InvalidNamespaceValue":                                    "The specified namespace in the 'using' statement contains invalid characters.",
 	"InvalidNullKey":                                           "A null key is not allowed in a hash literal.",
+	"InvalidPSSnapInName":                                      "The format of the specified snap-in name was not valid.  PowerShell snap-in names can only contain alpha-numeric characters, dashes, underscores and periods. Correct the name and then try the operation again.",
 	"InvalidParameter":                                         "Parameter '{0}' is not valid",
 	"InvalidParameterForDataSectionStatement":                  "The \"{0}\" parameter of the Data section is not valid. The valid Data section parameter is SupportedCommand.",
 	"InvalidPassword":                                          "The username supplied to the Desired State Configuration resource {0} is not valid. The username cannot be null or empty.",
@@ -295,6 +296,7 @@ var parserStrings = map[string]string{
 	"OutputStream":                                             "output stream",
 	"ParallelAndSequenceBlockNotSupportedInDataSection":        "Parallel and sequence blocks are not allowed in restricted language mode or a Data section.",
 	"ParamBlockNotAllowedInMethod":                             "A param block is not allowed in a class method.",
+	"ParameterAlreadyBound":                                    "Cannot bind parameter because parameter '{1}' is specified more than once. To provide multiple values to parameters that can accept multiple values, use the array syntax. For example, \"-parameter value1,value2,value3\".",
 	"ParameterAttributeArgumentNeedsToBeConstant":              "Attribute argument must be a constant.",
 	"ParameterAttributeArgumentNeedsToBeConstantOrScriptBlock": "Attribute argument must be a constant or a script block.",
 	"ParameterCannotHaveArgument":                              "Parameter {0} cannot have an argument.",
@@ -337,6 +339,7 @@ var parserStrings = map[string]string{
 	"ScriptBlockNotSupportedInDataSection":                     "Script block literals are not allowed in restricted language mode or a Data section.",
 	"ScriptContainedMaliciousContent":                          "This script contains malicious content and has been blocked by your antivirus software.",
 	"ScriptHasAdminBlockedContent":                             "This script contains content that has been flagged as suspicious through a policy setting and has been blocked with error code {0}. Contact your administrator for more information.",
+	"ScriptRequiresInvalidFormat":                              "Cannot process the #requires statement because it is not in the correct format.\nThe #requires statement must be in one of the following formats:\n \"#requires -shellid <shellID>\"\n \"#requires -version <major.minor>\"\n \"#requires -psedition <edition>\"\n \"#requires -pssnapin <psSnapInName> [-version <major.minor>]\"\n \"#requires -modules <ModuleSpecification>\"\n \"#requires -runasadministrator\"",
 	"ScriptTooComplicated":                                     "Processing was stopped because the script is too complex.",
 	"ScriptsNotAllowed":                                        "The syntax is not supported by this runspace. This can occur if the runspace is in no-language mode.",
 	"SealedBaseClass":                                          "Cannot inherit from sealed class '{0}'.",
