@@ -16,7 +16,7 @@ func TestIsSpecificParameter(t *testing.T) {
 		{"w", "regex", false},
 		// OrdinalIgnoreCase folds no non-ASCII unit onto an ASCII one, unlike unicode.ToUpper.
 		{"caſesensitive", "casesensitive", false},
-		{"Karam", "parallel", false},
+		{"K", "k", false},
 	}
 	for _, c := range cases {
 		if got := isSpecificParameter(&Token{Kind: Parameter, ParameterName: c.name}, c.parameter); got != c.want {
