@@ -418,8 +418,7 @@ func (p *parser) enumDefinitionRule(customAttributes []AttributeBaseAst, enumTok
 		if underlyingType == nil {
 			p.reportIncompleteInput(after(colonToken.Extent), "TypeNameExpected")
 		}
-		// C# resolves the type by reflection; the table stands in for that.
-		if !isEnumUnderlyingType(underlyingType) {
+		if isInvalidEnumUnderlyingType(underlyingType) {
 			p.reportError(underlyingType.Extent(), "InvalidUnderlyingType", underlyingType.Name())
 		}
 		underlyingTypeConstraint = newTypeConstraintAst(underlyingType.Extent(), underlyingType)

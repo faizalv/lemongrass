@@ -230,27 +230,18 @@ func (p *parser) completeArrayTypeName(elementType ITypeName, typeForAssemblyQua
 	return elementType
 }
 
-// enumUnderlyingTypeNames are the names EnumDefinitionRule's reflection lookup resolves to the integral types
-// an enum may derive from, keyed by OrdinalUpper: PowerShell's type accelerators, the bare System type names
-// (PowerShell searches the System namespace) and the full names. The parser cannot load types, so this table
-// stands in for GetReflectionType.
-var enumUnderlyingTypeNames = func() map[string]bool {
-	m := map[string]bool{}
-	for _, n := range []string{"byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong"} {
-		m[OrdinalUpper(n)] = true
-	}
-	for _, n := range []string{"Byte", "SByte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64"} {
-		m[OrdinalUpper(n)] = true
-		m[OrdinalUpper("System."+n)] = true
-	}
-	return m
-}()
+// invalidEnumUnderlyingTypeNames are the names known to resolve to String or DateTime, keyed by OrdinalUpper.
+var invalidEnumUnderlyingTypeNames = map[string]bool{
+	OrdinalUpper("string"): true, OrdinalUpper("System.String"): true,
+	OrdinalUpper("datetime"): true, OrdinalUpper("System.DateTime"): true,
+}
 
-// isEnumUnderlyingType reports whether name resolves to an integral type an enum may derive from.
-func isEnumUnderlyingType(name ITypeName) bool {
+// isInvalidEnumUnderlyingType stands in for EnumDefinitionRule's reflection check, with one deliberate divergence.
+// C# tests ValidUnderlyingTypeCodes.HasFlag(type.GetTypeCode()) on the non-flags TypeCode enum; the eight integral
+// codes OR to 15, so every code from 0 to 15 passes and only DateTime (16) and String (18) fail, besides a name
+// that resolves to no type. The parser cannot load types, so it refuses only the names known to be String or
+// DateTime and accepts any other, including one PowerShell cannot resolve.
+func isInvalidEnumUnderlyingType(name ITypeName) bool {
 	tn, ok := name.(*TypeName)
-	if !ok || tn.Assembly != "" {
-		return false
-	}
-	return enumUnderlyingTypeNames[OrdinalUpper(tn.TypeNameText)]
+	return ok && invalidEnumUnderlyingTypeNames[OrdinalUpper(tn.TypeNameText)]
 }

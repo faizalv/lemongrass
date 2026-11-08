@@ -132,8 +132,8 @@ func TestMemberAccess(t *testing.T) {
 	if _, ok := inv.Expression.(*MemberExpressionAst); !ok {
 		t.Fatalf("target is %T, want member access", inv.Expression)
 	}
-	if ix, ok := firstExpression(t, "$x?[0]").(*IndexExpressionAst); !ok || !ix.NullConditional {
-		t.Fatalf("'$x?[0]' is not a null-conditional index")
+	if ix, ok := firstExpression(t, "${x}?[0]").(*IndexExpressionAst); !ok || !ix.NullConditional {
+		t.Fatalf("'${x}?[0]' is not a null-conditional index")
 	}
 	if g, ok := firstExpression(t, "$a.M[string]()").(*InvokeMemberExpressionAst); !ok || len(g.GenericTypeArguments) != 1 {
 		t.Fatalf("'$a.M[string]()' is not a generic method call")
@@ -202,6 +202,10 @@ func TestClassEnumUsing(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantParseError(t, "enum E : string { A }", "InvalidUnderlyingType")
+	wantParseError(t, "enum E : System.DateTime { A }", "InvalidUnderlyingType")
+	if _, err := parseExpr(t, "enum E : double { A }"); err != nil {
+		t.Fatalf("enum E : double: %v; PowerShell accepts every type code up to Decimal", err)
+	}
 
 	res, err = parseExpr(t, "using namespace System.IO\n$x")
 	if err != nil {
