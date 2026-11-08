@@ -23,8 +23,9 @@ var lemongrassRules = []rule{
 	{ID: "drive-definition", Category: catLemongrass, Description: "defining a PowerShell drive, which changes what later paths mean", Mode: ModeDeny, Locked: true},
 	{ID: "history-replay", Category: catLemongrass, Description: "replaying a command from PowerShell history, which the guard cannot see", Mode: ModeDeny, Locked: true},
 	// cmd and PowerShell text is not POSIX shell, so what such a call runs cannot be checked, like a command the parser refuses.
+	// Invoke-Expression and Invoke-Command are the PowerShell judge's powershell-construct refusals instead.
 	{ID: "opaque-shell", Category: catLemongrass, Description: "running cmd, PowerShell or a script host, whose commands cannot be checked", Mode: ModeDeny, Locked: true, Forms: []form{
-		{Tools: []string{"cmd", "powershell", "pwsh", "powershell_ise", "cscript", "wscript", "mshta", "wsl", "rundll32", "regsvr32", "msiexec", "invoke-expression", "iex", "start-process", "invoke-command"}, Match: opaqueShell},
+		{Tools: []string{"cmd", "powershell", "pwsh", "powershell_ise", "cscript", "wscript", "mshta", "wsl", "rundll32", "regsvr32", "msiexec", "start-process"}, Match: opaqueShell},
 	}},
 }
 

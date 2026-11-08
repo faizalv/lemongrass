@@ -19,6 +19,8 @@ var networkRules = []rule{
 		{Tools: []string{"gcloud"}, Subs: []string{"compute ssh", "compute scp", "cloud-shell ssh", "cloud-shell scp"}},
 		{Tools: []string{"az"}, Subs: []string{"ssh"}},
 		{Tools: []string{"aws"}, Subs: []string{"ssm start-session", "ec2-instance-connect ssh"}},
+		// PowerShell remoting; the judge emits the canonical cmdlet name for the aliases (nsn, etsn, cnsn).
+		{Tools: []string{"new-pssession", "enter-pssession", "connect-pssession"}},
 	}},
 	{ID: "rsync-remote", Category: catNetwork, Description: "rsync to or from a remote host", Mode: ModeDeny, Forms: []form{
 		{Tools: []string{"rsync"}, Flags: []string{"-e", "--rsh"}},

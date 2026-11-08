@@ -144,6 +144,11 @@ var systemRules = []rule{
 		"~/.pam_environment", "~/.xprofile", "~/.xinitrc", "~/.xsession", "~/.gitconfig", "~/.config/git/config", "~/.npmrc", "~/.yarnrc", "~/.yarnrc.yml",
 		"~/.pypirc", "~/.pip/pip.conf", "~/.config/pip/pip.conf", "~/.cargo/credentials*", "~/.cargo/config*", "~/.docker/config.json",
 		"~/.local/share/applications/", ".git/hooks/", ".git/config", ".husky/",
+		// PowerShell profiles and auto-loaded modules: Documents\PowerShell and Documents\WindowsPowerShell wherever
+		// Documents is redirected (OneDrive), pwsh's Unix folders, and the install folders holding the all-users
+		// profile. Windows paths are compared lowercased, so these are written lowercase.
+		"documents/powershell/", "documents/windowspowershell/", "~/.config/powershell/", "~/.local/share/powershell/",
+		"windowspowershell/v1.0/", "powershell/7/",
 	}},
 }
 
