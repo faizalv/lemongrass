@@ -19,7 +19,9 @@ var lemongrassRules = []rule{
 	// The PowerShell judge reports these: constructs it does not model, and PowerShell-only ways to change what a
 	// later name or path means. They exist on every OS, since pwsh runs on every OS.
 	{ID: "powershell-construct", Category: catLemongrass, Description: "a PowerShell construct the guard does not model, such as a method call or loading code", Mode: ModeDeny, Locked: true},
-	{ID: "name-redefinition", Category: catLemongrass, Description: "redefining a PowerShell alias or function, which changes what later commands run", Mode: ModeDeny, Locked: true},
+	{ID: "name-redefinition", Category: catLemongrass, Description: "redefining a PowerShell alias or function, which changes what later commands run", Mode: ModeDeny, Locked: true, Forms: []form{
+		{Match: psProviderForm(true, psProviderAlias, psProviderFunction)},
+	}},
 	{ID: "drive-definition", Category: catLemongrass, Description: "defining a PowerShell drive, which changes what later paths mean", Mode: ModeDeny, Locked: true},
 	{ID: "history-replay", Category: catLemongrass, Description: "replaying a command from PowerShell history, which the guard cannot see", Mode: ModeDeny, Locked: true},
 	// cmd and PowerShell text is not POSIX shell, so what such a call runs cannot be checked, like a command the parser refuses.

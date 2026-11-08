@@ -26,6 +26,7 @@ var credentialRules = []rule{
 		{Tools: []string{"vault"}, Subs: []string{"read", "kv get", "token", "print token"}},
 		{Tools: []string{"security"}, Subs: []string{"find-generic-password", "find-internet-password", "dump-keychain", "export"}},
 		{Tools: []string{"gpg", "gpg2"}, Flags: []string{"--export-secret-keys", "--export-secret-subkeys", "-d", "--decrypt"}},
+		{Match: psCmdletForm(psProviderForm(false, psProviderCertificate))},
 	}},
 	{ID: "registry-login", Category: catCredentials, Description: "logging in to a registry, cloud or forge, or storing a token", Mode: ModeDeny, Forms: []form{
 		{Tools: append(append([]string{"buildah", "skopeo", "oras", "crane", "regctl"}, containerEngines...), composeTools...), Subs: []string{"login", "logout", "auth login", "registry login"}},
@@ -54,4 +55,15 @@ var credentialRules = []rule{
 		{Tools: []string{"poetry"}, Subs: []string{"config"}, ArgPrefixes: []string{"pypi-token.", "http-basic."}},
 		{Tools: []string{"pip", "pip3"}, Subs: []string{"config set"}, ArgPrefixes: []string{"global.index-url", "global.extra-index-url"}},
 	}},
+}
+
+// psCmdletForm limits match to PowerShell cmdlet calls, whose names the judge emits as lower-case Verb-Noun, so a
+// native program's argument that merely looks like a provider path, such as echo cert:x, is not read as one.
+func psCmdletForm(match func(shellCall, matchEnv) (string, bool)) func(shellCall, matchEnv) (string, bool) {
+	return func(call shellCall, env matchEnv) (string, bool) {
+		if !strings.Contains(call.Name, "-") {
+			return "", false
+		}
+		return match(call, env)
+	}
 }

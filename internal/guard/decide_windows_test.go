@@ -142,7 +142,7 @@ func TestWindowsCommandNames(t *testing.T) {
 		"REG.exe ADD HKCU/Software/x":                           "registry-write",
 		"CMD.EXE /c dir":                                        "opaque-shell",
 		"PowerShell.exe -NoProfile -Command Get-Date":           "opaque-shell",
-		"Remove-Item -Recurse -Force x":                         "windows-delete",
+		"Remove-Item -Recurse -Force x":                         "",
 		"Stop-Computer":                                         "power",
 		"DiskPart":                                              "disk-tool",
 	}

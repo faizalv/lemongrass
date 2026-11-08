@@ -65,6 +65,7 @@ var systemRules = []rule{
 		{Tools: []string{"reg"}, Match: firstWordIn("add", "delete", "import", "restore", "load", "unload", "copy")},
 		{Tools: []string{"regedit", "regini"}},
 		{Tools: []string{"set-itemproperty", "new-itemproperty", "remove-itemproperty", "rename-itemproperty"}},
+		{Match: psProviderForm(true, psProviderRegistry)},
 	}},
 	{ID: "security-settings", Category: catSystem, Description: "changing Windows security settings or Defender", Mode: ModeDeny, Forms: []form{
 		{Tools: []string{"set-executionpolicy", "set-mppreference", "add-mppreference", "remove-mppreference", "unblock-file", "takeown"}},
