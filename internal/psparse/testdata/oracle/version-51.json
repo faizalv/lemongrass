@@ -1,0 +1,67 @@
+[
+  {
+    "Name": "version-51/0",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "10u"
+  },
+  {
+    "Name": "version-51/1",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "10ul"
+  },
+  {
+    "Name": "version-51/2",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "10y"
+  },
+  {
+    "Name": "version-51/3",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "10uy"
+  },
+  {
+    "Name": "version-51/4",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "10s"
+  },
+  {
+    "Name": "version-51/5",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "10us"
+  },
+  {
+    "Name": "version-51/6",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "10n"
+  },
+  {
+    "Name": "version-51/7",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "0b1"
+  },
+  {
+    "Name": "version-51/8",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "Remove-Item 10u"
+  },
+  {
+    "Name": "version-51/9",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "$a = 2.5y"
+  },
+  {
+    "Name": "version-51/10",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "0xFFFFFFFF"
+  },
+  {
+    "Name": "version-51/11",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "0x80000000"
+  },
+  {
+    "Name": "version-51/12",
+    "Source": "hand-written, Windows 5.1 comparison",
+    "Input": "0xFFFFFFFFFFFFFFFF"
+  }
+]

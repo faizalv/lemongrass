@@ -170,7 +170,14 @@ while ($null -ne ($line = [Console]::ReadLine())) {
             if ($inputText -isnot [string]) { $inputText = -join ([char[]]$inputText) }
             $tokens = $null
             $parseErrors = $null
-            $tree = [System.Management.Automation.Language.Parser]::ParseInput([string]$inputText, [ref]$tokens, [ref]$parseErrors)
+            try {
+                $tree = [System.Management.Automation.Language.Parser]::ParseInput([string]$inputText, [ref]$tokens, [ref]$parseErrors)
+            } catch {
+                # A reference exception is not a parse error. Keep it attached to
+                # this input so the harness fails it without losing later cases.
+                @{ ReferenceException = $_.ToString() }
+                continue
+            }
             $script:hasParseErrors = $parseErrors.Count -ne 0
             @{
                 Tree = Convert-Value $tree ([pscustomobject]@{ Kind = 'node' })

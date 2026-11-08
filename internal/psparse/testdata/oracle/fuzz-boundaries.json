@@ -1,0 +1,112 @@
+[
+  {
+    "Name": "fuzz-boundary/00",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Get-Item foo`\nbar"
+  },
+  {
+    "Name": "fuzz-boundary/01",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Get-Item foo`\r\nbar"
+  },
+  {
+    "Name": "fuzz-boundary/02",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Get-Item `\n foo"
+  },
+  {
+    "Name": "fuzz-boundary/03",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Get-Item foo``"
+  },
+  {
+    "Name": "fuzz-boundary/04",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "\"a`\"b\""
+  },
+  {
+    "Name": "fuzz-boundary/05",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "\"`u{D800}\""
+  },
+  {
+    "Name": "fuzz-boundary/06",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "\"$(\"$($x)\")\""
+  },
+  {
+    "Name": "fuzz-boundary/07",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "\"$($x; \"$y\")\""
+  },
+  {
+    "Name": "fuzz-boundary/08",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "@\"\n$x $(Get-Item \"a\")\n\"@"
+  },
+  {
+    "Name": "fuzz-boundary/09",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "@'\nraw ` $x\n'@"
+  },
+  {
+    "Name": "fuzz-boundary/10",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "@\"\r\n$(\"x\")\r\n\"@"
+  },
+  {
+    "Name": "fuzz-boundary/11",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "@\"\nnot terminated"
+  },
+  {
+    "Name": "fuzz-boundary/12",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Get-Item --% a $x | b"
+  },
+  {
+    "Name": "fuzz-boundary/13",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Get-Item --% a`\nb"
+  },
+  {
+    "Name": "fuzz-boundary/14",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Write-Output \u2013Name value"
+  },
+  {
+    "Name": "fuzz-boundary/15",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Write-Output \u2014Name value"
+  },
+  {
+    "Name": "fuzz-boundary/16",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Write-Output \u2015Name value"
+  },
+  {
+    "Name": "fuzz-boundary/17",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Write-Output \u201cfoo\u201d"
+  },
+  {
+    "Name": "fuzz-boundary/18",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "Write-Output \u2018foo\u2019"
+  },
+  {
+    "Name": "fuzz-boundary/19",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "\u201c$($x)\u201d"
+  },
+  {
+    "Name": "fuzz-boundary/20",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "\"$($(\"$x\"))\""
+  },
+  {
+    "Name": "fuzz-boundary/21",
+    "Source": "hand-written, differential fuzz boundary seed",
+    "Input": "\"$($x[0].Name)\""
+  }
+]

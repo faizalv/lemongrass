@@ -268,9 +268,10 @@ type oracleError struct {
 }
 
 type oracleResult struct {
-	Tree   any
-	Tokens []any
-	Errors []oracleError
+	Tree               any
+	Tokens             []any
+	Errors             []oracleError
+	ReferenceException string
 }
 
 type oracleResponse struct {
@@ -446,6 +447,9 @@ var oracleSemanticIDs = map[string]bool{
 }
 
 func compareOracle(goResult *Result, goErr error, reference oracleResult, schema oracleSchema) (oracleClass, string) {
+	if reference.ReferenceException != "" {
+		return oracleMismatch, "reference ParseInput exception: " + reference.ReferenceException
+	}
 	if goErr != nil {
 		var e *ParseError
 		if !errors.As(goErr, &e) {
@@ -1210,11 +1214,14 @@ func TestOracleWindows51(t *testing.T) {
 			oldClass, oldDetail := compareOracle(result, err, oldResponse.Results[i], legacy.schema)
 			label := string(oldClass)
 			if oldClass == oracleMismatch && err == nil {
-				if len(oldResponse.Results[i].Errors) != 0 && oracleHasSevenFeature(result) {
+				if oldResponse.Results[i].ReferenceException != "" {
+					// Reference exceptions remain failures until the exact input has
+					// been investigated and a specific qualification approved.
+				} else if len(oldResponse.Results[i].Errors) != 0 && (oracleHasSevenFeature(result) || oracleSevenGrammarError(result, oldResponse.Results[i].Errors[0])) {
 					label, oldDetail = "seven-only", "5.1 rejects a checked 7-only token or AST construct"
 				} else if len(oldResponse.Results[i].Errors) == 0 {
 					if diff, changed := oracleLegacyMeaningDiff(input, result, oldResponse.Results[i], modern.schema); diff == "" && changed {
-						label, oldDetail = "version-meaning", "checked clean block or new escape reading"
+						label, oldDetail = "version-meaning", "checked clean, escape, numeric reading or default token classification"
 					}
 				}
 			}
@@ -1225,7 +1232,12 @@ func TestOracleWindows51(t *testing.T) {
 					firstErrorsEqual++
 				}
 			}
-			report = append(report, map[string]any{"Name": cases[start+i].Name, "Source": cases[start+i].Source, "Input": input, "Class": label, "Detail": oldDetail})
+			entry := map[string]any{"Name": cases[start+i].Name, "Source": cases[start+i].Source, "Input": input, "Class": label, "Detail": oldDetail}
+			if label == string(oracleMismatch) || label == string(oracleUnreachable) {
+				entry["ModernReference"] = newResponse.Results[i]
+				entry["LegacyReference"] = oldResponse.Results[i]
+			}
+			report = append(report, entry)
 			if label == string(oracleMismatch) || label == string(oracleUnreachable) {
 				failures++
 				if failures <= 20 {
@@ -1239,6 +1251,85 @@ func TestOracleWindows51(t *testing.T) {
 	if failures > 20 {
 		t.Errorf("%d additional 5.1 mismatches omitted", failures-20)
 	}
+}
+
+// These grammar differences are approved only at the error position belonging
+// to the specific newer construct, never by error ID alone.
+func oracleSevenGrammarError(result *Result, e oracleError) bool {
+	return oracleVisitGo(reflect.ValueOf(result.Ast), func(value any) bool {
+		switch node := value.(type) {
+		case *TypeDefinitionAst:
+			if e.ID == "MissingTypeBody" && node.TypeAttributes&TypeAttributesEnum != 0 && len(node.BaseTypes) != 0 {
+				for i, token := range result.Tokens {
+					if token.Kind == Enum && token.Extent.Start == node.Extent().Start && i+1 < len(result.Tokens) {
+						name := result.Tokens[i+1]
+						return e.Start == name.Extent.End && e.End == e.Start
+					}
+				}
+			}
+			if e.ID == "MissingEndCurlyBrace" && node.TypeAttributes&TypeAttributesClass != 0 && e.Start == e.End {
+				open := -1
+				for _, token := range result.Tokens {
+					if token.Kind == LCurly && token.Extent.Start >= node.Extent().Start && token.Extent.End <= node.Extent().End {
+						open = token.Extent.End
+						break
+					}
+				}
+				if e.Start != open {
+					return false
+				}
+				for _, member := range node.Members {
+					method, ok := member.(*FunctionMemberAst)
+					if !ok || method.Body == nil {
+						continue
+					}
+					for _, token := range result.Tokens {
+						if token.Extent.Start >= method.Extent().Start && token.Extent.End <= method.Body.Extent().Start && token.Kind.Traits()&FlagKeyword != 0 && OrdinalEqualFold(token.Text, method.Name) {
+							return true
+						}
+					}
+				}
+			}
+		case *GenericTypeName:
+			if e.ID == "UnexpectedToken" {
+				for _, argument := range node.GenericArguments {
+					if array, ok := argument.(*ArrayTypeName); ok {
+						raw := result.Text(array.Extent())
+						if !strings.HasPrefix(raw, "[") && e.Start == array.Extent().End-1 && e.End == array.Extent().End {
+							return true
+						}
+					}
+				}
+			}
+		}
+		return false
+	})
+}
+
+func oracleVisitGo(value reflect.Value, match func(any) bool) bool {
+	if !value.IsValid() {
+		return false
+	}
+	if value.CanInterface() && match(value.Interface()) {
+		return true
+	}
+	switch value.Kind() {
+	case reflect.Interface, reflect.Pointer:
+		return !value.IsNil() && oracleVisitGo(value.Elem(), match)
+	case reflect.Struct:
+		for i := 0; i < value.NumField(); i++ {
+			if oracleVisitGo(value.Field(i), match) {
+				return true
+			}
+		}
+	case reflect.Slice:
+		for i := 0; i < value.Len(); i++ {
+			if oracleVisitGo(value.Index(i), match) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func oracleHasSevenFeature(result *Result) bool {
@@ -1282,6 +1373,78 @@ func oracleJSON(value any) any {
 	return result
 }
 
+func oracleSevenNumber(text string) bool {
+	return strings.HasPrefix(strings.TrimLeft(strings.ToLower(text), "+-"), "0b") || strings.ContainsAny(text, "uUyYsSnN")
+}
+
+func oracleLegacyNumericRole(tree any, start, end int) (TokenFlags, bool) {
+	var flags TokenFlags
+	ok := oracleWalk(tree, func(node map[string]any) bool {
+		matches := func(value any) bool {
+			constant, ok := value.(map[string]any)
+			return ok && constant["Type"] == "ConstantExpressionAst" && constant["Start"] == float64(start) && constant["End"] == float64(end)
+		}
+		if node["Type"] == "CommandExpressionAst" && matches(node["Expression"]) {
+			flags = FlagCommandName
+			return true
+		}
+		if node["Type"] == "CommandAst" {
+			if elements, ok := node["CommandElements"].([]any); ok {
+				for _, element := range elements {
+					if matches(element) {
+						flags = FlagNone
+						return true
+					}
+				}
+			}
+		}
+		return false
+	})
+	return flags, ok
+}
+
+// Only command positions gain the legacy generic-word reading. Constants in
+// expressions remain numbers, since 5.1 rejects those newer spellings there.
+func oracleLegacyNumericTree(node map[string]any, src source) map[string]any {
+	word := func(value any) map[string]any {
+		constant, ok := value.(map[string]any)
+		if !ok || constant["Type"] != "ConstantExpressionAst" {
+			return nil
+		}
+		start, end := int(constant["Start"].(float64)), int(constant["End"].(float64))
+		raw := src.slice(Extent{start, end})
+		if !oracleSevenNumber(raw) {
+			return nil
+		}
+		return map[string]any{"Type": "StringConstantExpressionAst", "Start": float64(start), "End": float64(end), "Value": oracleJSON(oracleString(raw)), "StringConstantType": float64(BareWord)}
+	}
+	if node["Type"] == "CommandExpressionAst" {
+		if name := word(node["Expression"]); name != nil {
+			return map[string]any{"Type": "CommandAst", "Start": node["Start"], "End": node["End"], "CommandElements": []any{name}, "InvocationOperator": float64(Unknown), "Redirections": node["Redirections"]}
+		}
+	}
+	if node["Type"] == "CommandAst" {
+		if elements, ok := node["CommandElements"].([]any); ok {
+			copyElements := append([]any(nil), elements...)
+			changed := false
+			for i, element := range elements {
+				if name := word(element); name != nil {
+					copyElements[i], changed = name, true
+				}
+			}
+			if changed {
+				copyNode := make(map[string]any, len(node))
+				for key, value := range node {
+					copyNode[key] = value
+				}
+				copyNode["CommandElements"] = copyElements
+				return copyNode
+			}
+		}
+	}
+	return nil
+}
+
 func oracleLegacyMeaningDiff(input string, result *Result, reference oracleResult, schema oracleSchema) (string, bool) {
 	actual := oracleJSON(oracleValue(reflect.ValueOf(result.Ast), oracleSpec{Kind: "node"}, schema))
 	changed := false
@@ -1299,6 +1462,21 @@ func oracleLegacyMeaningDiff(input string, result *Result, reference oracleResul
 	for i := range a {
 		x := a[i].(map[string]any)
 		y := reference.Tokens[i].(map[string]any)
+		if x["Kind"] == "Default" && (y["Kind"] == "Default" || y["Kind"] == "Identifier") {
+			flags, ok := x["Flags"].(float64)
+			start, end := int(x["Start"].(float64)), int(x["End"].(float64))
+			if ok && (x["Kind"] != y["Kind"] || x["Flags"] != y["Flags"]) && y["Flags"] == float64(uint32(flags)&^uint32(FlagKeyword)) && OrdinalEqualFold(newSource(input).slice(Extent{start, end}), "default") {
+				x["Flags"], x["Kind"] = y["Flags"], y["Kind"]
+				changed = true
+			}
+		}
+		if x["Kind"] == "Number" && y["Kind"] == "Generic" && x["Class"] == "NumberToken" && y["Class"] == "StringLiteralToken" {
+			start, end := int(x["Start"].(float64)), int(x["End"].(float64))
+			if flags, ok := oracleLegacyNumericRole(actual, start, end); ok && oracleSevenNumber(newSource(input).slice(Extent{start, end})) && y["Flags"] == float64(flags) {
+				x["Kind"], x["Class"], x["Flags"] = y["Kind"], y["Class"], y["Flags"]
+				changed = true
+			}
+		}
 		if y["Kind"] == "Generic" && x["Class"] == "Token" && y["Class"] == "StringLiteralToken" && x["Start"] == y["Start"] && x["End"] == y["End"] {
 			start, end := int(x["Start"].(float64)), int(x["End"].(float64))
 			named := changed && x["Kind"] == "Clean" && x["Flags"] == float64(Clean.Traits()) && y["Flags"] == float64(FlagCommandName)
@@ -1330,6 +1508,10 @@ func oracleLegacyTreeDiff(actual, reference any, src source, path string, change
 	a, aok := actual.(map[string]any)
 	b, bok := reference.(map[string]any)
 	if aok && bok {
+		if replacement := oracleLegacyNumericTree(a, src); replacement != nil {
+			a = replacement
+			*changed = true
+		}
 		if a["Type"] == "ScriptBlockAst" && b["Type"] == "ScriptBlockAst" && a["CleanBlock"] != nil && b["CleanBlock"] == nil {
 			if replacement, ok := oracleLegacyClean(a, b); ok {
 				reference, b = replacement, replacement
@@ -1611,6 +1793,152 @@ func TestOracleSevenFeatures(t *testing.T) {
 		}
 		if got := oracleHasSevenFeature(result); got != test.want {
 			t.Errorf("7-only feature %q: got %t want %t", test.input, got, test.want)
+		}
+	}
+}
+
+func TestOracleLegacyGrammarShapes(t *testing.T) {
+	for _, test := range []struct {
+		input, id  string
+		start, end int
+	}{
+		{"enum E : byte { A }", "MissingTypeBody", 6, 6},
+		{"class C { if() {} }", "MissingEndCurlyBrace", 9, 9},
+		{"class C { foreach() {} }", "MissingEndCurlyBrace", 9, 9},
+		{"[System.Collections.Generic.Dictionary[int[], string]]", "UnexpectedToken", 43, 44},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			result, err := Parse(test.input, DefaultLimits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e := oracleError{ID: test.id, Start: test.start, End: test.end}
+			if !oracleSevenGrammarError(result, e) {
+				t.Fatalf("approved shape rejected: %+v; tokens=%+v", e, result.Tokens)
+			}
+			e.Start++
+			e.End++
+			if oracleSevenGrammarError(result, e) {
+				t.Fatal("wrong error extent accepted")
+			}
+			e.Start--
+			e.End--
+			e.ID = "UnexpectedAttribute"
+			if oracleSevenGrammarError(result, e) {
+				t.Fatal("wrong error ID accepted")
+			}
+		})
+	}
+	for _, input := range []string{"enum E { A }", "class C { f() {} }", "[System.Collections.Generic.List[string]]"} {
+		result, err := Parse(input, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"MissingTypeBody", "MissingEndCurlyBrace", "UnexpectedToken"} {
+			if oracleSevenGrammarError(result, oracleError{ID: id}) {
+				t.Fatalf("unqualified input accepted: %s", input)
+			}
+		}
+	}
+}
+
+func TestOracleReferenceExceptionFails(t *testing.T) {
+	for _, input := range []string{"Get-Item foo", "("} {
+		result, err := Parse(input, DefaultLimits)
+		class, _ := compareOracle(result, err, oracleResult{ReferenceException: "Unrecoverable error in Windows PowerShell."}, makeOracleSchema())
+		if class != oracleMismatch {
+			t.Fatalf("reference exception class = %s", class)
+		}
+	}
+}
+
+func TestOracleDefaultQualification(t *testing.T) {
+	o := startOracle(t)
+	for _, input := range []string{"switch ($x) { default { 1 } }", "ſwitch ($x) { default { 1 } }"} {
+		result, err := Parse(input, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := o.batch([]string{input})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, kind := range []string{"Default", "Identifier"} {
+			if strings.HasPrefix(input, "ſ") && kind == "Default" {
+				continue
+			}
+			legacy := response.Results[0]
+			legacy.Tokens = oracleJSON(legacy.Tokens).([]any)
+			for _, raw := range legacy.Tokens {
+				token := raw.(map[string]any)
+				if token["Kind"] == "Default" {
+					token["Kind"] = kind
+					token["Flags"] = float64(uint32(token["Flags"].(float64)) &^ uint32(FlagKeyword))
+				}
+			}
+			if diff, changed := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff != "" || !changed {
+				t.Fatalf("default reading rejected for %q as %s: changed=%v diff=%s tokens=%v", input, kind, changed, diff, legacy.Tokens)
+			}
+			legacy.Tokens[0].(map[string]any)["End"] = float64(999)
+			if diff, _ := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff == "" {
+				t.Fatal("unrelated token change accepted")
+			}
+		}
+	}
+}
+
+func TestOracleNumericQualification(t *testing.T) {
+	o := startOracle(t)
+	for _, input := range []string{"0b1", "Write-Output 10u"} {
+		result, err := Parse(input, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := o.batch([]string{input})
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy := response.Results[0]
+		var numeric *Token
+		for _, token := range result.Tokens {
+			if token.Kind == Number {
+				numeric = token
+				break
+			}
+		}
+		word := oracleJSON(oracleValue(reflect.ValueOf(newStringConstantExpressionAst(numeric.Extent, numeric.Text, BareWord)), oracleSpec{Kind: "node"}, o.schema))
+		command := findOracleNode(legacy.Tree, "CommandAst")
+		flags := FlagNone
+		if command == nil {
+			command = findOracleNode(legacy.Tree, "CommandExpressionAst")
+			delete(command, "Expression")
+			command["Type"], command["CommandElements"], command["InvocationOperator"] = "CommandAst", []any{word}, float64(Unknown)
+			flags = FlagCommandName
+		} else {
+			command["CommandElements"].([]any)[1] = word
+		}
+		for _, raw := range legacy.Tokens {
+			token := raw.(map[string]any)
+			if token["Kind"] == "Number" {
+				token["Kind"], token["Class"], token["Flags"] = "Generic", "StringLiteralToken", float64(flags)
+			}
+		}
+		if diff, changed := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff != "" || !changed {
+			t.Fatalf("numeric reading rejected: %s", diff)
+		}
+		word.(map[string]any)["Value"] = oracleJSON(oracleString("wrong-command"))
+		if diff, _ := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff == "" {
+			t.Fatal("wrong numeric command/argument accepted")
+		}
+		word.(map[string]any)["Value"] = oracleJSON(oracleString(numeric.Text))
+		for _, raw := range legacy.Tokens {
+			token := raw.(map[string]any)
+			if token["Start"] == float64(numeric.Extent.Start) {
+				token["Flags"] = float64(FlagKeyword)
+			}
+		}
+		if diff, _ := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff == "" {
+			t.Fatal("wrong numeric rescan flags accepted")
 		}
 	}
 }

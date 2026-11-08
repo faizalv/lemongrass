@@ -60,6 +60,12 @@ numeric syntax, background pipelines, generic method arguments, and clean blocks
 have their own rejection class. The existing version meanings are checked
 separately: a legacy clean command must preserve the exact block body, and
 legacy string differences must follow only from the new escape sequences.
+The `default` token may have 5.1's Identifier kind or omit the Keyword flag,
+with every other token field and the tree still equal. New numeric spellings
+must match the exact 5.1 generic-word token and command or argument reading;
+other tree and token fields remain exact. Enum base types, keyword method names,
+and bare array generic arguments qualify as 7-only grammar only at the error
+extent belonging to that specific construct.
 Unknown differences fail. The workflow uploads the complete 5.1 comparison
 report, including cases beyond the first twenty failures printed in the log.
 
@@ -76,3 +82,6 @@ accepted file-URI spelling, with exact tree and token parity.
 
 The Windows report is written on test exit even if a later batch aborts. Its
 `Complete` and `Stage` fields distinguish a full comparison from partial data.
+Mismatches include both normalized reference results. A ParseInput exception is
+attached to its individual input as `ReferenceException`, remains a failure,
+and lets the batch continue. It never counts as an ordinary parse error.
