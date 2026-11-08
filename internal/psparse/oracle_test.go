@@ -17,7 +17,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -274,6 +273,8 @@ type oracleResult struct {
 	Tokens             []any
 	Errors             []oracleError
 	ReferenceException string
+	// ExceptionPhase is "post-parse", "parse" or "unknown" for a ReferenceException.
+	ExceptionPhase string
 	// DepthCapped means the reference tree and tokens were too deep to send, so
 	// only Errors exist and no comparison that reads the tree may pass.
 	DepthCapped bool
@@ -460,29 +461,11 @@ func oracleRefusedConstruct(result *Result) bool {
 	})
 }
 
-// A reference exception whose inner trace passes through the post-parse checks
-// was thrown after pwsh's parser accepted the input, so on a Go success it is a
-// post-parse difference and pwsh runs nothing. Frames are read only from the
-// inner chain's stack frames the dump appends after the messages, never from a
-// message text.
-var oraclePostParseFrame = regexp.MustCompile(`^at System\.Management\.Automation\.Language\.(SymbolResolver\.ResolveSymbols|SemanticChecks\.CheckAst)\(`)
-
-func oraclePostParseExceptionTrace(text string) bool {
-	messages, frames, ok := strings.Cut(text, " | ")
-	if !ok || !strings.Contains(messages, " <- ") {
-		return false
-	}
-	for _, frame := range strings.Split(frames, " | ") {
-		if oraclePostParseFrame.MatchString(frame) {
-			return true
-		}
-	}
-	return false
-}
-
 func compareOracle(goResult *Result, goErr error, reference oracleResult, schema oracleSchema) (oracleClass, string) {
 	if reference.ReferenceException != "" {
-		if goErr == nil && goResult != nil && goResult.Ast != nil && oraclePostParseExceptionTrace(reference.ReferenceException) {
+		// The dump re-parses with post-parse checks off; completing there means
+		// pwsh's parser accepted the input and only the post-parse checks threw.
+		if goErr == nil && goResult != nil && goResult.Ast != nil && reference.ExceptionPhase == "post-parse" {
 			return oraclePostParseException, reference.ReferenceException
 		}
 		return oracleMismatch, "reference ParseInput exception: " + reference.ReferenceException
@@ -2154,19 +2137,16 @@ func TestOracleLegacyGrammarShapes(t *testing.T) {
 }
 
 func TestOracleReferenceExceptionFails(t *testing.T) {
-	resolver := "at System.Management.Automation.Language.SymbolResolver.ResolveSymbols(Parser parser, ScriptBlockAst scriptBlockAst)"
-	parse := "at System.Management.Automation.Language.Parser.Parse(String fileName, String input, List`1 tokenList, ParseError[]& errors, ParseMode parseMode)"
+	text := "Unrecoverable error in PowerShell. <- System.ArgumentException: bad | at System.Management.Automation.Language.SymbolResolver.ResolveSymbols(Parser parser, ScriptBlockAst scriptBlockAst)"
 	for _, input := range []string{"Get-Item foo", "("} {
 		result, err := Parse(input, DefaultLimits)
-		for _, text := range []string{
-			"Unrecoverable error in Windows PowerShell.",
-			"Unrecoverable error. <- System.ArgumentException: bad | at X.Y() | " + parse,
-			"Unrecoverable error " + resolver + " | " + resolver,
-			"Unrecoverable error. <- System.ArgumentException: " + resolver,
-		} {
-			class, _ := compareOracle(result, err, oracleResult{ReferenceException: text}, makeOracleSchema())
+		for _, phase := range []string{"", "parse", "unknown", "post-parse"} {
+			if err == nil && phase == "post-parse" {
+				continue
+			}
+			class, _ := compareOracle(result, err, oracleResult{ReferenceException: text, ExceptionPhase: phase}, makeOracleSchema())
 			if class != oracleMismatch {
-				t.Fatalf("reference exception %q on %q: class %s", text, input, class)
+				t.Fatalf("reference exception in phase %q on %q: class %s", phase, input, class)
 			}
 		}
 	}
@@ -2174,11 +2154,8 @@ func TestOracleReferenceExceptionFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, frame := range []string{resolver, "at System.Management.Automation.Language.SemanticChecks.CheckAst(Parser parser, ScriptBlockAst ast)"} {
-		text := "Unrecoverable error. <- System.Management.Automation.ParseException: x <- System.ArgumentException: bad | at X.Y() | " + frame + " | " + parse
-		if class, _ := compareOracle(result, err, oracleResult{ReferenceException: text}, makeOracleSchema()); class != oraclePostParseException {
-			t.Fatalf("post-parse trace class = %s", class)
-		}
+	if class, _ := compareOracle(result, nil, oracleResult{ReferenceException: "Unrecoverable error in PowerShell.", ExceptionPhase: "post-parse"}, makeOracleSchema()); class != oraclePostParseException {
+		t.Fatalf("post-parse phase class = %s", class)
 	}
 }
 
@@ -2200,8 +2177,8 @@ func TestOracleUsingNamespacePostParse(t *testing.T) {
 		reference := response.Results[i]
 		class, detail := compareOracle(result, nil, reference, o.schema)
 		if i == 1 {
-			if class != oraclePostParseException || !strings.Contains(reference.ReferenceException, "TypeName..ctor") {
-				t.Fatalf("%q: %s %s", input, class, detail)
+			if class != oraclePostParseException || reference.ExceptionPhase != "post-parse" || !strings.Contains(reference.ReferenceException, "TypeName..ctor") {
+				t.Fatalf("%q: %s phase=%s %s", input, class, reference.ExceptionPhase, detail)
 			}
 			continue
 		}

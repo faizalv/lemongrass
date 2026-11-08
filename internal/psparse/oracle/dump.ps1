@@ -87,6 +87,33 @@ function Convert-OracleJson($Value) {
     return $output.ToString()
 }
 
+# ParseTask (Parser.cs:176-199) runs the same parse in both ParseMode values and
+# PerformPostParseChecks only in Default. If the ModuleAnalysis re-parse
+# completes, a Default-mode exception came from the post-parse checks.
+function Get-OracleExceptionPhase([string]$Text) {
+    $parserType = [System.Management.Automation.Language.Parser]
+    $modeType = $parserType.Assembly.GetType('System.Management.Automation.Language.ParseMode')
+    if ($null -eq $modeType) { return 'unknown' }
+    $listType = [System.Collections.Generic.List[System.Management.Automation.Language.Token]]
+    $errorsType = [System.Management.Automation.Language.ParseError[]].MakeByRefType()
+    $method = $parserType.GetMethod('Parse', $script:binding, $null, [type[]]@([string], [string], $listType, $errorsType, $modeType), $null)
+    $constructor = $parserType.GetConstructor($script:binding, $null, [type]::EmptyTypes, $null)
+    if ($null -eq $method -or $null -eq $constructor) { return 'unknown' }
+    $arguments = New-Object object[] 5
+    $arguments[1] = $Text
+    $arguments[2] = [Activator]::CreateInstance($listType)
+    $arguments[4] = [Enum]::Parse($modeType, 'ModuleAnalysis')
+    try {
+        [void]$method.Invoke($constructor.Invoke(@()), $arguments)
+        return 'post-parse'
+    } catch {
+        # Only an exception thrown by the parser itself arrives wrapped in
+        # TargetInvocationException; a failed reflection call proves nothing.
+        if ($_.Exception.InnerException -is [Reflection.TargetInvocationException]) { return 'parse' }
+        return 'unknown'
+    }
+}
+
 function Read-Property($Object, [string]$Name) {
     $type = $Object.GetType()
     while ($null -ne $type) {
@@ -288,20 +315,13 @@ while ($null -ne ($line = [Console]::ReadLine())) {
                     $chain = @($inner) + $chain
                     $inner = $inner.InnerException
                 }
-                # The harness classifies by the parser phase on the stack, so keep
-                # the innermost top frames plus every phase frame of the chain.
-                $frames = New-Object Collections.ArrayList
-                foreach ($exception in $chain) {
-                    if ($null -eq $exception.StackTrace) { continue }
-                    $lines = @($exception.StackTrace -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
-                    for ($i = 0; $i -lt $lines.Count; $i++) {
-                        if (([object]::ReferenceEquals($exception, $chain[0]) -and $i -lt 8) -or $lines[$i] -match '\.Language\.(SymbolResolver\.ResolveSymbols|SemanticChecks\.CheckAst|Parser\.\w+)\(') {
-                            [void]$frames.Add($lines[$i])
-                        }
-                    }
+                # Frames are evidence only: tiered JIT inlining drops frames in a
+                # warm process, so the phase comes from the re-parse below.
+                if ($chain.Count -ne 0 -and $null -ne $chain[0].StackTrace) {
+                    $frames = @($chain[0].StackTrace -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' } | Select-Object -First 12)
+                    $text += ' | ' + ($frames -join ' | ')
                 }
-                if ($frames.Count -ne 0) { $text += ' | ' + ($frames -join ' | ') }
-                @{ ReferenceException = $text }
+                @{ ReferenceException = $text; ExceptionPhase = (Get-OracleExceptionPhase ([string]$inputText)) }
                 continue
             }
             $script:hasParseErrors = $parseErrors.Count -ne 0
