@@ -1,0 +1,2 @@
+go test fuzz v1
+string("ClAss A000{A(){\"$0\"} }")

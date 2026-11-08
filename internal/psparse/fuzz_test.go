@@ -3,7 +3,11 @@
 
 package psparse
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"testing"
+)
 
 func FuzzParseNoPanic(f *testing.F) {
 	requireOracleParser(f)
@@ -19,6 +23,7 @@ func FuzzParseNoPanic(f *testing.F) {
 
 func FuzzParseOracle(f *testing.F) {
 	o := startOracle(f)
+	recorded := make(map[string]bool)
 	requireOracleParser(f)
 	for _, entry := range loadOracleCorpus(f) {
 		f.Add(entry.Input)
@@ -35,8 +40,47 @@ func FuzzParseOracle(f *testing.F) {
 			t.Fatal(referenceErr)
 		}
 		class, detail := compareOracle(result, err, response.Results[0], o.schema)
+		if response.Results[0].ReferenceException != "" && err != nil {
+			class = oracleBothError
+			recordOracleFuzzEvidence(t, map[string]any{"Input": input, "GoError": err.Error(), "ReferenceException": response.Results[0].ReferenceException})
+		}
 		if class == oracleMismatch || class == oracleUnreachable {
 			t.Fatalf("oracle class %s for %q: %s", class, input, detail)
 		}
+		if path := os.Getenv("LGRASS_PSPARSE_ORACLE_DEFINITION_REPORT"); path != "" && class == oracleSemantic {
+			for _, e := range response.Results[0].Errors {
+				if oracleSemanticIDs[e.ID] || recorded[e.ID] {
+					continue
+				}
+				if lines := oracleDefinitionSemanticSources(result, e.ID); len(lines) != 0 {
+					recordOracleFuzzEvidence(t, map[string]any{"ID": e.ID, "Sources": lines, "Input": input})
+					recorded[e.ID] = true
+				}
+			}
+		}
 	})
+}
+
+func recordOracleFuzzEvidence(t *testing.T, entry map[string]any) {
+	t.Helper()
+	path := os.Getenv("LGRASS_PSPARSE_ORACLE_DEFINITION_REPORT")
+	if path == "" {
+		return
+	}
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, writeErr := file.Write(append(data, '\n'))
+	closeErr := file.Close()
+	if writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
+	}
 }

@@ -85,3 +85,28 @@ The Windows report is written on test exit even if a later batch aborts. Its
 Mismatches include both normalized reference results. A ParseInput exception is
 attached to its individual input as `ReferenceException`, remains a failure,
 and lets the batch continue. It never counts as an ordinary parse error.
+
+The named 5.1 exceptions captured in run 42485566814 qualify as `both-reject`
+only for their exact inputs and matching Go/7 errors. `version-deny` also requires
+matching Go/7 error IDs and extents for the approved clean, numeric, escape and
+empty using-namespace readings. Newline-leading pipes, certain if-valued hash
+entries, comma indices in method arguments and the observed here-string shape
+have error-position-qualified 7-only classes. A bare Unicode escape token is
+accepted only as a separate refusal class because the judge refuses that input.
+
+`gen-definition-semantics.py` reads the pinned SemanticChecks.cs and
+SymbolResolver.cs and excludes every resource ID referenced by Parser.cs or
+tokenizer.cs. The generated `definition-semantic-ids.json` is eligible only when
+the Go tree holds a definition or module/assembly using statement that the judge
+refuses. The explicit general semantic list remains separate; syntax-shared IDs
+never gain eligibility from the generated data. Windows reports retain source
+lines for each accepted generated ID. Fuzzing writes the same evidence, and
+reference exceptions with a Go rejection, to the JSON-lines path selected by
+`LGRASS_PSPARSE_ORACLE_DEFINITION_REPORT` (use an absolute path).
+
+`windows51-regressions.json` holds 60 short exact reference snapshots from run
+42485566814. Inputs retain their original source attribution and the upstream
+test fixtures' MIT notices remain in testdata. The default replay test uses these
+snapshots without starting 5.1; `LGRASS_PSPARSE_ORACLE_REPLAY` can select the full
+captured mismatch array. Replay verifies classification, while actual runtime
+parity still requires the Windows workflow.

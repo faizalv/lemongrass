@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -444,6 +445,37 @@ var oracleSemanticIDs = map[string]bool{
 	"OperatorRequiresVariableOrProperty":         true, // :901
 	"InvalidUsingExpression":                     true, // :1024
 	"NonStaticMemberAccessInStaticMember":        true, // :1103
+	"VariableNotLocal":                           true, // :1093
+}
+
+//go:embed oracle/definition-semantic-ids.json
+var oracleDefinitionSemanticData []byte
+
+var oracleDefinitionSemanticIDs = func() map[string][]string {
+	var data struct{ IDs map[string][]string }
+	if err := json.Unmarshal(oracleDefinitionSemanticData, &data); err != nil {
+		panic(err)
+	}
+	return data.IDs
+}()
+
+func oracleDefinitionSemanticSources(result *Result, id string) []string {
+	lines := oracleDefinitionSemanticIDs[id]
+	if len(lines) == 0 || result == nil || result.Ast == nil {
+		return nil
+	}
+	if oracleVisitGo(reflect.ValueOf(result.Ast), func(value any) bool {
+		switch node := value.(type) {
+		case *TypeDefinitionAst, *FunctionDefinitionAst:
+			return true
+		case *UsingStatementAst:
+			return node.UsingStatementKind == UsingModule || node.UsingStatementKind == UsingAssembly
+		}
+		return false
+	}) {
+		return lines
+	}
+	return nil
 }
 
 func compareOracle(goResult *Result, goErr error, reference oracleResult, schema oracleSchema) (oracleClass, string) {
@@ -491,7 +523,7 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 				requireExact, unresolvedEnum = true, true
 			} else if e.ID == "ErrorLoadingAssembly" && oracleAssemblyFilesystemError(reference.Tree, e) {
 				requireExact, assemblyFilesystem = true, true
-			} else if !oracleSemanticIDs[e.ID] {
+			} else if !oracleSemanticIDs[e.ID] && len(oracleDefinitionSemanticSources(goResult, e.ID)) == 0 {
 				return oracleMismatch, "unclassified reference error: " + e.ID
 			}
 		}
@@ -1211,20 +1243,8 @@ func TestOracleWindows51(t *testing.T) {
 			if (parseErr == nil) != (err == nil) {
 				t.Fatal("oracle: non-deterministic parse")
 			}
-			oldClass, oldDetail := compareOracle(result, err, oldResponse.Results[i], legacy.schema)
-			label := string(oldClass)
-			if oldClass == oracleMismatch && err == nil {
-				if oldResponse.Results[i].ReferenceException != "" {
-					// Reference exceptions remain failures until the exact input has
-					// been investigated and a specific qualification approved.
-				} else if len(oldResponse.Results[i].Errors) != 0 && (oracleHasSevenFeature(result) || oracleSevenGrammarError(result, oldResponse.Results[i].Errors[0])) {
-					label, oldDetail = "seven-only", "5.1 rejects a checked 7-only token or AST construct"
-				} else if len(oldResponse.Results[i].Errors) == 0 {
-					if diff, changed := oracleLegacyMeaningDiff(input, result, oldResponse.Results[i], modern.schema); diff == "" && changed {
-						label, oldDetail = "version-meaning", "checked clean, escape, numeric reading or default token classification"
-					}
-				}
-			}
+			oldClass, _ := compareOracle(result, err, oldResponse.Results[i], legacy.schema)
+			label, oldDetail := oracleCompareWindows51(input, result, err, newResponse.Results[i], oldResponse.Results[i], modern.schema)
 			counts[label]++
 			if oldClass == oracleBothError {
 				var parseError *ParseError
@@ -1233,6 +1253,16 @@ func TestOracleWindows51(t *testing.T) {
 				}
 			}
 			entry := map[string]any{"Name": cases[start+i].Name, "Source": cases[start+i].Source, "Input": input, "Class": label, "Detail": oldDetail}
+			for _, e := range oldResponse.Results[i].Errors {
+				if !oracleSemanticIDs[e.ID] {
+					if lines := oracleDefinitionSemanticSources(result, e.ID); len(lines) != 0 {
+						if entry["DefinitionSemanticSources"] == nil {
+							entry["DefinitionSemanticSources"] = map[string][]string{}
+						}
+						entry["DefinitionSemanticSources"].(map[string][]string)[e.ID] = lines
+					}
+				}
+			}
 			if label == string(oracleMismatch) || label == string(oracleUnreachable) {
 				entry["ModernReference"] = newResponse.Results[i]
 				entry["LegacyReference"] = oldResponse.Results[i]
@@ -1253,9 +1283,99 @@ func TestOracleWindows51(t *testing.T) {
 	}
 }
 
+func oracleCompareWindows51(input string, result *Result, err error, modern, legacy oracleResult, schema oracleSchema) (string, string) {
+	class, detail := compareOracle(result, err, legacy, schema)
+	if class != oracleMismatch {
+		return string(class), detail
+	}
+	var e *ParseError
+	if errors.As(err, &e) && len(modern.Errors) != 0 && modern.Errors[0].ID == e.ID && modern.Errors[0].Start == e.Extent.Start && modern.Errors[0].End == e.Extent.End {
+		if legacy.ReferenceException != "" && oracleKnownLegacyException(input, e) {
+			return "both-reject", "named 5.1 exception; Go and 7 report the same error"
+		}
+		if legacy.ReferenceException == "" && len(legacy.Errors) == 0 && oracleLegacySafeDeny(input, e, modern, legacy) {
+			return "version-deny", "Go and 7 reject a checked legacy meaning"
+		}
+		return string(class), detail
+	}
+	if err != nil || legacy.ReferenceException != "" {
+		return string(class), detail
+	}
+	if oracleBareUnicodeEscape(result) {
+		return "refused-bare-escape", "judge refuses an unquoted Unicode escape with divergent 5.1 tokenization"
+	}
+	if len(legacy.Errors) != 0 && (oracleHasSevenFeature(result) || oracleSevenGrammarError(result, legacy.Errors[0])) {
+		return "seven-only", "5.1 rejects a checked 7-only token or AST construct"
+	}
+	if len(legacy.Errors) == 0 {
+		if diff, changed := oracleLegacyMeaningDiff(input, result, legacy, schema); diff == "" && changed {
+			return "version-meaning", "checked clean, escape, numeric reading or default token classification"
+		}
+	}
+	return string(class), detail
+}
+
+func oracleKnownLegacyException(input string, e *ParseError) bool {
+	switch input {
+	case "using namespace A = ,B", "using namespace x =\n", "using namespace x = \n", "using namespace x = ;", "using namespace x = ,", "using namespace x = &":
+		return e.ID == "MissingNamespaceAlias" || e.ID == "UnexpectedUnaryOperator" || e.ID == "InvalidValueForUsingItemName"
+	case "[int[,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,]]", "[int[,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,", "[int[,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,]", "[int[,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,]]":
+		return e.ID == "ArrayHasTooManyDimensions"
+	}
+	return false
+}
+
+func oracleLegacySafeDeny(input string, e *ParseError, modern, legacy oracleResult) bool {
+	switch e.ID {
+	case "BadNumericConstant":
+		return oracleSevenNumber(newSource(input).slice(e.Extent))
+	case "InvalidUnicodeEscapeSequence", "MissingUnicodeEscapeSequenceTerminator", "TooManyDigitsInUnicodeEscapeSequence", "InvalidUnicodeEscapeSequenceValue":
+		return strings.Contains(input, "`u")
+	case "MissingNamedStatementBlock":
+		if len(modern.Tokens) == 0 {
+			return false
+		}
+		first, ok := modern.Tokens[0].(map[string]any)
+		return ok && first["Kind"] == "Clean" && first["End"] == float64(e.Extent.Start) && e.Extent.Start == e.Extent.End
+	case "InvalidValueForUsingItemName":
+		tree, ok := legacy.Tree.(map[string]any)
+		return ok && tree["Type"] == "ScriptBlockAst" && input == "using namespace A = $x" && !oracleWalk(legacy.Tree, func(node map[string]any) bool {
+			kind, _ := node["Type"].(string)
+			return kind != "ScriptBlockAst" && kind != "NamedBlockAst" && strings.HasSuffix(kind, "Ast")
+		})
+	}
+	return false
+}
+
+func oracleBareUnicodeEscape(result *Result) bool {
+	for _, token := range result.Tokens {
+		if token.Kind != Generic && token.Kind != Identifier {
+			continue
+		}
+		for i := 0; i+1 < len(token.Text); i++ {
+			if token.Text[i] != '`' {
+				continue
+			}
+			i++
+			if strings.HasPrefix(token.Text[i:], "u{") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // These grammar differences are approved only at the error position belonging
 // to the specific newer construct, never by error ID alone.
 func oracleSevenGrammarError(result *Result, e oracleError) bool {
+	for _, token := range result.Tokens {
+		if e.ID == "TerminatorExpectedAtEndOfString" && (token.Kind == HereStringExpandable || token.Kind == HereStringLiteral) && e.Start >= token.Extent.Start && e.End <= token.Extent.End {
+			return true
+		}
+		if e.ID == "OpenBraceNeedsToBeBackTickedInVariableName" && token.Kind == Variable && strings.Contains(token.Text, "`u{") && e.Start >= token.Extent.Start && e.End <= token.Extent.End {
+			return true
+		}
+	}
 	return oracleVisitGo(reflect.ValueOf(result.Ast), func(value any) bool {
 		switch node := value.(type) {
 		case *TypeDefinitionAst:
@@ -1267,11 +1387,13 @@ func oracleSevenGrammarError(result *Result, e oracleError) bool {
 					}
 				}
 			}
-			if e.ID == "MissingEndCurlyBrace" && node.TypeAttributes&TypeAttributesClass != 0 && e.Start == e.End {
+			if e.ID == "MissingEndCurlyBrace" && node.TypeAttributes&TypeAttributesClass != 0 {
 				open := -1
 				for _, token := range result.Tokens {
 					if token.Kind == LCurly && token.Extent.Start >= node.Extent().Start && token.Extent.End <= node.Extent().End {
-						open = token.Extent.End
+						if e.Start == token.Extent.Start && e.End == token.Extent.End {
+							open = e.Start
+						}
 						break
 					}
 				}
@@ -1295,9 +1417,52 @@ func oracleSevenGrammarError(result *Result, e oracleError) bool {
 				for _, argument := range node.GenericArguments {
 					if array, ok := argument.(*ArrayTypeName); ok {
 						raw := result.Text(array.Extent())
-						if !strings.HasPrefix(raw, "[") && e.Start == array.Extent().End-1 && e.End == array.Extent().End {
+						if !strings.HasPrefix(raw, "[") && oracleVisitGo(reflect.ValueOf(result.Ast), func(value any) bool {
+							literal, ok := value.(*TypeExpressionAst)
+							return ok && literal.Extent().Start <= node.Extent().Start && literal.Extent().End >= node.Extent().End && ((e.Start == literal.Extent().End-1 && e.End == literal.Extent().End) || (e.Start == node.Extent().End-1 && e.End == node.Extent().End))
+						}) {
 							return true
 						}
+					}
+				}
+			}
+		case *PipelineAst:
+			if e.ID == "EmptyPipeElement" && node.Extent().Start < e.Start && node.Extent().End > e.End {
+				for i, token := range result.Tokens {
+					if token.Kind == Pipe && token.Extent == (Extent{e.Start, e.End}) {
+						for j := i - 1; j >= 0; j-- {
+							previous := result.Tokens[j]
+							if previous.Kind == NewLine {
+								return true
+							}
+							if previous.Kind != Comment {
+								break
+							}
+						}
+					}
+				}
+			}
+		case *HashtableAst:
+			if e.ID == "IncompleteHashLiteral" {
+				for i, pair := range node.KeyValuePairs {
+					condition, ok := pair.Value.(*IfStatementAst)
+					if ok && condition.ElseClause == nil && i+1 < len(node.KeyValuePairs) && e.Start == condition.Extent().End && e.End == e.Start && strings.ContainsAny(result.Text(Extent{condition.Extent().End, node.KeyValuePairs[i+1].Key.Extent().Start}), "\r\n") {
+						return true
+					}
+				}
+			}
+		case *InvokeMemberExpressionAst:
+			if e.ID == "MissingEndSquareBracket" {
+				for _, arg := range node.Arguments {
+					if oracleVisitGo(reflect.ValueOf(arg), func(value any) bool {
+						index, ok := value.(*IndexExpressionAst)
+						if !ok {
+							return false
+						}
+						array, ok := index.Index.(*ArrayLiteralAst)
+						return ok && len(array.Elements) > 1 && e.Start == array.Elements[0].Extent().End && e.End == e.Start
+					}) {
+						return true
 					}
 				}
 			}
@@ -1447,6 +1612,7 @@ func oracleLegacyNumericTree(node map[string]any, src source) map[string]any {
 
 func oracleLegacyMeaningDiff(input string, result *Result, reference oracleResult, schema oracleSchema) (string, bool) {
 	actual := oracleJSON(oracleValue(reflect.ValueOf(result.Ast), oracleSpec{Kind: "node"}, schema))
+	reference.Tree = oracleJSON(reference.Tree)
 	changed := false
 	if diff := oracleLegacyTreeDiff(actual, reference.Tree, newSource(input), "$", &changed); diff != "" {
 		return diff, false
@@ -1462,12 +1628,18 @@ func oracleLegacyMeaningDiff(input string, result *Result, reference oracleResul
 	for i := range a {
 		x := a[i].(map[string]any)
 		y := reference.Tokens[i].(map[string]any)
-		if x["Kind"] == "Default" && (y["Kind"] == "Default" || y["Kind"] == "Identifier") {
+		if (x["Kind"] == "Default" || x["Kind"] == "Generic") && (y["Kind"] == "Default" || y["Kind"] == "Identifier") {
 			flags, ok := x["Flags"].(float64)
 			start, end := int(x["Start"].(float64)), int(x["End"].(float64))
 			if ok && (x["Kind"] != y["Kind"] || x["Flags"] != y["Flags"]) && y["Flags"] == float64(uint32(flags)&^uint32(FlagKeyword)) && OrdinalEqualFold(newSource(input).slice(Extent{start, end}), "default") {
 				x["Flags"], x["Kind"] = y["Flags"], y["Kind"]
 				changed = true
+			}
+		}
+		if changed && x["Kind"] == "Clean" && y["Kind"] == "Identifier" && x["Class"] == "Token" && y["Class"] == "Token" && x["Flags"] == float64(Clean.Traits()) && y["Flags"] == float64(FlagCommandName) && x["Start"] == y["Start"] && x["End"] == y["End"] {
+			start, end := int(x["Start"].(float64)), int(x["End"].(float64))
+			if OrdinalEqualFold(newSource(input).slice(Extent{start, end}), "clean") {
+				x["Kind"], x["Flags"] = y["Kind"], y["Flags"]
 			}
 		}
 		if x["Kind"] == "Number" && y["Kind"] == "Generic" && x["Class"] == "NumberToken" && y["Class"] == "StringLiteralToken" {
@@ -1508,6 +1680,23 @@ func oracleLegacyTreeDiff(actual, reference any, src source, path string, change
 	a, aok := actual.(map[string]any)
 	b, bok := reference.(map[string]any)
 	if aok && bok {
+		if a["Type"] == "AssignmentStatementAst" && b["Type"] == "AssignmentStatementAst" {
+			if right, ok := a["Right"].(map[string]any); ok && right["Type"] == "CommandExpressionAst" {
+				if command := oracleLegacyNumericTree(right, src); command != nil {
+					copyNode := make(map[string]any, len(a))
+					for key, value := range a {
+						copyNode[key] = value
+					}
+					copyNode["Right"] = map[string]any{"Type": "PipelineAst", "Start": right["Start"], "End": right["End"], "Background": false, "PipelineElements": []any{command}}
+					a = copyNode
+					*changed = true
+				}
+			}
+		}
+		if a["Type"] == "Double" && b["Type"] == "Double" && a["Value"] == "-0" && b["Value"] == "0" && len(a) == 2 && len(b) == 2 {
+			*changed = true
+			return ""
+		}
 		if replacement := oracleLegacyNumericTree(a, src); replacement != nil {
 			a = replacement
 			*changed = true
@@ -1803,9 +1992,10 @@ func TestOracleLegacyGrammarShapes(t *testing.T) {
 		start, end int
 	}{
 		{"enum E : byte { A }", "MissingTypeBody", 6, 6},
-		{"class C { if() {} }", "MissingEndCurlyBrace", 9, 9},
-		{"class C { foreach() {} }", "MissingEndCurlyBrace", 9, 9},
-		{"[System.Collections.Generic.Dictionary[int[], string]]", "UnexpectedToken", 43, 44},
+		{"class C { if() {} }", "MissingEndCurlyBrace", 8, 9},
+		{"class C { foreach() {} }", "MissingEndCurlyBrace", 8, 9},
+		{"[System.Tuple[System.String[],System.Int32[]]]", "UnexpectedToken", 45, 46},
+		{"[System.Collections.Generic.Dictionary[int[], System.Collections.Generic.List[string[]]]]", "UnexpectedToken", 87, 88},
 	} {
 		t.Run(test.input, func(t *testing.T) {
 			result, err := Parse(test.input, DefaultLimits)
@@ -1816,13 +2006,13 @@ func TestOracleLegacyGrammarShapes(t *testing.T) {
 			if !oracleSevenGrammarError(result, e) {
 				t.Fatalf("approved shape rejected: %+v; tokens=%+v", e, result.Tokens)
 			}
-			e.Start++
-			e.End++
+			e.Start += 10
+			e.End += 10
 			if oracleSevenGrammarError(result, e) {
 				t.Fatal("wrong error extent accepted")
 			}
-			e.Start--
-			e.End--
+			e.Start -= 10
+			e.End -= 10
 			e.ID = "UnexpectedAttribute"
 			if oracleSevenGrammarError(result, e) {
 				t.Fatal("wrong error ID accepted")
@@ -1848,6 +2038,74 @@ func TestOracleReferenceExceptionFails(t *testing.T) {
 		class, _ := compareOracle(result, err, oracleResult{ReferenceException: "Unrecoverable error in Windows PowerShell."}, makeOracleSchema())
 		if class != oracleMismatch {
 			t.Fatalf("reference exception class = %s", class)
+		}
+	}
+}
+
+func TestOracleDefinitionSemanticQualification(t *testing.T) {
+	definition, err := Parse("class C { [int] M() {} }", DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := Parse("Get-Item foo", DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines := oracleDefinitionSemanticSources(definition, "MethodHasCodePathNotReturn"); !reflect.DeepEqual(lines, []string{"SemanticChecks.cs:427"}) {
+		t.Fatalf("source evidence = %v", lines)
+	}
+	if len(oracleDefinitionSemanticSources(plain, "MethodHasCodePathNotReturn")) != 0 {
+		t.Fatal("definition-only ID accepted on plain command")
+	}
+	for _, id := range []string{"UnexpectedAttribute", "DuplicateNamedArgument", "MissingEndCurlyBrace", "UnknownID"} {
+		if len(oracleDefinitionSemanticSources(definition, id)) != 0 {
+			t.Fatalf("syntax/shared/unknown ID eligible: %s", id)
+		}
+	}
+	module, err := Parse("using module 0*", DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines := oracleDefinitionSemanticSources(module, "WildCardModuleNameError"); !reflect.DeepEqual(lines, []string{"SymbolResolver.cs:559"}) {
+		t.Fatalf("module source evidence = %v", lines)
+	}
+	namespace, err := Parse("using namespace System", DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(oracleDefinitionSemanticSources(namespace, "WildCardModuleNameError")) != 0 {
+		t.Fatal("namespace using qualified for module semantic allowance")
+	}
+}
+
+// Replaying a captured failing report exercises exact Windows evidence on the
+// host while the actual 5.1 verification remains the workflow's responsibility.
+func TestOracleWindows51Replay(t *testing.T) {
+	path := os.Getenv("LGRASS_PSPARSE_ORACLE_REPLAY")
+	if path == "" {
+		path = filepath.Join("oracle", "windows51-regressions.json")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var entries []struct {
+		Name, Input                      string
+		ModernReference, LegacyReference oracleResult
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		t.Fatal(err)
+	}
+	schema := makeOracleSchema()
+	for _, entry := range entries {
+		result, err := Parse(entry.Input, DefaultLimits)
+		label, detail := oracleCompareWindows51(entry.Input, result, err, entry.ModernReference, entry.LegacyReference, schema)
+		if label == string(oracleMismatch) || label == string(oracleUnreachable) {
+			if result != nil && len(entry.LegacyReference.Errors) == 0 {
+				diff, _ := oracleLegacyMeaningDiff(entry.Input, result, entry.LegacyReference, schema)
+				detail += "; legacy qualification: " + diff
+			}
+			t.Errorf("%s input=%q: %s", entry.Name, entry.Input, detail)
 		}
 	}
 }

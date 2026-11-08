@@ -1,0 +1,281 @@
+{
+  "Commit": "bf5fc434120666e5f1a8d1dfd6ecac7efc17a4be",
+  "IDs": {
+    "AmbiguousTypeReference": [
+      "SymbolResolver.cs:642"
+    ],
+    "ArrayReferenceNotSupportedInDataSection": [
+      "SemanticChecks.cs:2422"
+    ],
+    "AssignmentStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2136"
+    ],
+    "AssignmentStatementToAutomaticNotSupported": [
+      "SemanticChecks.cs:832"
+    ],
+    "AttributeNotAllowedOnDeclaration": [
+      "SemanticChecks.cs:187"
+    ],
+    "AttributeNotSupportedInDataSection": [
+      "SemanticChecks.cs:1956",
+      "SemanticChecks.cs:2432"
+    ],
+    "CmdletNotInAllowedListForDataSection": [
+      "SemanticChecks.cs:2180",
+      "SemanticChecks.cs:2194"
+    ],
+    "ConfigurationInvalidPropertyName": [
+      "SemanticChecks.cs:1418"
+    ],
+    "ConstructorCantHaveReturnType": [
+      "SemanticChecks.cs:418"
+    ],
+    "ControlLeavingFinally": [
+      "SemanticChecks.cs:659"
+    ],
+    "CustomAttributeTypeNotFound": [
+      "SymbolResolver.cs:671"
+    ],
+    "DataSectionAllowedCommandDisallowed": [
+      "SemanticChecks.cs:1860"
+    ],
+    "DataSectionStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2020"
+    ],
+    "DoWhileStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2038",
+      "SemanticChecks.cs:2126"
+    ],
+    "DotSourcingNotSupportedInDataSection": [
+      "SemanticChecks.cs:2159"
+    ],
+    "DscResourceInvalidGetMethod": [
+      "SemanticChecks.cs:1694",
+      "SemanticChecks.cs:1702"
+    ],
+    "DscResourceInvalidKeyProperty": [
+      "SemanticChecks.cs:1794"
+    ],
+    "DscResourceMissingDefaultConstructor": [
+      "SemanticChecks.cs:1598"
+    ],
+    "DscResourceMissingGetMethod": [
+      "SemanticChecks.cs:1582"
+    ],
+    "DscResourceMissingKeyProperty": [
+      "SemanticChecks.cs:1606"
+    ],
+    "DscResourceMissingSetMethod": [
+      "SemanticChecks.cs:1574"
+    ],
+    "DscResourceMissingTestMethod": [
+      "SemanticChecks.cs:1590"
+    ],
+    "DuplicateFormalParameter": [
+      "SemanticChecks.cs:96"
+    ],
+    "DuplicateKeyInHashLiteral": [
+      "SemanticChecks.cs:1132"
+    ],
+    "DuplicatePropertyInInstanceDefinition": [
+      "SemanticChecks.cs:1127"
+    ],
+    "DynamicKeywordSemanticCheckException": [
+      "SemanticChecks.cs:1398"
+    ],
+    "EmptyCatchNotLast": [
+      "SemanticChecks.cs:546"
+    ],
+    "ExceptionTypeAlreadyCaught": [
+      "SemanticChecks.cs:573"
+    ],
+    "FlowControlStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2081",
+      "SemanticChecks.cs:2090",
+      "SemanticChecks.cs:2099",
+      "SemanticChecks.cs:2108",
+      "SemanticChecks.cs:2117"
+    ],
+    "ForWhileStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2047",
+      "SemanticChecks.cs:2056"
+    ],
+    "ForeachStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2029"
+    ],
+    "FunctionDeclarationNotSupportedInDataSection": [
+      "SemanticChecks.cs:1979"
+    ],
+    "InvalidEndOfLine": [
+      "SemanticChecks.cs:883"
+    ],
+    "InvalidInstanceProperty": [
+      "SemanticChecks.cs:1429"
+    ],
+    "InvalidLeftHandSide": [
+      "SemanticChecks.cs:871"
+    ],
+    "InvalidNamespaceValue": [
+      "SemanticChecks.cs:1330"
+    ],
+    "InvalidUsingExpression": [
+      "SemanticChecks.cs:1024"
+    ],
+    "KeywordParameterReservedForFutureUse": [
+      "SemanticChecks.cs:465",
+      "SemanticChecks.cs:500",
+      "SemanticChecks.cs:510"
+    ],
+    "LabelNotFound": [
+      "SemanticChecks.cs:606"
+    ],
+    "MemberAlreadyDefined": [
+      "SymbolResolver.cs:98",
+      "SymbolResolver.cs:131"
+    ],
+    "MetaConfigurationUsedInRegularConfig": [
+      "SemanticChecks.cs:1460"
+    ],
+    "MethodCallNotSupportedInDataSection": [
+      "SemanticChecks.cs:2366"
+    ],
+    "MethodHasCodePathNotReturn": [
+      "SemanticChecks.cs:427"
+    ],
+    "MissingThis": [
+      "SymbolResolver.cs:417"
+    ],
+    "MissingTypeInStaticPropertyAssignment": [
+      "SymbolResolver.cs:409"
+    ],
+    "ModuleNotFoundDuringParse": [
+      "SymbolResolver.cs:580"
+    ],
+    "MultipleTypeConstraintsOnMethodParam": [
+      "SemanticChecks.cs:319"
+    ],
+    "NamedBlockNotAllowedInMethod": [
+      "SemanticChecks.cs:411"
+    ],
+    "NonStaticMemberAccessInStaticMember": [
+      "SemanticChecks.cs:1103"
+    ],
+    "NonVoidMethodMissingReturnValue": [
+      "SemanticChecks.cs:719"
+    ],
+    "OnlyOneParameterListAllowed": [
+      "SemanticChecks.cs:440"
+    ],
+    "OperatorNotSupportedInDataSection": [
+      "SemanticChecks.cs:2173",
+      "SemanticChecks.cs:2248",
+      "SemanticChecks.cs:2261"
+    ],
+    "OperatorRequiresVariableOrProperty": [
+      "SemanticChecks.cs:901"
+    ],
+    "OrderedAttributeOnlyOnHashLiteralNode": [
+      "SemanticChecks.cs:307",
+      "SemanticChecks.cs:920"
+    ],
+    "ParallelAndSequenceBlockNotSupportedInDataSection": [
+      "SemanticChecks.cs:2442"
+    ],
+    "ParamBlockNotAllowedInMethod": [
+      "SemanticChecks.cs:400"
+    ],
+    "ParameterAttributeArgumentNeedsToBeConstant": [
+      "SemanticChecks.cs:77"
+    ],
+    "ParameterAttributeArgumentNeedsToBeConstantOrScriptBlock": [
+      "SemanticChecks.cs:81"
+    ],
+    "ParameterDeclarationNotSupportedInDataSection": [
+      "SemanticChecks.cs:1914"
+    ],
+    "PropertyNotFoundForAttribute": [
+      "SemanticChecks.cs:203"
+    ],
+    "PropertyReferenceNotSupportedInDataSection": [
+      "SemanticChecks.cs:2357"
+    ],
+    "RedirectionNotSupportedInDataSection": [
+      "SemanticChecks.cs:2218",
+      "SemanticChecks.cs:2227"
+    ],
+    "ReferenceNeedsToBeByItselfInTypeConstraint": [
+      "SemanticChecks.cs:812"
+    ],
+    "ReferenceNeedsToBeByItselfInTypeSequence": [
+      "SemanticChecks.cs:948"
+    ],
+    "ReferenceNeedsToBeLastTypeInTypeConversion": [
+      "SemanticChecks.cs:995"
+    ],
+    "RegularResourceUsedInMetaConfig": [
+      "SemanticChecks.cs:1453"
+    ],
+    "ResourceNotDefined": [
+      "SemanticChecks.cs:1291"
+    ],
+    "ScriptBlockNotSupportedInDataSection": [
+      "SemanticChecks.cs:1905",
+      "SemanticChecks.cs:2396"
+    ],
+    "SplattingNotPermitted": [
+      "SemanticChecks.cs:1077"
+    ],
+    "SplattingNotPermittedInArgumentList": [
+      "SemanticChecks.cs:1070"
+    ],
+    "SwitchStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2011"
+    ],
+    "ThrottleLimitRequiresParallelFlag": [
+      "SemanticChecks.cs:522"
+    ],
+    "TrapStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2002"
+    ],
+    "TryStatementNotSupportedInDataSection": [
+      "SemanticChecks.cs:2072"
+    ],
+    "TypeNotAllowedForProperty": [
+      "SemanticChecks.cs:1480"
+    ],
+    "TypeNotAllowedInDataSection": [
+      "SemanticChecks.cs:1939"
+    ],
+    "TypeNotFound": [
+      "SymbolResolver.cs:676"
+    ],
+    "UnexpectedKeyword": [
+      "SemanticChecks.cs:1174"
+    ],
+    "UnsupportedNamedBlockInConfiguration": [
+      "SemanticChecks.cs:1371"
+    ],
+    "UsingStatementNotSupported": [
+      "SemanticChecks.cs:1319"
+    ],
+    "VariableNotLocal": [
+      "SemanticChecks.cs:1093"
+    ],
+    "VariableReferenceNotSupportedInDataSection": [
+      "SemanticChecks.cs:2347"
+    ],
+    "VoidMethodHasReturn": [
+      "SemanticChecks.cs:710"
+    ],
+    "VoidTypeConstraintNotAllowed": [
+      "SemanticChecks.cs:107",
+      "SemanticChecks.cs:801"
+    ],
+    "WildCardModuleNameError": [
+      "SymbolResolver.cs:559"
+    ],
+    "WorkflowNotSupportedInPowerShellCore": [
+      "SemanticChecks.cs:451"
+    ]
+  }
+}
