@@ -5,6 +5,9 @@ contains a batch of UTF-16 arrays. The first request also supplies a schema deri
 from the exported fields of the Go AST. Responses contain the normalized tree,
 tokens (runtime class, kind, flags, extents, nested tokens), and parse errors.
 The server parses text without invoking the supplied scripts.
+Protocol containers use a strict recursive JSON writer, with native scalar
+string escaping only, so nested trees cannot be truncated by ConvertTo-Json's
+container depth limit. Unsupported value kinds fail rather than losing fields.
 
 String fields use UTF-16 arrays too, preserving unpaired surrogate values that
 ordinary Go JSON strings would replace. Empty collections normalize to `[]` and
@@ -27,7 +30,8 @@ the real parser. Inputs carry their source filename and UTF-16 offset.
 `TestOracleProtocol`, `TestOracleNormalization`, and `TestOracleReferenceCorpus`
 validate the reference protocol without relying on the port. `TestOracleCorpus`
 compares the port, with both-error ID and offset agreement reported separately.
-Only reviewed IDs in `oracleSemanticIDs` qualify for semantic-only acceptance.
+Only source-generated post-parse-only IDs in `oracleSemanticIDs` qualify for
+general semantic acceptance, with exact Go/reference tree and token parity.
 The shared IDs `UnexpectedAttribute` and `DuplicateNamedArgument` additionally
 require the exact post-check AST shape and full tree/token parity. Explicit
 resource limits, unsupported dynamic keywords, unresolved enum base types, and
@@ -42,6 +46,8 @@ diverging field. The first-error ID and offset are a separate soft metric.
 Fuzz with `go test ./internal/psparse -run '^$' -fuzz '^FuzzParseOracle$' -fuzztime=30s`.
 Each worker keeps one reference process alive. `FuzzParseNoPanic` runs without
 PowerShell and tests the bounded parser on arbitrary strings.
+The differential target stops before reference work on explicit Go input/depth
+limit refusals, which already belong to the documented limits class.
 
 `unicode-bmp.ps1` regenerates `testdata/dotnet-unicode-bmp.json` with the reference
 runtime's BMP category runs, invariant uppercase mapping, and selected ordinal
@@ -96,12 +102,12 @@ accepted only as a separate refusal class because the judge refuses that input.
 
 `gen-definition-semantics.py` reads the pinned SemanticChecks.cs and
 SymbolResolver.cs and excludes every resource ID referenced by Parser.cs or
-tokenizer.cs. The generated `definition-semantic-ids.json` is eligible only when
-the Go tree holds a definition or module/assembly using statement that the judge
-refuses. The explicit general semantic list remains separate; syntax-shared IDs
-never gain eligibility from the generated data. Windows reports retain source
+tokenizer.cs. The generated `definition-semantic-ids.json` is eligible on any
+successfully parsed input, with exact tree and token parity. RestrictedLanguageChecker
+is included in SemanticChecks.cs. This generated set replaces the explicit
+general semantic list; syntax-shared IDs never gain general eligibility. Windows reports retain source
 lines for each accepted generated ID. Fuzzing writes the same evidence, and
-reference exceptions with a Go rejection, to the JSON-lines path selected by
+reference exceptions with a Go rejection or a judge-refused construct, to the JSON-lines path selected by
 `LGRASS_PSPARSE_ORACLE_DEFINITION_REPORT` (use an absolute path).
 Shared module IDs have a separate generated subset: their only syntax-source
 references must be inside tokenizer.cs's Requires region, with no Parser.cs or

@@ -9,6 +9,68 @@ $ErrorActionPreference = 'Stop'
 $script:schema = $null
 $script:binding = [Reflection.BindingFlags]'Instance,Public,NonPublic'
 $script:culture = [Globalization.CultureInfo]::InvariantCulture
+$script:jsonEscapes = [char[]](@(0..31) + @(34, 92))
+
+function Write-OracleJsonString([string]$Value, [Text.StringBuilder]$Output) {
+    if ($Value.IndexOfAny($script:jsonEscapes) -lt 0) {
+        [void]$Output.Append('"').Append($Value).Append('"')
+    } else {
+        [void]$Output.Append((ConvertTo-Json -InputObject $Value -Compress))
+    }
+}
+
+# ConvertTo-Json truncates containers beyond depth 100. The normalized protocol
+# has only these value kinds; rejecting every other kind prevents silent loss.
+function Write-OracleJsonValue($Value, [Text.StringBuilder]$Output) {
+    if ($null -eq $Value) { [void]$Output.Append('null'); return }
+    if ($Value -is [string]) { Write-OracleJsonString $Value $Output; return }
+    if ($Value -is [bool]) {
+        if ($Value) { [void]$Output.Append('true') } else { [void]$Output.Append('false') }
+        return
+    }
+    if ($Value -is [Collections.IDictionary]) {
+        [void]$Output.Append('{')
+        $first = $true
+        foreach ($key in $Value.Keys) {
+            if ($key -isnot [string]) { throw 'oracle: JSON object key is not a string' }
+            if (-not $first) { [void]$Output.Append(',') }
+            $first = $false
+            Write-OracleJsonString $key $Output
+            [void]$Output.Append(':')
+            Write-OracleJsonValue $Value[$key] $Output
+        }
+        [void]$Output.Append('}')
+        return
+    }
+    if ($Value -is [int[]]) {
+        [void]$Output.Append('[').Append(($Value -join ',')).Append(']')
+        return
+    }
+    if ($Value -is [Collections.IEnumerable]) {
+        [void]$Output.Append('[')
+        $first = $true
+        foreach ($item in $Value) {
+            if (-not $first) { [void]$Output.Append(',') }
+            $first = $false
+            Write-OracleJsonValue $item $Output
+        }
+        [void]$Output.Append(']')
+        return
+    }
+    if ([Type]::GetTypeCode($Value.GetType()).ToString() -in @('Byte', 'SByte', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64', 'Single', 'Double', 'Decimal')) {
+        $number = [Convert]::ToString($Value, $script:culture)
+        if ($number -in @('NaN', 'Infinity', '-Infinity')) { throw 'oracle: non-finite JSON number' }
+        [void]$Output.Append($number)
+        return
+    }
+    throw "oracle: unsupported JSON value $($Value.GetType().FullName)"
+}
+
+function Convert-OracleJson($Value) {
+    $output = New-Object Text.StringBuilder
+    Write-OracleJsonValue $Value $output
+    return $output.ToString()
+}
 
 function Read-Property($Object, [string]$Name) {
     $type = $Object.GetType()
@@ -39,7 +101,7 @@ function Convert-Number($Value) {
 }
 
 function Convert-String([string]$Value) {
-    return @{ UTF16 = @($Value.ToCharArray() | ForEach-Object { [int]$_ }) }
+    return @{ UTF16 = [int[]]($Value.ToCharArray()) }
 }
 
 function Convert-Token($Token) {
@@ -159,11 +221,11 @@ while ($null -ne ($line = [Console]::ReadLine())) {
                     $text = if ($node -is [System.Management.Automation.Language.ScriptBlockExpressionAst]) {
                         $node.Extent.Text.Substring(1, $node.Extent.Text.Length - 2)
                     } else { $node.Value }
-                    @{ Offset = $node.Extent.StartOffset; UTF16 = @($text.ToCharArray() | ForEach-Object { [int]$_ }) }
+                    @{ Offset = $node.Extent.StartOffset; UTF16 = [int[]]($text.ToCharArray()) }
                 })
                 ,$cases
             })
-            [Console]::WriteLine((ConvertTo-Json -InputObject @{ Extractions = $extractions; Version = $PSVersionTable.PSVersion.ToString() } -Depth 100 -Compress))
+            [Console]::WriteLine((Convert-OracleJson @{ Extractions = $extractions; Version = $PSVersionTable.PSVersion.ToString() }))
             continue
         }
         $results = @(foreach ($inputText in $request.Inputs) {
@@ -191,8 +253,8 @@ while ($null -ne ($line = [Console]::ReadLine())) {
             }
         })
         $response = @{ Version = $PSVersionTable.PSVersion.ToString(); Results = $results; Precedence = $script:rawPrecedence }
-        [Console]::WriteLine((ConvertTo-Json -InputObject $response -Depth 100 -Compress))
+        [Console]::WriteLine((Convert-OracleJson $response))
     } catch {
-        [Console]::WriteLine((ConvertTo-Json -InputObject @{ ProtocolError = $_.ToString() } -Compress))
+        [Console]::WriteLine((Convert-OracleJson @{ ProtocolError = $_.ToString() }))
     }
 }

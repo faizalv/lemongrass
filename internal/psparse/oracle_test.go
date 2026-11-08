@@ -417,55 +417,24 @@ const (
 	oracleRefusedReferenceException oracleClass = "refused-reference-exception"
 )
 
-// Reviewed against SemanticChecks.cs at bf5fc434120666e5f1a8d1dfd6ecac7efc17a4be.
-// DuplicateNamedArgument is deliberately excluded: Parser.cs also reports it.
-var oracleSemanticIDs = map[string]bool{
-	"ParameterAttributeArgumentNeedsToBeConstantOrScriptBlock": true, // SemanticChecks.cs:81
-	"DuplicateFormalParameter":                                 true, // SemanticChecks.cs:96
-	"VoidTypeConstraintNotAllowed":                             true, // :107,801
-	"AttributeNotAllowedOnDeclaration":                         true, // :187
-	"OrderedAttributeOnlyOnHashLiteralNode":                    true, // :307,920
-	"OnlyOneParameterListAllowed":                              true, // :440
-	"EmptyCatchNotLast":                                        true, // :546
-	"ExceptionTypeAlreadyCaught":                               true, // :573
-	"ReferenceNeedsToBeByItselfInTypeConstraint":               true, // :812
-	"InvalidLeftHandSide":                                      true, // :871
-	"SplattingNotPermitted":                                    true, // :1077
-	"WorkflowNotSupportedInPowerShellCore":                     true, // :451
-	"ControlLeavingFinally":                                    true, // :659
-	"VoidMethodHasReturn":                                      true, // :710
-	"ReferenceNeedsToBeByItselfInTypeSequence":                 true, // :948
-	"ReferenceNeedsToBeLastTypeInTypeConversion":               true, // :995
-	"UsingStatementNotSupported":                               true, // :1319
-	"InvalidNamespaceValue":                                    true, // :1330
-	"KeywordParameterReservedForFutureUse":                     true, // :465,500,510
-	"UnexpectedKeyword":                                        true, // :1174
-	"CustomAttributeTypeNotFound":                              true, // SymbolResolver.cs:671
-	"ModuleNotFoundDuringParse":                                true, // SymbolResolver.cs:580
-	"ThrottleLimitRequiresParallelFlag":                        true, // :522
-	"TypeNotFound":                                             true, // SymbolResolver.cs:676
-	"OperatorRequiresVariableOrProperty":                       true, // :901
-	"InvalidUsingExpression":                                   true, // :1024
-	"NonStaticMemberAccessInStaticMember":                      true, // :1103
-	"VariableNotLocal":                                         true, // :1093
-}
-
+// Eligibility and provenance are generated from the pinned post-parse sources.
+//
 //go:embed oracle/definition-semantic-ids.json
-var oracleDefinitionSemanticData []byte
+var oraclePostParseSemanticData []byte
 
 var oracleSemanticEligibility = func() struct{ IDs, UsingModuleIDs map[string][]string } {
 	var data struct{ IDs, UsingModuleIDs map[string][]string }
-	if err := json.Unmarshal(oracleDefinitionSemanticData, &data); err != nil {
+	if err := json.Unmarshal(oraclePostParseSemanticData, &data); err != nil {
 		panic(err)
 	}
 	return data
 }()
 
-var oracleDefinitionSemanticIDs = oracleSemanticEligibility.IDs
+var oracleSemanticIDs = oracleSemanticEligibility.IDs
 
-func oracleDefinitionSemanticSources(result *Result, id string) []string {
-	lines := oracleDefinitionSemanticIDs[id]
-	if len(lines) == 0 || !oracleRefusedConstruct(result) {
+func oraclePostParseSemanticSources(result *Result, id string) []string {
+	lines := oracleSemanticIDs[id]
+	if len(lines) == 0 || result == nil || result.Ast == nil {
 		return nil
 	}
 	return lines
@@ -533,13 +502,15 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 				requireExact, assemblyFilesystem = true, true
 			} else if len(oracleUsingModuleSemanticSources(goResult, reference.Tree, e)) != 0 {
 				requireExact = true
-			} else if !oracleSemanticIDs[e.ID] && len(oracleDefinitionSemanticSources(goResult, e.ID)) == 0 {
+			} else if len(oraclePostParseSemanticSources(goResult, e.ID)) != 0 {
+				requireExact = true
+			} else {
 				return oracleMismatch, "unclassified reference error: " + e.ID
 			}
 		}
 		if requireExact {
 			if detail := oracleCompareSuccess(goResult, reference, schema); detail != "" {
-				return oracleMismatch, "shared-ID semantic shape requires exact parity: " + detail
+				return oracleMismatch, "semantic acceptance requires exact parity: " + detail
 			}
 		}
 		if unresolvedEnum {
@@ -918,6 +889,22 @@ func TestOracleProtocol(t *testing.T) {
 	}
 }
 
+func TestOracleDeepSerialization(t *testing.T) {
+	input := strings.Repeat("(", 40) + "1" + strings.Repeat(")", 40)
+	result, err := Parse(input, Limits{MaxInput: 4096, MaxDepth: 2000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := startOracle(t)
+	response, err := o.batch([]string{input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if class, detail := compareOracle(result, nil, response.Results[0], o.schema); class != oracleMatch {
+		t.Fatalf("deep reference is not exact: %s %s", class, detail)
+	}
+}
+
 func TestOracleNormalization(t *testing.T) {
 	o := startOracle(t)
 	for _, test := range []struct {
@@ -1283,16 +1270,16 @@ func TestOracleWindows51(t *testing.T) {
 			}
 			entry := map[string]any{"Name": cases[start+i].Name, "Source": cases[start+i].Source, "Input": input, "Class": label, "Detail": oldDetail}
 			for _, e := range oldResponse.Results[i].Errors {
-				if !oracleSemanticIDs[e.ID] {
-					lines := oracleDefinitionSemanticSources(result, e.ID)
+				if len(oracleSemanticIDs[e.ID]) != 0 || len(oracleSemanticEligibility.UsingModuleIDs[e.ID]) != 0 {
+					lines := oraclePostParseSemanticSources(result, e.ID)
 					if len(lines) == 0 {
 						lines = oracleUsingModuleSemanticSources(result, oldResponse.Results[i].Tree, e)
 					}
 					if len(lines) != 0 {
-						if entry["DefinitionSemanticSources"] == nil {
-							entry["DefinitionSemanticSources"] = map[string][]string{}
+						if entry["SemanticSources"] == nil {
+							entry["SemanticSources"] = map[string][]string{}
 						}
-						entry["DefinitionSemanticSources"].(map[string][]string)[e.ID] = lines
+						entry["SemanticSources"].(map[string][]string)[e.ID] = lines
 					}
 				}
 			}
@@ -2075,7 +2062,7 @@ func TestOracleReferenceExceptionFails(t *testing.T) {
 	}
 }
 
-func TestOracleDefinitionSemanticQualification(t *testing.T) {
+func TestOraclePostParseSemanticQualification(t *testing.T) {
 	definition, err := Parse("class C { [int] M() {} }", DefaultLimits)
 	if err != nil {
 		t.Fatal(err)
@@ -2084,14 +2071,14 @@ func TestOracleDefinitionSemanticQualification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lines := oracleDefinitionSemanticSources(definition, "MethodHasCodePathNotReturn"); !reflect.DeepEqual(lines, []string{"SemanticChecks.cs:427"}) {
+	if lines := oraclePostParseSemanticSources(definition, "MethodHasCodePathNotReturn"); !reflect.DeepEqual(lines, []string{"SemanticChecks.cs:427"}) {
 		t.Fatalf("source evidence = %v", lines)
 	}
-	if len(oracleDefinitionSemanticSources(plain, "MethodHasCodePathNotReturn")) != 0 {
-		t.Fatal("definition-only ID accepted on plain command")
+	if len(oraclePostParseSemanticSources(plain, "MethodHasCodePathNotReturn")) == 0 {
+		t.Fatal("post-only source eligibility unexpectedly depends on definitions")
 	}
 	for _, id := range []string{"UnexpectedAttribute", "DuplicateNamedArgument", "MissingEndCurlyBrace", "UnknownID"} {
-		if len(oracleDefinitionSemanticSources(definition, id)) != 0 {
+		if len(oraclePostParseSemanticSources(definition, id)) != 0 {
 			t.Fatalf("syntax/shared/unknown ID eligible: %s", id)
 		}
 	}
@@ -2099,15 +2086,27 @@ func TestOracleDefinitionSemanticQualification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if lines := oracleDefinitionSemanticSources(module, "WildCardModuleNameError"); !reflect.DeepEqual(lines, []string{"SymbolResolver.cs:559"}) {
+	if lines := oraclePostParseSemanticSources(module, "WildCardModuleNameError"); !reflect.DeepEqual(lines, []string{"SymbolResolver.cs:559"}) {
 		t.Fatalf("module source evidence = %v", lines)
 	}
 	namespace, err := Parse("using namespace System", DefaultLimits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(oracleDefinitionSemanticSources(namespace, "WildCardModuleNameError")) != 0 {
-		t.Fatal("namespace using qualified for module semantic allowance")
+	if len(oraclePostParseSemanticSources(namespace, "WildCardModuleNameError")) == 0 {
+		t.Fatal("post-only source eligibility unexpectedly depends on using kind")
+	}
+	schema := makeOracleSchema()
+	reference := oracleResult{Tree: oracleJSON(oracleValue(reflect.ValueOf(plain.Ast), oracleSpec{Kind: "node"}, schema)), Errors: []oracleError{{ID: "MethodHasCodePathNotReturn"}}}
+	for _, token := range plain.Tokens {
+		reference.Tokens = append(reference.Tokens, oracleJSON(oracleToken(token)))
+	}
+	if class, detail := compareOracle(plain, nil, reference, schema); class != oracleSemantic {
+		t.Fatalf("source-qualified exact input rejected: %s %s", class, detail)
+	}
+	reference.Tokens[0].(map[string]any)["End"] = float64(999)
+	if class, _ := compareOracle(plain, nil, reference, schema); class != oracleMismatch {
+		t.Fatal("post-only ID waived a token mismatch")
 	}
 }
 

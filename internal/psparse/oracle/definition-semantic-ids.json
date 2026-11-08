@@ -199,6 +199,10 @@
     "PropertyReferenceNotSupportedInDataSection": [
       "SemanticChecks.cs:2357"
     ],
+    "ReadOnlyProperty": [
+      "SemanticChecks.cs:218",
+      "SemanticChecks.cs:230"
+    ],
     "RedirectionNotSupportedInDataSection": [
       "SemanticChecks.cs:2218",
       "SemanticChecks.cs:2227"

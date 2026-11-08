@@ -1,15 +1,18 @@
 # SPDX-License-Identifier: MPL-2.0
 # Copyright (C) 2026 The Lemongrass Authors
 
-"""Extract definition-qualified semantic IDs from the pinned PowerShell sources."""
+"""Extract post-parse-only IDs and scoped module IDs from pinned PowerShell sources."""
 import json
 from pathlib import Path
 import re
 import sys
 
 root = Path(sys.argv[1])
-reference = re.compile(r"ParserStrings\.([A-Za-z0-9_]+)")
-error_id = re.compile(r"nameof\(ParserStrings\.([A-Za-z0-9_]+)\)")
+error_reference = re.compile(r"nameof\(([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)\)")
+resources = set()
+for filename in ("Parser.cs", "tokenizer.cs", "SemanticChecks.cs", "SymbolResolver.cs"):
+    resources.update(owner for owner, _ in error_reference.findall((root / filename).read_text()))
+reference = re.compile(r"\b(?:" + "|".join(sorted(resources)) + r")\.([A-Za-z0-9_]+)")
 syntax = set()
 parser_ids = set(reference.findall((root / "Parser.cs").read_text()))
 tokenizer = (root / "tokenizer.cs").read_text()
@@ -29,7 +32,7 @@ ids = {}
 module_ids = {}
 for filename in ("SemanticChecks.cs", "SymbolResolver.cs"):
     for line, text in enumerate((root / filename).read_text().splitlines(), 1):
-        for name in error_id.findall(text):
+        for _, name in error_reference.findall(text):
             if name not in syntax:
                 ids.setdefault(name, []).append(f"{filename}:{line}")
             elif name not in parser_ids and name not in other_tokenizer_ids and name in requires_refs:

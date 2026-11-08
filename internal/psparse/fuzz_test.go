@@ -5,6 +5,7 @@ package psparse
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 )
@@ -35,6 +36,10 @@ func FuzzParseOracle(f *testing.F) {
 			t.Skip()
 		}
 		result, err := Parse(input, Limits{MaxInput: 4096, MaxDepth: 200})
+		var limit *ParseError
+		if errors.As(err, &limit) && (limit.ID == ErrInputTooLarge || limit.ID == ErrNestingTooDeep) {
+			return
+		}
 		response, referenceErr := o.batch([]string{input})
 		if referenceErr != nil {
 			t.Fatal(referenceErr)
@@ -55,10 +60,10 @@ func FuzzParseOracle(f *testing.F) {
 		}
 		if path := os.Getenv("LGRASS_PSPARSE_ORACLE_DEFINITION_REPORT"); path != "" && class == oracleSemantic {
 			for _, e := range response.Results[0].Errors {
-				if oracleSemanticIDs[e.ID] || recorded[e.ID] {
+				if recorded[e.ID] {
 					continue
 				}
-				lines := oracleDefinitionSemanticSources(result, e.ID)
+				lines := oraclePostParseSemanticSources(result, e.ID)
 				if len(lines) == 0 {
 					lines = oracleUsingModuleSemanticSources(result, response.Results[0].Tree, e)
 				}
