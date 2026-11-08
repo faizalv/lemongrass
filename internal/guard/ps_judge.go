@@ -460,6 +460,38 @@ func (j *psJudge) cmdletEffect(cmdlet, written string, elems []psElement, pipeli
 	for _, redirect := range redirects {
 		j.record(redirect)
 	}
+	if cmdlet == "switch-process" {
+		j.switchProcess(elems)
+	}
+}
+
+// switchProcess unwraps Switch-Process (exec on Unix), which replaces PowerShell with the command its remaining
+// arguments name, as addCall unwraps bash's exec: the first value is the program and every element after it, a
+// parameter-like word included, is that program's argument.
+func (j *psJudge) switchProcess(elems []psElement) {
+	for i, element := range elems {
+		if element.Splat {
+			j.refuse("powershell-construct", "a splat into exec", psGuideUnknown)
+			return
+		}
+		if element.Param != "" && !element.Colon {
+			continue
+		}
+		if len(element.Values) == 0 {
+			continue
+		}
+		program := element.Values[0]
+		if program.Dynamic {
+			j.refuse("dynamic-command", "the command exec runs", psGuideDynamic)
+			return
+		}
+		rest := append([]psElement(nil), elems[i+1:]...)
+		if len(element.Values) > 1 {
+			rest = append([]psElement{{Values: element.Values[1:]}}, rest...)
+		}
+		j.native(program.Text, rest, nil)
+		return
+	}
 }
 
 // native records a native program call for every argv the passing models give it, through addCall so wrappers,
