@@ -35,15 +35,21 @@ type oracleSpec struct {
 }
 
 type oracleSchema struct {
-	Nodes   map[string]map[string]oracleSpec
-	Objects map[string]map[string]oracleSpec
+	Nodes      map[string]map[string]oracleSpec
+	Objects    map[string]map[string]oracleSpec
+	Precedence map[string]int
 }
 
 var oracleAstType = reflect.TypeFor[Ast]()
 var oracleTypeNameType = reflect.TypeFor[ITypeName]()
 
 func makeOracleSchema() oracleSchema {
-	s := oracleSchema{Nodes: make(map[string]map[string]oracleSpec), Objects: make(map[string]map[string]oracleSpec)}
+	s := oracleSchema{Nodes: make(map[string]map[string]oracleSpec), Objects: make(map[string]map[string]oracleSpec), Precedence: map[string]int{
+		"BinaryPrecedenceLogical": int(FlagBinaryPrecedenceLogical), "BinaryPrecedenceBitwise": int(FlagBinaryPrecedenceBitwise),
+		"BinaryPrecedenceComparison": int(FlagBinaryPrecedenceComparison), "BinaryPrecedenceCoalesce": int(FlagBinaryPrecedenceCoalesce),
+		"BinaryPrecedenceAdd": int(FlagBinaryPrecedenceAdd), "BinaryPrecedenceMultiply": int(FlagBinaryPrecedenceMultiply),
+		"BinaryPrecedenceFormat": int(FlagBinaryPrecedenceFormat), "BinaryPrecedenceRange": int(FlagBinaryPrecedenceRange),
+	}}
 	// Interfaces do not enumerate their implementations. Keep this list explicit
 	// so a new concrete AST requires a deliberate addition to the oracle.
 	for _, node := range []Ast{
@@ -271,6 +277,7 @@ type oracleResponse struct {
 	Version       string
 	Results       []oracleResult
 	ProtocolError string
+	Precedence    map[string]int
 	Extractions   [][]struct {
 		Offset int
 		UTF16  []uint16
@@ -394,16 +401,17 @@ func (o *oracleProcess) request(inputs []string, operation string) (oracleRespon
 type oracleClass string
 
 const (
-	oracleMatch            oracleClass = "match"
-	oracleBothError        oracleClass = "both-error"
-	oracleSemantic         oracleClass = "semantic-only"
-	oracleLimit            oracleClass = "limit"
-	oracleDynamicKeyword   oracleClass = "dynamic-keyword"
-	oracleRelativeAssembly oracleClass = "relative-assembly"
-	oracleUnreachable      oracleClass = "unreachable"
-	oracleRequires         oracleClass = "requires-pending"
-	oracleUnresolvedEnum   oracleClass = "unresolved-enum"
-	oracleMismatch         oracleClass = "mismatch"
+	oracleMatch              oracleClass = "match"
+	oracleBothError          oracleClass = "both-error"
+	oracleSemantic           oracleClass = "semantic-only"
+	oracleLimit              oracleClass = "limit"
+	oracleDynamicKeyword     oracleClass = "dynamic-keyword"
+	oracleRelativeAssembly   oracleClass = "relative-assembly"
+	oracleUnreachable        oracleClass = "unreachable"
+	oracleRequires           oracleClass = "requires-pending"
+	oracleUnresolvedEnum     oracleClass = "unresolved-enum"
+	oracleAssemblyFilesystem oracleClass = "assembly-filesystem"
+	oracleMismatch           oracleClass = "mismatch"
 )
 
 // Reviewed against SemanticChecks.cs at bf5fc434120666e5f1a8d1dfd6ecac7efc17a4be.
@@ -469,6 +477,7 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 	if len(reference.Errors) != 0 {
 		requireExact := false
 		unresolvedEnum := false
+		assemblyFilesystem := false
 		for _, e := range reference.Errors {
 			if e.ID == "UnexpectedAttribute" && oracleAttributedSemanticError(reference.Tree, e) {
 				requireExact = true
@@ -476,6 +485,8 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 				requireExact = true
 			} else if e.ID == "InvalidUnderlyingType" && oracleUnresolvedEnumError(reference.Tree, e) {
 				requireExact, unresolvedEnum = true, true
+			} else if e.ID == "ErrorLoadingAssembly" && oracleAssemblyFilesystemError(reference.Tree, e) {
+				requireExact, assemblyFilesystem = true, true
 			} else if !oracleSemanticIDs[e.ID] {
 				return oracleMismatch, "unclassified reference error: " + e.ID
 			}
@@ -488,12 +499,36 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 		if unresolvedEnum {
 			return oracleUnresolvedEnum, fmt.Sprint(reference.Errors)
 		}
+		if assemblyFilesystem {
+			return oracleAssemblyFilesystem, fmt.Sprint(reference.Errors)
+		}
 		return oracleSemantic, fmt.Sprint(reference.Errors)
 	}
 	if detail := oracleCompareSuccess(goResult, reference, schema); detail != "" {
 		return oracleMismatch, detail
 	}
 	return oracleMatch, ""
+}
+
+func oracleAssemblyFilesystemError(tree any, e oracleError) bool {
+	return oracleWalk(tree, func(node map[string]any) bool {
+		if node["Type"] != "UsingStatementAst" || node["UsingStatementKind"] != float64(UsingAssembly) {
+			return false
+		}
+		name, ok := node["Name"].(map[string]any)
+		if !ok || name["Type"] != "StringConstantExpressionAst" {
+			return false
+		}
+		if name["Start"] != float64(e.Start) || name["End"] != float64(e.End) {
+			return false
+		}
+		value, ok := oracleDecodeString(name["Value"])
+		if !ok {
+			return false
+		}
+		scheme, unc, absolute := absoluteURI(value)
+		return absolute && !unc && scheme == "file"
+	})
 }
 
 func oracleWalk(value any, match func(map[string]any) bool) bool {
@@ -849,6 +884,51 @@ func TestOracleNormalization(t *testing.T) {
 	}
 }
 
+func TestOracleAssemblyFilesystemClass(t *testing.T) {
+	o := startOracle(t)
+	input := "using assembly /opt/sample-oracle.dll"
+	result, err := Parse(input, DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := o.batch([]string{input})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference := response.Results[0]
+	using := findOracleNode(reference.Tree, "UsingStatementAst")
+	name := using["Name"].(map[string]any)
+	e := oracleError{ID: "ErrorLoadingAssembly", Start: int(name["Start"].(float64)), End: int(name["End"].(float64))}
+	reference.Errors = []oracleError{e}
+	if class, detail := compareOracle(result, nil, reference, o.schema); class != oracleAssemblyFilesystem {
+		t.Fatalf("qualified assembly error: %s: %s", class, detail)
+	}
+	reference.Errors[0].Start++
+	if class, _ := compareOracle(result, nil, reference, o.schema); class != oracleMismatch {
+		t.Fatalf("unrelated error extent accepted: %s", class)
+	}
+	reference.Errors[0] = e
+	token := reference.Tokens[0].(map[string]any)
+	token["Flags"] = token["Flags"].(float64) + float64(FlagMemberName)
+	if class, _ := compareOracle(result, nil, reference, o.schema); class != oracleMismatch {
+		t.Fatalf("token mismatch accepted: %s", class)
+	}
+}
+
+func TestOraclePrecedenceSchema(t *testing.T) {
+	o := startOracle(t)
+	response, err := o.batch([]string{"1 + 2 * 3 -eq 7"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(response.Version, "7.6.") {
+		t.Skipf("precedence numeric pin is for 7.6, got %s", response.Version)
+	}
+	if !reflect.DeepEqual(response.Precedence, o.schema.Precedence) {
+		t.Fatalf("raw runtime precedence does not match pinned Go values: runtime=%v Go=%v", response.Precedence, o.schema.Precedence)
+	}
+}
+
 func findOracleNode(value any, name string) map[string]any {
 	switch v := value.(type) {
 	case []any:
@@ -1066,6 +1146,22 @@ func TestOracleWindows51(t *testing.T) {
 	}
 	modern := startOracle(t)
 	legacy := startOracleProgram(t, filepath.Join(os.Getenv("SystemRoot"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"))
+	counts := make(map[string]int)
+	report := make([]map[string]any, 0)
+	metadata := make(map[string]any)
+	complete := false
+	stage := "reference startup"
+	defer func() {
+		if path := os.Getenv("LGRASS_PSPARSE_ORACLE_REPORT"); path != "" {
+			data, err := json.MarshalIndent(map[string]any{"Complete": complete, "Stage": stage, "References": metadata, "Counts": counts, "Cases": report}, "", "  ")
+			if err == nil {
+				err = os.WriteFile(path, append(data, '\n'), 0644)
+			}
+			if err != nil {
+				t.Errorf("oracle: write 5.1 report: %v", err)
+			}
+		}
+	}()
 	for _, check := range []struct {
 		process *oracleProcess
 		prefix  string
@@ -1078,27 +1174,31 @@ func TestOracleWindows51(t *testing.T) {
 			t.Fatalf("oracle: required %s, got %s", check.prefix, response.Version)
 		}
 		t.Logf("oracle reference version %s", response.Version)
+		t.Logf("reference %s binary precedence enum: %v", response.Version, response.Precedence)
+		metadata[response.Version] = response.Precedence
 	}
+	stage = "corpus extraction"
 	cases := append(loadOracleCorpus(t), loadOracleUpstream(t, modern)...)
-	counts := make(map[string]int)
 	failures := 0
 	firstErrorsEqual := 0
-	var report []map[string]any
 	for start := 0; start < len(cases); start += 16 {
 		end := min(start+16, len(cases))
 		inputs := make([]string, end-start)
 		for i := range inputs {
 			inputs[i] = cases[start+i].Input
 		}
+		stage = "7.6.9 batch starting at " + cases[start].Name
 		newResponse, err := modern.batch(inputs)
 		if err != nil {
 			t.Fatal(err)
 		}
+		stage = "5.1 batch starting at " + cases[start].Name
 		oldResponse, err := legacy.batch(inputs)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for i, input := range inputs {
+			stage = cases[start+i].Name
 			class, detail, parseErr := compareOracleInput(input, newResponse.Results[i], modern.schema)
 			if class == oracleMismatch || class == oracleUnreachable {
 				t.Fatalf("7.6.9 prerequisite %s: %s", cases[start+i].Name, detail)
@@ -1135,17 +1235,9 @@ func TestOracleWindows51(t *testing.T) {
 		}
 	}
 	t.Logf("5.1 oracle classes: %v; first error ID+offset agreement %d/%d; failures %d", counts, firstErrorsEqual, counts[string(oracleBothError)], failures)
+	complete, stage = true, "finished"
 	if failures > 20 {
 		t.Errorf("%d additional 5.1 mismatches omitted", failures-20)
-	}
-	if path := os.Getenv("LGRASS_PSPARSE_ORACLE_REPORT"); path != "" {
-		data, err := json.MarshalIndent(map[string]any{"Counts": counts, "Cases": report}, "", "  ")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, append(data, '\n'), 0644); err != nil {
-			t.Fatal(err)
-		}
 	}
 }
 

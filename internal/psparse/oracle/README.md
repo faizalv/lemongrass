@@ -13,6 +13,9 @@ the Go empty extent normalizes to offset zero. Numeric constants retain their
 upstream `FormatExpression` and `RequiredApplicationID` to `RequiredApplicationId`.
 Recovery nodes have only their type and extent because the Go parser stops at
 the first error and never compares recovery trees.
+`ConfigurationDefinitionAst` and `DynamicKeywordStatementAst` also remain
+type/extent leaves: the Go parser explicitly refuses them, and Windows registers
+configuration in a fresh reference process.
 
 Run `go test ./internal/psparse -run TestOracle -count=1 -v`. The tests skip when
 `pwsh` is absent. Set `LGRASS_PSPARSE_ORACLE_EXE` to select a particular executable,
@@ -28,7 +31,7 @@ Only reviewed IDs in `oracleSemanticIDs` qualify for semantic-only acceptance.
 The shared IDs `UnexpectedAttribute` and `DuplicateNamedArgument` additionally
 require the exact post-check AST shape and full tree/token parity. Explicit
 resource limits, unsupported dynamic keywords, unresolved enum base types, and
-the relative-assembly filesystem divergence have distinct classes. An unreachable
+assembly filesystem divergences have distinct classes. An unreachable
 recovery branch fails if PowerShell accepts the input. Each corpus panic is a
 failure, and the run continues to identify independent failures.
 
@@ -62,3 +65,14 @@ report, including cases beyond the first twenty failures printed in the log.
 
 `TestOracleLegacyMeanings` and `TestOracleSevenFeatures` exercise these checks on
 the host, including negative cases. Actual 5.1 parity requires the Windows run.
+
+5.1 uses different numeric values for the binary-precedence categories in token
+flags. The reference maps only those bits by the runtime enum category name to
+the pinned 7 values. Every other flag bit still compares exactly, and the full
+tree comparison checks actual operator grouping. Reports retain each runtime's
+raw precedence enum values. A reference `ErrorLoadingAssembly` qualifies for the
+filesystem class only on the matching using-assembly name and extent, for an
+accepted file-URI spelling, with exact tree and token parity.
+
+The Windows report is written on test exit even if a later batch aborts. Its
+`Complete` and `Stage` fields distinguish a full comparison from partial data.

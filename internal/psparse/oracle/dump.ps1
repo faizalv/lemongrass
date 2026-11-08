@@ -48,8 +48,17 @@ function Convert-Token($Token) {
     if ($Token -is [System.Management.Automation.Language.StringExpandableToken]) {
         $nested = @(foreach ($item in $Token.NestedTokens) { Convert-Token $item })
     }
+    $flags = [long]$Token.TokenFlags
+    if ($PSVersionTable.PSVersion.Major -lt 6) {
+        $precedence = $flags -band $script:precedenceMask
+        if ($precedence -ne 0) {
+            $key = [string]$precedence
+            if (-not $script:canonicalPrecedence.ContainsKey($key)) { throw "oracle: unknown legacy precedence $precedence" }
+            $flags = ($flags -band (-bnot $script:precedenceMask)) -bor $script:canonicalPrecedence[$key]
+        }
+    }
     return @{
-        Kind = $Token.Kind.ToString(); Flags = [long]$Token.TokenFlags
+        Kind = $Token.Kind.ToString(); Flags = $flags
         Class = $Token.GetType().Name
         Start = $Token.Extent.StartOffset; End = $Token.Extent.EndOffset
         NestedTokens = $nested
@@ -66,6 +75,9 @@ function Convert-Value($Value, $Spec) {
         'node' {
             $name = $Value.GetType().Name
             $result = @{ Type = $name; Start = $Value.Extent.StartOffset; End = $Value.Extent.EndOffset }
+            # These constructs are explicitly refused by the Go parser on every
+            # OS. Windows registers DSC even in a fresh ParseInput process.
+            if ($name -in @('ConfigurationDefinitionAst', 'DynamicKeywordStatementAst')) { return $result }
             # Recovery nodes have no counterpart in the fail-fast Go parser.
             if ($script:hasParseErrors -and $name -in @('ErrorStatementAst', 'ErrorExpressionAst')) { return $result }
             if ($null -eq $script:schema.Nodes.$name) { throw "oracle: unknown AST $name" }
@@ -118,7 +130,21 @@ function Convert-Value($Value, $Spec) {
 while ($null -ne ($line = [Console]::ReadLine())) {
     try {
         $request = ConvertFrom-Json -InputObject $line
-        if ($null -ne $request.Schema) { $script:schema = $request.Schema }
+        if ($null -ne $request.Schema) {
+            $script:schema = $request.Schema
+            $flagType = [System.Management.Automation.Language.TokenFlags]
+            $script:precedenceMask = [long][Enum]::Parse($flagType, 'BinaryPrecedenceMask')
+            $script:rawPrecedence = @{}
+            $script:canonicalPrecedence = @{}
+            foreach ($name in [Enum]::GetNames($flagType)) {
+                if ($name -notlike 'BinaryPrecedence*' -or $name -eq 'BinaryPrecedenceMask') { continue }
+                $raw = [long][Enum]::Parse($flagType, $name)
+                $canonical = $script:schema.Precedence.$name
+                if ($null -eq $canonical) { throw "oracle: unknown precedence category $name" }
+                $script:rawPrecedence[$name] = $raw
+                $script:canonicalPrecedence[[string]$raw] = [long]$canonical
+            }
+        }
         if ($null -eq $script:schema) { throw 'oracle: first request must supply Schema' }
         if ($request.Operation -eq 'Extract') {
             $extractions = @(foreach ($inputText in $request.Inputs) {
@@ -157,7 +183,7 @@ while ($null -ne ($line = [Console]::ReadLine())) {
                 })
             }
         })
-        $response = @{ Version = $PSVersionTable.PSVersion.ToString(); Results = $results }
+        $response = @{ Version = $PSVersionTable.PSVersion.ToString(); Results = $results; Precedence = $script:rawPrecedence }
         [Console]::WriteLine((ConvertTo-Json -InputObject $response -Depth 100 -Compress))
     } catch {
         [Console]::WriteLine((ConvertTo-Json -InputObject @{ ProtocolError = $_.ToString() } -Compress))
