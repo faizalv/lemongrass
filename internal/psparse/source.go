@@ -71,6 +71,10 @@ func clampExtent(e Extent, n int) (int, int) {
 	if start < 0 {
 		start = 0
 	}
+	if start > n {
+		// The EOF token's extent sits one past the end of input.
+		start = n
+	}
 	if end > n {
 		end = n
 	}

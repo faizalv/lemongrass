@@ -75,6 +75,10 @@ func TestResultText(t *testing.T) {
 		{Extent{9, 100}, "'é\U0001F600'"},
 		{emptyExtent, ""},
 		{Extent{5, 5}, ""},
+		{Extent{100, 101}, ""},
+	}
+	if got := (&Result{src: newSource("")}).Text(Extent{1, 1}); got != "" {
+		t.Errorf("Text past empty input = %q", got)
 	}
 	for _, c := range cases {
 		if got := r.Text(c.ext); got != c.want {
