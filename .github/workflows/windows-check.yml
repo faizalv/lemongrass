@@ -37,6 +37,21 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Test-only portable runtime. Its checksum is from the v7.6.9 release's
+      # hashes.sha256 asset and GitHub asset digest; the app never ships pwsh.
+      - name: Install pinned PowerShell parser oracle
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'PowerShell-7.6.9-win-x64.zip'
+          $directory = Join-Path $env:RUNNER_TEMP 'psparse-pwsh-7.6.9'
+          Invoke-WebRequest -Uri 'https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/PowerShell-7.6.9-win-x64.zip' -OutFile $archive
+          $expected = 'ce7484804c0f0ad4dda10c958e71acdaf7eebfb22505c1b480f89e0e9f1da94d'
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash -ne $expected) { throw 'PowerShell oracle checksum mismatch' }
+          Expand-Archive -LiteralPath $archive -DestinationPath $directory
+          $executable = Join-Path $directory 'pwsh.exe'
+          "LGRASS_PSPARSE_ORACLE_EXE=$executable" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          'LGRASS_PSPARSE_ORACLE_REQUIRED=1' | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Go vet on windows
         run: go vet ./...
 
@@ -44,3 +59,20 @@ jobs:
       - name: Go tests on windows
         if: ${{ !cancelled() }}
         run: go test ./...
+
+      - name: Windows PowerShell 5.1 parser oracle
+        if: ${{ !cancelled() }}
+        timeout-minutes: 15
+        env:
+          LGRASS_PSPARSE_ORACLE_51: '1'
+          LGRASS_PSPARSE_ORACLE_REQUIRED: '1'
+          LGRASS_PSPARSE_ORACLE_REPORT: ${{ runner.temp }}/psparse-windows51.json
+        run: go test ./internal/psparse -run '^TestOracleWindows51$' -count=1 -v
+
+      - name: PowerShell 5.1 comparison report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: powershell-51-oracle
+          path: ${{ runner.temp }}/psparse-windows51.json
+          if-no-files-found: ignore

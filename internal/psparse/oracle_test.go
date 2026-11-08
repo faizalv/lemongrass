@@ -296,6 +296,11 @@ func startOracle(t testing.TB) *oracleProcess {
 	if program == "" {
 		program = "pwsh"
 	}
+	return startOracleProgram(t, program)
+}
+
+func startOracleProgram(t testing.TB, program string) *oracleProcess {
+	t.Helper()
 	path, err := exec.LookPath(program)
 	if err != nil {
 		if os.Getenv("LGRASS_PSPARSE_ORACLE_REQUIRED") != "" {
@@ -305,7 +310,12 @@ func startOracle(t testing.TB) *oracleProcess {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	o := &oracleProcess{cancel: cancel, schema: makeOracleSchema()}
-	o.cmd = exec.CommandContext(ctx, path, "-NoLogo", "-NoProfile", "-NonInteractive", "-File", filepath.Join("oracle", "dump.ps1"))
+	args := []string{"-NoLogo", "-NoProfile", "-NonInteractive"}
+	if strings.ToLower(filepath.Base(path)) == "powershell.exe" {
+		args = append(args, "-ExecutionPolicy", "Bypass")
+	}
+	args = append(args, "-File", filepath.Join("oracle", "dump.ps1"))
+	o.cmd = exec.CommandContext(ctx, path, args...)
 	o.cmd.Stderr = &o.stderr
 	o.in, err = o.cmd.StdinPipe()
 	if err != nil {
@@ -452,6 +462,9 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 			return oracleRelativeAssembly, "relative using assembly requires filesystem access, deliberately omitted"
 		}
 		return oracleMismatch, "Go rejected reference success: " + goErr.Error()
+	}
+	if goResult == nil || goResult.Ast == nil {
+		return oracleMismatch, "Go returned no AST without an error"
 	}
 	if len(reference.Errors) != 0 {
 		requireExact := false
@@ -941,7 +954,9 @@ func runOracleCases(t *testing.T, o *oracleProcess, cases []oracleCase) {
 		t.Errorf("%d additional mismatches omitted", failures-20)
 	}
 	if path := os.Getenv("LGRASS_PSPARSE_ORACLE_REPORT"); path != "" {
-		if t.Name() != "TestOracleCorpus" { path += "." + strings.ReplaceAll(t.Name(), "/", "_") + ".json" }
+		if t.Name() != "TestOracleCorpus" {
+			path += "." + strings.ReplaceAll(t.Name(), "/", "_") + ".json"
+		}
 		data, err := json.MarshalIndent(report, "", "  ")
 		if err != nil {
 			t.Fatal(err)
@@ -1041,4 +1056,469 @@ func loadOracleUpstream(t testing.TB, o *oracleProcess) []oracleCase {
 		t.Fatal("oracle: no pinned upstream test inputs")
 	}
 	return cases
+}
+
+// This test is selected explicitly by the Windows workflow. The ordinary oracle
+// remains the pinned 7 grammar; the second process checks the legacy meanings.
+func TestOracleWindows51(t *testing.T) {
+	if os.Getenv("LGRASS_PSPARSE_ORACLE_51") != "1" {
+		t.Skip("oracle: Windows PowerShell 5.1 workflow only")
+	}
+	modern := startOracle(t)
+	legacy := startOracleProgram(t, filepath.Join(os.Getenv("SystemRoot"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe"))
+	for _, check := range []struct {
+		process *oracleProcess
+		prefix  string
+	}{{modern, "7.6.9"}, {legacy, "5.1."}} {
+		response, err := check.process.batch([]string{""})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.HasPrefix(response.Version, check.prefix) {
+			t.Fatalf("oracle: required %s, got %s", check.prefix, response.Version)
+		}
+		t.Logf("oracle reference version %s", response.Version)
+	}
+	cases := append(loadOracleCorpus(t), loadOracleUpstream(t, modern)...)
+	counts := make(map[string]int)
+	failures := 0
+	firstErrorsEqual := 0
+	var report []map[string]any
+	for start := 0; start < len(cases); start += 16 {
+		end := min(start+16, len(cases))
+		inputs := make([]string, end-start)
+		for i := range inputs {
+			inputs[i] = cases[start+i].Input
+		}
+		newResponse, err := modern.batch(inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		oldResponse, err := legacy.batch(inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, input := range inputs {
+			class, detail, parseErr := compareOracleInput(input, newResponse.Results[i], modern.schema)
+			if class == oracleMismatch || class == oracleUnreachable {
+				t.Fatalf("7.6.9 prerequisite %s: %s", cases[start+i].Name, detail)
+			}
+			result, err := Parse(input, DefaultLimits)
+			if (parseErr == nil) != (err == nil) {
+				t.Fatal("oracle: non-deterministic parse")
+			}
+			oldClass, oldDetail := compareOracle(result, err, oldResponse.Results[i], legacy.schema)
+			label := string(oldClass)
+			if oldClass == oracleMismatch && err == nil {
+				if len(oldResponse.Results[i].Errors) != 0 && oracleHasSevenFeature(result) {
+					label, oldDetail = "seven-only", "5.1 rejects a checked 7-only token or AST construct"
+				} else if len(oldResponse.Results[i].Errors) == 0 {
+					if diff, changed := oracleLegacyMeaningDiff(input, result, oldResponse.Results[i], modern.schema); diff == "" && changed {
+						label, oldDetail = "version-meaning", "checked clean block or new escape reading"
+					}
+				}
+			}
+			counts[label]++
+			if oldClass == oracleBothError {
+				var parseError *ParseError
+				if errors.As(err, &parseError) && parseError.ID == oldResponse.Results[i].Errors[0].ID && parseError.Extent.Start == oldResponse.Results[i].Errors[0].Start {
+					firstErrorsEqual++
+				}
+			}
+			report = append(report, map[string]any{"Name": cases[start+i].Name, "Source": cases[start+i].Source, "Input": input, "Class": label, "Detail": oldDetail})
+			if label == string(oracleMismatch) || label == string(oracleUnreachable) {
+				failures++
+				if failures <= 20 {
+					t.Errorf("5.1 %s (%s) input=%q: %s", cases[start+i].Name, cases[start+i].Source, input, oldDetail)
+				}
+			}
+		}
+	}
+	t.Logf("5.1 oracle classes: %v; first error ID+offset agreement %d/%d; failures %d", counts, firstErrorsEqual, counts[string(oracleBothError)], failures)
+	if failures > 20 {
+		t.Errorf("%d additional 5.1 mismatches omitted", failures-20)
+	}
+	if path := os.Getenv("LGRASS_PSPARSE_ORACLE_REPORT"); path != "" {
+		data, err := json.MarshalIndent(map[string]any{"Counts": counts, "Cases": report}, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, append(data, '\n'), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func oracleHasSevenFeature(result *Result) bool {
+	for _, token := range result.Tokens {
+		switch token.Kind {
+		case AndAnd, OrOr, QuestionMark, QuestionQuestion, QuestionQuestionEquals, QuestionDot, QuestionLBracket:
+			return true
+		case Number:
+			if strings.HasPrefix(strings.TrimLeft(strings.ToLower(token.Text), "+-"), "0b") {
+				return true
+			}
+			switch token.Value.(type) {
+			case int8, uint8, int16, uint16, uint32, uint64, *big.Int:
+				return true
+			}
+		}
+	}
+	tree := oracleJSON(oracleValue(reflect.ValueOf(result.Ast), oracleSpec{Kind: "node"}, makeOracleSchema()))
+	return oracleWalk(tree, func(node map[string]any) bool {
+		if node["Type"] == "NamedBlockAst" && node["BlockKind"] == float64(Clean) {
+			return true
+		}
+		if node["Background"] == true || node["NullConditional"] == true {
+			return true
+		}
+		arguments, ok := node["GenericTypeArguments"].([]any)
+		return ok && len(arguments) > 0
+	})
+}
+
+func oracleJSON(value any) any {
+	data, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	var result any
+	if err := json.Unmarshal(data, &result); err != nil {
+		panic(err)
+	}
+	canonicalOracleNumbers(result)
+	return result
+}
+
+func oracleLegacyMeaningDiff(input string, result *Result, reference oracleResult, schema oracleSchema) (string, bool) {
+	actual := oracleJSON(oracleValue(reflect.ValueOf(result.Ast), oracleSpec{Kind: "node"}, schema))
+	changed := false
+	if diff := oracleLegacyTreeDiff(actual, reference.Tree, newSource(input), "$", &changed); diff != "" {
+		return diff, false
+	}
+	tokens := make([]any, 0, len(result.Tokens))
+	for _, token := range result.Tokens {
+		tokens = append(tokens, oracleToken(token))
+	}
+	a := oracleJSON(tokens).([]any)
+	if len(a) != len(reference.Tokens) {
+		return "token count differs", false
+	}
+	for i := range a {
+		x := a[i].(map[string]any)
+		y := reference.Tokens[i].(map[string]any)
+		if y["Kind"] == "Generic" && x["Class"] == "Token" && y["Class"] == "StringLiteralToken" && x["Start"] == y["Start"] && x["End"] == y["End"] {
+			start, end := int(x["Start"].(float64)), int(x["End"].(float64))
+			named := changed && x["Kind"] == "Clean" && x["Flags"] == float64(Clean.Traits()) && y["Flags"] == float64(FlagCommandName)
+			literal := oracleWalk(actual, func(node map[string]any) bool {
+				if node["Type"] != "StringConstantExpressionAst" || node["StringConstantType"] != float64(BareWord) || node["Start"] != float64(start) || node["End"] != float64(end) {
+					return false
+				}
+				value, ok := oracleDecodeString(node["Value"])
+				return ok && OrdinalEqualFold(value, "clean")
+			})
+			commandName := literal && x["Kind"] == "Clean" && x["Flags"] == float64(FlagKeyword|FlagCommandName) && y["Flags"] == float64(FlagCommandName)
+			argument := literal && x["Kind"] == "Generic" && x["Flags"] == float64(FlagKeyword) && y["Flags"] == float64(FlagNone)
+			if (named || commandName || argument) && OrdinalEqualFold(newSource(input).slice(Extent{start, end}), "clean") {
+				changed = true
+				continue
+			}
+		}
+		if diff := oracleFirstDiff(x, y, fmt.Sprintf("tokens[%d]", i)); diff != "" {
+			return diff, false
+		}
+	}
+	return "", changed
+}
+
+func oracleLegacyTreeDiff(actual, reference any, src source, path string, changed *bool) string {
+	if reflect.DeepEqual(actual, reference) {
+		return ""
+	}
+	a, aok := actual.(map[string]any)
+	b, bok := reference.(map[string]any)
+	if aok && bok {
+		if a["Type"] == "ScriptBlockAst" && b["Type"] == "ScriptBlockAst" && a["CleanBlock"] != nil && b["CleanBlock"] == nil {
+			if replacement, ok := oracleLegacyClean(a, b); ok {
+				reference, b = replacement, replacement
+				*changed = true
+			}
+		}
+		if len(a) != len(b) {
+			return oracleFirstDiff(a, b, path)
+		}
+		for key, x := range a {
+			y, ok := b[key]
+			if !ok {
+				return path + "." + key + " missing"
+			}
+			if (key == "Value" || key == "FormatString") && (a["Type"] == "StringConstantExpressionAst" || a["Type"] == "ExpandableStringExpressionAst") && a["Type"] == b["Type"] && a["Start"] == b["Start"] && a["End"] == b["End"] && (a["StringConstantType"] == float64(DoubleQuoted) || a["StringConstantType"] == float64(DoubleQuotedHereString)) {
+				newValue, newOK := oracleDecodeString(x)
+				oldValue, oldOK := oracleDecodeString(y)
+				if newOK && oldOK && newValue != oldValue {
+					raw := src.slice(Extent{int(a["Start"].(float64)), int(a["End"].(float64))})
+					if oracleLegacyEscapesMatch(newValue, oldValue, raw) {
+						*changed = true
+						continue
+					}
+				}
+			}
+			if diff := oracleLegacyTreeDiff(x, y, src, path+"."+key, changed); diff != "" {
+				return diff
+			}
+		}
+		return ""
+	}
+	if a, aok := actual.([]any); aok {
+		if b, bok := reference.([]any); bok && len(a) == len(b) {
+			for i := range a {
+				if diff := oracleLegacyTreeDiff(a[i], b[i], src, fmt.Sprintf("%s[%d]", path, i), changed); diff != "" {
+					return diff
+				}
+			}
+			return ""
+		}
+	}
+	return oracleFirstDiff(actual, reference, path)
+}
+
+// A legacy clean command must consist of exactly the literal name and its
+// script-block argument. Preserve and compare the body's actual statements.
+func oracleLegacyClean(modern, legacy map[string]any) (map[string]any, bool) {
+	clean, ok := modern["CleanBlock"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	end, ok := legacy["EndBlock"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	statements, ok := end["Statements"].([]any)
+	if !ok || len(statements) != 1 {
+		return nil, false
+	}
+	pipeline, ok := statements[0].(map[string]any)
+	if !ok || pipeline["Type"] != "PipelineAst" {
+		return nil, false
+	}
+	elements, ok := pipeline["PipelineElements"].([]any)
+	if !ok || len(elements) != 1 {
+		return nil, false
+	}
+	command, ok := elements[0].(map[string]any)
+	if !ok || command["Type"] != "CommandAst" || command["Start"] != clean["Start"] || command["End"] != clean["End"] {
+		return nil, false
+	}
+	if command["InvocationOperator"] != float64(Unknown) {
+		return nil, false
+	}
+	if redirects, ok := command["Redirections"].([]any); !ok || len(redirects) != 0 {
+		return nil, false
+	}
+	arguments, ok := command["CommandElements"].([]any)
+	if !ok || len(arguments) != 2 {
+		return nil, false
+	}
+	name, ok := arguments[0].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	text, ok := oracleDecodeString(name["Value"])
+	if !ok || !OrdinalEqualFold(text, "clean") {
+		return nil, false
+	}
+	block, ok := arguments[1].(map[string]any)
+	if !ok || block["Type"] != "ScriptBlockExpressionAst" {
+		return nil, false
+	}
+	body, ok := block["ScriptBlock"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	for _, field := range []string{"Attributes", "UsingStatements"} {
+		if values, ok := body[field].([]any); !ok || len(values) != 0 {
+			return nil, false
+		}
+	}
+	if body["ScriptRequirements"] != nil {
+		return nil, false
+	}
+	for _, field := range []string{"BeginBlock", "ProcessBlock", "CleanBlock", "DynamicParamBlock", "ParamBlock"} {
+		if body[field] != nil {
+			return nil, false
+		}
+	}
+	bodyEnd, ok := body["EndBlock"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	newClean := make(map[string]any)
+	for key, value := range clean {
+		newClean[key] = value
+	}
+	newClean["Statements"], newClean["Traps"] = bodyEnd["Statements"], bodyEnd["Traps"]
+	replacement := make(map[string]any)
+	for key, value := range legacy {
+		replacement[key] = value
+	}
+	replacement["CleanBlock"], replacement["EndBlock"] = newClean, modern["EndBlock"]
+	return replacement, true
+}
+
+type oracleEscapeEdit struct{ modern, legacy string }
+
+func oracleLegacyEscapesMatch(modern, legacy, raw string) bool {
+	var edits []oracleEscapeEdit
+	for i := 0; i+1 < len(raw); i++ {
+		if raw[i] != '`' {
+			continue
+		}
+		i++
+		if raw[i] == 'e' {
+			edits = append(edits, oracleEscapeEdit{"\x1b", "e"})
+			continue
+		}
+		if raw[i] != 'u' || i+1 >= len(raw) || raw[i+1] != '{' {
+			continue
+		}
+		end := strings.IndexByte(raw[i+2:], '}')
+		if end < 0 {
+			continue
+		}
+		end += i + 2
+		code, err := strconv.ParseUint(raw[i+2:end], 16, 32)
+		if err != nil || code > 0x10ffff {
+			continue
+		}
+		text := string(rune(code))
+		if code >= 0xd800 && code <= 0xdfff {
+			text = utf16ToString([]uint16{uint16(code)})
+		}
+		edits = append(edits, oracleEscapeEdit{text, raw[i : end+1]})
+		i = end
+	}
+	if len(edits) == 0 || len(edits) > 32 {
+		return false
+	}
+	type position struct{ modern, legacy, edit int }
+	seen := make(map[position]bool)
+	var match func(int, int, int) bool
+	match = func(mi, li, ei int) bool {
+		if mi == len(modern) && li == len(legacy) {
+			return true
+		}
+		p := position{mi, li, ei}
+		if seen[p] || len(seen) > 100000 {
+			return false
+		}
+		seen[p] = true
+		if mi < len(modern) && li < len(legacy) && modern[mi] == legacy[li] && match(mi+1, li+1, ei) {
+			return true
+		}
+		for k := ei; k < len(edits); k++ {
+			edit := edits[k]
+			if strings.HasPrefix(modern[mi:], edit.modern) && strings.HasPrefix(legacy[li:], edit.legacy) && match(mi+len(edit.modern), li+len(edit.legacy), k+1) {
+				return true
+			}
+		}
+		return false
+	}
+	return match(0, 0, 0)
+}
+
+func TestOracleLegacyMeanings(t *testing.T) {
+	o := startOracle(t)
+	t.Run("clean shape", func(t *testing.T) {
+		input := "clean { Get-Item foo }"
+		result, err := Parse(input, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := o.batch([]string{"& " + input})
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy := response.Results[0]
+		shift := func(node map[string]any) bool {
+			for _, key := range []string{"Start", "End"} {
+				if value, ok := node[key].(float64); ok {
+					node[key] = max(0, value-2)
+				}
+			}
+			return false
+		}
+		oracleWalk(legacy.Tree, shift)
+		legacy.Tokens = legacy.Tokens[1:]
+		for _, token := range legacy.Tokens {
+			oracleWalk(token, shift)
+		}
+		first := legacy.Tokens[0].(map[string]any)
+		first["Kind"], first["Class"], first["Flags"] = "Generic", "StringLiteralToken", float64(FlagCommandName)
+		command := findOracleNode(legacy.Tree, "CommandAst")
+		command["InvocationOperator"] = float64(Unknown)
+		if diff, changed := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff != "" || !changed {
+			t.Fatalf("clean reading rejected, changed=%t: %s", changed, diff)
+		}
+		block := findOracleNode(command, "ScriptBlockExpressionAst")
+		body := findOracleNode(block, "CommandAst")
+		elements := body["CommandElements"].([]any)
+		elements[0].(map[string]any)["Value"] = oracleJSON(oracleString("Get-Content"))
+		if diff, _ := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff == "" {
+			t.Fatal("changed clean body accepted")
+		}
+	})
+	t.Run("escape fields", func(t *testing.T) {
+		input := "\"`e `u{41} $x\""
+		result, err := Parse(input, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := o.batch([]string{input})
+		if err != nil {
+			t.Fatal(err)
+		}
+		legacy := response.Results[0]
+		node := findOracleNode(legacy.Tree, "ExpandableStringExpressionAst")
+		node["Value"] = oracleJSON(oracleString("e u{41} $x"))
+		node["FormatString"] = oracleJSON(oracleString("e u{41} {0}"))
+		if diff, changed := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff != "" || !changed {
+			t.Fatalf("escape reading rejected, changed=%t: %s", changed, diff)
+		}
+		node["Value"] = oracleJSON(oracleString("e u{42} $x"))
+		if diff, _ := oracleLegacyMeaningDiff(input, result, legacy, o.schema); diff == "" {
+			t.Fatal("unrelated escape difference accepted")
+		}
+	})
+	for _, test := range []struct {
+		modern, legacy, raw string
+		want                bool
+	}{
+		{"\x1b", "e", "\"`e\"", true}, {"u", "u{75}", "\"`u{75}\"", true},
+		{"A", "u{41}", "\"`u{41}\"", true}, {"A", "u{42}", "\"`u{41}\"", false},
+		{"\x1b", "e", "\"``e\"", false}, {"x", "y", "\"`e\"", false},
+	} {
+		if got := oracleLegacyEscapesMatch(test.modern, test.legacy, test.raw); got != test.want {
+			t.Errorf("legacy edit %q -> %q in %q: got %t", test.modern, test.legacy, test.raw, got)
+		}
+	}
+}
+
+func TestOracleSevenFeatures(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  bool
+	}{
+		{"Get-Item foo", false}, {"$x[0]", false}, {"& clean {}", false},
+		{"a && b", true}, {"a || b", true}, {"$x ? 1 : 2", true}, {"$x ?? 1", true},
+		{"$x ??= 1", true}, {"${x}?.Name", true}, {"${x}?[0]", true}, {"a &", true},
+		{"clean { a }", true}, {"0b101", true}, {"1u", true}, {"1n", true},
+	} {
+		result, err := Parse(test.input, DefaultLimits)
+		if err != nil {
+			t.Fatalf("%q: %v", test.input, err)
+		}
+		if got := oracleHasSevenFeature(result); got != test.want {
+			t.Errorf("7-only feature %q: got %t want %t", test.input, got, test.want)
+		}
+	}
 }

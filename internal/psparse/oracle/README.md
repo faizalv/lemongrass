@@ -47,3 +47,18 @@ comparisons. It is a fixture generator, never part of the shipped parser.
 `native-argv.ps1` is a separate fixed execution probe requested for the semantic
 tables. It does not consume corpus text. On pwsh 7.6.9 on Unix, a literal `a,b`
 reaches printf as one argument, while a two-element variable reaches it as two.
+
+The Windows workflow installs portable pwsh 7.6.9 after checking its official
+SHA-256 and makes it mandatory for the regular tests. A separate step sets
+`LGRASS_PSPARSE_ORACLE_51=1` and runs `TestOracleWindows51` against both that
+runtime and `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`.
+The same corpus must match wherever 5.1 accepts it. Checked 7-only operators,
+numeric syntax, background pipelines, generic method arguments, and clean blocks
+have their own rejection class. The existing version meanings are checked
+separately: a legacy clean command must preserve the exact block body, and
+legacy string differences must follow only from the new escape sequences.
+Unknown differences fail. The workflow uploads the complete 5.1 comparison
+report, including cases beyond the first twenty failures printed in the log.
+
+`TestOracleLegacyMeanings` and `TestOracleSevenFeatures` exercise these checks on
+the host, including negative cases. Actual 5.1 parity requires the Windows run.

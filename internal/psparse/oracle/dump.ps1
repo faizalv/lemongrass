@@ -19,6 +19,10 @@ function Read-Property($Object, [string]$Name) {
         if ($null -ne $field) { return ,$field.GetValue($Object) }
         $type = $type.BaseType
     }
+    if ($PSVersionTable.PSVersion.Major -lt 6) {
+        if ($Name -in @('CleanBlock', 'GenericTypeArguments')) { return $null }
+        if ($Name -in @('NullConditional', 'Background')) { return $false }
+    }
     throw "oracle: property $Name missing on $($Object.GetType().Name)"
 }
 
