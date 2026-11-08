@@ -555,10 +555,12 @@ func (p *parser) switchStatementRule(labelToken, switchToken *Token) StatementAs
 		endErrorStatement = condition.Extent()
 
 		p.skipNewlines()
-		if rParen := p.nextToken(); rParen.Kind != RParen {
+		rParen := p.nextToken()
+		if rParen.Kind != RParen {
 			p.ungetToken(rParen)
 			p.reportIncompleteInput(after(endErrorStatement), "MissingEndParenthesisInSwitchStatement")
 		}
+		endErrorStatement = rParen.Extent
 	} else if condition == nil {
 		// -file without a file name has already reported, so only a missing condition is left.
 		p.reportIncompleteInput(after(endErrorStatement), "PipelineValueRequired")
