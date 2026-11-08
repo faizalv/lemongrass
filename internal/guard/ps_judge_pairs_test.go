@@ -139,6 +139,8 @@ func TestPowerShellRefusedCommands(t *testing.T) {
 		{"r 3", "history-replay", "history"},
 		{"if ($x) { 0 } else { $f.Delete() }", "powershell-construct", "method calls"},
 		{"Write-Output foo`u{2195}abc", "powershell-construct", "double quotes"},
+		{"Write-Output `u{a9}` Acme` Inc", "powershell-construct", "double quotes"},
+		{"foo`u{2195}abc", "powershell-construct", "double quotes"},
 		{"Remove-Item -Path:a`u{41}", "powershell-construct", "double quotes"},
 		{"Remove-Item a,b`u{41}", "powershell-construct", "double quotes"},
 	}
