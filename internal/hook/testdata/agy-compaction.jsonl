@@ -1,0 +1,17 @@
+{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-08T05:03:37Z","content":"Generic task input or response."}
+{"step_index":1,"source":"SYSTEM_SDK","type":"SYSTEM_MESSAGE","status":"DONE","created_at":"2026-11-08T05:03:37Z","truncated_fields":["content"],"content":"Injected SessionStart orientation."}
+{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-08T05:03:37Z","input_tokens":17520,"cache_read_tokens":0,"output_tokens":919,"content":"Generic task input or response."}
+{"step_index":3,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-08T05:04:36Z","content":"Generic task input or response."}
+{"step_index":4,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-08T05:04:36Z","input_tokens":3075,"cache_read_tokens":15546,"output_tokens":1100,"content":"Generic task input or response."}
+{"step_index":5,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-08T05:06:04Z","content":"Generic task input or response."}
+{"step_index":6,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-08T05:06:04Z","input_tokens":3279,"cache_read_tokens":16713,"output_tokens":432,"content":"Generic task input or response."}
+{"step_index":7,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-11-08T05:06:10Z","content":"Generic task input or response."}
+{"step_index":8,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-08T05:06:10Z","input_tokens":2721,"cache_read_tokens":17911,"output_tokens":441,"content":"Generic task input or response."}
+{"step_index":9,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-11-08T05:06:16Z","content":"Generic task input or response."}
+{"step_index":10,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-08T05:06:17Z","input_tokens":2649,"cache_read_tokens":18553,"output_tokens":492,"content":"Generic task input or response."}
+{"step_index":11,"source":"MODEL","type":"GENERIC","status":"DONE","created_at":"2026-11-08T05:06:21Z","content":"Generic task input or response."}
+{"step_index":12,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-11-08T05:06:22Z","input_tokens":2664,"cache_read_tokens":19125,"output_tokens":256,"content":"Generic task input or response."}
+{"step_index":13,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-08T05:38:01Z","content":"Generic task input or response."}
+{"step_index":14,"source":"SYSTEM_SDK","type":"SYSTEM_MESSAGE","status":"DONE","created_at":"2026-11-08T05:38:01Z","truncated_fields":["content"],"content":"Injected PreInvocation laws summary."}
+{"step_index":15,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","created_at":"2026-11-08T05:38:01Z","content":"Background tasks stopped due to server restart."}
+{"step_index":16,"source":"SYSTEM","type":"CHECKPOINT","status":"DONE","created_at":"2026-11-08T05:38:01Z","input_tokens":3289,"cache_read_tokens":21763,"output_tokens":2347,"content":"# Resuming from a compaction\n\nA summary of the generic project task. Earlier conversation history is unavailable."}

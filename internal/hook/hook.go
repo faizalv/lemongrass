@@ -326,13 +326,19 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 
 // The app holds typed nudges while the human writes a draft, so the human's own prompt carries whatever was held.
 func hookUserPromptSubmit(store *session.Store, payload hookEvent) hookResult {
-	if payload.Vendor == "agy" && payload.Continuation {
-		return newHookResult("UserPromptSubmit", "", notificationContext(store, payload.TabID))
-	}
-	recordPromptTabSession(store, payload)
 	var parts []string
 	if payload.Vendor == "agy" {
-		parts = append(parts, agyResumeLaws(store, payload))
+		compaction, renewed := agyCompactionContext(store, payload)
+		parts = append(parts, compaction...)
+		if !payload.Continuation {
+			recordPromptTabSession(store, payload)
+			laws := agyResumeLaws(store, payload)
+			if !renewed {
+				parts = append(parts, laws)
+			}
+		}
+	} else {
+		recordPromptTabSession(store, payload)
 	}
 	parts = append(parts, notificationContext(store, payload.TabID)...)
 	return newHookResult("UserPromptSubmit", "", parts)
