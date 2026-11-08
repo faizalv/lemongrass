@@ -1,0 +1,2 @@
+go test fuzz v1
+string("ClAss A0000000{     stAtiC [A00000]${ } }")

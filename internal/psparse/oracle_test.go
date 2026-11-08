@@ -403,17 +403,18 @@ func (o *oracleProcess) request(inputs []string, operation string) (oracleRespon
 type oracleClass string
 
 const (
-	oracleMatch              oracleClass = "match"
-	oracleBothError          oracleClass = "both-error"
-	oracleSemantic           oracleClass = "semantic-only"
-	oracleLimit              oracleClass = "limit"
-	oracleDynamicKeyword     oracleClass = "dynamic-keyword"
-	oracleRelativeAssembly   oracleClass = "relative-assembly"
-	oracleUnreachable        oracleClass = "unreachable"
-	oracleRequires           oracleClass = "requires-pending"
-	oracleUnresolvedEnum     oracleClass = "unresolved-enum"
-	oracleAssemblyFilesystem oracleClass = "assembly-filesystem"
-	oracleMismatch           oracleClass = "mismatch"
+	oracleMatch                     oracleClass = "match"
+	oracleBothError                 oracleClass = "both-error"
+	oracleSemantic                  oracleClass = "semantic-only"
+	oracleLimit                     oracleClass = "limit"
+	oracleDynamicKeyword            oracleClass = "dynamic-keyword"
+	oracleRelativeAssembly          oracleClass = "relative-assembly"
+	oracleUnreachable               oracleClass = "unreachable"
+	oracleRequires                  oracleClass = "requires-pending"
+	oracleUnresolvedEnum            oracleClass = "unresolved-enum"
+	oracleAssemblyFilesystem        oracleClass = "assembly-filesystem"
+	oracleMismatch                  oracleClass = "mismatch"
+	oracleRefusedReferenceException oracleClass = "refused-reference-exception"
 )
 
 // Reviewed against SemanticChecks.cs at bf5fc434120666e5f1a8d1dfd6ecac7efc17a4be.
@@ -461,10 +462,17 @@ var oracleDefinitionSemanticIDs = func() map[string][]string {
 
 func oracleDefinitionSemanticSources(result *Result, id string) []string {
 	lines := oracleDefinitionSemanticIDs[id]
-	if len(lines) == 0 || result == nil || result.Ast == nil {
+	if len(lines) == 0 || !oracleRefusedConstruct(result) {
 		return nil
 	}
-	if oracleVisitGo(reflect.ValueOf(result.Ast), func(value any) bool {
+	return lines
+}
+
+func oracleRefusedConstruct(result *Result) bool {
+	if result == nil || result.Ast == nil {
+		return false
+	}
+	return oracleVisitGo(reflect.ValueOf(result.Ast), func(value any) bool {
 		switch node := value.(type) {
 		case *TypeDefinitionAst, *FunctionDefinitionAst:
 			return true
@@ -472,10 +480,7 @@ func oracleDefinitionSemanticSources(result *Result, id string) []string {
 			return node.UsingStatementKind == UsingModule || node.UsingStatementKind == UsingAssembly
 		}
 		return false
-	}) {
-		return lines
-	}
-	return nil
+	})
 }
 
 func compareOracle(goResult *Result, goErr error, reference oracleResult, schema oracleSchema) (oracleClass, string) {
@@ -523,6 +528,8 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 				requireExact, unresolvedEnum = true, true
 			} else if e.ID == "ErrorLoadingAssembly" && oracleAssemblyFilesystemError(reference.Tree, e) {
 				requireExact, assemblyFilesystem = true, true
+			} else if len(oracleUsingModuleSemanticSources(goResult, reference.Tree, e)) != 0 {
+				requireExact = true
 			} else if !oracleSemanticIDs[e.ID] && len(oracleDefinitionSemanticSources(goResult, e.ID)) == 0 {
 				return oracleMismatch, "unclassified reference error: " + e.ID
 			}
@@ -544,6 +551,24 @@ func compareOracle(goResult *Result, goErr error, reference oracleResult, schema
 		return oracleMismatch, detail
 	}
 	return oracleMatch, ""
+}
+
+func oracleUsingModuleSemanticSources(result *Result, tree any, e oracleError) []string {
+	if result == nil || e.ID != "RequiresModuleInvalid" {
+		return nil
+	}
+	for _, line := range strings.FieldsFunc(result.Text(Extent{0, len(result.src.text)}), func(r rune) bool { return r == '\r' || r == '\n' }) {
+		line = strings.TrimSpace(line)
+		if len(line) >= 9 && OrdinalEqualFold(line[:9], "#requires") {
+			return nil
+		}
+	}
+	if oracleWalk(tree, func(node map[string]any) bool {
+		return node["Type"] == "UsingStatementAst" && node["UsingStatementKind"] == float64(UsingModule) && float64(e.Start) >= node["Start"].(float64) && float64(e.End) <= node["End"].(float64)
+	}) {
+		return []string{"SymbolResolver.cs:552"}
+	}
+	return nil
 }
 
 func oracleAssemblyFilesystemError(tree any, e oracleError) bool {
@@ -1255,7 +1280,11 @@ func TestOracleWindows51(t *testing.T) {
 			entry := map[string]any{"Name": cases[start+i].Name, "Source": cases[start+i].Source, "Input": input, "Class": label, "Detail": oldDetail}
 			for _, e := range oldResponse.Results[i].Errors {
 				if !oracleSemanticIDs[e.ID] {
-					if lines := oracleDefinitionSemanticSources(result, e.ID); len(lines) != 0 {
+					lines := oracleDefinitionSemanticSources(result, e.ID)
+					if len(lines) == 0 {
+						lines = oracleUsingModuleSemanticSources(result, oldResponse.Results[i].Tree, e)
+					}
+					if len(lines) != 0 {
 						if entry["DefinitionSemanticSources"] == nil {
 							entry["DefinitionSemanticSources"] = map[string][]string{}
 						}
@@ -2075,6 +2104,54 @@ func TestOracleDefinitionSemanticQualification(t *testing.T) {
 	}
 	if len(oracleDefinitionSemanticSources(namespace, "WildCardModuleNameError")) != 0 {
 		t.Fatal("namespace using qualified for module semantic allowance")
+	}
+}
+
+func TestOracleUsingModuleSharedSemantic(t *testing.T) {
+	o := startOracle(t)
+	for _, input := range []string{"using module .", "#requires -version 1.0\nusing module ."} {
+		result, err := Parse(input, DefaultLimits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := o.batch([]string{input})
+		if err != nil {
+			t.Fatal(err)
+		}
+		reference := response.Results[0]
+		var observed *oracleError
+		for i := range reference.Errors {
+			if reference.Errors[i].ID == "RequiresModuleInvalid" {
+				observed = &reference.Errors[i]
+				break
+			}
+		}
+		if observed == nil {
+			t.Fatalf("expected shared semantic ID: %v", reference.Errors)
+		}
+		lines := oracleUsingModuleSemanticSources(result, reference.Tree, *observed)
+		if strings.HasPrefix(input, "#requires") {
+			if len(lines) != 0 {
+				t.Fatal("shared ID waived despite #requires line")
+			}
+			continue
+		}
+		if !reflect.DeepEqual(lines, []string{"SymbolResolver.cs:552"}) {
+			t.Fatalf("source evidence=%v", lines)
+		}
+		if class, detail := compareOracle(result, nil, reference, o.schema); class != oracleSemantic {
+			t.Fatalf("module semantic rejected: %s %s", class, detail)
+		}
+		wrong := *observed
+		wrong.Start = -1
+		if len(oracleUsingModuleSemanticSources(result, reference.Tree, wrong)) != 0 {
+			t.Fatal("wrong error extent accepted")
+		}
+		using := findOracleNode(reference.Tree, "UsingStatementAst")
+		using["UsingStatementKind"] = float64(UsingNamespace)
+		if len(oracleUsingModuleSemanticSources(result, reference.Tree, *observed)) != 0 {
+			t.Fatal("namespace accepted by module shape")
+		}
 	}
 }
 

@@ -40,9 +40,15 @@ func FuzzParseOracle(f *testing.F) {
 			t.Fatal(referenceErr)
 		}
 		class, detail := compareOracle(result, err, response.Results[0], o.schema)
-		if response.Results[0].ReferenceException != "" && err != nil {
-			class = oracleBothError
-			recordOracleFuzzEvidence(t, map[string]any{"Input": input, "GoError": err.Error(), "ReferenceException": response.Results[0].ReferenceException})
+		if response.Results[0].ReferenceException != "" && (err != nil || oracleRefusedConstruct(result)) {
+			goError := ""
+			if err != nil {
+				class = oracleBothError
+				goError = err.Error()
+			} else {
+				class = oracleRefusedReferenceException
+			}
+			recordOracleFuzzEvidence(t, map[string]any{"Input": input, "GoError": goError, "GoRefusedConstruct": err == nil, "ReferenceException": response.Results[0].ReferenceException})
 		}
 		if class == oracleMismatch || class == oracleUnreachable {
 			t.Fatalf("oracle class %s for %q: %s", class, input, detail)
@@ -52,7 +58,11 @@ func FuzzParseOracle(f *testing.F) {
 				if oracleSemanticIDs[e.ID] || recorded[e.ID] {
 					continue
 				}
-				if lines := oracleDefinitionSemanticSources(result, e.ID); len(lines) != 0 {
+				lines := oracleDefinitionSemanticSources(result, e.ID)
+				if len(lines) == 0 {
+					lines = oracleUsingModuleSemanticSources(result, response.Results[0].Tree, e)
+				}
+				if len(lines) != 0 {
 					recordOracleFuzzEvidence(t, map[string]any{"ID": e.ID, "Sources": lines, "Input": input})
 					recorded[e.ID] = true
 				}
