@@ -92,3 +92,13 @@ func TestScanTokensErrors(t *testing.T) {
 		}
 	}
 }
+
+// FuzzScanTokens holds every tokenizer mode to the contract: no panic but abortParse, which scanTokens recovers.
+func FuzzScanTokens(f *testing.F) {
+	for _, s := range []string{"Get-Item foo", "\"a $b $(c)\"", "@'\nx\n'@", "0x1Fkb 1.5e3d", "${a`u{263a}}", "<# x #> a"} {
+		f.Add(s, uint8(0))
+	}
+	f.Fuzz(func(t *testing.T, input string, mode uint8) {
+		_, _ = scanTokens(input, TokenizerMode(mode%4))
+	})
+}
