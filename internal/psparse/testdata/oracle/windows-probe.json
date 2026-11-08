@@ -1,0 +1,112 @@
+[
+  {
+    "Name": "codex-session.jsonl/1",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "Get-ChildItem -Recurse -File | Where-Object { $_.Length -gt 1MB } | Select-Object FullName, Length"
+  },
+  {
+    "Name": "codex-session.jsonl/2",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "Get-ChildItem -Recurse -File -Filter *.go | Get-Content | Measure-Object -Line"
+  },
+  {
+    "Name": "codex-session.jsonl/3",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "Get-ChildItem -Recurse -File | Select-String -Pattern 'TODO' -SimpleMatch"
+  },
+  {
+    "Name": "codex-session.jsonl/4",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "Get-Content -LiteralPath .\\todo.sh -TotalCount 20"
+  },
+  {
+    "Name": "codex-session.jsonl/5",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "$env:PATH"
+  },
+  {
+    "Name": "codex-session.jsonl/6",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "New-Item -ItemType Directory -Path .\\powershell-call-demo -ErrorAction Stop | Out-Null; Set-Content -LiteralPath .\\powershell-call-demo\\sample.txt -Value 'PowerShell file operation demo.' -ErrorAction Stop"
+  },
+  {
+    "Name": "codex-session.jsonl/7",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "Rename-Item -LiteralPath .\\powershell-call-demo\\sample.txt -NewName renamed.txt -ErrorAction Stop"
+  },
+  {
+    "Name": "codex-session.jsonl/8",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "$demoTarget = (Resolve-Path -LiteralPath .\\powershell-call-demo -ErrorAction Stop).Path; if ($demoTarget -ne 'C:\\Users\\Example\\sample-project\\powershell-call-demo') { throw 'Unexpected deletion target' }; Remove-Item -LiteralPath $demoTarget -Recurse -Force -ErrorAction Stop"
+  },
+  {
+    "Name": "codex-session.jsonl/9",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "Invoke-WebRequest -Uri 'https://example.com' -OutFile .\\example.html -UseBasicParsing -ErrorAction Stop"
+  },
+  {
+    "Name": "codex-session.jsonl/10",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "Get-Process -Name node -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, CPU, WorkingSet"
+  },
+  {
+    "Name": "codex-session.jsonl/11",
+    "Source": "windows-probe/codex-session.jsonl (user and project path anonymized)",
+    "Input": "git status --short; git log -5 --oneline"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/12",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "Get-ChildItem -Path . -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 1MB } | Select-Object FullName, Length"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/13",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "$files = Get-ChildItem -Path . -Recurse -Filter *.go -File -ErrorAction SilentlyContinue; if ($files) { ($files | Get-Content | Measure-Object -Line).Lines } else { 0 }"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/14",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "Get-ChildItem -Path . -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '\\\\\\.git\\\\' } | Select-String -Pattern \"TODO\""
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/15",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "Get-Content -Path .\\todo.sh -TotalCount 20"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/16",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "$env:PATH"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/17",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "New-Item -ItemType Directory -Path \".\\temp_ps_dir\" -Force; Set-Content -Path \".\\temp_ps_dir\\sample.txt\" -Value \"Hello from PowerShell\""
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/18",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "Rename-Item -Path \".\\temp_ps_dir\\sample.txt\" -NewName \"renamed_sample.txt\" -PassThru"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/19",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "Remove-Item -Path \".\\temp_ps_dir\" -Recurse -Force"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/20",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "Invoke-WebRequest -Uri \"https://example.com\" -OutFile \"example.html\""
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/21",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "Get-Process -Name node -ErrorAction SilentlyContinue"
+  },
+  {
+    "Name": "agy-transcript_full.jsonl/22",
+    "Source": "windows-probe/agy-transcript_full.jsonl (user and project path anonymized)",
+    "Input": "git status; git log -n 5 --oneline"
+  }
+]

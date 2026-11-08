@@ -1,0 +1,387 @@
+[
+  {
+    "Name": "empty",
+    "Source": "hand-written",
+    "Input": ""
+  },
+  {
+    "Name": "command",
+    "Source": "hand-written",
+    "Input": "Get-Item foo"
+  },
+  {
+    "Name": "single-quoted",
+    "Source": "hand-written",
+    "Input": "Get-Item 'two words'"
+  },
+  {
+    "Name": "double-quoted",
+    "Source": "hand-written",
+    "Input": "Get-Item \"two words\""
+  },
+  {
+    "Name": "comments",
+    "Source": "hand-written",
+    "Input": "# comment\nGet-Item foo # tail"
+  },
+  {
+    "Name": "nested-comment",
+    "Source": "hand-written",
+    "Input": "<# outer <# inner #> end #> Get-Item foo"
+  },
+  {
+    "Name": "continuation",
+    "Source": "hand-written",
+    "Input": "Get-Item `\nfoo"
+  },
+  {
+    "Name": "crlf-continuation",
+    "Source": "hand-written",
+    "Input": "Get-Item `\r\nfoo"
+  },
+  {
+    "Name": "utf16-non-bmp",
+    "Source": "hand-written",
+    "Input": "'😀'; $x = 1"
+  },
+  {
+    "Name": "unicode",
+    "Source": "hand-written",
+    "Input": "'é'; '中'"
+  },
+  {
+    "Name": "kelvin-command",
+    "Source": "hand-written",
+    "Input": "breaK"
+  },
+  {
+    "Name": "long-s-command",
+    "Source": "hand-written",
+    "Input": "ſwitch ($x) { default { 1 } }"
+  },
+  {
+    "Name": "dotless-i-command",
+    "Source": "hand-written",
+    "Input": "ıf ($x) { 1 }"
+  },
+  {
+    "Name": "switch",
+    "Source": "hand-written",
+    "Input": "switch ($x) { default { 1 } }"
+  },
+  {
+    "Name": "environment",
+    "Source": "hand-written",
+    "Input": "$env:PATH"
+  },
+  {
+    "Name": "variables",
+    "Source": "hand-written",
+    "Input": "${env:PATH}; ${a b}; @args"
+  },
+  {
+    "Name": "assignment",
+    "Source": "hand-written",
+    "Input": "$x = 1; $x += 2; ++$x; $x--"
+  },
+  {
+    "Name": "tuple-assignment",
+    "Source": "hand-written",
+    "Input": "$a,$b = 1,2"
+  },
+  {
+    "Name": "precedence",
+    "Source": "hand-written",
+    "Input": "1 + 2 * 3 - 4 / 2"
+  },
+  {
+    "Name": "numbers",
+    "Source": "hand-written",
+    "Input": "-1; +2; 0xff; 0b101; 1kb; 1.5mb; 1e-9; 10u; 1n; 1d"
+  },
+  {
+    "Name": "arrays",
+    "Source": "hand-written",
+    "Input": "1..3; @(1;2); @(Get-Item .)"
+  },
+  {
+    "Name": "hashtable",
+    "Source": "hand-written",
+    "Input": "@{one=1;two=2}; [ordered]@{a=1}"
+  },
+  {
+    "Name": "types",
+    "Source": "hand-written",
+    "Input": "[int]$x; [int[]]@(1,2); [Collections.Generic.List[string]]"
+  },
+  {
+    "Name": "expandable",
+    "Source": "hand-written",
+    "Input": "\"hello $env:USER $(Get-Date)\""
+  },
+  {
+    "Name": "nested-expandable",
+    "Source": "hand-written",
+    "Input": "\"$(\"$x\")\""
+  },
+  {
+    "Name": "new-escapes",
+    "Source": "hand-written",
+    "Input": "\"`u{1F600} `e `0\""
+  },
+  {
+    "Name": "surrogate-escape",
+    "Source": "hand-written",
+    "Input": "\"`u{D800}\""
+  },
+  {
+    "Name": "literal-here-string",
+    "Source": "hand-written",
+    "Input": "@'\nhello\n'@"
+  },
+  {
+    "Name": "expandable-here-string",
+    "Source": "hand-written",
+    "Input": "@\"\nhello $x\n\"@"
+  },
+  {
+    "Name": "redirects",
+    "Source": "hand-written",
+    "Input": "Get-Item foo > out.txt 2>&1"
+  },
+  {
+    "Name": "all-streams",
+    "Source": "hand-written",
+    "Input": "Get-Item foo *> out.txt"
+  },
+  {
+    "Name": "append",
+    "Source": "hand-written",
+    "Input": "Get-Item foo >> out.txt"
+  },
+  {
+    "Name": "variable-redirect",
+    "Source": "hand-written",
+    "Input": "Get-Item foo > variable:x"
+  },
+  {
+    "Name": "pipeline-chain",
+    "Source": "hand-written",
+    "Input": "a | b | c; a && b || c"
+  },
+  {
+    "Name": "pipe-newline",
+    "Source": "hand-written",
+    "Input": "a |\n b"
+  },
+  {
+    "Name": "background",
+    "Source": "hand-written",
+    "Input": "a &"
+  },
+  {
+    "Name": "invocation",
+    "Source": "hand-written",
+    "Input": "& 'Get-Item' foo; . './task.ps1'"
+  },
+  {
+    "Name": "dynamic-invocation",
+    "Source": "hand-written",
+    "Input": "& $name foo"
+  },
+  {
+    "Name": "verbatim",
+    "Source": "hand-written",
+    "Input": "native --% a; b %PATH% | next"
+  },
+  {
+    "Name": "native-arguments",
+    "Source": "hand-written",
+    "Input": "native --flag=value -flag:value -- -x"
+  },
+  {
+    "Name": "native-edge-arguments",
+    "Source": "hand-written",
+    "Input": "native '' 'C:\\a b\\' 'a\"b'"
+  },
+  {
+    "Name": "if",
+    "Source": "hand-written",
+    "Input": "if ($x) { a } elseif ($y) { b } else { c }"
+  },
+  {
+    "Name": "foreach",
+    "Source": "hand-written",
+    "Input": "foreach ($x in @(1,2)) { a $x }"
+  },
+  {
+    "Name": "for",
+    "Source": "hand-written",
+    "Input": "for ($i=0; $i -lt 3; $i++) { a }"
+  },
+  {
+    "Name": "loops",
+    "Source": "hand-written",
+    "Input": "while ($x) { break }; do { continue } until ($x)"
+  },
+  {
+    "Name": "label",
+    "Source": "hand-written",
+    "Input": ":outer while ($x) { break outer }"
+  },
+  {
+    "Name": "switch-regex",
+    "Source": "hand-written",
+    "Input": "switch -regex ($x) { \"a\" { a } default { b } }"
+  },
+  {
+    "Name": "try",
+    "Source": "hand-written",
+    "Input": "try { a } catch [Exception] { b } finally { c }"
+  },
+  {
+    "Name": "trap",
+    "Source": "hand-written",
+    "Input": "trap [Exception] { continue }; throw \"failed\""
+  },
+  {
+    "Name": "flow",
+    "Source": "hand-written",
+    "Input": "return 1; exit 2"
+  },
+  {
+    "Name": "named-blocks",
+    "Source": "hand-written",
+    "Input": "param([int]$x=1, [string]$y); begin {a} process {b} end {c} clean {d}"
+  },
+  {
+    "Name": "dynamicparam",
+    "Source": "hand-written",
+    "Input": "dynamicparam { Get-Item foo } process { $x }"
+  },
+  {
+    "Name": "function-filter",
+    "Source": "hand-written",
+    "Input": "function Get-Thing($x) { $x }; filter Select-Thing { $_ }"
+  },
+  {
+    "Name": "attributes",
+    "Source": "hand-written",
+    "Input": "[CmdletBinding()]param([Parameter(Mandatory=$true)][string]$x)"
+  },
+  {
+    "Name": "class",
+    "Source": "hand-written",
+    "Input": "class Sample { [int]$Count; Sample([int]$x) { $this.Count=$x } [int] Value() { return $this.Count } }"
+  },
+  {
+    "Name": "enum",
+    "Source": "hand-written",
+    "Input": "enum Shade : byte { Red=1; Blue=2 }"
+  },
+  {
+    "Name": "using-namespace",
+    "Source": "hand-written",
+    "Input": "using namespace System.Text\n[StringBuilder]"
+  },
+  {
+    "Name": "using-module",
+    "Source": "hand-written",
+    "Input": "using module ./sample.psm1"
+  },
+  {
+    "Name": "using-relative-assembly",
+    "Source": "hand-written",
+    "Input": "using assembly ./sample.dll"
+  },
+  {
+    "Name": "member-access",
+    "Source": "hand-written",
+    "Input": "$x.Member; $x.Method(1); [Math]::Abs(-1); $x[0]; ${x}?.Member; ${x}?[0]"
+  },
+  {
+    "Name": "seven-only",
+    "Source": "hand-written",
+    "Input": "$x ? 1 : 2; $x ?? 3; $x ??= 4"
+  },
+  {
+    "Name": "data",
+    "Source": "hand-written",
+    "Input": "data Example { \"text\" }"
+  },
+  {
+    "Name": "workflow",
+    "Source": "hand-written",
+    "Input": "workflow Example { a }"
+  },
+  {
+    "Name": "configuration",
+    "Source": "hand-written",
+    "Input": "configuration Example { }"
+  },
+  {
+    "Name": "missing-paren",
+    "Source": "hand-written",
+    "Input": "if ("
+  },
+  {
+    "Name": "missing-string",
+    "Source": "hand-written",
+    "Input": "\"unterminated"
+  },
+  {
+    "Name": "missing-hashtable-value",
+    "Source": "hand-written",
+    "Input": "@{a=}"
+  },
+  {
+    "Name": "trailing-pipe",
+    "Source": "hand-written",
+    "Input": "a |"
+  },
+  {
+    "Name": "trailing-chain",
+    "Source": "hand-written",
+    "Input": "a &&"
+  },
+  {
+    "Name": "missing-expression",
+    "Source": "hand-written",
+    "Input": "1 +"
+  },
+  {
+    "Name": "missing-brace",
+    "Source": "hand-written",
+    "Input": "{"
+  },
+  {
+    "Name": "semantic-duplicate-parameter",
+    "Source": "hand-written",
+    "Input": "param($x,$x)"
+  },
+  {
+    "Name": "semantic-assignment-target",
+    "Source": "hand-written",
+    "Input": "1 = 2"
+  },
+  {
+    "Name": "semantic-catch-order",
+    "Source": "hand-written",
+    "Input": "try {} catch {} catch [Exception] {}"
+  },
+  {
+    "Name": "semantic-two-parameter-lists",
+    "Source": "hand-written",
+    "Input": "function f($x) { param($y) }"
+  },
+  {
+    "Name": "requires-version",
+    "Source": "hand-written",
+    "Input": "#requires -Version 5.1\nGet-Item foo"
+  },
+  {
+    "Name": "requires-modules",
+    "Source": "hand-written",
+    "Input": "#requires -Modules SampleModule\na"
+  }
+]

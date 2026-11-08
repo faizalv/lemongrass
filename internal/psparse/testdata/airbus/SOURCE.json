@@ -1,0 +1,23 @@
+{
+  "Repository": "https://github.com/airbus-cert/tree-sitter-powershell",
+  "Commit": "65ea6919e816a7ac142acec7ee72757f89db8439",
+  "Files": [
+    "LICENSE",
+    "test/corpus/branch.txt",
+    "test/corpus/classes.txt",
+    "test/corpus/commands.txt",
+    "test/corpus/comments.txt",
+    "test/corpus/enum.txt",
+    "test/corpus/expressions.txt",
+    "test/corpus/functions.txt",
+    "test/corpus/loops.txt",
+    "test/corpus/native_arguments.txt",
+    "test/corpus/number.txt",
+    "test/corpus/obfuscated.txt",
+    "test/corpus/operators.txt",
+    "test/corpus/pipeline_chains.txt",
+    "test/corpus/strings.txt",
+    "test/corpus/type.txt",
+    "test/corpus/variables.txt"
+  ]
+}

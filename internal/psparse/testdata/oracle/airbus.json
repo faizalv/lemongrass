@@ -1,0 +1,827 @@
+[
+  {
+    "Name": "branch/If branch 1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/branch.txt",
+    "Input": "if ($a -gt 2) {\n    Write-Host \"The value $a is greater than 2.\"\n}"
+  },
+  {
+    "Name": "branch/If else",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/branch.txt",
+    "Input": "if ($a -gt 2) {\n    Write-Host \"The value $a is greater than 2.\"\n}\nelse {\n    Write-Host (\"The value $a is less than or equal to 2,\" +\n        \" is not created or is not initialized.\")\n}"
+  },
+  {
+    "Name": "branch/If elseif else",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/branch.txt",
+    "Input": "if ($a -gt 2) {\n    Write-Host \"The value $a is greater than 2.\"\n}\nelseif ($a -eq 2) {\n    Write-Host \"The value $a is equal to 2.\"\n}\nelse {\n    Write-Host (\"The value $a is less than 2 or\" +\n        \" was not created or initialized.\")\n}"
+  },
+  {
+    "Name": "branch/Switch Test 1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/branch.txt",
+    "Input": "switch (3)\n{\n    1 {\"It is one.\"}\n    2 {\"It is two.\"}\n    3 {\"It is three.\"}\n    4 {\"It is four.\"}\n}"
+  },
+  {
+    "Name": "branch/Switch Test 2",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/branch.txt",
+    "Input": "switch (4, 2)\n{\n    1 {\"It is one.\"; Break}\n    2 {\"It is two.\" ; Break }\n    3 {\"It is three.\" ; Break }\n    4 {\"It is four.\" ; Break }\n    3 {\"Three again.\"}\n}"
+  },
+  {
+    "Name": "branch/Switch Test 3",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/branch.txt",
+    "Input": "switch ($fontstyle) {\n\tnormal { $font = $fontnormal }\n\titalic { $font = $fontoblique }\n\tbold { $font = $fontbold }\n\tbolditalic { $font = $fontboldobl }\n}"
+  },
+  {
+    "Name": "branch/Switch Test 4",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/branch.txt",
+    "Input": "switch ($fontstyle) {\n\tnormal { $font = $fontnormal };\n\titalic { $font = $fontoblique };\n\tbold { $font = $fontbold };\n\tbolditalic { $font = $fontboldobl };\n}"
+  },
+  {
+    "Name": "classes/Class : empty declaration",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/classes.txt",
+    "Input": "class MyClass {}"
+  },
+  {
+    "Name": "classes/Class : string property",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/classes.txt",
+    "Input": "class MyClass\n{\n    [string]$Name\n}"
+  },
+  {
+    "Name": "classes/Class : string property with attributes",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/classes.txt",
+    "Input": "class MyClass\n{\n    static hidden [string]$Name\n}"
+  },
+  {
+    "Name": "classes/Class : method declaration",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/classes.txt",
+    "Input": "class MyClass\n{\n    [void]SayHi()\n    {\n        Write-Host \"Hi\"\n    }\n}"
+  },
+  {
+    "Name": "classes/Class : method declaration with parameters",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/classes.txt",
+    "Input": "class MyClass\n{\n    hidden static [void]SayHi($Greeting, $Title)\n    {\n        Write-Host \"$Greeting, $Title\"\n    }\n}"
+  },
+  {
+    "Name": "classes/Class : mix method and properties declaration",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/classes.txt",
+    "Input": "class MyClass\n{\n    static [string]$Word\n\n    static [void]AnotherMethod()\n    {\n        Write-Host \"Nothing\"\n    }\n\n    [int]$Number\n\n    [void]SayHi($Greeting, $Title)\n    {\n        Write-Host \"$Greeting, $Title\"\n    }\n\n    MyClass() {\n\n    }\n}"
+  },
+  {
+    "Name": "commands/Normal cmdlet",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "Write-Host \"CERT\""
+  },
+  {
+    "Name": "commands/Cmdlet that start with a number",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "555Write-Host 4+7+8"
+  },
+  {
+    "Name": "commands/Cmdlet with mixed string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "555Write-\"${message}\" 4+7+8"
+  },
+  {
+    "Name": "commands/Plain cmdlet",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "New-DynamicParam -Name Plugins -type string[] -ValidateSet $(((gci .\\plugins\\*.pl).name) -replace \"\\.pl\",\"\") -DPDictionary $Dictionary"
+  },
+  {
+    "Name": "commands/Quoted CmdLet",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "i''ex \"pwd\""
+  },
+  {
+    "Name": "commands/Double Quoted CmdLet",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "i\"\"ex \"pwd\""
+  },
+  {
+    "Name": "commands/Obfuscated cmdlet and string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "ie\"\"x'' \"p`\"`\"w''d`\"`\"\""
+  },
+  {
+    "Name": "commands/Native command",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "net.exe"
+  },
+  {
+    "Name": "commands/Unix-like native command",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "git clone -b this_branch --single-branch https://github.com/PowerShell/PowerShell"
+  },
+  {
+    "Name": "commands/Windows-style native command",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "net use e: \\\\usrsvr002\\smithmark Ue345Ii /user:pdc01\\msmith2 /savecred /p:yes"
+  },
+  {
+    "Name": "commands/Foreach statement without token separator",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "%{ ( [char][int] $_)}"
+  },
+  {
+    "Name": "commands/multiline command line",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "Write-Debug `\n\t\"debug\""
+  },
+  {
+    "Name": "commands/command with argument set by :",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "New-Item $profileDir -ItemType Directory -Force -Verbose:$VerbosePreference > $null"
+  },
+  {
+    "Name": "commands/Diff between argument and array literal",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "$rih2ymeurlleflu = & \"New-Object\" \"System.Net.Sockets.TCPClient\"(\"127.0.0.1\", 4444)"
+  },
+  {
+    "Name": "commands/Cmdlet that start with a keyword",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "download toto"
+  },
+  {
+    "Name": "commands/Cmdlet with parenthesized_expression as parameter without any white space",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "iex(\"calc.exe\")"
+  },
+  {
+    "Name": "commands/Cmdlet that start with a keyword 2",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/commands.txt",
+    "Input": "Exit-test toto"
+  },
+  {
+    "Name": "comments/Single inline comment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "$x = 3\n\n# This is a comment\n\nGet-ChildItem ."
+  },
+  {
+    "Name": "comments/Single line block comment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "$x = 3\n\n<# Block comment #>\n\nGet-ChildItem ."
+  },
+  {
+    "Name": "comments/Multi-line block comment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "$x = 3\n\n<#\n\nHere\n\nis a\n\nlonger\n\ncomment           #>\n\nGet-ChildItem ."
+  },
+  {
+    "Name": "comments/Pathological block comment #1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "<##>\n$a"
+  },
+  {
+    "Name": "comments/Special comment: #Requires",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "#Requires -Version 7.0\nGet-ChildItem ."
+  },
+  {
+    "Name": "comments/Special comment: shebang",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "#!/usr/bin/env pwsh\nGet-ChildItem ."
+  },
+  {
+    "Name": "comments/Special comments: #region pair",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "#region Utilities\nGet-ChildItem .\n#endregion"
+  },
+  {
+    "Name": "comments/Comment-based help: block comment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "<#\n.SYNOPSIS\nTest block help comment.\n.DESCRIPTION\nMore details.\n#>\nfunction while {}"
+  },
+  {
+    "Name": "comments/Comment-based help: line comments",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "# .SYNOPSIS\n# Test line help comment.\n# .DESCRIPTION\n# More details.\nfunction while {}"
+  },
+  {
+    "Name": "comments/Special comments: # SIG block",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "# SIG # Begin signature block\n# MIIFakeSignatureLine\n# SIG # End signature block\nGet-ChildItem ."
+  },
+  {
+    "Name": "comments/Pathological block comment #2",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/comments.txt",
+    "Input": "<###>\n$a"
+  },
+  {
+    "Name": "enum/Enum : Simple enum",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/enum.txt",
+    "Input": "enum MyEnum\n{\n    One\n}"
+  },
+  {
+    "Name": "enum/More complex enum",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/enum.txt",
+    "Input": "enum Enum2\n{\n    Part1; Two\n\n    Three\n\n\n\n    Four\n}"
+  },
+  {
+    "Name": "enum/Enum : Complex enum",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/enum.txt",
+    "Input": "enum MyEnum\n{\n    One\n    Two = 2; Three = 3\n}"
+  },
+  {
+    "Name": "expressions/Basic hashtable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "@{\n    Hi = \"There\"\n}"
+  },
+  {
+    "Name": "expressions/Multi-key hashtable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "@{\n    Key1 = \"Hi\"; Key2 = \"There\"\n\n    \"Key3\" = 'Friend'\n\n\n    'Key4' = 'Thing'; $key5 = $result\n}"
+  },
+  {
+    "Name": "expressions/Sub-expression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "$(Get-ChildItem)"
+  },
+  {
+    "Name": "expressions/Sub-expression with pipeline",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "$(Get-ChildItem . | Measure-Object)"
+  },
+  {
+    "Name": "expressions/Access object attribute from var",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "$test.count"
+  },
+  {
+    "Name": "expressions/Access object attribute from subexpression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "$(Get-ChildItem . | Measure-Object).count"
+  },
+  {
+    "Name": "expressions/Access object attribute from subexpression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "Get-ChildItem (Join-Path $PSScriptRoot *.ps1) | ForEach-Object { . $_.FullName}"
+  },
+  {
+    "Name": "expressions/Format expression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "\"{0}\" -f \"test\""
+  },
+  {
+    "Name": "expressions/Call object expression with multi type as parameters",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "[Runtime.InteropServices.Marshal].GetMethod('SizeOf', [Type[]] @([Type]))"
+  },
+  {
+    "Name": "expressions/Priority with composed expression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "$FP8DpgPcK0IovuDHPZ4p2 = $FP8DpgPcK0IovuDHPZ4p + \"P\"  + \"S\"  + \" \"  + (Get-Location).Path"
+  },
+  {
+    "Name": "expressions/Priority with indexed expression add post increment affected var",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "$upgrade += [char]($title[3] -bxor $update[$i])"
+  },
+  {
+    "Name": "expressions/Reverse array",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": "$foo[-1..-$foo.Length]"
+  },
+  {
+    "Name": "expressions/Invoke from Path",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/expressions.txt",
+    "Input": ". $PSScriptRoot\\ConsoleMode.ps1"
+  },
+  {
+    "Name": "functions/Basic parameter",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    param(\n        $Name\n    )\n}"
+  },
+  {
+    "Name": "functions/Basic parameter with type",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    param(\n        [String]\n        $Name\n    )\n}"
+  },
+  {
+    "Name": "functions/Basic parameter with type and default value",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    param(\n        [String]\n        $Name = \"\"\n    )\n}"
+  },
+  {
+    "Name": "functions/Basic parameter with output type",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    [OutputType([Hashtable])]\n    param(\n        [String]\n        $Name\n    )\n}"
+  },
+  {
+    "Name": "functions/Basic parameter with ValidateNotNull",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    [OutputType([Hashtable])]\n    param(\n        [ValidateNotNull()]\n        [String]\n        $Name\n    )\n}"
+  },
+  {
+    "Name": "functions/Basic parameter with ValidateScript",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    [OutputType([Hashtable])]\n    param(\n        [ValidateScript({($_ -is [Reflection.Emit.ModuleBuilder]) -or ($_ -is [Reflection.Assembly])})]\n        [String]\n        $Name\n    )\n}"
+  },
+  {
+    "Name": "functions/Basic parameter with Parameter with many paramters",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    [OutputType([Hashtable])]\n    param(\n        [Parameter(Mandatory = $True, ValueFromPipelineByPropertyName = $True)]\n        [String]\n        $Name\n    )\n}"
+  },
+  {
+    "Name": "functions/Named scriptblock_expression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function Test\n{\n    begin\n    {\n\n    }\n    process\n    {\n\n    }\n}"
+  },
+  {
+    "Name": "functions/A complex but valid function name",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function 1+1{\n    param(\n        $Name\n    )\n}"
+  },
+  {
+    "Name": "functions/Function name as keyword",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/functions.txt",
+    "Input": "function while {}"
+  },
+  {
+    "Name": "loops/For loop : Comma separated assignment expressions enclosed in parenthesis",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/loops.txt",
+    "Input": "for (($i = 0), ($j = 0); $i -lt 10; $i++)\n{\n    \"$i:$i\"\n    \"$j:$j\"\n}"
+  },
+  {
+    "Name": "loops/For loop : Sub-expression using the semicolon to separate statements",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/loops.txt",
+    "Input": "for ($($i = 0;$j = 0); $i -lt 10; $i++)\n{\n    \"`$i:$i\"\n    \"`$j:$j\"\n}"
+  },
+  {
+    "Name": "loops/For loop : Minimum",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/loops.txt",
+    "Input": "$i = 1\nfor (;;)\n{\n    Write-Host $i\n}"
+  },
+  {
+    "Name": "loops/For loop : Increment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/loops.txt",
+    "Input": "$i=1\nfor (;;$i++)\n{\n    Write-Host $i\n}"
+  },
+  {
+    "Name": "loops/For loop : Increment and condition",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/loops.txt",
+    "Input": "$i=1\nfor(;$i -le 10;$i++)\n{\n    Write-Host $i\n}"
+  },
+  {
+    "Name": "loops/For loop : all",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/loops.txt",
+    "Input": "for($i=1; $i -le 10; $i++){Write-Host $i}"
+  },
+  {
+    "Name": "loops/For loop : all without ; as statement terminator",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/loops.txt",
+    "Input": "for ($i = 0\n  $i -lt 10\n  $i++){\n  $i\n}"
+  },
+  {
+    "Name": "native_arguments/Native: bare -- ends option parsing",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "git log -- foo.txt"
+  },
+  {
+    "Name": "native_arguments/Native: -- followed by more options",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "cargo test -p core -- --nocapture --test-threads=1"
+  },
+  {
+    "Name": "native_arguments/Native: -- at the end of the command",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "git log --"
+  },
+  {
+    "Name": "native_arguments/Native: -- before a pipe and a semicolon",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "git diff -- | head; echo done"
+  },
+  {
+    "Name": "native_arguments/Native: lone - means stdin",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "tar -xf -"
+  },
+  {
+    "Name": "native_arguments/Native: lone - before a pipe",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "cat - | wc -l"
+  },
+  {
+    "Name": "native_arguments/Native: --option=value",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "git log --format=%H"
+  },
+  {
+    "Name": "native_arguments/Native: --option=value with a quoted value",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "git log --pretty=format:\"%h %s\" --since='2 weeks ago'"
+  },
+  {
+    "Name": "native_arguments/Native: short flag with an attached number",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "grep -n -A5 needle file.txt"
+  },
+  {
+    "Name": "native_arguments/Native: -1 is still a number",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "git log -1 --oneline"
+  },
+  {
+    "Name": "native_arguments/Native: --$x is still a decrement",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "--$i"
+  },
+  {
+    "Name": "native_arguments/Native: comma list of words",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "Select-Object Id, State, Command"
+  },
+  {
+    "Name": "native_arguments/Native: comma list without spaces",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "Get-Process a,b"
+  },
+  {
+    "Name": "native_arguments/Native: comma list as a parameter value",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "Add-Type -AssemblyName System.Windows.Forms,System.Drawing"
+  },
+  {
+    "Name": "native_arguments/Native: quoted comma list still an array",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "Start-Process python -ArgumentList '-m','app.gui' -PassThru"
+  },
+  {
+    "Name": "native_arguments/Background operator at the end of a line",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "npm run dev &"
+  },
+  {
+    "Name": "native_arguments/Background operator after a redirection",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "npm run dev 2>&1 &"
+  },
+  {
+    "Name": "native_arguments/Background operator between commands",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/native_arguments.txt",
+    "Input": "Write-Output a & Write-Output b"
+  },
+  {
+    "Name": "number/Integer",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/number.txt",
+    "Input": "239"
+  },
+  {
+    "Name": "number/Float",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/number.txt",
+    "Input": "12.9191008"
+  },
+  {
+    "Name": "number/Scientific notation",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/number.txt",
+    "Input": "6.022e23\n\n.12e4"
+  },
+  {
+    "Name": "number/Byte size suffix",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/number.txt",
+    "Input": "12mb\n\n12gb"
+  },
+  {
+    "Name": "number/Integer operation",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/number.txt",
+    "Input": "4 + 4 - 8"
+  },
+  {
+    "Name": "number/Integer operation with negative",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/number.txt",
+    "Input": "4 + 4 - -8"
+  },
+  {
+    "Name": "number/Cast with composed expression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/number.txt",
+    "Input": "[char]84 + [char]8"
+  },
+  {
+    "Name": "obfuscated/Obfuscated command with eval and format",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/obfuscated.txt",
+    "Input": "${vjOj`Q`gX} = $(&(\"{0}{1}{2}\"-f'w','h','oami'))"
+  },
+  {
+    "Name": "obfuscated/Obfuscated decoded using base64 native method",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/obfuscated.txt",
+    "Input": "Invoke-Expression ([System.Text.Encoding]::Unicode.GetString(([convert]::FromBase64String('VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIAAiAFQAcgB5ACAASABhAHIAZABlAHIAIgA='))))"
+  },
+  {
+    "Name": "obfuscated/Obfuscated command",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/obfuscated.txt",
+    "Input": "&(Get-Command i????e-rest*)"
+  },
+  {
+    "Name": "operators/Simple binary operator 1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -eq $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 2",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -ne $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 3",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -ge $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 4",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -gt $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 5",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -lt $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 6",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -le $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 7",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -like $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 8",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -notlike $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 9",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -match $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 10",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -notmatch $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 11",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -replace $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 12",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -contains $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 13",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -notcontains $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 14",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -in $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 15",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -notin $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 16",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -split $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 17",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -join $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 18",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -is $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 19",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -isnot $a"
+  },
+  {
+    "Name": "operators/Simple binary operator 20",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/operators.txt",
+    "Input": "$a -as $a"
+  },
+  {
+    "Name": "pipeline_chains/Pipeline chain #1: &&",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/pipeline_chains.txt",
+    "Input": "echo toto && echo tata"
+  },
+  {
+    "Name": "pipeline_chains/Pipeline chain #2: ||",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/pipeline_chains.txt",
+    "Input": "echo toto || echo tata"
+  },
+  {
+    "Name": "pipeline_chains/Pipeline chain #3: Priority over redirection and pipe",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/pipeline_chains.txt",
+    "Input": "echo toto > tmp1 && 1+1 | write-output > tmp2"
+  },
+  {
+    "Name": "strings/Strings : expandable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"foo\""
+  },
+  {
+    "Name": "strings/Strings : empty expandable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"\""
+  },
+  {
+    "Name": "strings/Strings : expandle with braced variable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"foo ${toto}\""
+  },
+  {
+    "Name": "strings/Strings : expandle with subexpression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"foo $(iex)\""
+  },
+  {
+    "Name": "strings/Strings : verbatim",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "'foo'"
+  },
+  {
+    "Name": "strings/Strings : verbatim empty",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "''"
+  },
+  {
+    "Name": "strings/Strings : verbatim here string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "@'\ntoto\n'@"
+  },
+  {
+    "Name": "strings/Strings : verbatim here string empty",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "@'\n\n'@"
+  },
+  {
+    "Name": "strings/Strings : expandle here string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "@\"\n`$toto\n\"@"
+  },
+  {
+    "Name": "strings/Strings : expandle here string with var",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "@\"\n$toto\n\"@"
+  },
+  {
+    "Name": "strings/Strings : expandle here string empty",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "@\"\n\n\"@"
+  },
+  {
+    "Name": "strings/Strings : escape variable and print dollar",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"`$w$ is valid\""
+  },
+  {
+    "Name": "strings/Strings : concat var content and dollar",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"$w$ is valid\""
+  },
+  {
+    "Name": "strings/Strings : Regex inline comment stays string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"(?# this is a regex inline comment)oo\""
+  },
+  {
+    "Name": "strings/Strings : Regex # comment stays string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"(?x)oo# regex comment in expanded mode\""
+  },
+  {
+    "Name": "strings/Strings : Single-quoted string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "'Hello, &!@#(&)!I_@U!JJ!EN@!'"
+  },
+  {
+    "Name": "strings/Strings : Double-quoted string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"Hello friend! !@!_(@FK@L!:D<!LQ!W(EK!_#(KQ!(%*(@!)\""
+  },
+  {
+    "Name": "strings/Strings : Variable substituted string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"Hi $person\""
+  },
+  {
+    "Name": "strings/Strings : Brace-variable substituted string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"He was ${adjective}able\""
+  },
+  {
+    "Name": "strings/Strings : Escaped variable in double quoted string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"In the `$money\""
+  },
+  {
+    "Name": "strings/Strings : Escaped brace variable in double quoted string",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"In the `${money}\""
+  },
+  {
+    "Name": "strings/Strings : Regexp",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\".*\\$.*$\""
+  },
+  {
+    "Name": "strings/Strings : Avoid comments",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"# #\""
+  },
+  {
+    "Name": "strings/Strings : Avoid comments 2",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/strings.txt",
+    "Input": "\"# $foo #\""
+  },
+  {
+    "Name": "type/Simple type expression #1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[string]"
+  },
+  {
+    "Name": "type/Simple type expression #2",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[System.Collections.ArrayList]"
+  },
+  {
+    "Name": "type/Array type expression #1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[int[]]"
+  },
+  {
+    "Name": "type/Array type expression #1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[System.DateTime[]]"
+  },
+  {
+    "Name": "type/Generic type expression #1",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[MyType[psobject]]"
+  },
+  {
+    "Name": "type/Generic type expression #2",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[System.Collections.Generic.Dictionary[string, System.IO.FileInfo]]"
+  },
+  {
+    "Name": "type/Complex type expression",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[System.Collections.Generic.Dictionary[int[], System.Collections.Generic.List[string[]]]]"
+  },
+  {
+    "Name": "type/Type-attributed variable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/type.txt",
+    "Input": "[string]$str"
+  },
+  {
+    "Name": "variables/Variable : Direct assignment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "$MyVariable = 1, 2, 3\n\n$Path = \"C:\\Windows\\System32\""
+  },
+  {
+    "Name": "variables/Variable : Command results",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "$Processes = Get-Process\n\n$Today = (Get-Date).DateTime"
+  },
+  {
+    "Name": "variables/Variable : Multi assignment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "$a = $b = $c = 0"
+  },
+  {
+    "Name": "variables/Variable : Multi variables, Multi assignment",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "$i,$j,$k = 10, \"red\", $true\n$i,$j = 10, \"red\", $true"
+  },
+  {
+    "Name": "variables/Variable : Typed variables",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "[string]$words = \"Hello\"\n$words = 2\n$words += 10"
+  },
+  {
+    "Name": "variables/Variable : Simple variable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "$aSimpleVariable001\n\n$91\n\n$__Z\n\n$env:PROGRAM_LOCATION"
+  },
+  {
+    "Name": "variables/Variable : Special variables",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "$$\n\n$^\n\n$?"
+  },
+  {
+    "Name": "variables/Variable : Brace variable",
+    "Source": "airbus-cert/tree-sitter-powershell@65ea6919e816a7ac142acec7ee72757f89db8439/test/corpus/variables.txt",
+    "Input": "${Simple}\n\n${More-interestin'}\n\n${\n    Really &&\n    quite ^\n    unusual???\n}"
+  }
+]
