@@ -278,7 +278,30 @@ while ($null -ne ($line = [Console]::ReadLine())) {
             } catch {
                 # A reference exception is not a parse error. Keep it attached to
                 # this input so the harness fails it without losing later cases.
-                @{ ReferenceException = $_.ToString() }
+                # ParseInput wraps every parser fault in UnrecoverableParserError,
+                # so the inner chain is the only record of where it threw.
+                $text = $_.ToString()
+                $inner = $_.Exception.InnerException
+                $chain = @()
+                while ($null -ne $inner) {
+                    $text += " <- $($inner.GetType().FullName): $($inner.Message)"
+                    $chain = @($inner) + $chain
+                    $inner = $inner.InnerException
+                }
+                # The harness classifies by the parser phase on the stack, so keep
+                # the innermost top frames plus every phase frame of the chain.
+                $frames = New-Object Collections.ArrayList
+                foreach ($exception in $chain) {
+                    if ($null -eq $exception.StackTrace) { continue }
+                    $lines = @($exception.StackTrace -split "\r?\n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+                    for ($i = 0; $i -lt $lines.Count; $i++) {
+                        if (([object]::ReferenceEquals($exception, $chain[0]) -and $i -lt 8) -or $lines[$i] -match '\.Language\.(SymbolResolver\.ResolveSymbols|SemanticChecks\.CheckAst|Parser\.\w+)\(') {
+                            [void]$frames.Add($lines[$i])
+                        }
+                    }
+                }
+                if ($frames.Count -ne 0) { $text += ' | ' + ($frames -join ' | ') }
+                @{ ReferenceException = $text }
                 continue
             }
             $script:hasParseErrors = $parseErrors.Count -ne 0

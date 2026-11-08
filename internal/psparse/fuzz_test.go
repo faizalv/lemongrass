@@ -55,6 +55,9 @@ func FuzzParseOracle(f *testing.F) {
 			}
 			recordOracleFuzzEvidence(t, map[string]any{"Input": input, "GoError": goError, "GoRefusedConstruct": err == nil, "ReferenceException": response.Results[0].ReferenceException})
 		}
+		if class == oraclePostParseException {
+			recordOracleFuzzEvidence(t, map[string]any{"Input": input, "PostParseException": response.Results[0].ReferenceException})
+		}
 		if class == oracleMismatch || class == oracleUnreachable {
 			t.Fatalf("oracle class %s for %q: %s", class, input, detail)
 		}

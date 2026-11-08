@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -418,6 +419,7 @@ const (
 	oracleAssemblyFilesystem        oracleClass = "assembly-filesystem"
 	oracleMismatch                  oracleClass = "mismatch"
 	oracleRefusedReferenceException oracleClass = "refused-reference-exception"
+	oraclePostParseException        oracleClass = "post-parse-exception"
 )
 
 // Eligibility and provenance are generated from the pinned post-parse sources.
@@ -458,8 +460,31 @@ func oracleRefusedConstruct(result *Result) bool {
 	})
 }
 
+// A reference exception whose inner trace passes through the post-parse checks
+// was thrown after pwsh's parser accepted the input, so on a Go success it is a
+// post-parse difference and pwsh runs nothing. Frames are read only from the
+// inner chain's stack frames the dump appends after the messages, never from a
+// message text.
+var oraclePostParseFrame = regexp.MustCompile(`^at System\.Management\.Automation\.Language\.(SymbolResolver\.ResolveSymbols|SemanticChecks\.CheckAst)\(`)
+
+func oraclePostParseExceptionTrace(text string) bool {
+	messages, frames, ok := strings.Cut(text, " | ")
+	if !ok || !strings.Contains(messages, " <- ") {
+		return false
+	}
+	for _, frame := range strings.Split(frames, " | ") {
+		if oraclePostParseFrame.MatchString(frame) {
+			return true
+		}
+	}
+	return false
+}
+
 func compareOracle(goResult *Result, goErr error, reference oracleResult, schema oracleSchema) (oracleClass, string) {
 	if reference.ReferenceException != "" {
+		if goErr == nil && goResult != nil && goResult.Ast != nil && oraclePostParseExceptionTrace(reference.ReferenceException) {
+			return oraclePostParseException, reference.ReferenceException
+		}
 		return oracleMismatch, "reference ParseInput exception: " + reference.ReferenceException
 	}
 	if reference.DepthCapped && (goErr == nil || len(reference.Errors) == 0) {
@@ -2129,11 +2154,59 @@ func TestOracleLegacyGrammarShapes(t *testing.T) {
 }
 
 func TestOracleReferenceExceptionFails(t *testing.T) {
+	resolver := "at System.Management.Automation.Language.SymbolResolver.ResolveSymbols(Parser parser, ScriptBlockAst scriptBlockAst)"
+	parse := "at System.Management.Automation.Language.Parser.Parse(String fileName, String input, List`1 tokenList, ParseError[]& errors, ParseMode parseMode)"
 	for _, input := range []string{"Get-Item foo", "("} {
 		result, err := Parse(input, DefaultLimits)
-		class, _ := compareOracle(result, err, oracleResult{ReferenceException: "Unrecoverable error in Windows PowerShell."}, makeOracleSchema())
-		if class != oracleMismatch {
-			t.Fatalf("reference exception class = %s", class)
+		for _, text := range []string{
+			"Unrecoverable error in Windows PowerShell.",
+			"Unrecoverable error. <- System.ArgumentException: bad | at X.Y() | " + parse,
+			"Unrecoverable error " + resolver + " | " + resolver,
+			"Unrecoverable error. <- System.ArgumentException: " + resolver,
+		} {
+			class, _ := compareOracle(result, err, oracleResult{ReferenceException: text}, makeOracleSchema())
+			if class != oracleMismatch {
+				t.Fatalf("reference exception %q on %q: class %s", text, input, class)
+			}
+		}
+	}
+	result, err := Parse("Get-Item foo", DefaultLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, frame := range []string{resolver, "at System.Management.Automation.Language.SemanticChecks.CheckAst(Parser parser, ScriptBlockAst ast)"} {
+		text := "Unrecoverable error. <- System.Management.Automation.ParseException: x <- System.ArgumentException: bad | at X.Y() | " + frame + " | " + parse
+		if class, _ := compareOracle(result, err, oracleResult{ReferenceException: text}, makeOracleSchema()); class != oraclePostParseException {
+			t.Fatalf("post-parse trace class = %s", class)
+		}
+	}
+}
+
+// pwsh accepts a using namespace named "[" in the parser; resolving a type
+// against it then throws in the symbol resolver, while other statements get
+// the post-parse InvalidNamespaceValue error.
+func TestOracleUsingNamespacePostParse(t *testing.T) {
+	o := startOracle(t)
+	inputs := []string{"using namespace [", "using namespace [\n[A]", "using namespace [\n$x"}
+	response, err := o.batch(inputs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, input := range inputs {
+		result, goErr := Parse(input, DefaultLimits)
+		if goErr != nil {
+			t.Fatalf("%q: %v", input, goErr)
+		}
+		reference := response.Results[i]
+		class, detail := compareOracle(result, nil, reference, o.schema)
+		if i == 1 {
+			if class != oraclePostParseException || !strings.Contains(reference.ReferenceException, "TypeName..ctor") {
+				t.Fatalf("%q: %s %s", input, class, detail)
+			}
+			continue
+		}
+		if reference.ReferenceException != "" || len(reference.Errors) != 1 || reference.Errors[0].ID != "InvalidNamespaceValue" || class != oracleSemantic {
+			t.Fatalf("%q: %s %s errors=%v", input, class, detail, reference.Errors)
 		}
 	}
 }
