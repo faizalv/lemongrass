@@ -89,9 +89,6 @@ func TestPowerShellBashPairs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			bash := Decide(Input{Tool: "Bash", Command: tc.bash, Cwd: root, Home: home, ProjectRoot: root}, Policy{})
 			ps := psDecide(Input{Tool: "PowerShell", Command: tc.ps, Cwd: root, Home: home, ProjectRoot: root}, Policy{})
-			if ruleOf(ps) == "windows-delete" {
-				t.Skip("remove-item still sits in windows-delete; it moves to the deletion scope in phase 8")
-			}
 			if ruleOf(ps) != ruleOf(bash) {
 				t.Errorf("PowerShell %q meets %q (%s), bash %q meets %q", tc.ps, ruleOf(ps), psDetail(ps), tc.bash, ruleOf(bash))
 			}
