@@ -160,6 +160,8 @@ A denial names its rule. Read it, do not look for another route to the same effe
 
 When you would tell the human to run a command themselves, in a terminal or anywhere else, file it as a command ask instead, even when you chose not to run it yourself.
 
+Your own agent can still hold a risky call for the human, such as starting another agent CLI or anything with a bypass flag, and rejects it when nobody answers in time. File such a call, or one you expect would be held, as a command ask, which waits for the human, and keep it to that one step instead of bundling it into a larger command.
+
 <!-- claude -->
 Some tools are deferred on purpose: their full definitions load through ToolSearch only when you ask for them, so every request stays small. Artifact and ScheduleWakeup are among them. Load one only when the human asks for what it does, such as publishing or reading an artifact, even when a tool hint says to load it for any document, plan or visual.
 <!-- end -->

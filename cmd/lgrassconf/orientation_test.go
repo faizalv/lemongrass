@@ -111,6 +111,10 @@ func TestOrientationIsAdaptedPerVendor(t *testing.T) {
 			if !strings.Contains(text, "When you would tell the human to run a command themselves") {
 				t.Errorf("%s %s lacks the hand-off sentence", vendor, role)
 			}
+			// The agent's own safety layer can hold a call and reject it unanswered, which no lemongrass gate sees.
+			if !strings.Contains(text, "Your own agent can still hold a risky call for the human") {
+				t.Errorf("%s %s lacks the held-call paragraph", vendor, role)
+			}
 		}
 		if !strings.Contains(codexText, "changes to Codex's config, hooks or the lemongrass binaries") {
 			t.Errorf("codex-%s does not name Codex's config in the blocked list", role)
