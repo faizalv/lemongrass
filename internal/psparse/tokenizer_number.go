@@ -412,12 +412,33 @@ func tryGetNumberValue(strNum string, format numberFormat, suffix numberSuffix, 
 		if new(big.Int).Abs(bigValue).Cmp(bigDecimalMax) <= 0 {
 			return Decimal{Unscaled: bigValue, Scale: 0}, true
 		}
-		f, _ := new(big.Float).SetInt(bigValue).Float64()
-		if !math.IsInf(f, 0) {
+		if f, ok := bigToDouble(bigValue); ok {
 			return f, true
 		}
 	}
 	return nil, false
+}
+
+// bigDoubleMax is (BigInteger)double.MaxValue, the bound Utils.TryCast(BigInteger, out double) checks.
+var bigDoubleMax, _ = new(big.Float).SetFloat64(math.MaxFloat64).Int(nil)
+
+// bigToDouble is Utils.TryCast(BigInteger, out double): out of range fails, and the conversion is .NET's explicit
+// BigInteger-to-double operator, which keeps the top bits and drops the rest (GetDoubleFromParts shifts the
+// mantissa without rounding), so it truncates toward zero where strconv and big.Float round to nearest.
+func bigToDouble(v *big.Int) (float64, bool) {
+	abs := new(big.Int).Abs(v)
+	if abs.Cmp(bigDoubleMax) > 0 {
+		return 0, false
+	}
+	if n := abs.BitLen(); n > 53 {
+		abs.Rsh(abs, uint(n-53))
+		abs.Lsh(abs, uint(n-53))
+	}
+	f, _ := new(big.Float).SetInt(abs).Float64()
+	if v.Sign() < 0 {
+		f = -f
+	}
+	return f, true
 }
 
 // parseHexTwosComplement is BigInteger.TryParse with AllowHexSpecifier: the digits are two's complement, so a

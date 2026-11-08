@@ -150,3 +150,14 @@ func TestScriptRequirements(t *testing.T) {
 		}
 	}
 }
+
+func TestBigIntegerToDoubleTruncates(t *testing.T) {
+	// pwsh 7.6.9 gives 1.000000001011101e+29 for this literal, one double below the correctly rounded value.
+	toks, err := scanTokens("100000000101110110000000000000", ModeExpression)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := toks[0].Value; got != 1.000000001011101e+29 {
+		t.Fatalf("value %v (%T)", got, got)
+	}
+}
