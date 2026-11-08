@@ -4,153 +4,459 @@
 
 package psparse
 
-// The expression half of Parser.cs: param blocks and attributes, type names, class, enum and using definitions,
-// and expressions. Each method's doc names the C# rule it ports; an out or ref parameter there becomes a result or
-// a pointer here. Error recovery branches are left out, since reportError stops the parse.
+// The expression half of Parser.cs, core rules: ternary, binary, array literal, unary and primary expressions,
+// hashtables, script block, sub- and parenthesized expressions. Member access lives in parser_expr_member.go,
+// expandable strings in parser_expr_string.go, param blocks and attributes in parser_expr_param.go, class, enum
+// and using in parser_expr_class.go, type names in parser_types.go.
+//
+// Each method's doc names the C# rule it ports; an out or ref parameter there becomes a result or a pointer here.
+// Error recovery branches are left out: reportError stops the parse, so only the report before each recovery
+// survives. A tokenizer mode or flag a rule changes is restored on every normal return, as the C# finally blocks
+// do; after an error nothing is restored, since the parse is over. A rule returning no expression returns a nil
+// interface, never a typed nil pointer, so callers can test it against nil.
 
-// paramBlockRule is ParamBlockRule; nil when no param block starts here.
-func (p *parser) paramBlockRule() *ParamBlockAst { panic(notPorted) }
-
-// parameterListRule is ParameterListRule.
-func (p *parser) parameterListRule() []*ParameterAst { panic(notPorted) }
-
-// parameterRule is ParameterRule.
-func (p *parser) parameterRule() *ParameterAst { panic(notPorted) }
-
-// attributeListRule is AttributeListRule.
-func (p *parser) attributeListRule(inExpressionMode bool) []AttributeBaseAst { panic(notPorted) }
-
-// attributeRule is AttributeRule.
-func (p *parser) attributeRule() AttributeBaseAst { panic(notPorted) }
-
-// attributeArgumentsRule is AttributeArgumentsRule.
-func (p *parser) attributeArgumentsRule(positional *[]ExpressionAst, named *[]*NamedAttributeArgumentAst, lastItemExtent *Extent) {
-	panic(notPorted)
+// expressionRule is ExpressionRule: a binary expression, or a ternary built from them.
+func (p *parser) expressionRule(endNumberOnTernaryOpChars bool) ExpressionAst {
+	p.enter()
+	defer p.leave()
+	oldMode := p.tok.Mode
+	p.setTokenizerMode(ModeExpression)
+	expr := p.ternaryExpression(endNumberOnTernaryOpChars)
+	p.setTokenizerMode(oldMode)
+	return expr
 }
 
-// typeNameRule is TypeNameRule.
-func (p *parser) typeNameRule(allowAssemblyQualifiedNames bool) (name ITypeName, firstTypeNameToken *Token) {
-	panic(notPorted)
+// ternaryExpression is the body of ExpressionRule inside its tokenizer mode switch.
+func (p *parser) ternaryExpression(endNumberOnTernaryOpChars bool) ExpressionAst {
+	condition := p.binaryExpressionRule(endNumberOnTernaryOpChars)
+	if condition == nil {
+		return nil
+	}
+	t := p.peekToken()
+	if t.Kind != QuestionMark {
+		return condition
+	}
+	p.skipToken()
+	p.skipNewlines()
+
+	// After '?' the operands are expressions for sure, so a number ends at '?' and ':'.
+	ifTrue := p.expressionRule(true)
+	if ifTrue == nil {
+		p.reportIncompleteInput(after(t.Extent), "ExpectedValueExpression", t.Text)
+	}
+	p.skipNewlines()
+	t = p.nextToken()
+	if t.Kind != Colon {
+		p.ungetToken(t)
+		p.reportIncompleteInput(t.Extent, "MissingColonInTernaryExpression")
+	}
+	p.skipNewlines()
+	ifFalse := p.expressionRule(true)
+	if ifFalse == nil {
+		p.reportIncompleteInput(after(t.Extent), "ExpectedValueExpression", t.Text)
+	}
+	return newTernaryExpressionAst(extentOf(condition.Extent(), ifFalse.Extent()), condition, ifTrue, ifFalse)
 }
 
-// finishTypeNameRule is FinishTypeNameRule.
-func (p *parser) finishTypeNameRule(typeName *Token, unBracketedGenericArg, allowAssemblyQualifiedNames bool) ITypeName {
-	panic(notPorted)
+// binaryExpressionRule is BinaryExpressionRule: operator precedence parsing over array literal operands.
+func (p *parser) binaryExpressionRule(endNumberOnTernaryOpChars bool) ExpressionAst {
+	p.enter()
+	defer p.leave()
+	oldMode := p.tok.Mode
+	p.setTokenizerMode(ModeExpression)
+	expr := p.binaryExpression(endNumberOnTernaryOpChars)
+	p.setTokenizerMode(oldMode)
+	return expr
 }
 
-// getSingleGenericArgument is GetSingleGenericArgument.
-func (p *parser) getSingleGenericArgument(firstToken *Token) ITypeName { panic(notPorted) }
+// binaryExpression is the body of BinaryExpressionRule inside its tokenizer mode switch.
+func (p *parser) binaryExpression(endNumberOnTernaryOpChars bool) ExpressionAst {
+	expr := p.arrayLiteralRule(endNumberOnTernaryOpChars)
+	if expr == nil {
+		return nil
+	}
+	t := p.peekToken()
+	if !t.Kind.HasTrait(FlagBinaryOperator) {
+		if t.Kind == Parameter {
+			p.errorRecoveryParameterInExpression(t)
+		}
+		return expr
+	}
+	if t.Kind == AndAnd || t.Kind == OrOr {
+		return expr
+	}
+	p.skipToken()
 
-// genericTypeArgumentsRule is GenericTypeArgumentsRule.
-func (p *parser) genericTypeArgumentsRule(firstToken *Token) (args []ITypeName, lastToken *Token) {
-	panic(notPorted)
+	operands := []ExpressionAst{expr}
+	operators := []*Token{t}
+	precedence := t.Kind.BinaryPrecedence()
+	for {
+		p.skipNewlines()
+		// After a binary operator the right-hand side is an expression for sure.
+		expr = p.arrayLiteralRule(true)
+		if expr == nil {
+			// token.Text, not the kind's text: a case-insensitive operator may be spelled differently.
+			p.reportIncompleteInput(after(t.Extent), "ExpectedValueExpression", t.Text)
+		}
+		operands = append(operands, expr)
+
+		t = p.nextToken()
+		if !t.Kind.HasTrait(FlagBinaryOperator) {
+			p.ungetToken(t)
+			if t.Kind == Parameter {
+				// C# remembers the parameter token here and reports it once the tree is folded; nothing between
+				// can fail, so reporting now gives the same first error.
+				p.errorRecoveryParameterInExpression(t)
+			}
+			break
+		}
+
+		newPrecedence := t.Kind.BinaryPrecedence()
+		for newPrecedence <= precedence {
+			rhs := operands[len(operands)-1]
+			lhs := operands[len(operands)-2]
+			operands = operands[:len(operands)-2]
+			op := operators[len(operators)-1]
+			operators = operators[:len(operators)-1]
+			operands = append(operands, newBinaryExpressionAst(extentOf(lhs.Extent(), rhs.Extent()), lhs, op.Kind, rhs, op.Extent))
+			if len(operators) == 0 {
+				break
+			}
+			precedence = operators[len(operators)-1].Kind.BinaryPrecedence()
+		}
+		operators = append(operators, t)
+		precedence = newPrecedence
+	}
+
+	rhs := operands[len(operands)-1]
+	operands = operands[:len(operands)-1]
+	for len(operands) > 0 {
+		lhs := operands[len(operands)-1]
+		operands = operands[:len(operands)-1]
+		op := operators[len(operators)-1]
+		operators = operators[:len(operators)-1]
+		rhs = newBinaryExpressionAst(extentOf(lhs.Extent(), rhs.Extent()), lhs, op.Kind, rhs, op.Extent)
+	}
+	return rhs
 }
 
-// genericTypeNameRule is GenericTypeNameRule.
-func (p *parser) genericTypeNameRule(genericTypeName, firstToken *Token, unbracketedGenericArg bool) ITypeName {
-	panic(notPorted)
+// errorRecoveryParameterInExpression is ErrorRecoveryParameterInExpression: a parameter token after an operand,
+// such as -foo in 1 -foo, is an unexpected token.
+func (p *parser) errorRecoveryParameterInExpression(paramToken *Token) {
+	p.reportError(paramToken.Extent, "UnexpectedToken", paramToken.Text)
 }
 
-// completeArrayTypeName is CompleteArrayTypeName.
-func (p *parser) completeArrayTypeName(elementType ITypeName, typeForAssemblyQualification *TypeName, firstTokenAfterLBracket *Token, unBracketedGenericArg bool) ITypeName {
-	panic(notPorted)
+// arrayLiteralRule is ArrayLiteralRule: unary expressions separated by commas.
+func (p *parser) arrayLiteralRule(endNumberOnTernaryOpChars bool) ExpressionAst {
+	lastExpr := p.unaryExpressionRule(endNumberOnTernaryOpChars)
+	if lastExpr == nil {
+		return nil
+	}
+	firstExpr := lastExpr
+	commaToken := p.peekToken()
+	if commaToken.Kind != Comma || p.disableCommaOperator {
+		return lastExpr
+	}
+
+	arrayValues := []ExpressionAst{lastExpr}
+	for commaToken.Kind == Comma {
+		p.skipToken()
+		p.skipNewlines()
+		// After a comma an element is an expression for sure.
+		lastExpr = p.unaryExpressionRule(true)
+		if lastExpr == nil {
+			p.reportIncompleteInput(after(commaToken.Extent), "MissingExpressionAfterToken", commaToken.Text)
+		}
+		arrayValues = append(arrayValues, lastExpr)
+		commaToken = p.peekToken()
+	}
+	return newArrayLiteralAst(extentOf(firstExpr.Extent(), lastExpr.Extent()), arrayValues)
 }
 
-// usingStatementsRule is UsingStatementsRule.
-func (p *parser) usingStatementsRule() []*UsingStatementAst { panic(notPorted) }
+// unaryExpressionRule is UnaryExpressionRule: a prefix operator, a cast or attributed expression, or a primary
+// expression, each with an optional postfix ++ or --.
+func (p *parser) unaryExpressionRule(endNumberOnTernaryOpChars bool) ExpressionAst {
+	p.enter()
+	defer p.leave()
 
-// usingStatementRule is UsingStatementRule.
-func (p *parser) usingStatementRule(usingToken *Token) StatementAst { panic(notPorted) }
+	oldAllowSignedNumbers := p.tok.AllowSignedNumbers
+	oldForceEndNumber := p.tok.ForceEndNumberOnTernaryOpChars
+	p.tok.AllowSignedNumbers = true
+	p.tok.ForceEndNumberOnTernaryOpChars = endNumberOnTernaryOpChars
+	if p.ungotToken != nil {
+		// A pushed-back '-' may be the sign of a number, and a pushed-back generic token may be a number glued to
+		// ternary operator characters; both rescan under the flags just set.
+		needResync := p.ungotToken.Kind == Minus
+		if !needResync {
+			needResync = endNumberOnTernaryOpChars && p.ungotToken.Kind == Generic
+		}
+		if needResync {
+			p.resyncToken(p.ungotToken)
+		}
+	}
+	t := p.peekToken()
+	p.tok.AllowSignedNumbers = oldAllowSignedNumbers
+	p.tok.ForceEndNumberOnTernaryOpChars = oldForceEndNumber
 
-// classDefinitionRule is ClassDefinitionRule.
-func (p *parser) classDefinitionRule(customAttributes []AttributeBaseAst, classToken *Token) StatementAst {
-	panic(notPorted)
+	var expr ExpressionAst
+	switch {
+	case t.Kind.HasTrait(FlagUnaryOperator):
+		if p.disableCommaOperator && t.Kind == Comma {
+			return nil
+		}
+		p.skipToken()
+		p.skipNewlines()
+		child := p.unaryExpressionRule(true)
+		if child == nil {
+			p.reportIncompleteInput(after(t.Extent), "MissingExpressionAfterOperator", t.Text)
+		}
+		if t.Kind == Comma {
+			expr = newArrayLiteralAst(extentOf(t.Extent, child.Extent()), []ExpressionAst{child})
+		} else {
+			expr = newUnaryExpressionAst(extentOf(t.Extent, child.Extent()), t.Kind, child)
+		}
+
+	case t.Kind == LBracket:
+		// A type literal or an attribute.
+		attributes := p.attributeListRule(true)
+		if attributes == nil {
+			return nil
+		}
+		lastAttribute := attributes[len(attributes)-1]
+		if _, ok := lastAttribute.(*AttributeAst); ok {
+			p.skipNewlines()
+			child := p.unaryExpressionRule(true)
+			if child == nil {
+				p.reportIncompleteInput(lastAttribute.Extent(), "UnexpectedAttribute", lastAttribute.GetTypeName().FullName())
+			}
+			expr = newAttributedExpressionAst(extentOf(lastAttribute.Extent(), child.Extent()), lastAttribute, child)
+		} else {
+			var memberAccessToken *Token
+			if p.ungotToken == nil {
+				memberAccessToken = p.nextMemberAccessToken(false)
+			}
+			if memberAccessToken != nil {
+				expr = p.checkPostPrimaryExpressionOperators(memberAccessToken,
+					newTypeExpressionAst(lastAttribute.Extent(), lastAttribute.GetTypeName()))
+			} else {
+				t = p.peekToken()
+				if t.Kind != NewLine && t.Kind != Comma {
+					child := p.unaryExpressionRule(true)
+					if child != nil {
+						expr = newConvertExpressionAst(extentOf(lastAttribute.Extent(), child.Extent()),
+							lastAttribute.(*TypeConstraintAst), child)
+					}
+				}
+			}
+			if expr == nil {
+				expr = newTypeExpressionAst(lastAttribute.Extent(), lastAttribute.GetTypeName())
+			}
+		}
+		for i := len(attributes) - 2; i >= 0; i-- {
+			if tc, ok := attributes[i].(*TypeConstraintAst); ok {
+				expr = newConvertExpressionAst(extentOf(tc.Extent(), expr.Extent()), tc, expr)
+			} else {
+				expr = newAttributedExpressionAst(extentOf(attributes[i].Extent(), expr.Extent()), attributes[i], expr)
+			}
+		}
+
+	default:
+		expr = p.primaryExpressionRule(true)
+	}
+
+	if expr != nil {
+		t = p.peekToken()
+		op := Unknown
+		switch t.Kind {
+		case PlusPlus:
+			op = PostfixPlusPlus
+		case MinusMinus:
+			op = PostfixMinusMinus
+		}
+		if op != Unknown {
+			p.skipToken()
+			expr = newUnaryExpressionAst(extentOf(expr.Extent(), t.Extent), op, expr)
+		}
+	}
+	return expr
 }
 
-// enumDefinitionRule is EnumDefinitionRule.
-func (p *parser) enumDefinitionRule(customAttributes []AttributeBaseAst, enumToken *Token) StatementAst {
-	panic(notPorted)
+// primaryExpressionRule is PrimaryExpressionRule: a value, then member and element access when withMemberAccess.
+func (p *parser) primaryExpressionRule(withMemberAccess bool) ExpressionAst {
+	p.enter()
+	defer p.leave()
+
+	var expr ExpressionAst
+	t := p.nextToken()
+	switch t.Kind {
+	case SplattedVariable, Variable:
+		expr = p.checkUsingVariable(t, withMemberAccess)
+	case Number:
+		expr = newConstantExpressionAstFromNumber(t)
+	case HereStringExpandable, StringExpandable:
+		expr = p.expandableStringRule(t)
+	case HereStringLiteral, StringLiteral:
+		expr = newStringConstantExpressionAstFromToken(t)
+	case LParen:
+		expr = p.parenthesizedExpressionRule(t)
+	case AtParen, DollarParen:
+		expr = p.subExpressionRule(t)
+	case AtCurly:
+		expr = p.hashExpressionRule(t, false)
+	case LCurly:
+		expr = p.scriptBlockExpressionRule(t)
+	default:
+		p.ungetToken(t)
+		return nil
+	}
+	if !withMemberAccess {
+		return expr
+	}
+	return p.checkPostPrimaryExpressionOperators(p.nextMemberAccessToken(true), expr)
 }
 
-// methodDeclarationRule is MethodDeclarationRule.
-func (p *parser) methodDeclarationRule(functionNameToken *Token, className string, isStaticMethod bool) StatementAst {
-	panic(notPorted)
-}
-
-// expressionRule is ExpressionRule.
-func (p *parser) expressionRule(endNumberOnTernaryOpChars bool) ExpressionAst { panic(notPorted) }
-
-// binaryExpressionRule is BinaryExpressionRule.
-func (p *parser) binaryExpressionRule(endNumberOnTernaryOpChars bool) ExpressionAst { panic(notPorted) }
-
-// arrayLiteralRule is ArrayLiteralRule.
-func (p *parser) arrayLiteralRule(endNumberOnTernaryOpChars bool) ExpressionAst { panic(notPorted) }
-
-// unaryExpressionRule is UnaryExpressionRule.
-func (p *parser) unaryExpressionRule(endNumberOnTernaryOpChars bool) ExpressionAst { panic(notPorted) }
-
-// primaryExpressionRule is PrimaryExpressionRule.
-func (p *parser) primaryExpressionRule(withMemberAccess bool) ExpressionAst { panic(notPorted) }
-
-// checkUsingVariable is CheckUsingVariable.
+// checkUsingVariable is CheckUsingVariable: $using:x becomes a UsingExpressionAst around $x, with its member
+// accesses inside it.
 func (p *parser) checkUsingVariable(variableToken *Token, withMemberAccess bool) ExpressionAst {
-	panic(notPorted)
+	path := variableToken.VariablePath
+	if path.IsDriveQualified() && OrdinalEqualFold(path.DriveName(), "using") && path.UnqualifiedPath() != "" {
+		realPath := NewVariablePath(path.UnqualifiedPath())
+		var child ExpressionAst = newVariableExpressionAstPath(variableToken.Extent, realPath, variableToken.Kind == SplattedVariable)
+		if withMemberAccess {
+			child = p.checkPostPrimaryExpressionOperators(p.nextMemberAccessToken(true), child)
+		}
+		return newUsingExpressionAst(child.Extent(), child)
+	}
+	return newVariableExpressionAst(variableToken)
 }
 
-// checkPostPrimaryExpressionOperators is CheckPostPrimaryExpressionOperators.
-func (p *parser) checkPostPrimaryExpressionOperators(t *Token, expr ExpressionAst) ExpressionAst {
-	panic(notPorted)
-}
-
-// hashExpressionRule is HashExpressionRule.
+// hashExpressionRule is HashExpressionRule: @{ key = statement; ... }. parsingSchemaElement is for DSC, which
+// is not ported, so it only picks the error IDs.
 func (p *parser) hashExpressionRule(atCurlyToken *Token, parsingSchemaElement bool) ExpressionAst {
-	panic(notPorted)
+	p.skipNewlines()
+	keyValuePairs := []KeyValuePair{}
+	for {
+		pair := p.getKeyValuePair(parsingSchemaElement)
+		if pair == nil {
+			break
+		}
+		keyValuePairs = append(keyValuePairs, *pair)
+		t := p.peekToken()
+		if t.Kind != NewLine && t.Kind != Semi {
+			break
+		}
+		p.skipNewlinesAndSemicolons()
+	}
+
+	rCurly := p.nextToken()
+	if rCurly.Kind != RCurly {
+		p.ungetToken(rCurly)
+		id := "MissingEndCurlyBrace"
+		if parsingSchemaElement {
+			id = "IncompletePropertyAssignmentBlock"
+		}
+		p.reportIncompleteInputAt(after(atCurlyToken.Extent), rCurly.Extent, id)
+	}
+	return newHashtableAst(extentOf(atCurlyToken.Extent, rCurly.Extent), keyValuePairs)
 }
 
-// getKeyValuePair is GetKeyValuePair; nil when no entry starts here.
-func (p *parser) getKeyValuePair(parsingSchemaElement bool) *KeyValuePair { panic(notPorted) }
+// getKeyValuePair is GetKeyValuePair; nil when no entry starts here. The key is read in expression mode and the
+// value as a statement in command mode.
+func (p *parser) getKeyValuePair(parsingSchemaElement bool) *KeyValuePair {
+	oldMode := p.tok.Mode
+	p.setTokenizerMode(ModeExpression)
+	key := p.labelOrKeyRule()
+	if key == nil {
+		p.setTokenizerMode(oldMode)
+		return nil
+	}
+	equals := p.nextToken()
+	p.setTokenizerMode(oldMode)
 
-// scriptBlockExpressionRule is ScriptBlockExpressionRule.
-func (p *parser) scriptBlockExpressionRule(lCurly *Token) ExpressionAst { panic(notPorted) }
+	if equals.Kind != Equals {
+		p.ungetToken(equals)
+		id := "MissingEqualsInHashLiteral"
+		if parsingSchemaElement {
+			id = "MissingEqualsInPropertyAssignmentBlock"
+		}
+		p.reportError(after(key.Extent()), id)
+	}
+
+	p.setTokenizerMode(ModeCommand)
+	p.skipNewlines()
+	statement := p.statementRule()
+	if statement == nil {
+		id := "MissingStatementInHashLiteral"
+		if parsingSchemaElement {
+			id = "MissingEqualsInPropertyAssignmentBlock"
+		}
+		p.reportIncompleteInput(after(equals.Extent), id)
+	}
+	p.setTokenizerMode(oldMode)
+	return &KeyValuePair{Key: key, Value: statement}
+}
+
+// scriptBlockExpressionRule is ScriptBlockExpressionRule: { ... } as a value.
+func (p *parser) scriptBlockExpressionRule(lCurly *Token) ExpressionAst {
+	oldDisableCommaOperator := p.disableCommaOperator
+	oldMode := p.tok.Mode
+	p.disableCommaOperator = false
+	p.setTokenizerMode(ModeCommand)
+	p.skipNewlines()
+	sb := p.scriptBlockRule(lCurly, false, nil)
+	p.disableCommaOperator = oldDisableCommaOperator
+	p.setTokenizerMode(oldMode)
+	return newScriptBlockExpressionAst(sb.Extent(), sb)
+}
 
 // subExpressionRule is SubExpressionRule, for $( and @(.
-func (p *parser) subExpressionRule(firstToken *Token) ExpressionAst { panic(notPorted) }
+func (p *parser) subExpressionRule(firstToken *Token) ExpressionAst {
+	traps := []*TrapStatementAst{}
+	statements := []StatementAst{}
 
-// parenthesizedExpressionRule is ParenthesizedExpressionRule.
-func (p *parser) parenthesizedExpressionRule(lParen *Token) ExpressionAst { panic(notPorted) }
+	oldDisableCommaOperator := p.disableCommaOperator
+	oldMode := p.tok.Mode
+	p.disableCommaOperator = false
+	p.setTokenizerMode(ModeCommand)
+	p.skipNewlines()
+	statementListExtent := p.statementListRule(&statements, &traps)
+	p.skipNewlines()
+	rParen := p.nextToken()
+	if rParen.Kind != RParen {
+		p.ungetToken(rParen)
+		p.reportIncompleteInput(rParen.Extent, "MissingEndParenthesisInSubexpression")
+	}
+	p.disableCommaOperator = oldDisableCommaOperator
+	p.setTokenizerMode(oldMode)
 
-// parseNestedExpressions is ParseNestedExpressions, for the $(...) and $var parts of an expandable string.
-func (p *parser) parseNestedExpressions(expandableStringToken *Token) []ExpressionAst {
-	panic(notPorted)
+	// statementListRule returns emptyExtent where C# returns null, which is also what C# substitutes here.
+	ext := extentOf(firstToken.Extent, rParen.Extent)
+	block := newStatementBlockAst(statementListExtent, statements, traps)
+	if firstToken.Kind == DollarParen {
+		return newSubExpressionAst(ext, block)
+	}
+	return newArrayExpressionAst(ext, block)
 }
 
-// expandableStringRule is ExpandableStringRule.
-func (p *parser) expandableStringRule(strToken *Token) ExpressionAst { panic(notPorted) }
+// parenthesizedExpressionRule is ParenthesizedExpressionRule: ( pipeline-chain ).
+func (p *parser) parenthesizedExpressionRule(lParen *Token) ExpressionAst {
+	oldMode := p.tok.Mode
+	oldDisableCommaOperator := p.disableCommaOperator
+	p.setTokenizerMode(ModeCommand)
+	p.disableCommaOperator = false
 
-// memberNameRule is MemberNameRule.
-func (p *parser) memberNameRule() ExpressionAst { panic(notPorted) }
-
-// memberAccessRule is MemberAccessRule.
-func (p *parser) memberAccessRule(targetExpr ExpressionAst, operatorToken *Token) ExpressionAst {
-	panic(notPorted)
-}
-
-// genericMethodArgumentsRule is GenericMethodArgumentsRule.
-func (p *parser) genericMethodArgumentsRule(resyncIndex int) (args []ITypeName, rBracketToken *Token) {
-	panic(notPorted)
-}
-
-// memberInvokeRule is MemberInvokeRule.
-func (p *parser) memberInvokeRule(targetExpr ExpressionAst, lBracket, operatorToken *Token, member CommandElementAst, genericTypes []ITypeName) ExpressionAst {
-	panic(notPorted)
-}
-
-// invokeParamParenListRule is InvokeParamParenListRule.
-func (p *parser) invokeParamParenListRule(lParen *Token) (args []ExpressionAst, lastExtent Extent) {
-	panic(notPorted)
-}
-
-// elementAccessRule is ElementAccessRule.
-func (p *parser) elementAccessRule(primaryExpression ExpressionAst, lBracket *Token) ExpressionAst {
-	panic(notPorted)
+	p.skipNewlines()
+	pipelineAst := p.pipelineChainRule()
+	if pipelineAst == nil {
+		p.reportIncompleteInput(after(lParen.Extent), "ExpectedExpression")
+	}
+	p.skipNewlines()
+	rParen := p.nextToken()
+	if rParen.Kind != RParen {
+		p.ungetToken(rParen)
+		p.reportIncompleteInput(after(pipelineAst.Extent()), "MissingEndParenthesisInExpression")
+	}
+	p.disableCommaOperator = oldDisableCommaOperator
+	p.setTokenizerMode(oldMode)
+	return newParenExpressionAst(extentOf(lParen.Extent, rParen.Extent), pipelineAst)
 }
