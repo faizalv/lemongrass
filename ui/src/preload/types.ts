@@ -1183,18 +1183,6 @@ export type UpdatePhase =
   | 'installed'
   | 'failed'
 
-// unavailable: this copy cannot uninstall itself, since only the Linux rpm can. cleaning runs lgrassconf uninstall,
-// authorizing waits on the polkit password prompt and removing runs rpm -e; success quits the app. output holds what
-// lgrassconf printed, shown when cleaning fails.
-export type UninstallPhase =
-  'unavailable' | 'idle' | 'cleaning' | 'authorizing' | 'removing' | 'failed'
-
-export interface UninstallState {
-  phase: UninstallPhase
-  message: string | null
-  output: string | null
-}
-
 export interface UpdateState {
   phase: UpdatePhase
   current: string
@@ -1202,6 +1190,8 @@ export interface UpdateState {
   latest: string | null
   available: boolean
   checkedAt: number | null
+  // The newer release's package is already in its download folder, so installing reuses it after verifying.
+  downloaded: boolean
   // Downloaded fraction from 0 to 1 while downloading, otherwise null.
   progress: number | null
   message: string | null

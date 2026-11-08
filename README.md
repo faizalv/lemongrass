@@ -181,17 +181,19 @@ To be offered release candidates as well as stable releases, start the app with 
 
 ## Uninstall
 
-With the rpm, open Settings, Updates and click Uninstall Lemongrass. It asks for your system password and closes the app when done. On Windows the same button needs no password: the app closes and its uninstaller removes it. Removing Lemongrass from Windows' Installed apps does the same, since the uninstaller runs `lgrassconf uninstall` itself.
+Uninstall with your system's own tools. Settings, Updates in the app shows the same steps for the system it runs on.
 
-To do it by hand, or on macOS, first run as your own user:
+On Windows, close Lemongrass, then open Settings, Apps, Installed apps, find Lemongrass and choose Uninstall. Its uninstaller runs `lgrassconf uninstall` itself, so nothing else is needed.
+
+With the rpm or on macOS, close Lemongrass and first run as your own user:
 
 ```
-lgrassconf uninstall
+~/.local/bin/lgrassconf uninstall
 ```
 
 It stops the keeper service, takes the Lemongrass hooks and status line out of your Claude and Codex settings (putting back a status line you had before), and removes the Lemongrass skills and the `lgrass`, `lgrassconf` and `lgrassd` binaries. Then remove the package with `sudo dnf remove lemongrass`, or on macOS move Lemongrass from Applications to the Trash. Run `lgrassconf uninstall` first: removing the package does not reach the setup in your home folder, and the keeper keeps putting the hooks back while it runs. Launching Lemongrass again sets everything up again.
 
-`~/.lemongrass` stays, with your projects, vault, threads and history, and so do your Claude account folders (`~/.claude-<name>`) and the projects you trusted in Claude and Codex. Delete `~/.lemongrass` yourself to remove that data too.
+`~/.lemongrass` stays, with your projects, vault, threads and history, and so do your Claude account folders (`~/.claude-<name>`) and the projects you trusted in Claude and Codex. The app's own settings stay in Electron's data folder: `~/.config/lemongrass`, `%APPDATA%\lemongrass` on Windows, `~/Library/Application Support/lemongrass` on macOS. Delete `~/.lemongrass` (`%USERPROFILE%\.lemongrass` on Windows) and that folder yourself to remove that data too.
 
 ## Build
 

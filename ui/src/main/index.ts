@@ -18,7 +18,6 @@ import { registerTabSessionHandlers } from './tabSessions'
 import { registerAccountHandlers } from './accounts'
 import { registerUsageHandlers } from './usage'
 import { registerUpdateHandlers } from './updater'
-import { registerUninstallHandlers } from './uninstaller'
 import { registerNotificationHandlers } from './notifications'
 import { registerDepsHandlers } from './deps'
 import { registerCreditsHandlers } from './credits'
@@ -146,7 +145,6 @@ app.whenReady().then(async () => {
   registerAccountHandlers(lgrassdPath)
   registerUsageHandlers(lgrassdPath, () => mainWindow?.webContents)
   registerUpdateHandlers(() => mainWindow)
-  registerUninstallHandlers(() => mainWindow)
   registerDepsHandlers(lgrassdPath, () => mainWindow)
   registerCreditsHandlers()
   setTrustBinary(lgrassdPath)

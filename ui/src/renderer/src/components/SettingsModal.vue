@@ -30,6 +30,7 @@ import UsageMeters from './UsageMeters.vue'
 import { claudeUsage, refreshUsage, usageStore } from '../usage'
 import type { Project, StatusLineChainState } from '../../../preload/types'
 import SettingsIcon from './SettingsIcon.vue'
+import { updatePending } from '../updateState'
 
 const props = defineProps<{
   projects: Project[]
@@ -131,7 +132,12 @@ async function onRemove(name: string): Promise<void> {
         <AppNavItem :active="section === 'safety'" label="Safety" @click="section = 'safety'">
           <template #icon><SettingsIcon name="safety" /></template>
         </AppNavItem>
-        <AppNavItem :active="section === 'updates'" label="Updates" @click="section = 'updates'">
+        <AppNavItem
+          :active="section === 'updates'"
+          label="Updates"
+          :dot="updatePending ? 'An update is available' : undefined"
+          @click="section = 'updates'"
+        >
           <template #icon><SettingsIcon name="updates" /></template>
         </AppNavItem>
         <AppNavItem

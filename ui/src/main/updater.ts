@@ -9,16 +9,19 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   renameSync,
-  rmSync
+  rmSync,
+  writeFileSync
 } from 'fs'
 import { homedir } from 'os'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { Readable, Transform } from 'stream'
 import { pipeline } from 'stream/promises'
 import type { ReadableStream as NodeReadableStream } from 'stream/web'
 import type { UpdateState } from '../preload/types'
 import { isNewer, newestRelease, sha256For, versionFromTag } from './updateVersion'
+import { nextCheckDelay, parseCheckCache, type CheckCache, type Release } from './updateCheckCache'
 import type { UpdatePlatform } from './updatePlatform'
 import { rpmPlatform } from './updaterRpm'
 import { macPlatform } from './updaterMac'
@@ -32,17 +35,10 @@ const LIST_URL = 'https://api.github.com/repos/faizalv/lemongrass/releases?per_p
 // next before a stable tag exists.
 const PRERELEASE = process.env.LEMONGRASS_UPDATE_PRERELEASE === '1'
 const SUMS_ASSET = 'SHA256SUMS'
-const FIRST_CHECK_DELAY_MS = 30_000
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+const CHECK_INTERVAL_MS = 60 * 60 * 1000
 const UPDATES_DIR = join(homedir(), '.lemongrass', 'updates')
-
-interface Release {
-  version: string
-  assetName: string
-  assetUrl: string
-  assetSize: number
-  sumsUrl: string
-}
+// Outside UPDATES_DIR, since a download removes every other entry there.
+const CHECK_CACHE = join(homedir(), '.lemongrass', 'update-check.json')
 
 interface ReleaseAsset {
   name: string
@@ -69,10 +65,12 @@ let state: UpdateState = {
   latest: null,
   available: false,
   checkedAt: null,
+  downloaded: false,
   progress: null,
   message: null
 }
 let release: Release | null = null
+let nextCheck: NodeJS.Timeout | null = null
 let currentWindow: () => BrowserWindow | undefined = () => undefined
 
 function set(patch: Partial<UpdateState>): void {
@@ -118,8 +116,58 @@ async function fetchRelease(): Promise<ReleaseBody> {
   return newest
 }
 
+function isDownloaded(rel: Release | null): boolean {
+  return !!rel && existsSync(join(UPDATES_DIR, rel.version, rel.assetName))
+}
+
+function apply(result: CheckCache): void {
+  if (!platform) return
+  release = result.release
+  const newer = isNewer(result.version, state.current)
+  set({
+    phase: 'idle',
+    latest: result.version,
+    available: newer && release !== null,
+    checkedAt: result.checkedAt,
+    downloaded: newer && isDownloaded(release),
+    message:
+      newer && !release
+        ? `Release ${result.version} has no ${platform.assetName(result.version)} or SHA256SUMS attached yet.`
+        : null
+  })
+}
+
+function loadCache(): CheckCache | null {
+  try {
+    return parseCheckCache(readFileSync(CHECK_CACHE, 'utf8'), PRERELEASE, Date.now())
+  } catch {
+    return null
+  }
+}
+
+// Written to a temporary file and renamed, so a crash mid-write leaves the previous cache, never half a file.
+function saveCache(result: CheckCache): void {
+  try {
+    mkdirSync(dirname(CHECK_CACHE), { recursive: true })
+    const temp = `${CHECK_CACHE}.tmp`
+    writeFileSync(temp, JSON.stringify(result))
+    renameSync(temp, CHECK_CACHE)
+  } catch {
+    // A missing cache only means the next launch checks at once.
+  }
+}
+
+function scheduleCheck(delay: number): void {
+  if (nextCheck) clearTimeout(nextCheck)
+  nextCheck = setTimeout(() => void check(), delay)
+}
+
+// Every check sets the next one an hour later, whether it was scheduled, asked for with Check now or skipped
+// while an update is busy. A failed check leaves the cached result in place.
 async function check(): Promise<void> {
-  if (busy() || !platform) return
+  if (!platform || state.phase === 'unsupported') return
+  scheduleCheck(CHECK_INTERVAL_MS)
+  if (busy()) return
   set({ phase: 'checking', message: null })
   try {
     const body = await fetchRelease()
@@ -127,27 +175,23 @@ async function check(): Promise<void> {
     const assetName = platform.assetName(version)
     const asset = body.assets?.find((a) => a.name === assetName)
     const sums = body.assets?.find((a) => a.name === SUMS_ASSET)
-    release =
-      asset && sums
-        ? {
-            version,
-            assetName,
-            assetUrl: asset.browser_download_url,
-            assetSize: asset.size,
-            sumsUrl: sums.browser_download_url
-          }
-        : null
-    const newer = isNewer(version, state.current)
-    set({
-      phase: 'idle',
-      latest: version,
-      available: newer && release !== null,
+    const result: CheckCache = {
       checkedAt: Date.now(),
-      message:
-        newer && !release
-          ? `Release ${version} has no ${assetName} or SHA256SUMS attached yet.`
+      prerelease: PRERELEASE,
+      version,
+      release:
+        asset && sums
+          ? {
+              version,
+              assetName,
+              assetUrl: asset.browser_download_url,
+              assetSize: asset.size,
+              sumsUrl: sums.browser_download_url
+            }
           : null
-    })
+    }
+    saveCache(result)
+    apply(result)
   } catch (err) {
     set({ phase: 'failed', message: messageOf(err) })
   }
@@ -235,7 +279,7 @@ async function install(): Promise<void> {
     }
     set({ phase: 'installed', available: false, message })
   } catch (err) {
-    set({ phase: 'failed', progress: null, message: messageOf(err) })
+    set({ phase: 'failed', progress: null, downloaded: isDownloaded(rel), message: messageOf(err) })
   }
 }
 
@@ -263,7 +307,8 @@ export function registerUpdateHandlers(getWindow: () => BrowserWindow | undefine
       set({ phase: 'unsupported', message: reason })
       return
     }
-    setTimeout(() => void check(), FIRST_CHECK_DELAY_MS)
-    setInterval(() => void check(), CHECK_INTERVAL_MS)
+    const cached = loadCache()
+    if (cached) apply(cached)
+    scheduleCheck(nextCheckDelay(cached?.checkedAt ?? null, Date.now(), CHECK_INTERVAL_MS))
   })
 }

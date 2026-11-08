@@ -492,6 +492,11 @@ export const DOCS: Record<string, ComponentDoc> = {
         doc: 'A red "!" pill after the count; the text is its title and accessible name.'
       },
       {
+        name: 'dot',
+        type: 'string',
+        doc: 'A small amber dot for something new and not urgent, such as an available update; the text is its title and accessible name.'
+      },
+      {
         name: 'expanded',
         type: 'boolean',
         doc: 'For an entry that folds a section: trailing chevron and aria-expanded.'

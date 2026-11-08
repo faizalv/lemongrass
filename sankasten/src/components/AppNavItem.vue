@@ -23,6 +23,9 @@ withDefaults(
     // Something needs the user: a red "!" pill after the count, with this text as its title and
     // accessible name.
     alert?: string
+    // Something new and not urgent, such as an available update: a small amber dot at the right, with this text
+    // as its title and accessible name. Lighter than a count or the alert pill.
+    dot?: string
     // Set for an entry that folds a section open below it: a trailing chevron that turns while
     // open, and aria-expanded.
     expanded?: boolean
@@ -36,6 +39,7 @@ withDefaults(
     count: undefined,
     countTitle: undefined,
     alert: undefined,
+    dot: undefined,
     expanded: undefined,
     size: 'md'
   }
@@ -56,6 +60,7 @@ withDefaults(
     >
     <span class="nav-state" :title="state">{{ state }}</span>
     <slot name="trailing" />
+    <span v-if="dot" class="nav-dot" role="img" :aria-label="dot" :title="dot" />
     <AppBadge
       v-if="count"
       :tone="tone === 'danger' ? 'danger' : 'accent'"
@@ -160,6 +165,14 @@ withDefaults(
 
 .nav-alert {
   font-weight: var(--weight-bold);
+}
+
+.nav-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-amber);
 }
 
 .nav-chevron {

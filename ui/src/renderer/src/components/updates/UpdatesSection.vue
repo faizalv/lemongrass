@@ -2,20 +2,11 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { AppButton, AppConfirmButton, AppProgressLine } from '@sankasten'
-import UninstallPanel from './UninstallPanel.vue'
+import UninstallManual from './UninstallManual.vue'
 import type { UpdateState } from '../../../../preload/types'
-
-const state = ref<UpdateState | null>(null)
-let unsubscribe: (() => void) | null = null
-
-onMounted(async () => {
-  unsubscribe = window.api.update.onState((next) => (state.value = next))
-  state.value = await window.api.update.state()
-})
-
-onBeforeUnmount(() => unsubscribe?.())
+import { updateState as state } from '../../updateState'
 
 const check = (): Promise<UpdateState> => window.api.update.check()
 const install = (): Promise<void> => window.api.update.install()
@@ -83,6 +74,8 @@ const status = computed((): { text: string; tone: '' | 'muted' | 'saved' | 'erro
       return { text: s.message ?? 'The update failed.', tone: 'error' }
     default:
       if (s.message) return { text: s.message, tone: 'muted' }
+      if (s.available && s.downloaded)
+        return { text: `Version ${s.latest} is downloaded and ready to install.`, tone: '' }
       if (s.available) return { text: `Version ${s.latest} is ready to install.`, tone: '' }
       if (s.latest) return { text: 'You have the latest version.', tone: 'muted' }
       return { text: 'Not checked yet.', tone: 'muted' }
@@ -93,8 +86,8 @@ const status = computed((): { text: string; tone: '' | 'muted' | 'saved' | 'erro
 <template>
   <div v-if="state" class="updates">
     <p class="settings-text">
-      Lemongrass looks for a new release every few hours. Installing one can ask for your system
-      password.
+      Lemongrass looks for a new release when it starts and every hour after. Installing one can ask
+      for your system password.
     </p>
 
     <dl class="settings-facts">
@@ -124,7 +117,7 @@ const status = computed((): { text: string; tone: '' | 'muted' | 'saved' | 'erro
       </AppConfirmButton>
     </div>
 
-    <UninstallPanel />
+    <UninstallManual />
   </div>
 </template>
 

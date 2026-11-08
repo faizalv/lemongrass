@@ -7,6 +7,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NotificationBell from './NotificationBell.vue'
 import { isMac, loadWindowControls, windowControls } from '../windowControls'
 import { zoom } from '../zoom'
+import { updatePending } from '../updateState'
 
 // Aliased so the template can reach it -- a bare `window` identifier in
 // a Vue template resolves against the component instance, not globalThis.
@@ -161,7 +162,12 @@ onBeforeUnmount(() => {
           <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
       </AppIconButton>
-      <AppIconButton label="Settings" size="sm" @click="emit('open-settings')">
+      <AppIconButton
+        :label="updatePending ? 'Settings. An update is available' : 'Settings'"
+        size="sm"
+        :dot="updatePending ? 'accent' : undefined"
+        @click="emit('open-settings')"
+      >
         <svg
           viewBox="0 0 24 24"
           fill="none"

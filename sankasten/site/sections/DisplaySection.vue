@@ -78,6 +78,9 @@ const folder: IconShape[] = [{ tag: 'path', attrs: { d: 'M1.5 4h4l1.5 1.5h5.5v6h
         <AppNavItem label="Groups" size="sm" :count="1" alert="A group waits for your approval">
           <template #icon><AppIcon name="plus" /></template>
         </AppNavItem>
+        <AppNavItem label="Updates" size="sm" dot="An update is available">
+          <template #icon><AppIcon name="info" /></template>
+        </AppNavItem>
         <AppNavItem label="Node" state="Shared" size="sm">
           <template #trailing><span class="dot" /></template>
         </AppNavItem>
