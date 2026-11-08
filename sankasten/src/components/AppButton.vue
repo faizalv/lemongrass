@@ -80,7 +80,7 @@ defineExpose({ focus: () => el.value?.focus() })
 
 .primary {
   background: var(--color-amber);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .primary:hover:not(:disabled) {

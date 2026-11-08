@@ -47,6 +47,7 @@ import type {
   Project,
   ProjectDeleteResult,
   UiState,
+  ThemeSetting,
   BiblioTree,
   BiblioFileResult,
   ProjectFileResult,
@@ -244,6 +245,8 @@ interface Api {
     save: (projectId: string, layout: WorkspaceLayoutState | null) => void
   }
   uiState: {
+    // The theme saved when the window was created, available synchronously before the first paint.
+    initialTheme: ThemeSetting
     load: () => Promise<UiState>
     save: (patch: UiState) => void
     zoomPresets: () => Promise<number[]>

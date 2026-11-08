@@ -45,7 +45,7 @@ withDefaults(
 
 .tone-accent {
   background: var(--color-amber);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .tone-info {
@@ -55,12 +55,12 @@ withDefaults(
 
 .tone-success {
   background: var(--color-success);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .tone-danger {
   background: var(--color-error);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .tone-neutral {

@@ -5,10 +5,11 @@
 // A compact terminal for use inside a surface, such as a card: a fixed number of rows, as many
 // columns as fit its width, on the app's terminal font and colors. It knows nothing about where
 // its bytes come from: the owner writes output in and receives what the human types.
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { appearance, terminalScheme } from '../appearance'
 import { terminalFontReady, terminalLook } from '../terminalLook'
 
 const props = withDefaults(
@@ -52,12 +53,16 @@ async function pasteClipboard(): Promise<void> {
   if (text && term && !disposed) term.paste(text)
 }
 
+function background(): string | undefined {
+  if (!host.value) return undefined
+  return getComputedStyle(host.value).getPropertyValue('--terminal-bg').trim() || undefined
+}
+
 onMounted(async () => {
   await terminalFontReady()
   if (disposed || !host.value) return
-  const background = getComputedStyle(host.value).getPropertyValue('--terminal-bg').trim()
   term = new Terminal({
-    ...terminalLook(background || undefined),
+    ...terminalLook(background()),
     rows: props.rows,
     cursorStyle: 'bar',
     cursorBlink: true,
@@ -97,6 +102,19 @@ onMounted(async () => {
   observer.observe(host.value)
 })
 
+// Post flush, so the root's data-theme is already on the element when --terminal-bg is read.
+watch(
+  [terminalScheme, () => appearance.terminalFontSize],
+  () => {
+    if (!term || disposed) return
+    const look = terminalLook(background())
+    term.options.theme = look.theme
+    term.options.fontSize = look.fontSize
+    refit()
+  },
+  { flush: 'post' }
+)
+
 onBeforeUnmount(() => {
   disposed = true
   observer?.disconnect()
@@ -123,15 +141,15 @@ defineExpose({ write, reset, focus })
 </script>
 
 <template>
-  <div class="app-terminal">
+  <div class="app-terminal" :data-theme="terminalScheme">
     <div ref="host" class="terminal-host" />
   </div>
 </template>
 
 <style scoped>
 .app-terminal {
-  /* Black, set apart from the card around it; the terminal reads its background from here. */
-  --terminal-bg: var(--color-black);
+  /* Set apart from the card around it; the terminal reads its background from here. */
+  --terminal-bg: var(--color-terminal-inset);
   padding: var(--space-2);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-md);

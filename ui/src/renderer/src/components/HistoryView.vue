@@ -521,7 +521,7 @@ function laneX(lane: number): number {
 .commit-ref.head {
   background: var(--color-amber);
   border-color: var(--color-amber);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .commit-ref.branch {

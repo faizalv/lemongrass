@@ -3,13 +3,19 @@
 
 /* Lemongrass's own tokens and helpers, layered on the Sankasten package styles (@sankasten/styles). */
 
-:root {
+/* Scoped like the Sankasten tokens, so an element marked data-theme="dark" inside a light app gets
+   these resolved from the dark hues too. */
+:root,
+[data-theme="dark"] {
   /* Window controls, left macOS style (Linux and Windows) */
   --color-window-close:    #FF5F57;
   --color-window-minimize: #FEBC2E;
   --color-window-maximize: #28C840;
   --color-window-glyph:    rgba(0, 0, 0, 0.55);
   --color-window-inactive: #4A4A4A;
+
+  /* A compact terminal set into a card, set apart from the card around it. */
+  --color-terminal-inset:  var(--color-black);
 
   /* File explorer icons, by file family (fileIcons.ts). Amber stays out, it marks focus. */
   --color-icon-ts:         var(--color-sapphire);
@@ -56,6 +62,26 @@
   --color-syntax-link:        var(--color-teal);
   --color-syntax-inserted:    var(--color-success);
   --color-syntax-deleted:     var(--color-error);
+}
+
+/* Light values for the tokens above that read a gray step or a fixed color; the rest follow the
+   Sankasten hues, which the light theme already darkens. */
+[data-theme="light"] {
+  --color-window-inactive: #C8C8C8;
+  --color-terminal-inset:  var(--color-surface-0);
+
+  --color-icon-js:         oklch(0.60 0.13 100);
+  --color-icon-config:     #6E6E6E;
+  --color-icon-data:       oklch(0.56 0.10 75);
+  --color-icon-image:      oklch(0.55 0.16 350);
+  --color-icon-archive:    oklch(0.50 0.07 60);
+  --color-icon-doc:        #5A5A5A;
+  --color-icon-lock:       #8A8A8A;
+  --color-icon-folder:          #6E6E6E;
+  --color-icon-folder-deps:     #8A8A8A;
+  --color-icon-folder-docs:     #5A5A5A;
+
+  --color-syntax-property:    #2A2A2A;
 }
 
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }

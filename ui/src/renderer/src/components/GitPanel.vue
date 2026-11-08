@@ -484,7 +484,7 @@ const pushTitle = computed(() => {
 .file-row.deleted .file-dir,
 .file-row.conflicted .file-dir {
   color: inherit;
-  opacity: 0.6;
+  opacity: var(--opacity-text-dim);
 }
 
 .file-name {

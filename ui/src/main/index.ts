@@ -27,6 +27,7 @@ import { startProjectPurge } from './projectPurge'
 import { setTrustBinary } from './projectTrust'
 import { registerWorkspaceLayoutHandlers } from './workspaceLayouts'
 import { registerUiStateHandlers } from './uiState'
+import { themeArgument, watchSystemTheme, windowBackground } from './appearance'
 import {
   rememberWindowState,
   restoreWindowMode,
@@ -67,13 +68,15 @@ function createWindow(): void {
   const win = new BrowserWindow({
     ...bounds,
     show: false,
+    backgroundColor: windowBackground(),
     ...windowChromeOptions(zoomFactor),
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      zoomFactor
+      zoomFactor,
+      additionalArguments: [themeArgument()]
     }
   })
   mainWindow = win
@@ -151,6 +154,7 @@ app.whenReady().then(async () => {
   startProjectPurge(lgrassdPath)
   registerWorkspaceLayoutHandlers()
   registerUiStateHandlers(() => mainWindow)
+  watchSystemTheme(() => mainWindow)
   registerTabSessionHandlers(lgrassdPath)
   registerBiblioHandlers(() => mainWindow?.webContents)
   registerProjectFileHandlers(() => mainWindow?.webContents)

@@ -189,7 +189,7 @@ const showAccounts = computed(
 
 .agent-option.selected {
   border-color: var(--color-amber);
-  background: var(--color-amber-muted, rgba(245, 197, 24, 0.12));
+  background: var(--color-amber-muted);
   color: var(--color-fg-primary);
 }
 

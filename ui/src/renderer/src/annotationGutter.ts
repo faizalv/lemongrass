@@ -389,7 +389,7 @@ const theme = EditorView.baseTheme({
     textAlign: 'center',
     borderRadius: 'var(--radius-sm, 3px)',
     background: 'var(--color-amber)',
-    color: 'var(--color-black)',
+    color: 'var(--color-on-fill)',
     fontWeight: 'var(--weight-medium)'
   },
   '.cm-annotation-add.target, .cm-gutterElement:hover .cm-annotation-add': {

@@ -48,6 +48,7 @@ import type {
   Project,
   ProjectDeleteResult,
   UiState,
+  ThemeSetting,
   BiblioTree,
   BiblioFileResult,
   ProjectFileResult,
@@ -216,7 +217,14 @@ const workspaceLayouts = {
     ipcRenderer.send('workspaceLayouts:save', { projectId, layout })
 }
 
+// main passes the saved theme as an argument, so the renderer can apply it before its first paint.
+function initialTheme(): ThemeSetting {
+  const arg = process.argv.find((a) => a.startsWith('--lg-theme='))?.slice('--lg-theme='.length)
+  return arg === 'system' || arg === 'light' ? arg : 'dark'
+}
+
 const uiState = {
+  initialTheme: initialTheme(),
   load: (): Promise<UiState> => ipcRenderer.invoke('uiState:load'),
   save: (patch: UiState): void => ipcRenderer.send('uiState:save', patch),
   zoomPresets: (): Promise<number[]> => ipcRenderer.invoke('uiState:zoomPresets')

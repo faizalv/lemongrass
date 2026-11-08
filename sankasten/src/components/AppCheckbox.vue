@@ -70,7 +70,7 @@ withDefaults(
   background: var(--color-surface-1);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
-  color: var(--color-black);
+  color: var(--color-on-fill);
   transition:
     background var(--duration-fast) var(--ease-default),
     border-color var(--duration-fast) var(--ease-default);

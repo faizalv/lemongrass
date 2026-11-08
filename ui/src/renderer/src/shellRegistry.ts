@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-import { reactive } from 'vue'
+import { reactive, watch } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { accountIsDeleted, accountsSettled } from './accounts'
 import { isResumableCommand, spawnArgs } from './shellAgents'
+import { appearance, terminalScheme } from './appearance'
 import { terminalFontReady, terminalLook } from './terminalLook'
 import '@xterm/xterm/css/xterm.css'
 
@@ -63,6 +64,8 @@ interface ShellSession {
   ptyTimer?: ReturnType<typeof setTimeout>
   showFrame?: number
   showTimer?: ReturnType<typeof setTimeout>
+  // A font size set while the terminal was hidden and sized, applied when it is shown.
+  pendingFontSize?: number
 }
 
 const sessions = new Map<string, ShellSession>()
@@ -133,10 +136,33 @@ function watchPixelRatio(): void {
   )
 }
 
+// Colors apply to every terminal at once. A font size change makes xterm measure its cell, which
+// a display: none terminal cannot, so a hidden sized one takes the new size when it is shown.
+function watchTerminalLook(): void {
+  watch([terminalScheme, () => appearance.terminalFontSize], () => {
+    const look = terminalLook()
+    for (const session of sessions.values()) {
+      session.term.options.theme = look.theme
+      if (session.hidden && shellSized[session.spec.id]) session.pendingFontSize = look.fontSize
+      else session.term.options.fontSize = look.fontSize
+    }
+    requestAnimationFrame(() => {
+      for (const tabId of sessions.keys()) fitShell(tabId)
+    })
+  })
+}
+
+function applyPendingFontSize(session: ShellSession): void {
+  if (session.pendingFontSize === undefined) return
+  session.term.options.fontSize = session.pendingFontSize
+  session.pendingFontSize = undefined
+}
+
 function listen(): void {
   if (listening) return
   listening = true
   watchPixelRatio()
+  watchTerminalLook()
   window.api.pty.onData(({ id, data }) => {
     const session = byShellId.get(id)
     if (session) {
@@ -446,6 +472,7 @@ export function setShellActive(tabId: string, active: boolean): void {
       session.showTimer = undefined
       if (session.disposed) return
       session.hidden = false
+      applyPendingFontSize(session)
       useWebgl(session)
       showShell(session)
     })

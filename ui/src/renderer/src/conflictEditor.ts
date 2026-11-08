@@ -607,7 +607,7 @@ const theme = EditorView.theme({
     background: 'var(--color-jade)',
     border: 'none',
     borderRadius: 'var(--radius-sm)',
-    color: 'var(--color-black)',
+    color: 'var(--color-on-fill)',
     fontFamily: 'var(--font-body)',
     fontSize: 'var(--text-xs)',
     fontStyle: 'normal',

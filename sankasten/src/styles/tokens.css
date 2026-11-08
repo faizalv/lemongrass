@@ -4,7 +4,13 @@
 /* Sankasten design tokens. Components read colors, type, spacing, radius, motion and layers only
    through these variables, never raw values. */
 
-:root {
+/* The dark values are the default. [data-theme="dark"] repeats them so an element can stay dark
+   inside a light ancestor; it has to redeclare every token, since a derived token such as a layer
+   role is resolved where it is declared and inherits already resolved. */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
   /* Brand */
   --color-black:        #0A0A0A;
   --color-white:        #FFFFFF;
@@ -88,6 +94,12 @@
   --color-fg-muted:     #808080;
   --color-fg-disabled:  #3D3D3D;
   --color-fg-accent:    #F5C518;
+  /* Text and glyphs drawn on a saturated fill: amber, jade, success, error. */
+  --color-on-fill:      var(--color-black);
+  --color-selection:    rgba(245, 197, 24, 0.30);
+  /* Secondary text drawn in its row's own color, such as a path after a file name, is dimmed by
+     this opacity. A light page needs less dimming to keep it readable. */
+  --opacity-text-dim:   0.6;
 
   /* Semantic background */
   --color-bg-primary:   #0A0A0A;
@@ -162,21 +174,69 @@
   --tracking-wide: 0.04em; --tracking-widest: 0.12em;
 }
 
-/* Light mode override. The default is dark; an app opts in with data-theme="light" on an ancestor. */
+/* Light mode override; an app opts in with data-theme="light" on an ancestor. The hues sit near
+   oklch L 0.55 so each reads at about 4.5:1 as text on white and still carries white text as a fill. */
 [data-theme="light"] {
-  --color-fg-primary:   #0A0A0A;
-  --color-fg-secondary: #4A4A4A;
-  --color-fg-muted:     #9A9A9A;
-  --color-fg-disabled:  #D4D4D4;
-  --color-bg-primary:   #F2F0EA;
-  --color-bg-elevated:  #FFFFFF;
+  color-scheme: light;
+
+  --color-amber:        oklch(0.57 0.125 85);
+  --color-amber-dim:    oklch(0.52 0.115 85);
+  --color-amber-muted:  oklch(0.57 0.125 85 / 0.16);
+  --color-coral:        oklch(0.56 0.19 28);
+  --color-coral-dim:    oklch(0.50 0.18 28);
+  --color-coral-muted:  oklch(0.56 0.19 28 / 0.12);
+  --color-orange:       oklch(0.58 0.16 55);
+  --color-jade:         oklch(0.55 0.14 155);
+  --color-jade-dim:     oklch(0.49 0.13 155);
+  --color-jade-muted:   oklch(0.55 0.14 155 / 0.12);
+  --color-sapphire:     oklch(0.53 0.16 240);
+  --color-sapphire-dim: oklch(0.47 0.15 240);
+  --color-sapphire-muted: oklch(0.53 0.16 240 / 0.12);
+  --color-violet:       oklch(0.53 0.20 295);
+  --color-violet-dim:   oklch(0.47 0.19 295);
+  --color-violet-muted: oklch(0.53 0.20 295 / 0.12);
+  --color-fuchsia:      oklch(0.53 0.21 328);
+  --color-fuchsia-dim:  oklch(0.47 0.20 328);
+  --color-fuchsia-muted: oklch(0.53 0.21 328 / 0.12);
+  --color-teal:         oklch(0.54 0.10 192);
+  --color-teal-dim:     oklch(0.48 0.09 192);
+  --color-teal-muted:   oklch(0.54 0.10 192 / 0.12);
+
   --color-surface-0:    #F2F0EA;
   --color-surface-1:    #FFFFFF;
   --color-surface-2:    #F7F5F0;
   --color-surface-3:    #EDEDEA;
   --layer-float:        var(--color-surface-1);
   --layer-float-hover:  var(--color-surface-3);
+
   --color-border-subtle:  rgba(0, 0, 0, 0.06);
   --color-border-default: rgba(0, 0, 0, 0.10);
   --color-border-strong:  rgba(0, 0, 0, 0.20);
+
+  --color-fg-primary:   #0A0A0A;
+  --color-fg-secondary: #4A4A4A;
+  --color-fg-muted:     #6E6E6E;
+  --color-fg-disabled:  #D4D4D4;
+  --color-fg-accent:    var(--color-amber);
+  --color-on-fill:      var(--color-white);
+  --color-selection:    oklch(0.57 0.125 85 / 0.22);
+  --opacity-text-dim:   0.8;
+
+  --color-bg-primary:   #F2F0EA;
+  --color-bg-elevated:  #FFFFFF;
+  --color-bg-overlay:   rgba(0, 0, 0, 0.32);
+
+  --color-success:      #15803D;
+  --color-warning:      var(--color-amber);
+  --color-error:        #C62828;
+  --color-info:         #1D64C8;
+  --color-deleted:      #6B6B6B;
+  --color-success-muted: rgba(21, 128, 61, 0.12);
+  --color-error-muted:   rgba(198, 40, 40, 0.10);
+
+  --shadow-sm:         0 1px 2px rgba(0,0,0,0.08);
+  --shadow-md:         0 4px 12px rgba(0,0,0,0.10);
+  --shadow-lg:         0 8px 24px rgba(0,0,0,0.14);
+  --shadow-xl:         0 16px 48px rgba(0,0,0,0.18);
+  --shadow-glow-amber: 0 0 20px oklch(0.57 0.125 85 / 0.25);
 }

@@ -181,7 +181,7 @@ watch(selected, loadDiff)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  opacity: 0.6;
+  opacity: var(--opacity-text-dim);
 }
 
 .rev-diff {

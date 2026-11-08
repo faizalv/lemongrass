@@ -26,7 +26,6 @@ import DepsSection from './deps/DepsSection.vue'
 import CreditsSection from './credits/CreditsSection.vue'
 import GeneralSection from './general/GeneralSection.vue'
 import AppearanceSection from './appearance/AppearanceSection.vue'
-import { isMac } from '../windowControls'
 import UsageMeters from './UsageMeters.vue'
 import { claudeUsage, refreshUsage, usageStore } from '../usage'
 import type { Project, StatusLineChainState } from '../../../preload/types'
@@ -109,9 +108,7 @@ async function onRemove(name: string): Promise<void> {
         <AppNavItem :active="section === 'general'" label="General" @click="section = 'general'">
           <template #icon><SettingsIcon name="general" /></template>
         </AppNavItem>
-        <!-- Window controls is its only choice, and macOS always shows the native lights. -->
         <AppNavItem
-          v-if="!isMac"
           :active="section === 'appearance'"
           label="Appearance"
           @click="section = 'appearance'"

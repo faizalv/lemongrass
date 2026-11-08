@@ -273,7 +273,7 @@ const comma = computed(() => (props.last ? '' : ','))
 .current .hit {
   background: var(--color-amber);
   box-shadow: 0 0 0 1px var(--color-amber);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 .branch.record {
   padding: 0 var(--space-1);
@@ -284,12 +284,12 @@ const comma = computed(() => (props.last ? '' : ','))
 
 .branch.record.current {
   background: var(--color-amber);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .branch.record.current .punct,
 .branch.record.current .summary,
 .branch.record.current .caret {
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 </style>

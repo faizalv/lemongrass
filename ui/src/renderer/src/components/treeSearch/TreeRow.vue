@@ -127,7 +127,7 @@ defineExpose({ focus: () => root.value?.focus({ preventScroll: false }), el: roo
 }
 
 .tree-row.muted {
-  opacity: 0.55;
+  opacity: var(--opacity-text-dim);
 }
 
 .chevron {

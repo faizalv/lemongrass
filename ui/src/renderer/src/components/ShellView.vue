@@ -20,6 +20,7 @@ import {
   type ShellSpec
 } from '../shellRegistry'
 import { AppButton, AppContextMenu, type MenuItem } from '@sankasten'
+import { terminalScheme } from '../appearance'
 
 const props = defineProps<{
   spec: ShellSpec
@@ -74,7 +75,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="terminal-card fade-in">
+  <div class="terminal-card fade-in" :data-theme="terminalScheme">
     <div ref="containerEl" class="terminal-pane" @contextmenu.prevent="openMenu"></div>
     <div v-if="shellAccountGone[spec.id]" class="restore-failure">
       <span class="restore-message">
@@ -112,11 +113,13 @@ onBeforeUnmount(() => {
    accounting for any padding or border on it, so the card chrome lives on
    this wrapper instead. */
 .terminal-card {
+  /* data-theme scopes the card to the terminal's scheme, which may stay dark in a light app. */
   flex: 1;
   min-height: 0;
   width: 100%;
   padding: var(--space-3);
   background: var(--color-surface-1);
+  color: var(--color-fg-primary);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-lg);
   overflow: hidden;

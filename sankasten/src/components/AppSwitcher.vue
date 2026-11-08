@@ -304,7 +304,7 @@ onBeforeUnmount(() => {
 
 .add-item:hover {
   background: var(--color-amber);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .icon {

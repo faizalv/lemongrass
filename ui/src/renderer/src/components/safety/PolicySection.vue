@@ -672,7 +672,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
 }
 
 .error-text {
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
   font-size: var(--text-xs);
 }
 </style>

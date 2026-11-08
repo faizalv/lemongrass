@@ -213,7 +213,7 @@
 }
 
 .settings-footer-status.error {
-  color: var(--color-danger, #e5484d);
+  color: var(--color-error);
 }
 
 /* Read-only label and value pairs; labels match a settings-field's label. */

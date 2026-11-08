@@ -940,7 +940,7 @@ onBeforeUnmount(() => {
   background: var(--layer-float);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.4));
+  box-shadow: var(--shadow-lg);
 }
 
 .menu-heading {

@@ -142,7 +142,7 @@ function onClick(event: MouseEvent): void {
   background: var(--color-surface-1);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
-  color: var(--color-black);
+  color: var(--color-on-fill);
 }
 
 .markdown-body :deep(.md-check svg) {

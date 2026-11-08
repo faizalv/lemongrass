@@ -38,11 +38,16 @@ export interface Project {
 // A refused delete names how many shells still run for the project.
 export type ProjectDeleteResult = { ok: true } | { ok: false; liveShells: number }
 
+export type ThemeSetting = 'system' | 'dark' | 'light'
+
 export interface UiState {
   lastProjectId?: string
   zoomFactor?: number
   startup?: 'lastProject' | 'projectSelector'
   windowControls?: 'right' | 'left'
+  theme?: ThemeSetting
+  terminalTheme?: 'dark' | 'app'
+  terminalFontSize?: number
   sidebarView?: 'biblio' | 'files'
   sidebarPanel?: 'workgroup' | 'git' | 'none'
   pinnedTools?: string[]

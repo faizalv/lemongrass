@@ -57,7 +57,7 @@ body {
   );
 }
 
-::selection { background: rgba(245,197,24,0.30); color: var(--color-fg-primary); }
+::selection { background: var(--color-selection); color: var(--color-fg-primary); }
 
 /* Shared by AppEmptyState's loading stroke and any consumer's spinner. */
 @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }

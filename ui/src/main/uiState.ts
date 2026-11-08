@@ -5,6 +5,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
+import { windowBackground } from './appearance'
 import { zoomPresets } from './zoomPresets'
 
 export interface WindowState {
@@ -16,12 +17,19 @@ export interface WindowState {
   fullScreen: boolean
 }
 
+export type ThemeSetting = 'system' | 'dark' | 'light'
+
 export interface UiState {
   lastProjectId?: string
   zoomFactor?: number
   startup?: 'lastProject' | 'projectSelector'
   // Where the header draws minimize, maximize and close on Linux and Windows. macOS ignores it and shows its own traffic lights.
   windowControls?: 'right' | 'left'
+  // The app theme; system follows the OS. Dark when unset.
+  theme?: ThemeSetting
+  // Terminals stay dark unless set to follow the app, since an agent picks its own colors for a dark terminal.
+  terminalTheme?: 'dark' | 'app'
+  terminalFontSize?: number
   // The sidebar's Biblio or Files view, and the file explorer's view options.
   sidebarView?: 'biblio' | 'files'
   // The panel folded open under the tree from its icon in the sidebar.
@@ -60,7 +68,10 @@ export function saveUiState(patch: UiState): void {
 
 export function registerUiStateHandlers(getWindow: () => BrowserWindow | undefined): void {
   ipcMain.handle('uiState:load', () => loadUiState())
-  ipcMain.on('uiState:save', (_event, patch: UiState) => saveUiState(patch))
+  ipcMain.on('uiState:save', (_event, patch: UiState) => {
+    saveUiState(patch)
+    if (patch.theme) getWindow()?.setBackgroundColor(windowBackground(patch.theme))
+  })
 
   // Measured on the display the window is on now, so moving it to another screen changes the list.
   ipcMain.handle('uiState:zoomPresets', () => {
