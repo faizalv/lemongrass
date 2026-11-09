@@ -1,0 +1,60 @@
+# Builds the documentation site in docs/ with VitePress and publishes it to GitHub Pages, served at
+# lemongrass.sankasten.com through the custom domain set in the repo's Pages settings. The build job can only read the
+# repo. The deploy job runs no project code and alone holds write access, through GitHub's short-lived Pages token, so
+# no secret is stored anywhere. Never add a pull_request_target trigger here: it would run a fork's code with that access.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    # The site's theme imports Sankasten's tokens, so a token change restyles it.
+    paths:
+      - 'docs/**'
+      - 'sankasten/src/styles/tokens.css'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time, and a running deploy is never cut off halfway.
+concurrency:
+  group: docs-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.22.2
+
+      - name: Build the site
+        working-directory: docs
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

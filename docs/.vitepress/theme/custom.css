@@ -1,0 +1,84 @@
+/* SPDX-License-Identifier: MPL-2.0 */
+/* Copyright (C) 2026 The Lemongrass Authors */
+
+/* The site wears the app's design system: VitePress's theme variables are pointed at Sankasten tokens, so a token
+   change in sankasten/ restyles the site on its next build. Light values apply through data-theme="light", which
+   index.ts and the head script in config.ts keep in step with VitePress's toggle. */
+@import '../../../sankasten/src/styles/tokens.css';
+
+:root,
+.dark {
+  --vp-font-family-base: var(--font-body);
+  --vp-font-family-mono: var(--font-mono);
+
+  --vp-c-bg: var(--layer-page);
+  --vp-c-bg-alt: var(--layer-card);
+  --vp-c-bg-soft: var(--layer-card);
+  --vp-c-bg-elv: var(--layer-float);
+
+  --vp-c-text-1: var(--color-fg-primary);
+  --vp-c-text-2: var(--color-fg-secondary);
+  --vp-c-text-3: var(--color-fg-muted);
+
+  --vp-c-border: var(--color-border-default);
+  --vp-c-divider: var(--color-border-subtle);
+  --vp-c-gutter: var(--color-border-subtle);
+
+  --vp-c-brand-1: var(--color-amber);
+  --vp-c-brand-2: var(--color-amber-dim);
+  --vp-c-brand-3: var(--color-amber-dim);
+  --vp-c-brand-soft: var(--color-amber-muted);
+
+  --vp-c-default-soft: var(--layer-raised);
+
+  --vp-button-brand-bg: var(--color-amber);
+  --vp-button-brand-border: var(--color-amber);
+  --vp-button-brand-text: var(--color-on-fill);
+  --vp-button-brand-hover-bg: var(--color-amber-dim);
+  --vp-button-brand-hover-border: var(--color-amber-dim);
+  --vp-button-brand-hover-text: var(--color-on-fill);
+  --vp-button-brand-active-bg: var(--color-amber-dim);
+  --vp-button-brand-active-border: var(--color-amber-dim);
+  --vp-button-brand-active-text: var(--color-on-fill);
+  --vp-button-alt-bg: var(--layer-raised);
+  --vp-button-alt-border: var(--color-border-default);
+  --vp-button-alt-text: var(--color-fg-primary);
+  --vp-button-alt-hover-bg: var(--layer-raised-hover);
+  --vp-button-alt-hover-border: var(--color-border-strong);
+  --vp-button-alt-hover-text: var(--color-fg-primary);
+
+  --vp-code-bg: var(--layer-raised);
+  --vp-code-color: var(--color-fg-primary);
+  --vp-code-block-bg: var(--layer-card);
+  --vp-code-copy-code-bg: var(--layer-raised);
+  --vp-code-copy-code-hover-bg: var(--layer-raised-hover);
+
+  --vp-home-hero-name-color: var(--color-amber);
+  --vp-home-hero-image-background-image: radial-gradient(circle, var(--color-amber-muted) 30%, transparent 70%);
+  --vp-home-hero-image-filter: blur(48px);
+}
+
+.VPHero .name,
+.VPNavBarTitle .title {
+  font-family: var(--font-display);
+  letter-spacing: var(--tracking-snug);
+}
+
+::selection {
+  background: var(--color-selection);
+}
+
+.home-shot {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+/* JetBrains Mono's ligatures turn text such as -<version>- into arrows, which misquotes a command or a file name. */
+code,
+pre {
+  font-variant-ligatures: none;
+}

@@ -6,6 +6,7 @@ out/
 .DS_Store
 .idea/
 .eslintcache
+docs/.vitepress/cache/
 *.log*
 
 # AI-collaboration workspace, not shipped product

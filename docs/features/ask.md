@@ -1,0 +1,8 @@
+# Agents ask you instead of stalling
+
+`lgrass ask` is how an agent asks the human for what only the human can give: a database channel, an HTTP channel or a command run. A call refused by an ask rule files the ask itself when it is one plain command; a call that chains commands or embeds code is refused without an ask and the agent is told to run the guarded command alone.
+
+- **One place to answer.** An ask raises an OS notification and waits in an ask dialog, which opens over whatever view is in front, with an in-place vault unlock. The dialog names who asks (the tab by its title, or the member and its workgroup), what for, and the rule that sent it.
+- **Commands.** The human executes the exact command through Lemongrass or declines it with a note. It runs in the background with a timeout the human picks (10 minutes, 1 hour or 4 hours) and can be stopped. A fixed never-execute list, not part of any policy, refuses commands such as removing `/` or the home directory whoever approves them.
+- **Channels.** A database ask names its tables and the operations it needs, and an HTTP ask its methods. The human picks the connection or rester and the duration; each requested table is checked against the picked connection, Approve waits until every table is found, and the human may only narrow what the agent declared. A table the human removes, with the reason, reaches the agent in the answer.
+- **The answer comes back.** The agent gets the channel's short id, the exit code and last lines of output, or the human's note. An answer that lands after the agent stopped waiting arrives as a notification in its tab.
