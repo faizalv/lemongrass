@@ -8,8 +8,8 @@ import { isWindows } from '../../platform'
 import { isMac } from '../../windowControls'
 
 // How to remove Lemongrass with the system's own tools, for the system the app runs on. People uninstall from the
-// OS, not from inside an app, so the app only explains the order. Keep it in step with the README's Uninstall
-// section. Linux is the rpm, the only Linux package released.
+// OS, not from inside an app, so the app only explains the order. Keep it in step with the Uninstall section of
+// docs/install.md. Linux is the rpm, the only Linux package released.
 const cleanCommand = '~/.local/bin/lgrassconf uninstall'
 const removeCommand = 'sudo dnf remove lemongrass'
 

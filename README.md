@@ -8,233 +8,39 @@ It is an Electron app plus `lgrass`, a Go CLI that the agents call themselves. C
 
 ## What it does
 
-### Agents use your databases and APIs without holding the credential
+Each line links to its full description in [docs/features.md](docs/features.md).
 
-`lgrass db` and `lgrass rester` send queries and HTTP calls through a vault daemon. The vault is the only process that decrypts anything. The agent holds a six-character channel id that means nothing without the vault's own mapping.
+- **[Agents use your databases and APIs without holding the credential.](docs/features.md#agents-use-your-databases-and-apis-without-holding-the-credential)** `lgrass db` and `lgrass rester` send queries, HTTP calls, browser sessions and Android app logins through a vault daemon, the only process that decrypts anything. The agent holds a short channel id that grants certain tables or methods and expires.
+- **[Agents work as a team, across vendors.](docs/features.md#agents-work-as-a-team-across-vendors)** A leader declares a workgroup of Claude Code and Codex thinkers. The human approves what starts, each thinker posts its plan before it changes anything, and members talk to each other directly in a shared thread.
+- **[Bypass mode with a guard that stays on.](docs/features.md#bypass-mode-with-a-guard-that-stays-on)** Claude Code tabs run without permission prompts, and a hook judges every call against a catalog of deny, ask and allow rules drawn at the project's edge. The rules are switchable per project behind the vault passphrase.
+- **[Agents ask you instead of stalling.](docs/features.md#agents-ask-you-instead-of-stalling)** `lgrass ask` asks the human for a database channel, an HTTP channel or a command run in one dialog, and the answer goes back to the agent.
+- **[A notification center.](docs/features.md#a-notification-center)** A bell in the header bar lists decisions waiting for the human, past answers, agent events and app events.
+- **[Project rules arrive at the start of every session.](docs/features.md#project-rules-arrive-at-the-start-of-every-session)** Every Claude tab starts with an orientation and the project's laws in its system prompt, following the [bibliothek](https://github.com/faizalv/bibliothek) convention. Every change under `biblio/` is kept in a private history for 90 days.
+- **[Run several Claude accounts.](docs/features.md#run-several-claude-accounts)** Each Claude tab and workgroup thinker picks the account it runs on.
+- **[Share books and tasks with someone else's agent.](docs/features.md#share-books-and-tasks-with-someone-elses-agent)** The Node screen serves the books, tasks, laws and handovers you pick to other people's agents over MCP, read only, through a tunnel that closes on its own.
+- **[Real terminals, controlled by structured events.](docs/features.md#real-terminals-controlled-by-structured-events)** Panes are `xterm.js` over `node-pty`, and control decisions come from each agent's hook events, never from parsing terminal text.
 
-- **Databases (MySQL, MariaDB, Postgres).** The vault parses each statement and checks the tables it actually touches against the channel's scope, so a query that joins a table outside the scope is refused. DDL and multi-statement calls are refused. A write runs as a dry run first and commits in a separate call, and an `UPDATE` or `DELETE` without a `WHERE` clause is refused. Database errors are redacted before the agent sees them.
-- **Databases behind a bastion.** A connection can go through a host from your own `~/.ssh/config`, picked in the Vault tab, which shows where that host resolves before you save. The vault dials the database with the system `ssh -W`, so `ProxyJump`, `Include`, ssh-agent, `known_hosts` and `ControlMaster` behave as they do in your terminal. No local port opens, no SSH key enters the vault, and the agent never sees or picks the host. A key with a passphrase must be loaded in ssh-agent, and a new host key must be accepted once from a terminal.
-- **HTTP APIs.** A rester holds the login shape of one backend, its environments (such as staging and production, each with its own base URL) and many users, each with credentials or a pasted token, assigned to the environments they belong to. The vault logs in, keeps the token in locked memory and never on disk, injects it into each request, and logs in again once when a token has gone stale. A channel picks a rester, an environment and a type. An API channel grants a list of methods and excludes method and path pairs. A request path is resolved onto the environment's base URL and cannot address another host. A call can add its own headers, upload a file or form, and save a response body to disk without the agent seeing its bytes.
-- **Web apps.** A web channel gives an agent a browser inside the app, logged in as a named user from the rester's saved login steps. The agent reads page snapshots, clicks, types, waits and reads the requests and console the page produced, and you can watch the page live in a workspace tab. Passwords, tokens and cookies never reach the agent: the vault hands login values only to the app, and one central scrub strips secrets from everything the agent reads.
-- **Android apps.** An app channel logs an Android app in on a connected phone as a named user, from the rester's saved login steps (launch, tap, fill, key, wait). `lgrass rester <id> app-login --user <name>` makes the vault type the user's credentials over adb. The agent sees `as <user>` and `ok` or the failed step, never a credential. Only printable ASCII can be typed.
-- **Lifetime.** Channels expire, and a revoke takes effect at the vault. Database writes are recorded in an audit table with a 7-day retention.
-- **Managed from one place.** The Vault tab creates, tests and revokes connections, resters and channels behind a single vault passphrase unlock with auto-lock.
+## Status
 
-### Agents work as a team, across vendors
-
-A leader agent declares a workgroup of one or more thinkers, each running Claude Code or Codex, with `lgrass workgroup create`, and can add thinkers to the live group with `lgrass workgroup add`.
-
-- **The human approves what starts.** A proposal raises an OS notification and waits in an approval modal that shows every thinker's complete starting text before anything spawns. The human picks the account each Claude thinker runs on. Approval issues a one-time token, and that token is the only path that opens the members' tabs.
-- **Plan first.** A thinker posts its plan to the group thread and waits for the leader's go before it changes anything. A gate denies every tool except `lgrass` commands until the thinker has run the `lgrass` commands and loaded the skills its config lists, starting with `lgrass how thinker start` for a Claude thinker.
-- **Real conversation.** Members share a thread with mentions, unread-only reads, and notices delivered through each agent's own hooks. Any member can address any other directly.
-- **Persistent.** Membership survives a tab closing and an app restart. The sidebar lists each live group, and a workgroup tab shows its members, whether their tabs are online and the thread. A closed member reopens with its saved session and its own account. A disbanded group's thread stays readable.
-
-### Bypass mode with a guard that stays on
-
-Claude Code tabs start with `--dangerously-skip-permissions`, so an agent does not stall on prompts. A `PreToolUse` hook judges every call against a catalog instead. Each entry names a tool, its subcommands, flags and targets, so `podman pull` and `podman images` get different answers, and a path inside the project is told apart from one outside it. The catalog covers deletion, git history and remote writes, downloads (images, packages, toolchains, files, models, clones), system and service control, credentials, network, containers and clusters, cloud and infrastructure, package publishing, database clients, interpreter code and script files, and Lemongrass itself.
-
-Every entry has a default mode: deny, ask or allow. The line it draws is the project's edge: a call that brings in something nobody on the project chose, sends something out, reaches outside the project, cannot be undone or touches credentials is denied or asked; restoring dependencies the project already declares, or running a tool already in `node_modules/.bin`, passes. A refusal names the rule and why the command matched. Every rule except the few that protect Lemongrass itself is switchable per project in the Safety section of Settings, held by the vault daemon and saved only with the vault passphrase; the hook reads it from the daemon, and the built-in defaults stay in force when the daemon is down. Writes into Claude Code's memory folders wait behind a sign word, and a held call runs once with `lgrass replay` after signing.
-
-### Agents ask you instead of stalling
-
-`lgrass ask` is how an agent asks the human for what only the human can give: a database channel, an HTTP channel or a command run. A call refused by an ask rule files the ask itself when it is one plain command; a call that chains commands or embeds code is refused without an ask and the agent is told to run the guarded command alone.
-
-- **One place to answer.** An ask raises an OS notification and waits in an ask dialog, which opens over whatever view is in front, with an in-place vault unlock. The dialog names who asks (the tab by its title, or the member and its workgroup), what for, and the rule that sent it.
-- **Commands.** The human executes the exact command through Lemongrass or declines it with a note. It runs in the background with a timeout the human picks (10 minutes, 1 hour or 4 hours) and can be stopped. A fixed never-execute list, not part of any policy, refuses commands such as removing `/` or the home directory whoever approves them.
-- **Channels.** A database ask names its tables and the operations it needs, and an HTTP ask its methods. The human picks the connection or rester and the duration; each requested table is checked against the picked connection, Approve waits until every table is found, and the human may only narrow what the agent declared. A table the human removes, with the reason, reaches the agent in the answer.
-- **The answer comes back.** The agent gets the channel's short id, the exit code and last lines of output, or the human's note. An answer that lands after the agent stopped waiting arrives as a notification in its tab.
-
-### A notification center
-
-A bell in the header bar opens a center that lists, newest first, the decisions waiting for the human, past asks and approvals with their answers, agent events (a long turn ending, a tab waiting on a prompt, a conflict submission) and app events (an update, a dependency problem, the vault locking, a failed fetch or push). Every OS notification the app raises lands there too, and a click goes to the thing itself. Items are kept for 7 days, up to 200.
-
-### Project rules arrive at the start of every session
-
-Every Claude tab starts with an orientation and the project's laws summary in its system prompt, so tabs of one project read them from the prompt cache. The orientation covers the `lgrass` commands, what the guard blocks, and how knowledge splits: the code and its comments are committed and owned by the team, while books are each person's own. It also says what a good comment is. A `SessionStart` hook delivers the laws to a resumed session and to Codex. Sessions in the same project know about each other, and the hook warns when two tabs touch the same file.
-
-The convention behind this is [bibliothek](https://github.com/faizalv/bibliothek): a skill plus a `biblio/{scratchpad,laws,handover,books}/` folder layout, developed in its own repository and usable without Lemongrass. Lemongrass pins it as a git submodule and puts its text into the system prompt of every Claude tab, so Claude tabs never load it as a skill. The app shows that folder as a tree and reader beside the terminal panes. The scratchpad is editable in a WYSIWYG editor that autosaves, enforced on the server side. The other folders are read-only. While the app runs, every change under `biblio/` is committed within seconds to a private git history in `~/.lemongrass/history/`, never the project's own repository, and kept for 90 days. Agents read it with `lgrass biblio log` and `lgrass biblio show` to recover a file a bad edit damaged. The history needs git: the rpm and deb packages depend on it, and elsewhere the history stays off with a message saying git is missing.
-
-### Run several Claude accounts
-
-The Settings dialog adds Claude accounts, each with its own config folder beside the primary `~/.claude`. The New shell dialog picks the account for a Claude tab, and the strip under the shell shows which one it runs on. A tab resumes on the account it started with. When that account has been deleted, the tab does not start until the human closes it or moves it to the primary. Hooks, skills and shared folders are kept in place for every account.
-
-### Share books and tasks with someone else's agent
-
-The Node screen, under Vault in the sidebar, serves the books, scratchpad tasks, laws and handovers you pick to other people's agents over MCP, read only. Each person gets one token with an expiry, and you open an ngrok tunnel for a set number of hours. They add the URL and token to Claude Code or any MCP client once and do not need Lemongrass. One token covers every project you share with them, and you add or remove what it can read at any time without a new token or a new setup. The endpoint has a single `read` tool. A read with no path lists what was shared, and the agent reads on from those paths, so it does not spend tokens on a large tool surface. A shared task serves its subfolders up to four levels deep and any text file or image in them, such as `.ts` types, `.json` snapshots or screenshots. Images reach the agent as images, up to 5 MiB each. Other binary files are listed but not served. Anything not picked returns the same "not found" as a path that does not exist. The laws summary and the handover whiteboard are never served, because they list every law and every task. A change to what a token reads, a disconnect or an expiry takes effect on the next request. The tunnel closes itself when its time is up, and a restart of the app or the machine always leaves it closed.
-
-### Real terminals, controlled by structured events
-
-Panes are `xterm.js` in the renderer over `node-pty` in the main process, the stack behind VS Code's integrated terminal, not a chat UI. Control decisions such as nudges come from each agent's own hook events and never from parsing rendered terminal text. The app also provides tabs, split layouts that persist across restarts, session restore, and a Git panel with diff, commit and push.
-
-## Status and limits
-
-Built:
-
-- The vault, `lgrass db` reads and writes, `lgrass rester` for APIs, web apps and Android app login, and the Vault tab.
-- SSH tunnels for database connections, checked live against a real bastion.
-- Workgroups with Claude Code and Codex members, the thread layer, the approval modal and the workgroup pane. Codex tabs receive nudges and thread notices through the hooks `lgrassconf` registers for Codex. Its limits are under Limits.
-- Several Claude accounts, picked per tab and per workgroup thinker.
-- The guard for Claude Code: the data catalog with deny, ask and allow defaults, interpreter and script-file checks, unit tested and checked live in a tab. The sealed-policy round trip through the Safety pane has not been run live.
-- `lgrass ask` with the ask dialog, the Decisions section and the grant view for database and HTTP channels, checked live for command, database and HTTP asks.
-- The notification center behind the header bell.
-- The bibliothek browser and editor, and the Git panel.
-- The biblio history: the watcher in the agent daemon, 90-day pruning, and `lgrass biblio log` and `show`.
-
-In progress:
-
-- The node: a read-only MCP endpoint over an ngrok tunnel, built and unit tested. Its transport and the Node screen have been checked by hand, and Claude Code has read listings, text and images through a live tunnel. Codex as a client, a live revoke and a live expiry have not been run yet. Search and an `lgrass node` client for Lemongrass users are planned.
-- A wire-protocol proxy so a whole app can point its own database driver at a local port. Port allocation and the MySQL handshake listener are done. Query execution and the Postgres listener are not.
-
-Planned:
-
-- An advisory reviewer on a command ask, a second opinion from a small model run outside Lemongrass.
-- An audit of `lgrass rester` calls and of `lgrass db` reads.
-- An investigator role for cheap, read-only workgroup members.
-
-Limits:
-
-- Linux is the primary platform. Releases carry macOS dmgs for arm64 and x64, but the app is not notarized, so a browser-downloaded dmg needs the steps under Install. An ad hoc signed app is a new app to macOS after every update, so folder access it was granted is asked again. Windows x64 ships as an unsigned `setup.exe`, so SmartScreen warns on the first run of each download, see Install. Windows on arm64 runs it under emulation.
-- An HTTP channel's scope is declared and checked against the request. The database scope is checked against what the parsed statement touches, which is a stronger guarantee.
-- Codex tabs start with no bypass flag and run under Codex's own sandbox and approvals. A write by `lgrass` to its database, such as a thread post, asks for sandbox approval, so a Codex thinker cannot post unattended yet. Codex tabs also get no orientation in their system prompt, only the laws summary from the `SessionStart` hook, and Codex asks for review of the hook definitions through `/hooks`.
-- The guard does not see what a build tool fetches as a side effect (`go build`, `cargo build`, npm lifecycle scripts). Builds are left unlimited on purpose.
-- On MySQL, a statement that calls a function is refused when the database user cannot read `performance_schema.user_defined_functions`, because the function check fails closed. Function-free reads still work.
-- The guard is verified on Claude Code only. A Codex tab cannot reach `lgrass ask` or a channel, since Codex's sandbox refuses the agent socket. Its hook also runs on Codex events, but no rule has been checked against what Codex sends. A Codex tab gets the default and global policy but not the project's, and the deletion exemption for the launch project is off for it. Cursor tabs have no hooks, so no guard.
-- A web channel's scope is stored and validated but not enforced in the browser, and a browser shared by a workgroup is not built.
-- The guard reads interpreter code as a tripwire against accident, not against deliberate evasion. Inline code (`python -c`, `node -e`, `php -r`, `perl -e`, `ruby -e`, `deno eval`), code piped or heredoc'd into an interpreter, and script files up to 256 KiB run by an interpreter or by shebang are checked for secret paths, destructive calls on paths that are not literals inside the project, and literal subprocess commands. A call built at runtime, `eval` inside the language, encoded payloads, imported modules and subprocess commands built from variables pass. A destructive shell command whose target comes from a variable is denied.
-- The node's `~/.lemongrass/node.json` holds token hashes and the ngrok authtoken at mode 0600. The guard keeps agents' tools away from it, with the interpreter caveat above. A token is shown once and only its hash is stored.
-
-## How it fits together
-
-- `ui/` is the Electron app: terminal panes, project and layout management, the bibliothek tree and reader, and the Vault tab.
-- `cmd/lgrass` is the Go CLI models and users call: session and thread coordination, `lgrass db`, `lgrass rester`, `lgrass ask`, and `lgrass workgroup`.
-- `cmd/lgrassd` is the binary only the app and the agents' hooks call, installed off `PATH`: the hooks and their gates, the vault, agent and node daemons, tab records and account management.
-- `cmd/lgrassconf` is a small Go daemon, a systemd user service on Linux, a LaunchAgent on macOS and a Task Scheduler logon task on Windows. It registers the Claude Code and Codex hooks, installs the Codex skills and keeps every Claude account's hooks and shared folders in place.
-- `internal/` holds the Go packages the three binaries share, such as the vault, the guard, the hook engine, the session store and the account manager. It is importable only from inside this repository.
-
-The Go code is one module at the repo root, and `ui/` is the second toolchain beside it. Neither side's scripts reach across that boundary except through the `dist/` binaries. The binaries are bundled inside the Electron app at build time, and `lgrass` installs itself onto `PATH` when the app launches, so the two stay on the same version without a separate release pipeline.
-
-## Procedures: `lgrass how`
-
-The procedures an agent follows live in `lgrass how`, embedded in the `lgrass` binary. `lgrass how <domain> <action>` prints the steps for one action at the moment it is taken. Some actions are manuals with fixed text, and others read the project and print only the branch that fits it. `lgrass how` lists the domains.
-
-| Action | What it gives an agent |
-|---|---|
-| `work task`, `work research`, `work debug`, `work discussion` | How to work each kind of task: read the related books, plan first, keep the PRD or the working file current, wait for the user before code. |
-| `task handover` | Pause or hand over a task: the handover file, its whiteboard row and memory pointer, or a refusal when the work is finished or has no PRD. |
-| `task close` | Close a finished task: verify it is done, compare git with the stated facts, update the books and `toc.md`, archive, and sweep stale references. |
-| `book write` | Where a book chapter goes, and how to write it. |
-| `laws write` | Write a standing law the user approved, and its summary line. |
-| `ask request` | How to ask the human with `lgrass ask`: the YAML for each type, the reason, and what each answer means. |
-| `keeper sweep` | Keep `biblio/` and the code in agreement: the structural drift it finds itself, then the checks that need reading. |
-| `leader create`, `leader addmember`, `thinker start`, `collaborator join` | Workgroup roles. |
-
-Claude tabs learn these from their orientation, and no lemongrass skill is installed for Claude. `lgrassconf` still installs the older skills for Codex, which has no orientation yet. Bibliothek is not among them: Claude tabs get it in their system prompt, and a Codex tab or a Claude session outside Lemongrass uses it only if it is installed separately from its own repository.
+Linux is the primary platform. macOS (arm64 and x64) and Windows x64 are released, but the apps are not notarized or code signed. The guard is verified on Claude Code only, and Codex tabs run under Codex's own sandbox, which keeps them from `lgrass ask` and channels. What is built, in progress and planned, and every known limit, is under [Status and limits](docs/features.md#status-and-limits).
 
 ## Install
 
-On Fedora and other rpm distributions, install the rpm from the [latest release](https://github.com/faizalv/lemongrass/releases). The app updates itself from then on.
+- **Fedora and other rpm distributions:** install the rpm from the [latest release](https://github.com/faizalv/lemongrass/releases).
+- **macOS:** run `curl -fsSL https://raw.githubusercontent.com/faizalv/lemongrass/main/scripts/install-mac.sh | bash` in Terminal. It installs the dmg for your chip and opens the app with no warning. To install the dmg by hand, follow the steps under [macOS](docs/install.md#macos).
+- **Windows 10 or 11 (x64):** download `lemongrass-<version>-setup.exe` from the [latest release](https://github.com/faizalv/lemongrass/releases) and run it. It is not code signed, so Windows asks once: click More info, then Run anyway.
 
-### macOS
+The app updates itself from Settings, Updates. Verifying a download, release candidates and uninstalling are in [docs/install.md](docs/install.md).
 
-The macOS app is free and needs no Apple account. It is signed ad hoc, not with a paid Apple Developer ID, and is not notarized by Apple, so macOS warns about it once when it comes from a browser download. Either way below gets you past that.
-
-**Option 1: one command (recommended).** Open Terminal and run:
-
-```
-curl -fsSL https://raw.githubusercontent.com/faizalv/lemongrass/main/scripts/install-mac.sh | bash
-```
-
-It downloads the dmg for your Mac's chip from the newest release, checks it against the release's `SHA256SUMS`, quits a running Lemongrass, puts the app in `/Applications` and opens it, with no warning. Updates come from the app itself, see below. Running the script again reinstalls the newest release, for example to repair an install. `LEMONGRASS_VERSION=v0.4.0-rc.1` before `bash` installs a given tag.
-
-**Option 2: the dmg from the release page.**
-
-1. Find your chip under Apple menu > About This Mac. Download `lemongrass-<version>-arm64.dmg` for Apple silicon (M1 and later) or `lemongrass-<version>-x64.dmg` for Intel from the [latest release](https://github.com/faizalv/lemongrass/releases/latest).
-2. Open the dmg and drag Lemongrass onto Applications.
-3. Open Lemongrass from Applications. macOS says "Lemongrass" Not Opened, Apple could not verify it is free of malware. Click **Done**. Do not click Move to Trash, which deletes the app.
-4. Open System Settings > Privacy & Security and scroll down to Security. Next to "Lemongrass was blocked to protect your Mac", click **Open Anyway**.
-5. Confirm with your password or Touch ID, then click **Open Anyway** once more. Lemongrass opens, and opens normally from then on.
-
-Instead of steps 4 and 5 you can run `xattr -dr com.apple.quarantine /Applications/Lemongrass.app` in Terminal and open the app again. The dmg window shows the same steps and carries a text file with the command to copy.
-
-If something goes wrong:
-
-- There is no Open Anyway button: it appears only after you try to open the app (step 3), and for about an hour. Open Lemongrass again, click Done, and go back to Privacy & Security.
-- You clicked Move to Trash: open the Trash, right-click Lemongrass and choose Put Back, or drag it to Applications again from the dmg, and start over at step 3.
-- macOS says the app "is damaged and can't be opened": run the `xattr` command above. The download is not damaged, macOS shows this message for some apps that are not notarized.
-- The warning comes back with the next version: a dmg downloaded with a browser needs these steps once per version. Updating from inside the app (below) or with the one command does not.
-
-From 0.4.0 the app updates itself from Settings, Updates, the same as the rpm, as long as it runs from a folder such as `/Applications` and not from the dmg.
-
-On Windows 10 or 11 (x64), download `lemongrass-<version>-setup.exe` from the [latest release](https://github.com/faizalv/lemongrass/releases) and run it. It installs for your user only, into `%LOCALAPPDATA%\Programs\lemongrass`, and needs no admin rights. The app updates itself from Settings, Updates.
-
-The `setup.exe` is not code signed, so Windows opens it with "Windows protected your PC". This is expected. Click More info, then Run anyway. Windows asks once per downloaded file, and an update the app installs itself does not ask.
-
-To check that a download is the one this repository built, use the [GitHub CLI](https://cli.github.com):
+## Build and develop
 
 ```
-gh attestation verify lemongrass-<version>-setup.exe --repo faizalv/lemongrass
+make build-linux   # the Go binaries and the Linux packages
+make install       # builds and installs lgrass, lgrassd and lgrassconf
+make dev           # builds the UI once and launches it
 ```
 
-It confirms the file was built by this repository's release workflow from the tagged commit. The same works for the rpm and the dmgs. Without the GitHub CLI, compare the file's SHA-256 (`Get-FileHash <file>` in PowerShell) with its line in the release's `SHA256SUMS`.
-
-To be offered release candidates as well as stable releases, start the app with `LEMONGRASS_UPDATE_PRERELEASE=1` in its environment, on macOS with `LEMONGRASS_UPDATE_PRERELEASE=1 /Applications/Lemongrass.app/Contents/MacOS/Lemongrass`.
-
-## Uninstall
-
-Uninstall with your system's own tools. Settings, Updates in the app shows the same steps for the system it runs on.
-
-On Windows, close Lemongrass, then open Settings, Apps, Installed apps, find Lemongrass and choose Uninstall. Its uninstaller runs `lgrassconf uninstall` itself, so nothing else is needed.
-
-With the rpm or on macOS, close Lemongrass and first run as your own user:
-
-```
-~/.local/bin/lgrassconf uninstall
-```
-
-It stops the keeper service, takes the Lemongrass hooks and status line out of your Claude and Codex settings (putting back a status line you had before), and removes the Lemongrass skills and the `lgrass`, `lgrassconf` and `lgrassd` binaries. Then remove the package with `sudo dnf remove lemongrass`, or on macOS move Lemongrass from Applications to the Trash. Run `lgrassconf uninstall` first: removing the package does not reach the setup in your home folder, and the keeper keeps putting the hooks back while it runs. Launching Lemongrass again sets everything up again.
-
-`~/.lemongrass` stays, with your projects, vault, threads and history, and so do your Claude account folders (`~/.claude-<name>`) and the projects you trusted in Claude and Codex. The app's own settings stay in Electron's data folder: `~/.config/lemongrass`, `%APPDATA%\lemongrass` on Windows, `~/Library/Application Support/lemongrass` on macOS. Delete `~/.lemongrass` (`%USERPROFILE%\.lemongrass` on Windows) and that folder yourself to remove that data too.
-
-## Build
-
-```
-make build-linux
-```
-
-Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `linux/amd64` into `dist/`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `dist/` to exist already, so use the root `make` target. `make verify` compiles every Go package without writing a binary into the source tree. Every Go target first checks out the bibliothek submodule, and `make bibliothek-update` moves its pin to bibliothek's latest commit. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
-
-```
-make build-rpm
-```
-
-Same cross-compile, then builds only the rpm (needs `rpmbuild`), for Fedora and other rpm distributions. The package installs the app under `/opt/Lemongrass` and registers no service. On each launch the app copies `lgrass` and `lgrassconf` into `~/.local/bin` and `lgrassd` into `~/.lemongrass/bin`, then runs `lgrassconf install`, which writes the keeper's systemd user unit. Removing the package prints a reminder to run `lgrassconf uninstall`, described under Uninstall.
-
-```
-make build-mac
-```
-
-Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `darwin/amd64` and `darwin/arm64`, then packages a macOS `.app`, `.dmg` and `.zip` via electron-builder. On first launch the app copies the matching arch binaries into `~/.local/bin` and runs `lgrassconf install` (LaunchAgent). The app is signed ad hoc and not notarized, since both need an Apple Developer ID.
-
-```
-make build-windows
-```
-
-Cross-compiles the three binaries for `windows/amd64` as `.exe`, then builds the per-user NSIS `setup.exe` on Linux. electron-builder runs the installer once under the system wine to extract the uninstaller, so the host needs wine with 32-bit support. On first launch the app copies `lgrass` and `lgrassconf` into `%USERPROFILE%\.local\bin`, adds that folder to the user's `Path`, and runs `lgrassconf install`, which registers the keeper's logon task. The `setup.exe` is unsigned.
-
-## Develop
-
-```
-make install   # builds and installs lgrass, lgrassd and lgrassconf
-make dev       # builds the UI once and launches it
-```
-
-`make install` builds `lgrass` into `~/.local/bin` and `lgrassd` into `~/.lemongrass/bin`, installs the `lgrassconf` keeper (systemd user unit on Linux, LaunchAgent on macOS) and moves the bibliothek pin to its latest commit, so Claude Code and Codex configuration are correct before a session starts. All three binaries are built first and only then moved into place, so a failed install leaves the previous set untouched and says so.
-
-`make dev` installs nothing. It builds the UI with no hot reload into a snapshot under `ui/.snapshot/` and launches Electron from that snapshot, so editing the source never reaches a running instance; run `make dev` again to pick changes up. If the UI build fails it launches the newest earlier snapshot with a warning, and it uses the binaries `make install` last installed. Codex hook definitions still require review and trust through `/hooks`. `lgrass` is not required for the Electron shell itself to run. The agent CLI running inside a terminal pane invokes it, not the app directly. New shell panes prompt for which CLI to spawn (Claude Code, Codex, Cursor Agent, or a plain shell). `cd ui && npm run dev` is still the hot-reloading way to work on the UI alone. For work on the Go code alone, run these from the repo root:
-
-```
-go build -a ./... && go test ./...
-```
+How the code is laid out, the `lgrass how` procedures every agent follows, the build targets for each platform and the dev loop are in [docs/development.md](docs/development.md).
 
 ## Contributing
 
