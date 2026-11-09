@@ -49,7 +49,7 @@ features:
     link: /features/terminals
 ---
 
-![The Lemongrass app with a live workgroup and its thread, a web tab and the Vault](./images/overall-view-2.png){.home-shot}
+![The Lemongrass app with a live workgroup and its thread, the biblio editor, the Git history and the Vault](./images/overall-view-3-web.webp){.home-shot}
 
 ## Install
 
