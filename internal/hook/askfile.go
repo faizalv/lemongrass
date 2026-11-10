@@ -23,20 +23,27 @@ func dangerMessage(payload hookEvent, verdict guard.Verdict) string {
 }
 
 func dangerMessageWith(socketPath string, payload hookEvent, verdict guard.Verdict) string {
-	command, ok := askableCommand(payload, verdict)
+	command, shell, ok := askableCommand(payload, verdict)
 	if !ok {
-		if verdict.Mode == guard.ModeAsk && judgedAsPowerShell(payload) {
-			return verdict.Message() + powerShellAskLine
-		}
 		return verdict.Message()
 	}
-	if holds, simple := simpleCommand(command); !simple {
+	return fileCommandAsk(socketPath, payload, verdict, command, shell)
+}
+
+// fileCommandAsk files command as an ask in its shell when it is one plain command, and returns the refusal the
+// model reads either way.
+func fileCommandAsk(socketPath string, payload hookEvent, verdict guard.Verdict, command, shell string) string {
+	shape := simpleCommand
+	if shell == vault.AskShellPowerShell {
+		shape = simplePowerShellCommand
+	}
+	if holds, simple := shape(command); !simple {
 		return askNotFiledMessage(verdict, holds)
 	}
 	client := &gatekeeper.Client{SocketPath: socketPath, Timeout: askFileTimeout}
 	ask, err := client.CreateAsk(gatekeeper.AskRequest{
 		Type: vault.AskCommand, TabID: payload.TabID, Cwd: payload.Cwd, Path: os.Getenv("PATH"), AccountEnv: vault.AskAccountEnv(os.Getenv),
-		Command: command, Rule: verdict.RuleID,
+		Command: command, Shell: shell, Rule: verdict.RuleID,
 	})
 	if err != nil {
 		return askFailedMessage(verdict, err)
@@ -44,26 +51,24 @@ func dangerMessageWith(socketPath string, payload hookEvent, verdict guard.Verdi
 	return askFiledMessage(verdict, ask.ID)
 }
 
-// askableCommand is the shell command an ask-mode verdict refused. A verdict in deny mode, or on a file tool, has nothing the human could execute.
-func askableCommand(payload hookEvent, verdict guard.Verdict) (string, bool) {
-	if verdict.Mode == guard.ModeDeny || payload.ToolName != "Bash" || payload.TabID == "" || judgedAsPowerShell(payload) {
-		return "", false
+// askableCommand is the command an ask-mode verdict refused and the shell it runs in: the text the gate judged,
+// PowerShell for a call the gate read as PowerShell. A verdict in deny mode, or on a file tool, has nothing the
+// human could execute.
+func askableCommand(payload hookEvent, verdict guard.Verdict) (command, shell string, ok bool) {
+	if verdict.Mode == guard.ModeDeny || payload.TabID == "" {
+		return "", "", false
 	}
-	var shell shellToolInput
-	if err := json.Unmarshal(payload.ToolInput, &shell); err != nil || strings.TrimSpace(shell.Command) == "" {
-		return "", false
+	if text, tool, deny, isShell := shellToolCommand(payload); isShell && deny == nil && tool == "PowerShell" {
+		return text, vault.AskShellPowerShell, strings.TrimSpace(text) != ""
 	}
-	return shell.Command, true
-}
-
-// powerShellAskLine follows an ask-mode refusal of PowerShell text: a command ask runs in Git Bash, which would
-// misread it, so the model files the PowerShell wrapped in a host the guard reads.
-const powerShellAskLine = " A command ask runs in Git Bash, so file this one as powershell -NoProfile -Command followed by the command, quoted for bash."
-
-// judgedAsPowerShell reports a shell call whose text the gate read as PowerShell, which no command ask runs as is.
-func judgedAsPowerShell(payload hookEvent) bool {
-	_, tool, _, isShell := shellToolCommand(payload)
-	return isShell && tool == "PowerShell"
+	if payload.ToolName != "Bash" {
+		return "", "", false
+	}
+	var input shellToolInput
+	if err := json.Unmarshal(payload.ToolInput, &input); err != nil || strings.TrimSpace(input.Command) == "" {
+		return "", "", false
+	}
+	return input.Command, "", true
 }
 
 func ruleLabel(verdict guard.Verdict) string {

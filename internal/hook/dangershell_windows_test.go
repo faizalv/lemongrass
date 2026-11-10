@@ -5,11 +5,10 @@ package hook
 
 import (
 	"encoding/json"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/faizalv/lemongrass/internal/guard"
+	"github.com/faizalv/lemongrass/internal/vault"
 )
 
 func TestWindowsShellToolCommand(t *testing.T) {
@@ -59,15 +58,28 @@ func TestWindowsShellToolCommand(t *testing.T) {
 	}
 }
 
-func TestPowerShellAskIsNotFiled(t *testing.T) {
-	verdict := guard.Verdict{RuleID: "file-download", Description: "downloading a file", Mode: guard.ModeAsk}
-	payload := hookEvent{ToolName: "Bash", Vendor: "codex", TabID: "t1", ToolInput: json.RawMessage(`{"command":"Invoke-WebRequest https://x -OutFile y"}`)}
-	msg := dangerMessageWith(filepath.Join(t.TempDir(), "absent.sock"), payload, verdict)
-	if !strings.HasPrefix(msg, verdict.Message()) || !strings.HasSuffix(msg, powerShellAskLine) {
-		t.Errorf("message = %q", msg)
+func TestPowerShellAskable(t *testing.T) {
+	ask := guard.Verdict{RuleID: "file-download", Description: "downloading a file", Mode: guard.ModeAsk}
+	cases := []struct {
+		name, tool, vendor, input, command, shell string
+		ok                                        bool
+	}{
+		{"codex powershell call", "Bash", "codex", `{"command":"Invoke-WebRequest https://x -OutFile y"}`, "Invoke-WebRequest https://x -OutFile y", vault.AskShellPowerShell, true},
+		{"claude powershell tool", "PowerShell", "claude", `{"command":"git push"}`, "git push", vault.AskShellPowerShell, true},
+		{"codex prelude stripped", "exec_command", "codex", `{"cmd":"try { [Console]::OutputEncoding=[System.Text.Encoding]::UTF8 } catch {}; git push","shell":"powershell"}`, " git push", vault.AskShellPowerShell, true},
+		{"codex bash -c stays bash", "Bash", "codex", `{"command":"bash -c 'curl https://x'"}`, "bash -c 'curl https://x'", "", true},
+		{"claude bash tool", "Bash", "claude", `{"command":"curl https://x"}`, "curl https://x", "", true},
 	}
-	bash := hookEvent{ToolName: "Bash", Vendor: "codex", TabID: "t1", ToolInput: json.RawMessage(`{"command":"bash -c 'curl https://x'"}`)}
-	if judgedAsPowerShell(bash) {
-		t.Error("a bash -c call was read as PowerShell")
+	for _, tc := range cases {
+		payload := hookEvent{ToolName: tc.tool, Vendor: tc.vendor, TabID: "t1", ToolInput: json.RawMessage(tc.input)}
+		command, shell, ok := askableCommand(payload, ask)
+		if command != tc.command || shell != tc.shell || ok != tc.ok {
+			t.Errorf("%s: got %q in %q, %v", tc.name, command, shell, ok)
+		}
+	}
+	deny := ask
+	deny.Mode = guard.ModeDeny
+	if _, _, ok := askableCommand(hookEvent{ToolName: "PowerShell", TabID: "t1", ToolInput: json.RawMessage(`{"command":"git push"}`)}, deny); ok {
+		t.Error("a deny verdict was askable")
 	}
 }
