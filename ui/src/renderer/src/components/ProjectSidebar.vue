@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { AppEmptyState, AppSegmented } from '@sankasten'
+import { AppEmptyState, AppIcon, AppIconButton, AppSegmented } from '@sankasten'
 import BiblioPanel from './BiblioPanel.vue'
 import FileExplorer from './explorer/FileExplorer.vue'
 import GitPanel from './GitPanel.vue'
@@ -15,6 +15,7 @@ import {
   setSidebarView,
   sidebarSettings,
   toggleSidebarPanel,
+  type SidebarPanel,
   type SidebarView
 } from '../explorerSettings'
 import type { BiblioTree } from '../../../preload/types'
@@ -34,6 +35,11 @@ const VIEWS: { value: SidebarView; label: string }[] = [
   { value: 'biblio', label: 'Biblio' },
   { value: 'files', label: 'Files' }
 ]
+
+const PANEL_NAMES: Record<SidebarPanel, string> = {
+  workgroup: 'Workgroup',
+  git: 'Git'
+}
 
 onMounted(() => void loadSidebarSettings())
 
@@ -84,6 +90,16 @@ function onGutterUp(): void {
           <FileExplorer v-else :project="project" />
 
           <div v-if="sidebarSettings.panel" class="panel-fold">
+            <div class="panel-head">
+              <span class="panel-title">{{ PANEL_NAMES[sidebarSettings.panel] }}</span>
+              <AppIconButton
+                size="sm"
+                :label="`Minimize ${PANEL_NAMES[sidebarSettings.panel]}`"
+                @click="sidebarSettings.panel && toggleSidebarPanel(sidebarSettings.panel)"
+              >
+                <AppIcon name="minus" />
+              </AppIconButton>
+            </div>
             <WorkgroupPanel v-if="sidebarSettings.panel === 'workgroup'" :project="project" />
             <GitPanel v-else :project="project" />
           </div>
@@ -143,6 +159,22 @@ function onGutterUp(): void {
   max-height: 55vh;
   min-height: 0;
   border-top: 1px solid var(--color-border-default);
+}
+
+/* The header belongs to the fold, not the panel, so every panel gets the name and the minimize
+   dash without drawing its own. */
+.panel-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2) 0 var(--space-3);
+}
+
+.panel-title {
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+  font-weight: 600;
 }
 
 .panel-bar {

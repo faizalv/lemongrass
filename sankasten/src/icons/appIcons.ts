@@ -33,6 +33,7 @@ export const APP_ICONS = {
   chevronDown: { box: 10, stroke: 1.4, shapes: [path('M2 3.5L5 6.5L8 3.5')] },
   close: { box: 14, stroke: 1.2, shapes: [path('M3.5 3.5l7 7M10.5 3.5l-7 7')] },
   plus: { box: 14, stroke: 1.2, shapes: [path('M7 2.5v9M2.5 7h9')] },
+  minus: { box: 14, stroke: 1.2, shapes: [path('M2.5 7h9')] },
   check: { box: 14, stroke: 1.2, shapes: [path('M3 7.5l2.5 2.5L11 4.5')] },
   copy: {
     box: 14,
