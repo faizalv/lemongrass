@@ -15,7 +15,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/faizalv/lemongrass/internal/guard"
 	"github.com/faizalv/lemongrass/internal/vault"
 )
 
@@ -67,7 +66,7 @@ func (b *Backend) ExecuteAsk(id string, timeout time.Duration, rows, cols int) (
 		return vault.Ask{}, fmt.Errorf("gatekeeper: ask %s is a %s ask, only a command ask is executed", id, a.Type)
 	}
 	home, _ := os.UserHomeDir()
-	if reason, refused := guard.NeverExecute(a.Command, a.Cwd, home); refused {
+	if reason, refused := askNeverExecute(a, home); refused {
 		return vault.Ask{}, fmt.Errorf("gatekeeper: lemongrass never executes this command: %s", reason)
 	}
 	if info, err := os.Stat(a.Cwd); err != nil || !info.IsDir() {
@@ -142,7 +141,12 @@ func (b *Backend) runAsk(a vault.Ask, timeout time.Duration, size askSize, run *
 
 	tail := newAskTail(size)
 	// Every command gets a terminal, so one that asks for a password, a confirmation or a login can be answered from the card.
-	proc, err := startAsk(a.Command, a.Cwd, askEnv(os.Environ(), a.Path, a.AccountEnv), size)
+	argv, err := askArgv(a.Shell, a.Command)
+	if err != nil {
+		startErr <- err
+		return
+	}
+	proc, err := startAsk(argv, a.Cwd, askEnv(os.Environ(), a.Path, a.AccountEnv), size)
 	if err != nil {
 		startErr <- err
 		return

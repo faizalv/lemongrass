@@ -25,6 +25,12 @@ const (
 	AskCommand = "command"
 )
 
+// A command ask runs in one of these shells; an empty shell is bash, the ask as it was before PowerShell asks.
+const (
+	AskShellBash       = "bash"
+	AskShellPowerShell = "powershell"
+)
+
 const (
 	AskWaiting  = "waiting"
 	AskRunning  = "running"
@@ -95,6 +101,8 @@ type AskInput struct {
 	Message    string
 	Methods    []string
 	Command    string
+	// Shell is the shell a command ask runs in, AskShellBash or AskShellPowerShell; empty is bash.
+	Shell string
 	// Rule is the guard rule that refused the call when the hook filed the ask itself.
 	Rule string
 }
@@ -134,14 +142,16 @@ type Ask struct {
 	Reason    string    `json:"reason,omitempty"`
 	Tables    []string  `json:"tables,omitempty"`
 	// Operations and Methods are what the model declared for a db or a rester ask.
-	Operations []string   `json:"operations,omitempty"`
-	Message    string     `json:"message,omitempty"`
-	Methods    []string   `json:"methods,omitempty"`
-	Command    string     `json:"command,omitempty"`
-	Rule       string     `json:"rule,omitempty"`
-	ShortID    string     `json:"short_id,omitempty"`
-	Note       string     `json:"note,omitempty"`
-	Result     *AskResult `json:"result,omitempty"`
+	Operations []string `json:"operations,omitempty"`
+	Message    string   `json:"message,omitempty"`
+	Methods    []string `json:"methods,omitempty"`
+	Command    string   `json:"command,omitempty"`
+	// Shell is set to powershell for a PowerShell command ask; a bash ask leaves it empty.
+	Shell   string     `json:"shell,omitempty"`
+	Rule    string     `json:"rule,omitempty"`
+	ShortID string     `json:"short_id,omitempty"`
+	Note    string     `json:"note,omitempty"`
+	Result  *AskResult `json:"result,omitempty"`
 	// Granted and RemovedTables are set when a channel ask is answered or declined.
 	Granted       *AskGrant      `json:"granted,omitempty"`
 	RemovedTables []RemovedTable `json:"removed_tables,omitempty"`
@@ -215,6 +225,9 @@ func validateAsk(in AskInput) error {
 	if in.Type != AskCommand && len(in.AccountEnv) > 0 {
 		return errors.New("vault: only a command ask carries account variables")
 	}
+	if in.Type != AskCommand && in.Shell != "" {
+		return errors.New("vault: only a command ask names a shell")
+	}
 	switch in.Type {
 	case AskDB:
 		if err := needsReason(); err != nil {
@@ -266,10 +279,21 @@ func validateAsk(in AskInput) error {
 		if err := checkAccountEnv(in.AccountEnv); err != nil {
 			return err
 		}
+		if in.Shell != "" && in.Shell != AskShellBash && in.Shell != AskShellPowerShell {
+			return fmt.Errorf("vault: unknown shell %q, want bash or powershell", in.Shell)
+		}
 	default:
 		return fmt.Errorf("vault: unknown ask type %q, want db, rester or command", in.Type)
 	}
 	return nil
+}
+
+// askShell is the shell a record stores: bash is kept as empty, so a bash ask reads as it did before shells existed.
+func askShell(shell string) string {
+	if shell == AskShellPowerShell {
+		return shell
+	}
+	return ""
 }
 
 // CheckAskOperations accepts a db ask's declared operations: at least one, each known, none repeated.
@@ -365,7 +389,7 @@ func (s *AskStore) createLocked(in AskInput) (Ask, error) {
 			continue
 		}
 		open++
-		if in.Rule != "" && r.Type == AskCommand && r.Command == in.Command {
+		if in.Rule != "" && r.Type == AskCommand && r.Command == in.Command && r.Shell == askShell(in.Shell) {
 			return r.Ask, nil
 		}
 	}
@@ -400,7 +424,7 @@ func (s *AskStore) createLocked(in AskInput) (Ask, error) {
 			ID: id, Type: in.Type, TabID: in.TabID, Cwd: filepath.Clean(in.Cwd), CreatedAt: now, State: AskWaiting,
 			Reason: in.Reason, Tables: append([]string(nil), in.Tables...), Operations: append([]string(nil), in.Operations...),
 			Message: in.Message, Methods: append([]string(nil), in.Methods...), Command: in.Command,
-			Rule: in.Rule, Path: in.Path, AccountEnv: maps.Clone(in.AccountEnv),
+			Shell: askShell(in.Shell), Rule: in.Rule, Path: in.Path, AccountEnv: maps.Clone(in.AccountEnv),
 		},
 		done: make(chan struct{}),
 	}

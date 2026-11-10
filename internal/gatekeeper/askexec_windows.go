@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -48,14 +50,25 @@ type windowsAskProcess struct {
 	code    uint32
 }
 
-// startAsk runs the command in Git Bash, as Claude Code's Bash tool does on Windows, inside a ConPTY. The process
-// starts suspended and joins a kill-on-close job before it runs, so a stop reaches every process it starts and none
-// outlives the daemon, as the process group and parent-death signal do on Linux.
-func startAsk(command, dir string, env []string, size askSize) (askProcess, error) {
-	bash, err := gitbash.Bash()
-	if err != nil {
-		return nil, err
+// askBash is Git Bash, as Claude Code's Bash tool runs on Windows, never System32's WSL launcher.
+func askBash() (string, error) { return gitbash.Bash() }
+
+// askPowerShell is pwsh on PATH, else Windows PowerShell by its absolute path, which every Windows has.
+func askPowerShell() (string, error) {
+	if pwsh, err := exec.LookPath("pwsh"); err == nil {
+		return pwsh, nil
 	}
+	root := os.Getenv("SystemRoot")
+	if root == "" {
+		root = `C:\Windows`
+	}
+	return filepath.Join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), nil
+}
+
+// startAsk runs argv inside a ConPTY. The process starts suspended and joins a kill-on-close job before it runs, so a
+// stop reaches every process it starts and none outlives the daemon, as the process group and parent-death signal
+// do on Linux.
+func startAsk(argv []string, dir string, env []string, size askSize) (askProcess, error) {
 	var inR, inW, outR, outW windows.Handle
 	if err := windows.CreatePipe(&inR, &inW, nil, 0); err != nil {
 		return nil, fmt.Errorf("gatekeeper: terminal input pipe: %w", err)
@@ -74,7 +87,7 @@ func startAsk(command, dir string, env []string, size askSize) (askProcess, erro
 		pty.out.Close()
 		return nil, fmt.Errorf("gatekeeper: creating the pseudoconsole: %w", err)
 	}
-	proc, err := startInConsole(pty, bash, command, dir, env)
+	proc, err := startInConsole(pty, argv, dir, env)
 	if err != nil {
 		pty.closeConsole()
 		pty.in.Close()
@@ -84,7 +97,7 @@ func startAsk(command, dir string, env []string, size askSize) (askProcess, erro
 	return proc, nil
 }
 
-func startInConsole(pty *conPTY, bash, command, dir string, env []string) (*windowsAskProcess, error) {
+func startInConsole(pty *conPTY, argv []string, dir string, env []string) (*windowsAskProcess, error) {
 	attrs, err := windows.NewProcThreadAttributeList(1)
 	if err != nil {
 		return nil, err
@@ -101,7 +114,7 @@ func startInConsole(pty *conPTY, bash, command, dir string, env []string) (*wind
 	// Without explicit, empty standard handles the command would inherit the daemon's log file as its output.
 	si.Flags = windows.STARTF_USESTDHANDLES
 
-	cmdline, err := windows.UTF16PtrFromString(windows.ComposeCommandLine([]string{bash, "-c", command}))
+	cmdline, err := windows.UTF16PtrFromString(windows.ComposeCommandLine(argv))
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +134,7 @@ func startInConsole(pty *conPTY, bash, command, dir string, env []string) (*wind
 	flags := uint32(windows.EXTENDED_STARTUPINFO_PRESENT | windows.CREATE_UNICODE_ENVIRONMENT | windows.CREATE_SUSPENDED)
 	if err := windows.CreateProcess(nil, cmdline, nil, nil, false, flags, &block[0], cwd, &si.StartupInfo, &pi); err != nil {
 		job.Close()
-		return nil, fmt.Errorf("gatekeeper: starting %s: %w", bash, err)
+		return nil, fmt.Errorf("gatekeeper: starting %s: %w", argv[0], err)
 	}
 	defer windows.CloseHandle(pi.Thread)
 	if err := job.Assign(pi.Process); err != nil {

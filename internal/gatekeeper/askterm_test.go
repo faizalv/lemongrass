@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/faizalv/lemongrass/internal/vault"
 )
 
 func TestTailWriterTerminalOutput(t *testing.T) {
@@ -41,7 +43,11 @@ func TestTailWriterTerminalOutput(t *testing.T) {
 func startTestTerm(t *testing.T, script string) (*askTerm, askTail, chan struct{}) {
 	t.Helper()
 	size := askSize{rows: askTermRows, cols: askTermCols}
-	proc, err := startAsk(script, t.TempDir(), os.Environ(), size)
+	argv, err := askArgv(vault.AskShellBash, script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc, err := startAsk(argv, t.TempDir(), os.Environ(), size)
 	if err != nil {
 		t.Fatal(err)
 	}

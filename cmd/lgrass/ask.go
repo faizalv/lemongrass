@@ -34,6 +34,8 @@ type askFile struct {
 	Message    string   `yaml:"message"`
 	Methods    []string `yaml:"methods"`
 	Command    string   `yaml:"command"`
+	// Shell is bash (the default) or powershell, for a command ask only.
+	Shell string `yaml:"shell"`
 }
 
 func cmdAsk(args []string) {
@@ -116,6 +118,9 @@ func parseAsk(data []byte) (gatekeeper.AskRequest, error) {
 	}
 	f.Type = strings.TrimSpace(f.Type)
 	req := gatekeeper.AskRequest{Type: f.Type, Reason: strings.TrimSpace(f.Reason)}
+	if f.Shell != "" && f.Type != vault.AskCommand {
+		return req, errors.New("lgrass ask: only a command ask takes a shell")
+	}
 	switch f.Type {
 	case vault.AskDB:
 		if f.Message != "" || f.Command != "" || len(f.Methods) > 0 {
@@ -150,7 +155,7 @@ func parseAsk(data []byte) (gatekeeper.AskRequest, error) {
 		}
 	case vault.AskCommand:
 		if len(f.Tables) > 0 || len(f.Operations) > 0 || f.Message != "" || len(f.Methods) > 0 {
-			return req, errors.New("lgrass ask: a command ask takes command and reason only")
+			return req, errors.New("lgrass ask: a command ask takes command, shell and reason only")
 		}
 		req.Command = strings.TrimSpace(f.Command)
 		if req.Command == "" {
@@ -158,6 +163,13 @@ func parseAsk(data []byte) (gatekeeper.AskRequest, error) {
 		}
 		if req.Reason == "" {
 			return req, errors.New("lgrass ask: a command ask needs a reason")
+		}
+		switch shell := strings.ToLower(strings.TrimSpace(f.Shell)); shell {
+		case "", vault.AskShellBash:
+		case vault.AskShellPowerShell:
+			req.Shell = shell
+		default:
+			return req, fmt.Errorf("lgrass ask: unknown shell %q, want bash or powershell", f.Shell)
 		}
 	case "":
 		return req, errors.New("lgrass ask: the ask file needs a type: db, rester or command")

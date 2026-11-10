@@ -46,7 +46,9 @@ type createAskPayload struct {
 	Message    string   `json:"message,omitempty"`
 	Methods    []string `json:"methods,omitempty"`
 	Command    string   `json:"command,omitempty"`
-	Rule       string   `json:"rule,omitempty"`
+	// Shell is vault.AskShellPowerShell for a PowerShell command ask, empty or bash otherwise.
+	Shell string `json:"shell,omitempty"`
+	Rule  string `json:"rule,omitempty"`
 	// AccountEnv is the caller's account variables (vault.AskAccountEnvKeys).
 	AccountEnv map[string]string `json:"account_env,omitempty"`
 }
@@ -126,9 +128,13 @@ func (b *Backend) askView(a vault.Ask) AskView {
 		return view
 	}
 	home, _ := os.UserHomeDir()
-	view.NeverExecuteReason, view.NeverExecute = guard.NeverExecute(a.Command, a.Cwd, home)
+	view.NeverExecuteReason, view.NeverExecute = askNeverExecute(a, home)
 	proj, _ := project.Resolve(a.Cwd)
-	verdict := guard.Decide(guard.Input{Tool: "Bash", Command: a.Command, Cwd: a.Cwd, Home: home, ProjectRoot: proj.Path}, b.EffectivePolicy(proj.ID))
+	tool := "Bash"
+	if a.Shell == vault.AskShellPowerShell {
+		tool = "PowerShell"
+	}
+	verdict := guard.Decide(guard.Input{Tool: tool, Command: a.Command, Cwd: a.Cwd, Home: home, ProjectRoot: proj.Path}, b.EffectivePolicy(proj.ID))
 	if verdict != nil {
 		mode := "ask"
 		if verdict.Mode == guard.ModeDeny {
@@ -137,6 +143,14 @@ func (b *Backend) askView(a vault.Ask) AskView {
 		view.Verdict = &AskVerdict{Rule: verdict.RuleID, Description: verdict.Description, Mode: mode}
 	}
 	return view
+}
+
+// askNeverExecute reads a command ask's text in the shell it runs in.
+func askNeverExecute(a vault.Ask, home string) (string, bool) {
+	if a.Shell == vault.AskShellPowerShell {
+		return guard.NeverExecutePowerShell(a.Command, a.Cwd, home)
+	}
+	return guard.NeverExecute(a.Command, a.Cwd, home)
 }
 
 func (b *Backend) verifyRoot(rootSecret string) error {
@@ -300,7 +314,7 @@ func dispatchAsk(svc *Backend, adminLimiter *vault.FailureLimiter, req request) 
 		}
 		ask, err := svc.Asks.Create(vault.AskInput{
 			Type: p.Type, TabID: p.TabID, Cwd: p.Cwd, Path: p.Path, AccountEnv: p.AccountEnv, Reason: p.Reason,
-			Tables: p.Tables, Operations: p.Operations, Message: p.Message, Methods: p.Methods, Command: p.Command, Rule: p.Rule,
+			Tables: p.Tables, Operations: p.Operations, Message: p.Message, Methods: p.Methods, Command: p.Command, Shell: p.Shell, Rule: p.Rule,
 		})
 		if err != nil {
 			return errResponse(err), true

@@ -71,6 +71,26 @@ func NeverExecute(command, cwd, home string) (string, bool) {
 	if err != nil {
 		return "it cannot be parsed, so lemongrass cannot check what it runs", true
 	}
+	return neverExecuteScript(script, cwd, home)
+}
+
+// NeverExecutePowerShell is NeverExecute for a PowerShell command ask: the text is read through the PowerShell judge,
+// whose records reach the same checks, Remove-Item as the rm it equals. Other refusals of the judge, such as a method
+// call, are not on the list, as interpreter code is not for bash: the human reads the text before executing it.
+func NeverExecutePowerShell(command, cwd, home string) (string, bool) {
+	var script shellScript
+	if err := script.addPowerShell(command, 0); err != nil {
+		return "it cannot be parsed, so lemongrass cannot check what it runs", true
+	}
+	for _, refusal := range script.Refusals {
+		if refusal.RuleID == "dynamic-command" {
+			return "its command name is computed at runtime, so lemongrass cannot check what it runs", true
+		}
+	}
+	return neverExecuteScript(script, cwd, home)
+}
+
+func neverExecuteScript(script shellScript, cwd, home string) (string, bool) {
 	n := newNeverExec(cwd, home)
 	for _, call := range script.Calls {
 		if call.Dynamic {

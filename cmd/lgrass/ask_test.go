@@ -33,6 +33,10 @@ func TestParseAsk(t *testing.T) {
 		{"rester with tables", "type: rester\nmessage: m\ntables: [a]\n", "message, methods and an optional reason"},
 		{"command no reason", "type: command\ncommand: ls\n", "needs a reason"},
 		{"command empty", "type: command\nreason: r\n", "exact command"},
+		{"command in powershell", "type: command\nshell: PowerShell\ncommand: Get-ChildItem\nreason: r\n", ""},
+		{"command in bash", "type: command\nshell: bash\ncommand: ls\nreason: r\n", ""},
+		{"command in cmd", "type: command\nshell: cmd\ncommand: dir\nreason: r\n", "unknown shell"},
+		{"db with shell", "type: db\nshell: powershell\ntables: [a]\noperations: [select]\nreason: r\n", "only a command ask takes a shell"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -55,6 +59,13 @@ func TestParseAsk(t *testing.T) {
 	rester, _ := parseAsk([]byte("type: rester\nmessage: m\nmethods: [get]\n"))
 	if strings.Join(rester.Methods, ",") != "GET" {
 		t.Fatalf("methods = %v, want upper case", rester.Methods)
+	}
+	ps, _ := parseAsk([]byte("type: command\nshell: PowerShell\ncommand: Get-Date\nreason: r\n"))
+	if ps.Shell != vault.AskShellPowerShell {
+		t.Fatalf("shell = %q, want powershell", ps.Shell)
+	}
+	if bash, _ := parseAsk([]byte("type: command\nshell: bash\ncommand: ls\nreason: r\n")); bash.Shell != "" {
+		t.Fatalf("bash shell = %q, want it left empty", bash.Shell)
 	}
 	req, _ := parseAsk([]byte("type: command\ncommand: |\n  echo `date` $(id)\nreason: r\n"))
 	if req.Command != "echo `date` $(id)" {

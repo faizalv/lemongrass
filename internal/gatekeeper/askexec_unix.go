@@ -6,6 +6,7 @@
 package gatekeeper
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"syscall"
@@ -26,12 +27,25 @@ type unixAskProcess struct {
 	ptmx *os.File
 }
 
-func startAsk(command, dir string, env []string, size askSize) (askProcess, error) {
-	shell, err := exec.LookPath("bash")
-	if err != nil {
-		shell = "/bin/sh"
+// askBash is bash on PATH, or /bin/sh where there is none.
+func askBash() (string, error) {
+	if shell, err := exec.LookPath("bash"); err == nil {
+		return shell, nil
 	}
-	cmd := exec.Command(shell, "-c", command)
+	return "/bin/sh", nil
+}
+
+// askPowerShell is pwsh on PATH; Unix has no Windows PowerShell to fall back to.
+func askPowerShell() (string, error) {
+	pwsh, err := exec.LookPath("pwsh")
+	if err != nil {
+		return "", errors.New("gatekeeper: this ask runs PowerShell and pwsh is not installed")
+	}
+	return pwsh, nil
+}
+
+func startAsk(argv []string, dir string, env []string, size askSize) (askProcess, error) {
+	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Dir = dir
 	cmd.Env = env
 	setAskProcAttr(cmd)
