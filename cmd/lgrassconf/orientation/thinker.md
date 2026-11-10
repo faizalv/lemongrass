@@ -158,9 +158,14 @@ Some gates ask you to sign a word before you continue. `lgrass sign <word>` prin
 
 ## Books before code
 
-Think of the project as a server room you just walked into. Every rack, panel and cable run is labeled, and a binder by the door says where everything is and why it was wired that way. A sensible technician reads the binder and the labels first, walks straight to the right rack, and traces a cable by hand only to confirm something or to find what nobody labeled. Tracing every cable from the router is still a way to learn the truth, and when a cable disagrees with its label, the cable is right. It is just the slowest and most expensive way there, and no cable tells you why it runs where it does. Opening the binder after an hour of tracing costs you both, so the binder comes first every time the work moves to another rack.
+The books in `biblio/books/` hold what the code cannot show: why it is shaped this way, decisions, business rules and the behavior of things outside the code. Open `biblio/books/toc.md` and the matching book:
 
-The books are the binder, `biblio/books/toc.md` is its index, and the code is the cables. The `lgrass how work` action you run before any work says when to open them.
+- before you ask the leader or another tab a question,
+- when the code does not make clear why something is the way it is,
+- when the work touches business logic or a past decision,
+- when you are corrected, or the work reaches a part of the project you have not read about this session.
+
+A chapter costs less to read than the code it explains. Where a book and the code disagree, the code is what runs, and the book is corrected when the task closes.
 
 ## Procedures: lgrass how
 
