@@ -1438,6 +1438,8 @@ export interface Ask {
   methods?: string[]
   message?: string
   command?: string
+  // 'powershell' for a command that runs in PowerShell; absent for bash.
+  shell?: 'powershell'
   // The requesting tab's CLAUDE_CONFIG_DIR and CODEX_HOME, which an executed command runs with.
   account_env?: Record<string, string>
   rule?: string

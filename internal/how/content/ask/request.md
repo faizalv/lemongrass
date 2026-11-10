@@ -34,6 +34,8 @@ command: |
 reason: Why it is needed now and what it changes.
 ```
 
+A command runs in bash; add `shell: powershell` to the file for a PowerShell command, which then runs in PowerShell without a profile.
+
 ## Write the reason
 
 Say what you need, why now, and what it touches. The human decides from this alone, often while busy. One or two plain sentences beat a paragraph. Never ask for more than the task needs.

@@ -199,6 +199,11 @@ onBeforeUnmount(() => {
   stopTermEnd()
 })
 
+// A PowerShell ask is named as such, since the same text means something else in bash.
+const commandLabel = computed(() =>
+  props.ask.shell === 'powershell' ? 'PowerShell command' : 'Command'
+)
+
 // Which Claude or Codex account a login in the command would reach, named by its folder.
 const accountLines = computed(() => {
   const env = props.ask.account_env ?? {}
@@ -297,7 +302,7 @@ async function decline(): Promise<void> {
 <template>
   <div class="command-card">
     <div class="field-block">
-      <span class="field-label">Command</span>
+      <span class="field-label">{{ commandLabel }}</span>
       <pre class="untrusted mono" :class="{ 'sk-running': running }">{{ ask.command }}</pre>
       <div v-if="running" class="run-status">
         <AppProgressLine class="run-line" label="The command is running" />
@@ -314,6 +319,7 @@ async function decline(): Promise<void> {
       <span v-if="running && elapsed !== null" class="run-since">
         Since {{ clock(result?.started_at) }}
       </span>
+      <p v-if="ask.shell === 'powershell'" class="hint">Runs in PowerShell without your profile.</p>
       <p v-for="line in accountLines" :key="line.label" class="hint account-line">
         {{ line.label }}: <span class="account-dir">{{ line.dir }}</span>
       </p>
