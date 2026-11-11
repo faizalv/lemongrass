@@ -21,10 +21,12 @@ export const decisionsIcon: IconShape[] = [
   { tag: 'path', attrs: { d: 'M5 5.5l1.4 1.4L9 4.3' } }
 ]
 
-// The shell tab's prompt inside a window frame: a terminal, on another machine.
+// A server: two stacked boxes, each with a small light. Unlike the shell tab's prompt, so a
+// login to another machine never reads as a local terminal.
 export const sshIcon: IconShape[] = [
-  { tag: 'rect', attrs: { x: 1.5, y: 2.5, width: 11, height: 9, rx: 1.5 } },
-  { tag: 'path', attrs: { d: 'M4 5.75l1.75 1.5L4 8.75M7.25 9h2.75' } }
+  { tag: 'rect', attrs: { x: 1.5, y: 2, width: 11, height: 4.5, rx: 1 } },
+  { tag: 'rect', attrs: { x: 1.5, y: 7.5, width: 11, height: 4.5, rx: 1 } },
+  { tag: 'path', attrs: { d: 'M3.75 4.25h1M3.75 9.75h1' } }
 ]
 
 // A key: a round bow and a bit along the shaft.
@@ -44,22 +46,19 @@ export const deviceIcon: IconShape[] = [
   { tag: 'path', attrs: { d: 'M6 10.5h2' } }
 ]
 
+// A broadcast: the project shared out, in waves. Unlike the linked circles of Workgroup.
 export const nodeIcon: IconShape[] = [
-  { tag: 'circle', attrs: { cx: 7, cy: 7, r: 2 } },
-  { tag: 'circle', attrs: { cx: 2.5, cy: 3, r: 1.2 } },
-  { tag: 'circle', attrs: { cx: 11.5, cy: 3, r: 1.2 } },
-  { tag: 'circle', attrs: { cx: 7, cy: 12, r: 1.2 } },
-  { tag: 'path', attrs: { d: 'M3.5 3.8L5.5 5.8M10.5 3.8L8.5 5.8M7 9v1.8' } }
+  { tag: 'circle', attrs: { cx: 7, cy: 7, r: 1.3 } },
+  { tag: 'path', attrs: { d: 'M4.75 4.5a3.5 3.5 0 0 0 0 5M9.25 4.5a3.5 3.5 0 0 1 0 5' } },
+  { tag: 'path', attrs: { d: 'M2.75 2.5a6.3 6.3 0 0 0 0 9M11.25 2.5a6.3 6.3 0 0 1 0 9' } }
 ]
 
-// Four tiles: every tool, as an app grid.
-export const toolboxIcon: IconShape[] = [
-  { tag: 'rect', attrs: { x: 1.5, y: 1.5, width: 4.5, height: 4.5, rx: 1 } },
-  { tag: 'rect', attrs: { x: 8, y: 1.5, width: 4.5, height: 4.5, rx: 1 } },
-  { tag: 'rect', attrs: { x: 1.5, y: 8, width: 4.5, height: 4.5, rx: 1 } },
-  { tag: 'rect', attrs: { x: 8, y: 8, width: 4.5, height: 4.5, rx: 1 } }
-]
-
-export const pinIcon: IconShape[] = [
-  { tag: 'path', attrs: { d: 'M5 1.5h4M6 1.5v4L4 8h6L8 5.5v-4M7 8v4.5' } }
+// A folder: the sidebar's Biblio and Files tree.
+export const filesIcon: IconShape[] = [
+  {
+    tag: 'path',
+    attrs: {
+      d: 'M1.5 3.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z'
+    }
+  }
 ]

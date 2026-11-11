@@ -1,66 +1,46 @@
 /* SPDX-License-Identifier: MPL-2.0 */
 /* Copyright (C) 2026 The Lemongrass Authors */
 
-/* The SSH tab's shared layout. Every rule is prefixed by .ssh-pane so nothing leaks out. */
+/* The SSH view's shared layout in the sidebar column. Every rule is prefixed by .ssh-pane so
+   nothing leaks out. */
 
-/* The pane is the size container, so a narrow pane slims the sidebar and the padding instead of
-   scrolling sideways. */
+/* The pane is the size container, so a narrow column wraps a card's actions under its titles
+   instead of scrolling sideways. */
 .ssh-pane {
-  height: 100%;
+  flex: 1;
   min-height: 0;
-  container-type: inline-size;
-  background: var(--layer-page);
-}
-
-.ssh-pane .ssh-frame {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-}
-
-.ssh-pane .ssh-nav {
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  width: 190px;
-  padding: var(--space-4) var(--space-3);
-  border-right: 1px solid var(--color-border-default);
+  container-type: inline-size;
 }
 
 /* main and content form one growing flex column, so a fill empty state has the pane's height to
    center in while a long list still scrolls main. */
 .ssh-pane .ssh-main {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: var(--space-6);
+  padding: var(--space-2) var(--space-2) var(--space-3);
 }
 
 .ssh-pane .ssh-content {
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  width: 100%;
-  max-width: 1040px;
-  margin: 0 auto;
+  gap: var(--space-2);
 }
 
 .ssh-pane .ssh-toolbar {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
-.ssh-pane .ssh-toolbar-hint {
+.ssh-pane .ssh-sections {
   flex: 1;
   min-width: 0;
-  color: var(--color-fg-secondary);
-  font-size: var(--text-sm);
-  line-height: var(--leading-snug);
 }
 
 .ssh-pane .ssh-list {
@@ -186,17 +166,16 @@
   background: var(--layer-input);
 }
 
-@container (max-width: 560px) {
-  .ssh-pane .ssh-nav {
-    width: 140px;
-    padding: var(--space-3) var(--space-2);
+@container (max-width: 360px) {
+  .ssh-pane .ssh-card {
+    padding: var(--space-2) var(--space-3);
   }
 
-  .ssh-pane .ssh-main {
-    padding: var(--space-4);
-  }
-
-  .ssh-pane .ssh-toolbar {
+  .ssh-pane .ssh-card-head {
     flex-wrap: wrap;
+  }
+
+  .ssh-pane .ssh-card-titles {
+    flex-basis: 100%;
   }
 }

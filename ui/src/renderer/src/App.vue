@@ -16,9 +16,9 @@ import AskModal from './components/decisions/AskModal.vue'
 import WorkgroupJoinModal from './components/WorkgroupJoinModal.vue'
 import ProjectTrustModal from './components/ProjectTrustModal.vue'
 import ZoomIndicator from './components/ZoomIndicator.vue'
-import ToolDock from './components/ToolDock.vue'
 import SetupLayer from './components/deps/SetupLayer.vue'
 import ProjectSelector from './components/ProjectSelector.vue'
+import { sidebarSettings } from './explorerSettings'
 import { loadAccounts } from './accounts'
 import { startContextFeed, startUsagePolling } from './usage'
 import { startDepsFeed } from './deps'
@@ -39,7 +39,6 @@ const activeProjectId = ref<string | null>(null)
 // Fetched on first visit and kept live by onBiblioChanged, including a biblio/ created after that visit.
 const biblioByProject = reactive<Record<string, BiblioTree | null>>({})
 const loadedProjects = reactive<Record<string, boolean>>({})
-const sidebarCollapsed = ref(false)
 const closing = ref(false)
 const settingsOpen = ref(false)
 const settingsSection = ref<SettingsSection | undefined>()
@@ -183,8 +182,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="shell">
     <HeaderBar
-      :sidebar-collapsed="sidebarCollapsed"
-      @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed"
+      :sidebar-hidden="sidebarSettings.hidden"
+      @toggle-sidebar="sidebarSettings.hidden = !sidebarSettings.hidden"
       @open-settings="settingsOpen = true"
       @open-guide="guideOpen = true"
     >
@@ -201,18 +200,10 @@ onBeforeUnmount(() => {
           />
         </span>
       </template>
-      <template v-if="activeRef" #center>
-        <ToolDock :project="activeRef" />
-      </template>
     </HeaderBar>
 
     <div class="body-row">
-      <ProjectSidebar
-        :collapsed="sidebarCollapsed"
-        :project="activeRef"
-        :tree="biblioTree"
-        @refresh-biblio="refreshBiblio"
-      />
+      <ProjectSidebar :project="activeRef" :tree="biblioTree" @refresh-biblio="refreshBiblio" />
 
       <div v-if="activeRef && loadedProjects[activeRef.id]" class="main">
         <WorkspaceView :project="activeRef" />

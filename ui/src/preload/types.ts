@@ -49,8 +49,8 @@ export interface UiState {
   terminalTheme?: 'dark' | 'app'
   terminalFontSize?: number
   sidebarView?: 'biblio' | 'files'
-  sidebarPanel?: 'workgroup' | 'git' | 'none'
-  pinnedTools?: string[]
+  sidebarPane?: 'files' | 'workgroup' | 'ssh'
+  sidebarPanel?: 'git' | 'none'
   explorer?: {
     columns: { size: boolean; modified: boolean; git: boolean }
     density: 'compact' | 'comfortable'
@@ -986,7 +986,6 @@ export type WorkspaceTab =
   | { id: string; kind: 'workgroup'; groupId: number }
   | { id: string; kind: 'device' }
   | { id: string; kind: 'resterClient' }
-  | { id: string; kind: 'ssh' }
   | { id: string; kind: 'sshServer'; alias: string }
   | {
       id: string

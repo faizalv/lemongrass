@@ -78,7 +78,6 @@ type WorkgroupTab = Extract<WorkspaceTab, { kind: 'workgroup' }>
 type WebTab = Extract<WorkspaceTab, { kind: 'web' }>
 type DeviceTab = Extract<WorkspaceTab, { kind: 'device' }>
 type ResterClientTab = Extract<WorkspaceTab, { kind: 'resterClient' }>
-type SSHTab = Extract<WorkspaceTab, { kind: 'ssh' }>
 type SSHServerTab = Extract<WorkspaceTab, { kind: 'sshServer' }>
 
 const AUTOSAVE_MS = 600
@@ -170,10 +169,6 @@ function newDeviceTab(): DeviceTab {
 
 function newResterClientTab(): ResterClientTab {
   return { id: crypto.randomUUID(), kind: 'resterClient' }
-}
-
-function newSSHTab(): SSHTab {
-  return { id: crypto.randomUUID(), kind: 'ssh' }
 }
 
 function newSSHServerTab(alias: string): SSHServerTab {
@@ -852,11 +847,6 @@ export function openDevice(project: ProjectRef): void {
 // One Rester Client tab per project, focused wherever it lives when opened again.
 export function openResterClient(project: ProjectRef): void {
   openSingletonTab(project, 'resterClient', newResterClientTab)
-}
-
-// One SSH tab per project, focused wherever it lives when opened again.
-export function openSSH(project: ProjectRef): void {
-  openSingletonTab(project, 'ssh', newSSHTab)
 }
 
 // One tab per server: opening it again focuses the open tab wherever it lives, since a second

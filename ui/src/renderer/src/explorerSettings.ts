@@ -5,7 +5,9 @@ import { reactive } from 'vue'
 import type { UiState } from '../../preload/types'
 
 export type SidebarView = 'biblio' | 'files'
-export type SidebarPanel = 'workgroup' | 'git'
+// The view the sidebar column shows, one at a time, picked from the side toolbar's upper group.
+export type SidebarPane = NonNullable<UiState['sidebarPane']>
+export type SidebarPanel = 'git'
 export type ExplorerView = NonNullable<UiState['explorer']>
 export type ExplorerColumn = keyof ExplorerView['columns']
 
@@ -17,10 +19,15 @@ const DEFAULT_VIEW: ExplorerView = {
 
 export const sidebarSettings = reactive<{
   view: SidebarView
+  pane: SidebarPane
+  // Hidden for the session only, as the column always comes back on a restart.
+  hidden: boolean
   panel: SidebarPanel | null
   explorer: ExplorerView
 }>({
   view: 'biblio',
+  pane: 'files',
+  hidden: false,
   panel: null,
   explorer: structuredClone(DEFAULT_VIEW)
 })
@@ -32,8 +39,9 @@ export async function loadSidebarSettings(): Promise<void> {
   loaded = true
   const saved = await window.api.uiState.load()
   if (saved.sidebarView) sidebarSettings.view = saved.sidebarView
-  if (saved.sidebarPanel && saved.sidebarPanel !== 'none')
-    sidebarSettings.panel = saved.sidebarPanel
+  if (saved.sidebarPane) sidebarSettings.pane = saved.sidebarPane
+  // An older file may name 'workgroup', which is now a view and no longer a fold.
+  if (saved.sidebarPanel === 'git') sidebarSettings.panel = 'git'
   if (saved.explorer) {
     sidebarSettings.explorer = {
       ...DEFAULT_VIEW,
@@ -48,10 +56,27 @@ export function setSidebarView(view: SidebarView): void {
   window.api.uiState.save({ sidebarView: view })
 }
 
-// Clicking the open panel's icon folds it shut; 'none' is stored because the file merges by
-// field and an absent field would keep the old panel.
+// Clicking the shown view's icon hides the column, and any view's icon shows it again.
+export function selectSidebarPane(pane: SidebarPane): void {
+  if (pane === sidebarSettings.pane && !sidebarSettings.hidden) {
+    sidebarSettings.hidden = true
+    return
+  }
+  sidebarSettings.hidden = false
+  sidebarSettings.pane = pane
+  window.api.uiState.save({ sidebarPane: pane })
+}
+
+// Clicking the open panel's icon folds it shut, and while the column is hidden it shows the column
+// with the panel open; 'none' is stored because the file merges by field and an absent field would
+// keep the old panel.
 export function toggleSidebarPanel(panel: SidebarPanel): void {
-  sidebarSettings.panel = sidebarSettings.panel === panel ? null : panel
+  if (sidebarSettings.hidden) {
+    sidebarSettings.hidden = false
+    sidebarSettings.panel = panel
+  } else {
+    sidebarSettings.panel = sidebarSettings.panel === panel ? null : panel
+  }
   window.api.uiState.save({ sidebarPanel: sidebarSettings.panel ?? 'none' })
 }
 

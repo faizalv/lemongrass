@@ -13,7 +13,6 @@ import { serverHasDirtyFiles } from './components/ssh/editor/remoteFiles'
 import ResterClientView from './components/resterClient/ResterClientView.vue'
 import ShellView from './components/ShellView.vue'
 import SSHServerView from './components/ssh/SSHServerView.vue'
-import SSHView from './components/ssh/SSHView.vue'
 import { shellSized } from './shellRegistry'
 import VaultPanel from './components/VaultPanel.vue'
 import WebPane from './components/WebPane.vue'
@@ -164,15 +163,6 @@ const kinds: { [K in KindName]: TabKind<TabOf<K>> } = {
     // Kept alive so an unsent draft and the last response survive switching tabs.
     keepAlive: true,
     bodyProps: () => ({})
-  },
-  ssh: {
-    icon: sshIcon,
-    label: () => ({ text: 'SSH' }),
-    title: () => 'SSH',
-    body: SSHView,
-    // Kept alive so a running ssh-add keeps its terminal while another tab is shown.
-    keepAlive: true,
-    bodyProps: (_tab, ctx) => ({ active: ctx.active, project: ctx.project })
   },
   sshServer: {
     icon: sshIcon,

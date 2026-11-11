@@ -7,14 +7,15 @@ import { AppEmptyState, AppIcon, AppIconButton, AppSegmented } from '@sankasten'
 import BiblioPanel from './BiblioPanel.vue'
 import FileExplorer from './explorer/FileExplorer.vue'
 import GitPanel from './GitPanel.vue'
-import GitPanelButton from './GitPanelButton.vue'
+import SidebarRail from './SidebarRail.vue'
 import WorkgroupPanel from './WorkgroupPanel.vue'
-import WorkgroupPanelButton from './WorkgroupPanelButton.vue'
+import SSHPanel from './ssh/SSHPanel.vue'
 import {
   loadSidebarSettings,
   setSidebarView,
   sidebarSettings,
   toggleSidebarPanel,
+  type SidebarPane,
   type SidebarPanel,
   type SidebarView
 } from '../explorerSettings'
@@ -22,7 +23,6 @@ import type { BiblioTree } from '../../../preload/types'
 import type { ProjectRef } from '../workspace'
 
 defineProps<{
-  collapsed: boolean
   project: ProjectRef | undefined
   tree: BiblioTree | null
 }>()
@@ -36,85 +36,118 @@ const VIEWS: { value: SidebarView; label: string }[] = [
   { value: 'files', label: 'Files' }
 ]
 
-const PANEL_NAMES: Record<SidebarPanel, string> = {
+const PANE_NAMES: Record<Exclude<SidebarPane, 'files'>, string> = {
   workgroup: 'Workgroup',
+  ssh: 'SSH'
+}
+
+const PANEL_NAMES: Record<SidebarPanel, string> = {
   git: 'Git'
 }
 
 onMounted(() => void loadSidebarSettings())
 
-// The tree column stays nested in the sidebar with the width on the column itself, so the sidebar
+// The column stays nested in the sidebar with the width on the column itself, so the sidebar
 // takes its natural width from it. As a sibling of the sidebar it shows a dead gap beside the tree
 // under electron-vite dev.
-const treeWidth = ref(240)
+const columnWidth = ref(240)
 let dragStartX = 0
 let dragStartWidth = 0
 
 function onGutterDown(event: PointerEvent): void {
   dragStartX = event.clientX
-  dragStartWidth = treeWidth.value
+  dragStartWidth = columnWidth.value
   window.addEventListener('pointermove', onGutterMove)
   window.addEventListener('pointerup', onGutterUp)
 }
 
 function onGutterMove(event: PointerEvent): void {
   const delta = event.clientX - dragStartX
-  treeWidth.value = Math.min(480, Math.max(180, dragStartWidth + delta))
+  columnWidth.value = Math.min(480, Math.max(180, dragStartWidth + delta))
 }
 
 function onGutterUp(): void {
   window.removeEventListener('pointermove', onGutterMove)
   window.removeEventListener('pointerup', onGutterUp)
 }
+
+// The fold under the view takes the height it is given and both sides scroll inside, so neither
+// can push the other out of the column.
+const FOLD_MIN = 96
+const VIEW_MIN = 120
+const columnRef = ref<HTMLElement | null>(null)
+const foldHeight = ref(300)
+let dragStartY = 0
+let dragStartHeight = 0
+
+function onFoldDown(event: PointerEvent): void {
+  dragStartY = event.clientY
+  dragStartHeight = foldHeight.value
+  window.addEventListener('pointermove', onFoldMove)
+  window.addEventListener('pointerup', onFoldUp)
+}
+
+function onFoldMove(event: PointerEvent): void {
+  const max = Math.max(FOLD_MIN, (columnRef.value?.clientHeight ?? 0) - VIEW_MIN)
+  const next = dragStartHeight - (event.clientY - dragStartY)
+  foldHeight.value = Math.min(max, Math.max(FOLD_MIN, next))
+}
+
+function onFoldUp(): void {
+  window.removeEventListener('pointermove', onFoldMove)
+  window.removeEventListener('pointerup', onFoldUp)
+}
 </script>
 
 <template>
-  <div class="sidebar" :class="{ collapsed }">
-    <div class="sidebar-main">
+  <div class="sidebar">
+    <SidebarRail v-if="project" :project="project" />
+    <div v-show="!sidebarSettings.hidden" class="sidebar-main">
       <div v-if="project" class="sidebar-pane">
-        <div class="sidebar-tree" :style="{ width: `${treeWidth}px` }">
-          <AppSegmented
-            class="view-switch"
-            block
-            aria-label="Sidebar view"
-            :options="VIEWS"
-            :model-value="sidebarSettings.view"
-            @update:model-value="setSidebarView"
-          />
-          <BiblioPanel
-            v-if="sidebarSettings.view === 'biblio'"
-            :tree="tree"
-            :project="project"
-            @refresh="emit('refreshBiblio')"
-          />
-          <FileExplorer v-else :project="project" />
+        <div ref="columnRef" class="sidebar-column" :style="{ width: `${columnWidth}px` }">
+          <div class="pane-view">
+            <template v-if="sidebarSettings.pane === 'files'">
+              <AppSegmented
+                class="view-switch"
+                block
+                aria-label="Sidebar view"
+                :options="VIEWS"
+                :model-value="sidebarSettings.view"
+                @update:model-value="setSidebarView"
+              />
+              <BiblioPanel
+                v-if="sidebarSettings.view === 'biblio'"
+                :tree="tree"
+                :project="project"
+                @refresh="emit('refreshBiblio')"
+              />
+              <FileExplorer v-else :project="project" />
+            </template>
+            <template v-else>
+              <div class="column-head">
+                <span class="column-title">{{ PANE_NAMES[sidebarSettings.pane] }}</span>
+              </div>
+              <WorkgroupPanel v-if="sidebarSettings.pane === 'workgroup'" :project="project" />
+              <SSHPanel v-else :project="project" />
+            </template>
+          </div>
 
-          <div v-if="sidebarSettings.panel" class="panel-fold">
-            <div class="panel-head">
-              <span class="panel-title">{{ PANEL_NAMES[sidebarSettings.panel] }}</span>
-              <AppIconButton
-                size="sm"
-                :label="`Minimize ${PANEL_NAMES[sidebarSettings.panel]}`"
-                @click="sidebarSettings.panel && toggleSidebarPanel(sidebarSettings.panel)"
-              >
-                <AppIcon name="minus" />
-              </AppIconButton>
+          <template v-if="sidebarSettings.panel">
+            <div class="fold-gutter" @pointerdown="onFoldDown" />
+            <div class="panel-fold" :style="{ height: `${foldHeight}px` }">
+              <div class="column-head">
+                <span class="column-title">{{ PANEL_NAMES[sidebarSettings.panel] }}</span>
+                <AppIconButton
+                  size="sm"
+                  :label="`Minimize ${PANEL_NAMES[sidebarSettings.panel]}`"
+                  @click="sidebarSettings.panel && toggleSidebarPanel(sidebarSettings.panel)"
+                >
+                  <AppIcon name="minus" />
+                </AppIconButton>
+              </div>
+              <GitPanel :project="project" />
             </div>
-            <WorkgroupPanel v-if="sidebarSettings.panel === 'workgroup'" :project="project" />
-            <GitPanel v-else :project="project" />
-          </div>
-          <div class="panel-bar" role="toolbar" aria-label="Panels">
-            <WorkgroupPanelButton
-              :project="project"
-              :open="sidebarSettings.panel === 'workgroup'"
-              @toggle="toggleSidebarPanel('workgroup')"
-            />
-            <GitPanelButton
-              :project="project"
-              :open="sidebarSettings.panel === 'git'"
-              @toggle="toggleSidebarPanel('git')"
-            />
-          </div>
+          </template>
         </div>
 
         <div class="sidebar-gutter" @pointerdown="onGutterDown" />
@@ -128,14 +161,8 @@ function onGutterUp(): void {
 .sidebar {
   flex-shrink: 0;
   display: flex;
-  flex-direction: column;
   background: var(--color-surface-1);
   overflow: hidden;
-  transition: width var(--duration-base) var(--ease-out);
-}
-
-.sidebar.collapsed {
-  width: 0;
 }
 
 .sidebar-main {
@@ -150,43 +177,7 @@ function onGutterUp(): void {
   display: flex;
 }
 
-/* The open panel keeps the height it had as an inline fold, so the tree above keeps the rest;
-   the icon row stays at the bottom whether a panel is open or not. */
-.panel-fold {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  max-height: 55vh;
-  min-height: 0;
-  border-top: 1px solid var(--color-border-default);
-}
-
-/* The header belongs to the fold, not the panel, so every panel gets the name and the minimize
-   dash without drawing its own. */
-.panel-head {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-1) var(--space-2) 0 var(--space-3);
-}
-
-.panel-title {
-  color: var(--color-fg-secondary);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.panel-bar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--color-border-default);
-}
-
-.sidebar-tree {
+.sidebar-column {
   flex-shrink: 0;
   min-height: 0;
   display: flex;
@@ -194,8 +185,48 @@ function onGutterUp(): void {
   background: var(--color-surface-1);
 }
 
-.sidebar-tree .view-switch {
+.pane-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pane-view .view-switch {
   margin: var(--space-3) var(--space-2) 0;
+}
+
+/* One header shape for a view and for the fold, so every panel gets its name without drawing its
+   own; the fold's header adds the minimize dash. */
+.column-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--control-h-sm);
+  padding: var(--space-1) var(--space-2) 0 var(--space-3);
+}
+
+.column-title {
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+/* Shrinks below its dragged height when the window does, down to the same floor as the drag. */
+.panel-fold {
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 96px;
+}
+
+.fold-gutter {
+  flex-shrink: 0;
+  height: 4px;
+  cursor: row-resize;
+  background: var(--color-border-subtle);
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .sidebar-gutter {
@@ -206,6 +237,8 @@ function onGutterUp(): void {
   transition: background var(--duration-fast) var(--ease-out);
 }
 
+.fold-gutter:hover,
+.fold-gutter:active,
 .sidebar-gutter:hover,
 .sidebar-gutter:active {
   background: var(--color-amber);

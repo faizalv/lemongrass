@@ -19,7 +19,6 @@ const KINDS: Record<WorkspaceTab['kind'], true> = {
   workgroup: true,
   device: true,
   resterClient: true,
-  ssh: true,
   sshServer: true
 }
 

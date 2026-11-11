@@ -14,7 +14,7 @@ import { updatePending } from '../updateState'
 const controls = window.api.windowControls
 
 defineProps<{
-  sidebarCollapsed: boolean
+  sidebarHidden: boolean
 }>()
 
 const emit = defineEmits<{
@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="sidebar-toggle-zone">
       <AppIconButton
-        :label="sidebarCollapsed ? 'Show sidebar' : 'Hide sidebar'"
+        :label="sidebarHidden ? 'Show sidebar' : 'Hide sidebar'"
         size="sm"
         @click="emit('toggle-sidebar')"
       >
@@ -139,9 +139,6 @@ onBeforeUnmount(() => {
     </div>
     <div class="drag-region">
       <slot name="title" />
-    </div>
-    <div v-if="$slots.center" class="center">
-      <slot name="center" />
     </div>
     <div class="actions">
       <slot name="actions" />
@@ -231,30 +228,12 @@ onBeforeUnmount(() => {
 <style scoped>
 .header-bar {
   position: relative;
-  container: header / inline-size;
   display: flex;
   align-items: stretch;
   height: 46px;
   flex-shrink: 0;
   background: var(--color-surface-1);
   -webkit-app-region: drag;
-}
-
-/* Centered on the window, not between the title and the controls. The layer itself sets no app
-   region and takes no pointer events, so only its content is no-drag and the header around it
-   still drags the window. No transform: it would make it the containing block of the fixed
-   menus inside it. */
-.center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.center :slotted(*) {
-  pointer-events: auto;
 }
 
 .drag-region {
