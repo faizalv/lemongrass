@@ -107,13 +107,8 @@ const status = computed((): { text: string; tone: '' | 'muted' | 'saved' | 'erro
       <AppButton v-if="canInstall" type="button" variant="primary" @click="install">
         Install {{ state.latest }}
       </AppButton>
-      <AppConfirmButton
-        v-if="state.phase === 'installed'"
-        v-slot="{ armed }"
-        variant="primary"
-        @confirm="restart"
-      >
-        {{ armed ? 'Click again' : 'Restart now' }}
+      <AppConfirmButton v-if="state.phase === 'installed'" variant="primary" @confirm="restart">
+        Restart now
       </AppConfirmButton>
     </div>
 

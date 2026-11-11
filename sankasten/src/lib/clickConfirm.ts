@@ -7,10 +7,13 @@ export type ConfirmState = 'idle' | 'pending' | 'armed'
 // second click of a destructive action is always a deliberate one.
 export const CONFIRM_DELAY_MS = 1000
 
+// What a press did: `started` the wait, came `early` during it (ignored, but worth explaining to
+// the user), or `confirmed`, in which case the action should run.
+export type PressResult = 'started' | 'early' | 'confirmed'
+
 export interface ClickConfirm {
   state(): ConfirmState
-  // Returns true when this press is the armed one and the action should run.
-  press(): boolean
+  press(): PressResult
   reset(): void
 }
 
@@ -33,19 +36,18 @@ export function createClickConfirm(
     set('idle')
   }
 
-  function press(): boolean {
+  function press(): PressResult {
     if (state === 'armed') {
       reset()
-      return true
+      return 'confirmed'
     }
-    if (state === 'idle') {
-      set('pending')
-      timer = setTimeout(() => {
-        timer = undefined
-        set('armed')
-      }, delay)
-    }
-    return false
+    if (state === 'pending') return 'early'
+    set('pending')
+    timer = setTimeout(() => {
+      timer = undefined
+      set('armed')
+    }, delay)
+    return 'started'
   }
 
   return { state: () => state, press, reset }

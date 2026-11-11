@@ -105,13 +105,13 @@ export const DOCS: Record<string, ComponentDoc> = {
         name: 'confirm',
         type: 'boolean',
         default: 'false',
-        doc: 'Click-again confirm: the first click arms it, the second emits confirm.'
+        doc: 'Click-again confirm through AppConfirmButton: the first click fills the button over a one second wait, the next click emits confirm.'
       },
       {
         name: 'confirmLabel',
         type: 'string',
-        default: "'Click again'",
-        doc: 'Tooltip and label while armed.'
+        default: "'Click again to confirm'",
+        doc: 'The callout prompt, title and aria-label while armed.'
       },
       {
         name: 'dot',
@@ -145,7 +145,7 @@ export const DOCS: Record<string, ComponentDoc> = {
   AppConfirmButton: {
     name: 'AppConfirmButton',
     summary:
-      'A destructive or committing action that confirms in place: the first click starts a one second wait, then a second click runs it.',
+      'A destructive or committing action that confirms in place: the first click fills the button with its tone over a one second wait, then a callout says to click again and the next click runs it. A click during the wait shakes the button and explains the pattern in the callout. Sites never word the prompt themselves.',
     props: [
       {
         name: 'variant',
@@ -161,14 +161,18 @@ export const DOCS: Record<string, ComponentDoc> = {
       {
         name: 'confirmLabel',
         type: 'string',
-        default: "'Click again'",
-        doc: 'Title and aria-label while armed.'
+        default: "'Click again to confirm'",
+        doc: 'The callout prompt, title and aria-label while armed. Start it with "Click again".'
       },
       { ...rowSize, doc: 'Passed to AppButton when a variant is set.' }
     ],
     events: [{ name: 'confirm', type: '', doc: 'The armed click.' }],
     slots: [
-      { name: 'default', type: '{ state, armed }', doc: 'The label; can change with the state.' }
+      {
+        name: 'default',
+        type: '{ state, armed }',
+        doc: 'The label. Keep it the same in every state; the callout carries the prompt.'
+      }
     ]
   },
   AppTab: {
@@ -202,8 +206,8 @@ export const DOCS: Record<string, ComponentDoc> = {
       {
         name: 'confirmLabel',
         type: 'string',
-        default: "'Close without saving'",
-        doc: 'Title of an armed dirty close.'
+        default: "'Click again to close without saving'",
+        doc: 'The callout prompt of an armed dirty close.'
       }
     ],
     events: [
@@ -229,7 +233,7 @@ export const DOCS: Record<string, ComponentDoc> = {
       {
         name: 'confirmLabel',
         type: 'string',
-        default: "'Close without saving'",
+        default: "'Click again to close without saving'",
         doc: 'Title and aria-label while armed.'
       },
       { ...size, doc: '18px (sm) in a strip of small tabs, 22px (md) in a tab bar.' }

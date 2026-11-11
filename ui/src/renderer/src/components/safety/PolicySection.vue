@@ -366,13 +366,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown, { capture
         <!-- Keyed by scope so switching scope drops a half-finished confirm. -->
         <AppConfirmButton
           :key="scope"
-          v-slot="{ armed }"
           variant="ghost"
           confirm-label="Click again to reset"
           :disabled="loading || saving"
           @confirm="resetToDefaults"
         >
-          {{ armed ? 'Click again to reset' : 'Reset to defaults' }}
+          Reset to defaults
         </AppConfirmButton>
       </div>
       <div v-if="filterOpen" class="find">

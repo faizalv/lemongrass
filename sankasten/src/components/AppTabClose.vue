@@ -16,7 +16,7 @@ withDefaults(
     confirmLabel?: string
     size?: 'sm' | 'md'
   }>(),
-  { dirty: false, confirmLabel: 'Close without saving', size: 'md' }
+  { dirty: false, confirmLabel: 'Click again to close without saving', size: 'md' }
 )
 
 const emit = defineEmits<{ close: [] }>()
@@ -25,7 +25,6 @@ const emit = defineEmits<{ close: [] }>()
 <template>
   <AppConfirmButton
     v-if="dirty"
-    v-slot="{ armed }"
     class="app-tab-close dirty"
     :class="`size-${size}`"
     :title="`${label}, unsaved changes`"
@@ -35,7 +34,7 @@ const emit = defineEmits<{ close: [] }>()
     @confirm="emit('close')"
   >
     <span class="dot" aria-hidden="true" />
-    <span class="mark" aria-hidden="true">{{ armed ? '!' : '×' }}</span>
+    <span class="mark" aria-hidden="true">×</span>
   </AppConfirmButton>
   <button
     v-else

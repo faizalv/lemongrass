@@ -385,6 +385,7 @@ async function decline(): Promise<void> {
             v-if="!ask.never_execute"
             variant="primary"
             tone="jade"
+            confirm-label="Click again to execute"
             :disabled="busy"
             @confirm="execute"
           >
@@ -418,7 +419,12 @@ async function decline(): Promise<void> {
     <template v-else-if="running">
       <p v-if="error" class="error-text">{{ error }}</p>
       <AppModalActions>
-        <AppConfirmButton variant="danger" :disabled="busy || starting" @confirm="stop">
+        <AppConfirmButton
+          variant="danger"
+          confirm-label="Click again to stop"
+          :disabled="busy || starting"
+          @confirm="stop"
+        >
           Stop
         </AppConfirmButton>
       </AppModalActions>

@@ -41,7 +41,7 @@ const props = withDefaults(
     pressed: undefined,
     busy: false,
     confirm: false,
-    confirmLabel: 'Click again',
+    confirmLabel: 'Click again to confirm',
     dot: undefined
   }
 )

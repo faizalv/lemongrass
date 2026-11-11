@@ -18,7 +18,12 @@ withDefaults(
     closeLabel: string
     confirmLabel?: string
   }>(),
-  { title: undefined, active: false, dirty: false, confirmLabel: 'Close without saving' }
+  {
+    title: undefined,
+    active: false,
+    dirty: false,
+    confirmLabel: 'Click again to close without saving'
+  }
 )
 
 const emit = defineEmits<{ select: []; close: [] }>()

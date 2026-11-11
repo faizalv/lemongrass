@@ -277,8 +277,6 @@ const DOC_ICON = [
   'M6.7 5.1l2.6 2.6M9.3 5.1L6.7 7.7'
 ]
 
-const WARNING_ICON = ['M7 3v5.2', 'M7 10.8v.1']
-
 const closeActions = computed(() => {
   const paneHasDocs = props.leaf.tabs.some(isDocumentTab)
   return [
@@ -722,7 +720,6 @@ onBeforeUnmount(() => {
       <AppConfirmButton
         v-for="action in closeActions"
         :key="action.key"
-        v-slot="{ armed }"
         class="menu-item"
         :disabled="action.disabled"
         @confirm="menuCloseAction(action.key)"
@@ -738,10 +735,9 @@ onBeforeUnmount(() => {
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <path v-for="d in armed ? WARNING_ICON : action.icon" :key="d" :d="d" />
+          <path v-for="d in action.icon" :key="d" :d="d" />
         </svg>
         {{ action.label }}
-        <span class="menu-confirm-hint" :class="{ shown: armed }">Click again</span>
       </AppConfirmButton>
       <div class="menu-divider" />
       <button class="menu-item" @click="menuClose">
@@ -1052,17 +1048,6 @@ onBeforeUnmount(() => {
 .menu-item:disabled {
   color: var(--color-fg-muted);
   cursor: default;
-}
-
-.menu-confirm-hint {
-  margin-left: auto;
-  padding-left: var(--space-4);
-  font-size: var(--text-xs);
-  visibility: hidden;
-}
-
-.menu-confirm-hint.shown {
-  visibility: visible;
 }
 
 .menu-divider {

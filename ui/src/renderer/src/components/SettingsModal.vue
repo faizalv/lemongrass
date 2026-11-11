@@ -256,13 +256,8 @@ async function onRemove(name: string): Promise<void> {
               :windows="claudeUsage(account.name)?.windows"
               :seen-at="claudeUsage(account.name)?.seen_at"
             />
-            <AppConfirmButton
-              v-slot="{ armed }"
-              variant="ghost"
-              size="xs"
-              @confirm="onRemove(account.name)"
-            >
-              {{ armed ? 'Click again' : 'Remove' }}
+            <AppConfirmButton variant="ghost" size="xs" @confirm="onRemove(account.name)">
+              Remove
             </AppConfirmButton>
           </li>
         </ul>

@@ -171,11 +171,8 @@ onBeforeUnmount(hide)
             confirm-label="Click again to hand the conflict over"
             @confirm="pick(target.tabId)"
           >
-            <template #default="{ armed }">
-              <span class="row-label">{{ target.label }}</span>
-              <span v-if="target.reason" class="row-note">{{ target.reason }}</span>
-              <span v-else class="row-hint" :class="{ shown: armed }">Click again</span>
-            </template>
+            <span class="row-label">{{ target.label }}</span>
+            <span v-if="target.reason" class="row-note">{{ target.reason }}</span>
           </AppConfirmButton>
         </li>
       </ul>
@@ -256,15 +253,5 @@ onBeforeUnmount(hide)
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--color-fg-disabled);
-}
-
-/* Always laid out, so the row does not change width when it arms. */
-.row-hint {
-  flex-shrink: 0;
-  visibility: hidden;
-}
-
-.row-hint.shown {
-  visibility: visible;
 }
 </style>

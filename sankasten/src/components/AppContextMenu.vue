@@ -62,7 +62,6 @@ onBeforeUnmount(() => {
     <template v-for="item in items" :key="item.key">
       <AppConfirmButton
         v-if="item.confirm"
-        v-slot="{ armed }"
         class="menu-item"
         role="menuitem"
         :disabled="item.disabled"
@@ -85,7 +84,6 @@ onBeforeUnmount(() => {
           <path v-for="d in item.icon" :key="d" :d="d" />
         </svg>
         {{ item.label }}
-        <span class="menu-confirm-hint" :class="{ shown: armed }">Click again</span>
       </AppConfirmButton>
       <button
         v-else
@@ -160,17 +158,6 @@ onBeforeUnmount(() => {
 
 .menu-item:disabled .menu-icon {
   color: inherit;
-}
-
-.menu-confirm-hint {
-  margin-left: auto;
-  padding-left: var(--space-4);
-  font-size: var(--text-xs);
-  visibility: hidden;
-}
-
-.menu-confirm-hint.shown {
-  visibility: visible;
 }
 
 .menu-item:disabled {

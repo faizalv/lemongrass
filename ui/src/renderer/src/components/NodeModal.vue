@@ -511,14 +511,8 @@ function copy(key: string, text: string): void {
                 :label="copied === 'url' ? 'Copied' : 'Copy URL'"
                 @click="copy('url', nodeURL)"
               />
-              <AppConfirmButton
-                v-slot="{ armed }"
-                variant="danger"
-                size="xs"
-                :disabled="busy"
-                @confirm="closeTunnel"
-              >
-                {{ armed ? 'Click again' : 'Close' }}
+              <AppConfirmButton variant="danger" size="xs" :disabled="busy" @confirm="closeTunnel">
+                Close
               </AppConfirmButton>
             </template>
           </li>
@@ -675,13 +669,12 @@ function copy(key: string, text: string): void {
                 <span class="settings-badge">Disconnected</span>
                 <AppConfirmButton
                   :key="selected.id"
-                  v-slot="{ armed }"
                   variant="ghost"
                   size="xs"
                   :disabled="busy"
                   @confirm="confirmed(() => removeToken(selected!.id))"
                 >
-                  {{ armed ? 'Click again' : 'Remove' }}
+                  Remove
                 </AppConfirmButton>
               </li>
             </ul>
@@ -829,13 +822,12 @@ function copy(key: string, text: string): void {
                 </span>
                 <AppConfirmButton
                   :key="selected.id"
-                  v-slot="{ armed }"
                   variant="ghost"
                   size="xs"
                   :disabled="busy"
                   @confirm="confirmed(() => disconnect(selected!.id))"
                 >
-                  {{ armed ? 'Click again' : 'Disconnect' }}
+                  Disconnect
                 </AppConfirmButton>
               </li>
             </ul>

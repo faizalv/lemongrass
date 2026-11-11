@@ -54,7 +54,7 @@ watch(
         v-if="center.items.length > 0"
         variant="ghost"
         size="sm"
-        confirm-label="Clear all?"
+        confirm-label="Click again to clear all"
         @confirm="clearAll"
       >
         Clear

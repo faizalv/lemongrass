@@ -16,11 +16,11 @@ afterEach(() => mock.timers.reset())
 
 test('the first press waits, then arms, and the armed press runs', () => {
   const confirm = createClickConfirm((s) => seen.push(s))
-  assert.equal(confirm.press(), false)
+  assert.equal(confirm.press(), 'started')
   assert.equal(confirm.state(), 'pending')
   mock.timers.tick(CONFIRM_DELAY_MS)
   assert.equal(confirm.state(), 'armed')
-  assert.equal(confirm.press(), true)
+  assert.equal(confirm.press(), 'confirmed')
   assert.equal(confirm.state(), 'idle')
   assert.deepEqual(seen, ['pending', 'armed', 'idle'])
 })
@@ -29,15 +29,15 @@ test('presses during the wait are ignored and do not restart it', () => {
   const confirm = createClickConfirm((s) => seen.push(s))
   confirm.press()
   mock.timers.tick(CONFIRM_DELAY_MS - 1)
-  assert.equal(confirm.press(), false)
+  assert.equal(confirm.press(), 'early')
   mock.timers.tick(1)
   assert.equal(confirm.state(), 'armed')
 })
 
 test('a double fired click never runs the action', () => {
   const confirm = createClickConfirm(() => {})
-  assert.equal(confirm.press(), false)
-  assert.equal(confirm.press(), false)
+  assert.equal(confirm.press(), 'started')
+  assert.equal(confirm.press(), 'early')
   assert.equal(confirm.state(), 'pending')
 })
 
