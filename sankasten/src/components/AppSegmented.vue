@@ -35,16 +35,16 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-/* The track is the control height and the 3px inset leaves the pills 6px shorter, so a switch
-   lines up with fields and buttons of its size. */
+/* The track is the control height and the segments fill it edge to edge, so a switch lines up
+   with fields and buttons of its size and the selected fill covers exactly its share. An inset
+   pill looked smaller than the unselected segments, whose share the eye reads out to the track's
+   edge. */
 .segmented {
   --h: var(--control-h-md);
   box-sizing: border-box;
   display: inline-flex;
   align-self: flex-start;
   flex-wrap: wrap;
-  gap: 2px;
-  padding: 3px;
   border-radius: var(--radius-md);
   background: var(--color-surface-3);
 }
@@ -69,10 +69,10 @@ const emit = defineEmits<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: calc(var(--h) - 6px);
+  height: var(--h);
   padding: 0 var(--space-3);
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-fg-secondary);
   font-family: var(--font-body);
@@ -88,18 +88,22 @@ const emit = defineEmits<{
   color: var(--color-fg-primary);
 }
 
-/* The focus color marks the selected segment, as amber marks an active nav item. After :hover,
-   so hovering the selected segment keeps it amber. */
+/* The focus color marks the selected segment as a solid fill, like a primary button: a muted fill
+   washes out on the track's raised surface. After :hover, so hovering keeps the selected look. */
 .segmented button[aria-checked='true'] {
-  background: var(--color-amber-muted);
-  color: var(--color-amber);
+  background: var(--color-amber);
+  color: var(--color-on-fill);
   font-weight: var(--weight-semibold);
 }
 
-/* Inset, so the ring follows the pill's own edge whatever the track padding and the selected
-   pill's shadow. */
+/* Inset, so the ring follows the segment's own edge inside the track. */
 .segmented button:focus-visible {
   outline: 1px solid var(--color-amber);
   outline-offset: -1px;
+}
+
+/* An amber ring would vanish into the selected segment's amber fill. */
+.segmented button[aria-checked='true']:focus-visible {
+  outline-color: var(--color-on-fill);
 }
 </style>
