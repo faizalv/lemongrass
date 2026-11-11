@@ -11,6 +11,7 @@ import {
   AppEmptyState,
   AppIconButton,
   AppInput,
+  AppMosaic,
   AppSegmented
 } from '@sankasten'
 import '../../ssh.css'
@@ -22,7 +23,7 @@ import SSHKeyCard from './SSHKeyCard.vue'
 import SSHKeyModal from './SSHKeyModal.vue'
 import SSHLinkModal from './SSHLinkModal.vue'
 import SSHRunModal from './SSHRunModal.vue'
-import SSHServerCard from './SSHServerCard.vue'
+import SSHServerCapsule from './SSHServerCapsule.vue'
 import SSHServerModal from './SSHServerModal.vue'
 import { hostTarget, sshDirOf, type SSHSection } from './sshView'
 import type { SSHHostEntry, SSHHostList, SSHKey, SSHKeyList } from '../../../../preload/types'
@@ -48,6 +49,9 @@ const linkModal = ref(false)
 const loadModal = ref<SSHKey | null>(null)
 
 const allHosts = computed(() => hosts.value?.hosts ?? [])
+
+// The server capsule clicked open, one at a time.
+const expandedServer = ref<string | null>(null)
 const allKeys = computed(() => keys.value?.keys ?? [])
 const home = computed(() => hosts.value?.home ?? '')
 const sshDir = computed(() => (hosts.value ? sshDirOf(hosts.value) : ''))
@@ -158,8 +162,8 @@ function addPrimary(): void {
               placeholder="Filter by name or address"
               aria-label="Filter servers"
             />
-            <div class="ssh-list">
-              <SSHServerCard
+            <AppMosaic v-model:expanded="expandedServer">
+              <SSHServerCapsule
                 v-for="host in serverRows"
                 :key="host.alias"
                 :host="host"
@@ -170,8 +174,8 @@ function addPrimary(): void {
                 @edit="serverModal = { host, presetKey: null }"
                 @changed="refresh"
               />
-              <AppEmptyState v-if="!serverRows.length" title="No server matches." />
-            </div>
+            </AppMosaic>
+            <AppEmptyState v-if="!serverRows.length" title="No server matches." />
           </template>
         </template>
 

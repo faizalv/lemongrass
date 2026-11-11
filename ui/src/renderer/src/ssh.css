@@ -66,12 +66,33 @@
   min-height: var(--control-h-sm);
 }
 
-.ssh-pane .ssh-card-actions {
-  flex-shrink: 0;
+/* An expanded server capsule: what a login depends on, as label and value pairs. */
+.ssh-pane .ssh-facts {
   display: grid;
-  grid-template-columns: var(--control-h-sm) 52px auto;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px var(--space-3);
+  margin: 0;
+}
+
+.ssh-pane .ssh-facts dt {
+  color: var(--color-fg-muted);
+}
+
+.ssh-pane .ssh-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  user-select: text;
+}
+
+.ssh-pane .ssh-capsule-actions {
+  display: flex;
   align-items: center;
-  justify-items: center;
+  gap: var(--space-1);
+}
+
+.ssh-pane .ssh-capsule-spacer {
+  flex: 1;
 }
 
 .ssh-pane .ssh-card-titles {

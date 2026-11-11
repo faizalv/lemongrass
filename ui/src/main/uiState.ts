@@ -36,6 +36,10 @@ export interface UiState {
   sidebarPane?: 'files' | 'workgroup' | 'ssh'
   // The panel folded open under the column's view. Older files may hold 'workgroup', read as none.
   sidebarPanel?: 'git' | 'none'
+  // The fold's height under the column's view and the Git commit box's height, in px, as the
+  // human last dragged them.
+  sidebarFoldHeight?: number
+  gitCommitHeight?: number
   explorer?: {
     columns: { size: boolean; modified: boolean; git: boolean }
     density: 'compact' | 'comfortable'

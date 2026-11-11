@@ -13,12 +13,7 @@ import { updatePending } from '../updateState'
 // a Vue template resolves against the component instance, not globalThis.
 const controls = window.api.windowControls
 
-defineProps<{
-  sidebarHidden: boolean
-}>()
-
 const emit = defineEmits<{
-  'toggle-sidebar': []
   'open-settings': []
   'open-guide': []
 }>()
@@ -115,27 +110,6 @@ onBeforeUnmount(() => {
           <line v-if="!isMaximized" x1="4" y1="1" x2="4" y2="7" />
         </svg>
       </button>
-    </div>
-    <div class="sidebar-toggle-zone">
-      <AppIconButton
-        :label="sidebarHidden ? 'Show sidebar' : 'Hide sidebar'"
-        size="sm"
-        @click="emit('toggle-sidebar')"
-      >
-        <svg viewBox="0 0 14 14">
-          <rect
-            x="0.5"
-            y="0.5"
-            width="13"
-            height="13"
-            rx="2"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1"
-          />
-          <line x1="5" y1="0.5" x2="5" y2="13.5" stroke="currentColor" stroke-width="1" />
-        </svg>
-      </AppIconButton>
     </div>
     <div class="drag-region">
       <slot name="title" />
@@ -241,16 +215,9 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   align-items: center;
-  padding: 0 var(--space-4);
-}
-
-.sidebar-toggle-zone {
-  display: flex;
-  align-items: center;
-  /* Keeps the toggle clear of the macOS traffic lights; 0 elsewhere. */
+  /* Keeps the title clear of the macOS traffic lights; 0 elsewhere. */
   margin-left: var(--mac-lights-inset);
-  padding: 0 0 0 var(--space-2);
-  -webkit-app-region: no-drag;
+  padding: 0 var(--space-4);
 }
 
 .lights {

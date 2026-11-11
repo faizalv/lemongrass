@@ -2,13 +2,13 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-// One server: its name, where it points, and its actions in view. Anything else shows only when
-// something is wrong or when the human asks for it.
+// One server as a capsule in the SSH view's mosaic: only its name at rest; clicked open, where it
+// points, the key it logs in with and its actions. Its config entry shows only when asked for.
 import { computed, ref } from 'vue'
-import { AppButton, AppIconButton } from '@sankasten'
+import { AppButton, AppCapsule, AppIconButton } from '@sankasten'
 import CodeReader from '../CodeReader.vue'
 import { describeError } from '../../vaultSession'
-import { hostTarget, missingKeyPath, tildePath } from './sshView'
+import { missingKeyPath, tildePath } from './sshView'
 import type { SSHHostBlock, SSHHostEntry, SSHKey } from '../../../../preload/types'
 
 const props = defineProps<{
@@ -32,6 +32,23 @@ const error = ref('')
 const missing = computed(() => missingKeyPath(props.host, props.keys, props.sshDir))
 
 const jump = computed(() => props.host.resolved?.proxyJump || '')
+
+// The settings ssh resolves for the host, the ones a login depends on; empty values are left out.
+const facts = computed(() => {
+  const r = props.host.resolved
+  const rows: { label: string; value: string }[] = []
+  if (r?.hostname) rows.push({ label: 'Address', value: r.hostname })
+  if (r?.user) rows.push({ label: 'User', value: r.user })
+  rows.push({ label: 'Port', value: r?.port || '22' })
+  rows.push({
+    label: 'Key',
+    value: props.host.keyPaths.length
+      ? props.host.keyPaths.map((path) => tildePath(path, props.home)).join(', ')
+      : 'ssh default keys'
+  })
+  if (jump.value) rows.push({ label: 'Through', value: jump.value })
+  return rows
+})
 
 const readerText = computed(() => {
   const b = block.value
@@ -71,49 +88,13 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <article class="ssh-card">
-    <div class="ssh-card-head">
-      <div class="ssh-card-titles">
-        <span class="ssh-card-title">{{ host.alias }}</span>
-        <span class="ssh-card-sub">
-          {{ hostTarget(host) }}<template v-if="jump"> through {{ jump }}</template>
-        </span>
-      </div>
-      <!-- Fixed slots, so every card's actions line up in columns even when one is missing. Open
-           takes the right edge and a missing Remove leaves its gap on the left, in the free space. -->
-      <div class="ssh-card-actions">
-        <AppIconButton
-          v-if="host.managed"
-          icon="trash"
-          size="sm"
-          tone="danger"
-          confirm
-          :label="`Remove ${host.alias}`"
-          @confirm="remove"
-        />
-        <span v-else />
-        <AppButton v-if="host.managed" variant="text" size="sm" @click="emit('edit')">
-          Edit
-        </AppButton>
-        <AppButton
-          v-else
-          variant="text"
-          size="sm"
-          :pressed="viewing"
-          :title="`Show the entry in ${tildePath(host.file, home)}`"
-          @click="toggleView"
-        >
-          View
-        </AppButton>
-        <AppButton
-          size="sm"
-          :title="`Log in to ${host.alias} in a terminal tab`"
-          @click="emit('open')"
-        >
-          Open
-        </AppButton>
-      </div>
-    </div>
+  <AppCapsule :label="host.alias">
+    <dl v-if="host.resolved" class="ssh-facts">
+      <template v-for="fact in facts" :key="fact.label">
+        <dt>{{ fact.label }}</dt>
+        <dd>{{ fact.value }}</dd>
+      </template>
+    </dl>
 
     <p v-if="host.resolveError" class="settings-error">{{ host.resolveError }}</p>
     <p v-if="missing" class="ssh-card-warn">
@@ -121,6 +102,39 @@ async function remove(): Promise<void> {
       <template v-if="host.managed">Pick another key with Edit.</template>
     </p>
     <p v-if="error" class="settings-error">{{ error }}</p>
+
+    <div class="ssh-capsule-actions">
+      <AppIconButton
+        v-if="host.managed"
+        icon="trash"
+        size="sm"
+        tone="danger"
+        confirm
+        :label="`Remove ${host.alias}`"
+        @confirm="remove"
+      />
+      <span class="ssh-capsule-spacer" />
+      <AppButton v-if="host.managed" variant="text" size="sm" @click="emit('edit')">
+        Edit
+      </AppButton>
+      <AppButton
+        variant="text"
+        size="sm"
+        :pressed="viewing"
+        :title="`Show the entry in ${tildePath(host.file, home)}`"
+        @click="toggleView"
+      >
+        View
+      </AppButton>
+      <AppButton
+        variant="primary"
+        size="sm"
+        :title="`Log in to ${host.alias} in a terminal tab`"
+        @click="emit('open')"
+      >
+        Open
+      </AppButton>
+    </div>
 
     <div v-if="viewing && block" class="ssh-card-more">
       <div class="ssh-card-row">
@@ -136,5 +150,5 @@ async function remove(): Promise<void> {
         <CodeReader :content="readerText" :path="block.file" />
       </div>
     </div>
-  </article>
+  </AppCapsule>
 </template>

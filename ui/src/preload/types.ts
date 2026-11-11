@@ -51,6 +51,8 @@ export interface UiState {
   sidebarView?: 'biblio' | 'files'
   sidebarPane?: 'files' | 'workgroup' | 'ssh'
   sidebarPanel?: 'git' | 'none'
+  sidebarFoldHeight?: number
+  gitCommitHeight?: number
   explorer?: {
     columns: { size: boolean; modified: boolean; git: boolean }
     density: 'compact' | 'comfortable'

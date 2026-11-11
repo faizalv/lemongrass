@@ -16,7 +16,25 @@ withDefaults(
 )
 
 const model = defineModel<string>({ default: '' })
+// The height the human dragged the resize handle to, in px, so a caller can keep it across a
+// remount. Null leaves the height to rows and the caller's class.
+const height = defineModel<number | null>('height', { default: null })
 const element = ref<HTMLTextAreaElement | null>(null)
+
+// Only a drag the human made is reported: the handle belongs to the textarea, so a press on it
+// starts here, and a height that changed by the release is the new size. Layout changes never
+// write the model.
+function onPointerDown(): void {
+  const before = element.value?.offsetHeight
+  window.addEventListener(
+    'pointerup',
+    () => {
+      const after = element.value?.offsetHeight
+      if (after && after !== before) height.value = after
+    },
+    { once: true }
+  )
+}
 
 defineExpose({ focus: () => element.value?.focus() })
 </script>
@@ -27,6 +45,8 @@ defineExpose({ focus: () => element.value?.focus() })
     v-model="model"
     class="app-textarea"
     :class="[`app-textarea--${size}`, { 'app-textarea--fixed': resize === 'none', mono }]"
+    :style="height ? { height: `${height}px` } : undefined"
+    @pointerdown="onPointerDown"
   />
 </template>
 

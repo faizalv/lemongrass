@@ -30,6 +30,7 @@ import {
   type ProjectRef
 } from '../workspace'
 import type { GitFile, GitFileGroup, GitFileKind } from '../../../preload/types'
+import { setCommitHeight, sidebarSettings } from '../explorerSettings'
 import GitIcon from './GitIcon.vue'
 import GitConflictPanel from './GitConflictPanel.vue'
 import GitBranchCreateModal from './GitBranchCreateModal.vue'
@@ -284,10 +285,12 @@ const pushTitle = computed(() => {
 
         <AppTextarea
           v-model="state.message"
+          :height="sidebarSettings.commitHeight"
           size="sm"
           rows="3"
           placeholder="Commit message"
           :disabled="state.busy !== null"
+          @update:height="setCommitHeight"
         />
         <p v-if="state.error" class="git-error">{{ state.error }}</p>
         <p v-if="hint" class="git-hint">{{ hint }}</p>

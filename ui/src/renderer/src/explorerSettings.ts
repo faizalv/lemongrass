@@ -23,12 +23,17 @@ export const sidebarSettings = reactive<{
   // Hidden for the session only, as the column always comes back on a restart.
   hidden: boolean
   panel: SidebarPanel | null
+  // Sizes the human dragged, kept across a remount and a restart; null leaves the default.
+  foldHeight: number
+  commitHeight: number | null
   explorer: ExplorerView
 }>({
   view: 'biblio',
   pane: 'files',
   hidden: false,
   panel: null,
+  foldHeight: 300,
+  commitHeight: null,
   explorer: structuredClone(DEFAULT_VIEW)
 })
 
@@ -42,6 +47,8 @@ export async function loadSidebarSettings(): Promise<void> {
   if (saved.sidebarPane) sidebarSettings.pane = saved.sidebarPane
   // An older file may name 'workgroup', which is now a view and no longer a fold.
   if (saved.sidebarPanel === 'git') sidebarSettings.panel = 'git'
+  if (saved.sidebarFoldHeight) sidebarSettings.foldHeight = saved.sidebarFoldHeight
+  if (saved.gitCommitHeight) sidebarSettings.commitHeight = saved.gitCommitHeight
   if (saved.explorer) {
     sidebarSettings.explorer = {
       ...DEFAULT_VIEW,
@@ -78,6 +85,16 @@ export function toggleSidebarPanel(panel: SidebarPanel): void {
     sidebarSettings.panel = sidebarSettings.panel === panel ? null : panel
   }
   window.api.uiState.save({ sidebarPanel: sidebarSettings.panel ?? 'none' })
+}
+
+export function setFoldHeight(height: number): void {
+  sidebarSettings.foldHeight = height
+  window.api.uiState.save({ sidebarFoldHeight: height })
+}
+
+export function setCommitHeight(height: number | null): void {
+  sidebarSettings.commitHeight = height
+  if (height) window.api.uiState.save({ gitCommitHeight: height })
 }
 
 // ui-state.json merges per top-level field, so the whole explorer object is sent every time.

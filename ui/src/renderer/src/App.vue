@@ -18,7 +18,6 @@ import ProjectTrustModal from './components/ProjectTrustModal.vue'
 import ZoomIndicator from './components/ZoomIndicator.vue'
 import SetupLayer from './components/deps/SetupLayer.vue'
 import ProjectSelector from './components/ProjectSelector.vue'
-import { sidebarSettings } from './explorerSettings'
 import { loadAccounts } from './accounts'
 import { startContextFeed, startUsagePolling } from './usage'
 import { startDepsFeed } from './deps'
@@ -181,12 +180,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="shell">
-    <HeaderBar
-      :sidebar-hidden="sidebarSettings.hidden"
-      @toggle-sidebar="sidebarSettings.hidden = !sidebarSettings.hidden"
-      @open-settings="settingsOpen = true"
-      @open-guide="guideOpen = true"
-    >
+    <HeaderBar @open-settings="settingsOpen = true" @open-guide="guideOpen = true">
       <template #title>
         <img class="brand-mark" :src="brandMark" alt="" width="18" height="18" />
         <span class="wordmark">lemongrass</span>

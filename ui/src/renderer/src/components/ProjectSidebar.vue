@@ -14,6 +14,7 @@ import {
   loadSidebarSettings,
   setSidebarView,
   sidebarSettings,
+  setFoldHeight,
   toggleSidebarPanel,
   type SidebarPane,
   type SidebarPanel,
@@ -72,17 +73,16 @@ function onGutterUp(): void {
 }
 
 // The fold under the view takes the height it is given and both sides scroll inside, so neither
-// can push the other out of the column.
+// can push the other out of the column. The height is saved on release, not on every move.
 const FOLD_MIN = 96
 const VIEW_MIN = 120
 const columnRef = ref<HTMLElement | null>(null)
-const foldHeight = ref(300)
 let dragStartY = 0
 let dragStartHeight = 0
 
 function onFoldDown(event: PointerEvent): void {
   dragStartY = event.clientY
-  dragStartHeight = foldHeight.value
+  dragStartHeight = sidebarSettings.foldHeight
   window.addEventListener('pointermove', onFoldMove)
   window.addEventListener('pointerup', onFoldUp)
 }
@@ -90,12 +90,13 @@ function onFoldDown(event: PointerEvent): void {
 function onFoldMove(event: PointerEvent): void {
   const max = Math.max(FOLD_MIN, (columnRef.value?.clientHeight ?? 0) - VIEW_MIN)
   const next = dragStartHeight - (event.clientY - dragStartY)
-  foldHeight.value = Math.min(max, Math.max(FOLD_MIN, next))
+  sidebarSettings.foldHeight = Math.min(max, Math.max(FOLD_MIN, next))
 }
 
 function onFoldUp(): void {
   window.removeEventListener('pointermove', onFoldMove)
   window.removeEventListener('pointerup', onFoldUp)
+  setFoldHeight(sidebarSettings.foldHeight)
 }
 </script>
 
@@ -134,7 +135,7 @@ function onFoldUp(): void {
 
           <template v-if="sidebarSettings.panel">
             <div class="fold-gutter" @pointerdown="onFoldDown" />
-            <div class="panel-fold" :style="{ height: `${foldHeight}px` }">
+            <div class="panel-fold" :style="{ height: `${sidebarSettings.foldHeight}px` }">
               <div class="column-head">
                 <span class="column-title">{{ PANEL_NAMES[sidebarSettings.panel] }}</span>
                 <AppIconButton
