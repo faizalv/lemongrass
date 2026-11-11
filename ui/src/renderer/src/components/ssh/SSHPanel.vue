@@ -19,7 +19,7 @@ import { describeError } from '../../vaultSession'
 import { keyIcon, sshIcon } from '../../icons'
 import { matchesQuery } from '../connector/listFilter'
 import { openSSHServer, type ProjectRef } from '../../workspace'
-import SSHKeyCard from './SSHKeyCard.vue'
+import SSHKeyCapsule from './SSHKeyCapsule.vue'
 import SSHKeyModal from './SSHKeyModal.vue'
 import SSHLinkModal from './SSHLinkModal.vue'
 import SSHRunModal from './SSHRunModal.vue'
@@ -50,8 +50,9 @@ const loadModal = ref<SSHKey | null>(null)
 
 const allHosts = computed(() => hosts.value?.hosts ?? [])
 
-// The server capsule clicked open, one at a time.
+// The server and the key capsule clicked open, one of each at a time.
 const expandedServer = ref<string | null>(null)
+const expandedKey = ref<string | null>(null)
 const allKeys = computed(() => keys.value?.keys ?? [])
 const home = computed(() => hosts.value?.home ?? '')
 const sshDir = computed(() => (hosts.value ? sshDirOf(hosts.value) : ''))
@@ -199,17 +200,18 @@ function addPrimary(): void {
               placeholder="Filter by name or label"
               aria-label="Filter keys"
             />
-            <div class="ssh-list">
-              <SSHKeyCard
+            <AppMosaic v-model:expanded="expandedKey">
+              <SSHKeyCapsule
                 v-for="key in keyRows"
                 :key="key.publicPath"
                 :ssh-key="key"
                 :hosts="allHosts"
                 :agent="!!keys?.agent"
+                :expanded="expandedKey === key.name"
                 @load="loadModal = $event"
               />
-              <AppEmptyState v-if="!keyRows.length" title="No key matches." />
-            </div>
+            </AppMosaic>
+            <AppEmptyState v-if="!keyRows.length" title="No key matches." />
           </template>
         </template>
       </div>

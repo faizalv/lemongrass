@@ -4,14 +4,11 @@
 /* The SSH view's shared layout in the sidebar column. Every rule is prefixed by .ssh-pane so
    nothing leaks out. */
 
-/* The pane is the size container, so a narrow column wraps a card's actions under its titles
-   instead of scrolling sideways. */
 .ssh-pane {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  container-type: inline-size;
 }
 
 /* main and content form one growing flex column, so a fill empty state has the pane's height to
@@ -43,30 +40,7 @@
   min-width: 0;
 }
 
-.ssh-pane .ssh-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.ssh-pane .ssh-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--layer-card);
-}
-
-.ssh-pane .ssh-card-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--control-h-sm);
-}
-
-/* An expanded server capsule: what a login depends on, as label and value pairs. */
+/* An expanded capsule's facts, such as what a login depends on, as label and value pairs. */
 .ssh-pane .ssh-facts {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -85,6 +59,13 @@
   user-select: text;
 }
 
+.ssh-pane .ssh-facts-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  font-family: var(--font-body);
+}
+
 .ssh-pane .ssh-capsule-actions {
   display: flex;
   align-items: center;
@@ -93,38 +74,6 @@
 
 .ssh-pane .ssh-capsule-spacer {
   flex: 1;
-}
-
-.ssh-pane .ssh-card-titles {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-
-.ssh-pane .ssh-card-title,
-.ssh-pane .ssh-card-sub {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ssh-pane .ssh-card-title {
-  color: var(--color-fg-primary);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
-}
-
-.ssh-pane .ssh-card-fold {
-  max-width: 100%;
-}
-
-.ssh-pane .ssh-card-sub {
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
 }
 
 .ssh-pane .ssh-card-ok {
@@ -160,11 +109,6 @@
   line-height: var(--leading-relaxed);
 }
 
-.ssh-pane .ssh-card-label {
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-}
-
 .ssh-pane .ssh-code {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -185,18 +129,4 @@
   border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--layer-input);
-}
-
-@container (max-width: 360px) {
-  .ssh-pane .ssh-card {
-    padding: var(--space-2) var(--space-3);
-  }
-
-  .ssh-pane .ssh-card-head {
-    flex-wrap: wrap;
-  }
-
-  .ssh-pane .ssh-card-titles {
-    flex-basis: 100%;
-  }
 }

@@ -88,11 +88,12 @@ const emit = defineEmits<{
   color: var(--color-fg-primary);
 }
 
+/* The focus color marks the selected segment, as amber marks an active nav item. After :hover,
+   so hovering the selected segment keeps it amber. */
 .segmented button[aria-checked='true'] {
-  background: var(--color-surface-1);
-  color: var(--color-fg-primary);
+  background: var(--color-amber-muted);
+  color: var(--color-amber);
   font-weight: var(--weight-semibold);
-  box-shadow: var(--shadow-sm);
 }
 
 /* Inset, so the ring follows the pill's own edge whatever the track padding and the selected
