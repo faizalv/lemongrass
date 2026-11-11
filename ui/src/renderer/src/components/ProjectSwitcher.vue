@@ -9,6 +9,7 @@ import {
   AppIcon,
   AppIconButton,
   AppInput,
+  AppMonogram,
   type AppInputHandle,
   placeFloat,
   placementStyle
@@ -57,9 +58,8 @@ function parentLabel(path: string): string {
     : parent
 }
 
-const activeLabel = computed(
-  () => props.projects.find((p) => p.id === props.activeProjectId)?.name ?? 'No project'
-)
+const activeProject = computed(() => props.projects.find((p) => p.id === props.activeProjectId))
+const activeLabel = computed(() => activeProject.value?.name ?? 'No project')
 
 const shown = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -161,10 +161,11 @@ onBeforeUnmount(() => {
     <button
       ref="triggerRef"
       type="button"
-      class="sk-plain-trigger sk-plain-trigger--sm"
+      class="sk-plain-trigger trigger"
       :aria-expanded="open"
       @click="toggleOpen"
     >
+      <AppMonogram v-if="activeProject" :name="activeProject.name" />
       <span class="trigger-label">{{ activeLabel }}</span>
       <AppIcon class="sk-trigger-caret" name="chevronDown" :size="9" />
     </button>
@@ -210,6 +211,7 @@ onBeforeUnmount(() => {
               @click="pick(project.id)"
             >
               <span class="active-dot" aria-hidden="true" />
+              <AppMonogram :name="project.name" />
               <span class="project-text">
                 <span class="project-name">{{ project.name }}</span>
                 <span class="project-path">{{ parentLabel(project.path) }}</span>
@@ -252,6 +254,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .project-switcher {
   position: relative;
+}
+
+/* The project in the header carries more weight than a plain trigger: the full text color and
+   semibold, so it holds its own beside the wordmark. */
+.trigger {
+  color: var(--color-fg-primary);
+  font-weight: var(--weight-semibold);
 }
 
 .trigger-label {

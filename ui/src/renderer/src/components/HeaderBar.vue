@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppIconButton } from '@sankasten'
+import { AppIconButton, capsuleHue } from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NotificationBell from './NotificationBell.vue'
 import { isMac, loadWindowControls, windowControls } from '../windowControls'
@@ -12,6 +12,16 @@ import { updatePending } from '../updateState'
 // Aliased so the template can reach it -- a bare `window` identifier in
 // a Vue template resolves against the component instance, not globalThis.
 const controls = window.api.windowControls
+
+const props = defineProps<{
+  // The open project's name; the header's gradient takes its hue, as its monogram does, so the
+  // windows of different projects tell apart. Amber when none is open.
+  projectName?: string
+}>()
+
+const headerHue = computed(() =>
+  props.projectName ? `var(--color-${capsuleHue(props.projectName)})` : 'var(--color-amber)'
+)
 
 const emit = defineEmits<{
   'open-settings': []
@@ -75,7 +85,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="header-bar" :style="{ '--mac-lights-inset': macInset }">
+  <div class="header-bar" :style="{ '--mac-lights-inset': macInset, '--header-hue': headerHue }">
     <div
       v-if="lightsLeft"
       class="lights"
@@ -206,7 +216,13 @@ onBeforeUnmount(() => {
   align-items: stretch;
   height: 46px;
   flex-shrink: 0;
-  background: var(--color-surface-1);
+  /* Mixed into the surface, not layered with alpha, so the bar stays opaque. The hue comes from
+     the template, amber when no project is open. */
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--header-hue) var(--header-tint-start), var(--color-surface-1)),
+    color-mix(in oklch, var(--header-hue) var(--header-tint-end), var(--color-surface-1)) 50%
+  );
   -webkit-app-region: drag;
 }
 

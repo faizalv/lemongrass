@@ -180,7 +180,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="shell">
-    <HeaderBar @open-settings="settingsOpen = true" @open-guide="guideOpen = true">
+    <HeaderBar
+      :project-name="activeProject?.name"
+      @open-settings="settingsOpen = true"
+      @open-guide="guideOpen = true"
+    >
       <template #title>
         <img class="brand-mark" :src="brandMark" alt="" width="18" height="18" />
         <span class="wordmark">lemongrass</span>
