@@ -5,6 +5,7 @@ import { ipcMain, net, protocol, shell, WebContents } from 'electron'
 import { realpathSync, watch, type FSWatcher } from 'fs'
 import { pathToFileURL } from 'url'
 import { readEnv, run } from './gitRun'
+import { grepProject } from './projectGrep'
 import {
   copyEntries,
   createFile,
@@ -28,7 +29,8 @@ import type {
   ProjectListResult,
   ProjectOpResult,
   ProjectOpsResult,
-  ProjectSearchResult
+  ProjectSearchResult,
+  ProjectTextResult
 } from '../preload/types'
 
 export const PROJECT_FILE_SCHEME = 'project-file'
@@ -189,6 +191,16 @@ export function registerProjectFileHandlers(getSender: () => WebContents | undef
       const root = realRoot(projectPath)
       if (!root || typeof query !== 'string') return { paths: [], truncated: false }
       return searchProject(root, query, gitIn(root))
+    }
+  )
+
+  // Lines containing the text, across project files and biblio/. A newer call cancels this one.
+  ipcMain.handle(
+    'projectFiles:grep',
+    async (_event, projectPath: string, query: string): Promise<ProjectTextResult> => {
+      const root = realRoot(projectPath)
+      if (!root || typeof query !== 'string') return { hits: [], truncated: false }
+      return grepProject(root, query)
     }
   )
 

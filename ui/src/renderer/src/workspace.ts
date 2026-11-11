@@ -3,6 +3,7 @@
 
 import { nextTick, reactive, watch } from 'vue'
 import * as tree from './layoutTree'
+import { revealLine } from './lineReveal'
 import { biblioImageUrl, renderReaderMarkdown } from './readerMarkdown'
 import type { DropZone, EdgeZone } from './layoutTree'
 import {
@@ -558,32 +559,43 @@ export function activePath(projectId: string): string | null {
 }
 
 // Focuses the tab that shows a path, in the focused pane first and otherwise wherever it is, or
-// adds one to the focused pane. A tree click never creates a duplicate.
+// adds one to the focused pane. A tree click never creates a duplicate. `split` always adds a new
+// tab in a pane split off the right of the focused one. Returns the tab shown.
 function openPathTab(
   project: ProjectRef,
   shows: (tab: WorkspaceTab) => boolean,
   create: () => WorkspaceTab,
-  load: () => void
-): void {
+  load: () => void,
+  split = false
+): string {
   const layout = workspaces[project.id].layout
   const root = layout.root
   if (!root) {
     const leaf = tree.createLeaf<WorkspaceTab>([create()])
     commit(project, leaf, leaf.id)
     load()
-    return
+    return leaf.tabs[0].id
   }
   const leaves = tree.allLeaves(root)
   const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
+  if (split) {
+    const tab = create()
+    const next = tree.splitWithTab(root, focused.id, 'right', tab)
+    commit(project, next, tree.findLeafByTab(next, tab.id)?.id)
+    load()
+    return tab.id
+  }
   const hasPath = (leaf: (typeof leaves)[number]): boolean => leaf.tabs.some(shows)
   const holder = hasPath(focused) ? focused : leaves.find(hasPath)
   if (holder) {
     const tab = holder.tabs.find(shows)!
     commit(project, tree.setActiveTab(root, holder.id, tab.id), holder.id)
-    return
+    return tab.id
   }
-  commit(project, tree.addTab(root, focused.id, create()), focused.id)
+  const tab = create()
+  commit(project, tree.addTab(root, focused.id, tab), focused.id)
   load()
+  return tab.id
 }
 
 export function openFile(project: ProjectRef, path: string): void {
@@ -602,6 +614,34 @@ export function openProjectFile(project: ProjectRef, path: string): void {
     () => newFileTab(path),
     () => void loadProjectFile(project, path)
   )
+}
+
+// Opens a Search Everywhere result: a path under biblio/ as a document tab, any other as a file
+// tab, scrolled to `line` when given. A document tab renders markdown, so it has no line to go to.
+export function openSearchHit(
+  project: ProjectRef,
+  projectPath: string,
+  options: { line?: number; split?: boolean } = {}
+): void {
+  if (projectPath.startsWith('biblio/')) {
+    const path = projectPath.slice('biblio/'.length)
+    openPathTab(
+      project,
+      (tab) => tab.kind === 'doc' && tab.path === path,
+      () => newDocTab(path),
+      () => void loadDoc(project, path),
+      options.split
+    )
+    return
+  }
+  const tabId = openPathTab(
+    project,
+    (tab) => tab.kind === 'file' && tab.path === projectPath,
+    () => newFileTab(projectPath),
+    () => void loadProjectFile(project, projectPath),
+    options.split
+  )
+  if (options.line) revealLine(tabId, options.line)
 }
 
 export function activeFilePath(projectId: string): string | null {

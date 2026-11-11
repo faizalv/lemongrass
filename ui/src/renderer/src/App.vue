@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import ProjectSidebar from './components/ProjectSidebar.vue'
 import ProjectSwitcher from './components/ProjectSwitcher.vue'
 import HeaderBar from './components/HeaderBar.vue'
+import SearchEverywhere from './components/SearchEverywhere.vue'
 // A copy of ui/build/icon.svg, so the header mark matches the app icon; replace both together.
 import brandMark from './assets/brand-mark.svg'
 import WorkspaceView from './components/WorkspaceView.vue'
@@ -197,6 +198,9 @@ onBeforeUnmount(() => {
             @deleted="onProjectDeleted"
           />
         </span>
+      </template>
+      <template #center>
+        <SearchEverywhere :project="activeRef" :biblio-tree="biblioTree" />
       </template>
     </HeaderBar>
 

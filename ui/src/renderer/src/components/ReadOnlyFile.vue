@@ -5,6 +5,7 @@
 import { AppEmptyState } from '@sankasten'
 import CodeReader from './CodeReader.vue'
 import type { DocEntry } from '../workspace'
+import type { LineReveal } from '../lineReveal'
 
 // A file shown read-only by its kind: syntax-colored text with a line-number gutter, an image, or
 // a one-line message for binary and too-large files. A biblio doc and a project file tab both
@@ -14,11 +15,22 @@ defineProps<{
   path: string
   imageSrc: string
   alt: string
+  reveal?: LineReveal
+}>()
+
+const emit = defineEmits<{
+  revealed: [seq: number]
 }>()
 </script>
 
 <template>
-  <CodeReader v-if="entry.kind === 'text'" :content="entry.content" :path="path" />
+  <CodeReader
+    v-if="entry.kind === 'text'"
+    :content="entry.content"
+    :path="path"
+    :reveal="reveal"
+    @revealed="emit('revealed', $event)"
+  />
   <div v-else-if="entry.kind === 'image'" class="file-image">
     <img :src="imageSrc" :alt="alt" />
   </div>

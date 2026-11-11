@@ -56,6 +56,7 @@ import type {
   ProjectOpResult,
   ProjectOpsResult,
   ProjectSearchResult,
+  ProjectTextResult,
   ScratchpadImageResult,
   ImageFileResult,
   GitStatus,
@@ -275,6 +276,8 @@ const projectFiles = {
     ipcRenderer.send('projectFiles:unwatch', projectPath, dir),
   search: (projectPath: string, query: string): Promise<ProjectSearchResult> =>
     ipcRenderer.invoke('projectFiles:search', projectPath, query),
+  grep: (projectPath: string, query: string): Promise<ProjectTextResult> =>
+    ipcRenderer.invoke('projectFiles:grep', projectPath, query),
   gitPrefix: (projectPath: string): Promise<string> =>
     ipcRenderer.invoke('projectFiles:gitPrefix', projectPath),
   readFile: (projectPath: string, path: string): Promise<ProjectFileResult | null> =>

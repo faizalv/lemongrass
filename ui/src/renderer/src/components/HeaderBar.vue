@@ -124,6 +124,8 @@ onBeforeUnmount(() => {
     <div class="drag-region">
       <slot name="title" />
     </div>
+    <!-- Laid out by its content over the header's middle, outside the drag region. -->
+    <slot name="center" />
     <div class="actions">
       <slot name="actions" />
     </div>

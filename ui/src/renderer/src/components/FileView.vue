@@ -11,7 +11,7 @@ const markdownModes = reactive(new Map<string, MarkdownMode>())
 </script>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { AppEmptyState, AppSegmented } from '@sankasten'
 import MarkdownReader from './MarkdownReader.vue'
 import ReadOnlyFile from './ReadOnlyFile.vue'
@@ -23,6 +23,7 @@ import {
   type ProjectRef
 } from '../workspace'
 import { projectImageUrl, renderReaderMarkdown } from '../readerMarkdown'
+import { clearLineReveal, lineRevealOf } from '../lineReveal'
 import type { WorkspaceTab } from '../../../preload/types'
 
 type FileTab = Extract<WorkspaceTab, { kind: 'file' }>
@@ -65,6 +66,21 @@ const html = computed(() =>
     : ''
 )
 
+const reveal = computed(() => lineRevealOf(props.tab.id))
+
+// Formatted markdown has no lines, so a request to show a line switches to the source.
+watch(
+  () => reveal.value?.seq,
+  () => {
+    if (reveal.value && isMarkdown.value) mode.value = 'source'
+  },
+  { immediate: true }
+)
+
+function onRevealed(seq: number): void {
+  clearLineReveal(props.tab.id, seq)
+}
+
 function openLinked(path: string): void {
   openProjectFile(props.project, path)
 }
@@ -98,9 +114,25 @@ onMounted(() => void loadProjectFile(props.project, props.tab.path, true))
         :doc-path="tab.path"
         :open="openLinked"
       />
-      <ReadOnlyFile v-else :entry="entry" :path="tab.path" :image-src="imageSrc" :alt="tab.path" />
+      <ReadOnlyFile
+        v-else
+        :entry="entry"
+        :path="tab.path"
+        :image-src="imageSrc"
+        :alt="tab.path"
+        :reveal="reveal"
+        @revealed="onRevealed"
+      />
     </template>
-    <ReadOnlyFile v-else :entry="entry" :path="tab.path" :image-src="imageSrc" :alt="tab.path" />
+    <ReadOnlyFile
+      v-else
+      :entry="entry"
+      :path="tab.path"
+      :image-src="imageSrc"
+      :alt="tab.path"
+      :reveal="reveal"
+      @revealed="onRevealed"
+    />
   </div>
 </template>
 

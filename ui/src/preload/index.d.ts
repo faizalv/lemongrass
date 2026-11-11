@@ -55,6 +55,7 @@ import type {
   ProjectOpResult,
   ProjectOpsResult,
   ProjectSearchResult,
+  ProjectTextResult,
   ScratchpadImageResult,
   ImageFileResult,
   GitStatus,
@@ -278,6 +279,9 @@ interface Api {
     list: (projectPath: string, dir: string) => Promise<ProjectListResult>
     unwatch: (projectPath: string, dir: string) => void
     search: (projectPath: string, query: string) => Promise<ProjectSearchResult>
+    // Lines containing the text (case-insensitive, at least 2 characters). A newer call cancels an
+    // older one, which then resolves with `cancelled`.
+    grep: (projectPath: string, query: string) => Promise<ProjectTextResult>
     // The project root's prefix inside its repository, "sub/dir/", or "" at the root or outside git.
     gitPrefix: (projectPath: string) => Promise<string>
     readFile: (projectPath: string, path: string) => Promise<ProjectFileResult | null>

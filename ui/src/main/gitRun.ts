@@ -18,6 +18,11 @@ export function setGitPath(path: string): void {
   gitPath = path || 'git'
 }
 
+// The git binary run calls, for a caller that needs to stream output instead of buffering it.
+export function gitBinary(): string {
+  return gitPath
+}
+
 export interface RunResult {
   code: number | null
   stdout: string

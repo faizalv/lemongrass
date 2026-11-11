@@ -116,6 +116,23 @@ export interface ProjectSearchResult {
   truncated: boolean
 }
 
+// One line of a project file containing the searched text. `path` is project-relative, `biblio/`
+// included; `line` is 1-based; `text` is the line trimmed and clipped around the first match, and
+// `ranges` mark every match inside it.
+export interface ProjectTextHit {
+  path: string
+  line: number
+  text: string
+  ranges: [number, number][]
+}
+
+export interface ProjectTextResult {
+  hits: ProjectTextHit[]
+  truncated: boolean
+  // A newer search replaced this one before it finished.
+  cancelled?: true
+}
+
 export type ProjectFileResult = BiblioFileResult
 
 export type ProjectOpError =

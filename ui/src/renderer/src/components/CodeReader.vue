@@ -3,17 +3,41 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Compartment, EditorState } from '@codemirror/state'
-import { EditorView, lineNumbers } from '@codemirror/view'
+import { Compartment, EditorState, StateEffect, StateField } from '@codemirror/state'
+import { Decoration, EditorView, lineNumbers, type DecorationSet } from '@codemirror/view'
 import { loadLanguage } from '../languageFor'
 import { readerLook } from '../readerHighlight'
+import type { LineReveal } from '../lineReveal'
 
 // Text shown read-only in CodeMirror with syntax colors. CodeMirror draws only the lines in view,
 // so a file near the 2 MB read limit costs no more to show than a short one.
 const props = defineProps<{
   content: string
   path: string
+  // Scrolls to this line and marks it until the next click.
+  reveal?: LineReveal
 }>()
+
+const emit = defineEmits<{
+  revealed: [seq: number]
+}>()
+
+const setMark = StateEffect.define<number | null>()
+const markLine = Decoration.line({ class: 'cm-reveal-line' })
+const markField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(marks, tr) {
+    let next = marks.map(tr.changes)
+    for (const effect of tr.effects) {
+      if (effect.is(setMark)) {
+        next =
+          effect.value === null ? Decoration.none : Decoration.set([markLine.range(effect.value)])
+      }
+    }
+    return next
+  },
+  provide: (field) => EditorView.decorations.from(field)
+})
 
 const host = ref<HTMLDivElement>()
 const language = new Compartment()
@@ -38,12 +62,35 @@ onMounted(() => {
         EditorState.tabSize.of(4),
         lineNumbers(),
         readerLook,
-        language.of([])
+        language.of([]),
+        markField,
+        EditorView.domEventHandlers({
+          mousedown: (_event, target) => {
+            target.dispatch({ effects: setMark.of(null) })
+            return false
+          }
+        })
       ]
     })
   })
   void applyLanguage(props.path)
+  if (props.reveal) showReveal(props.reveal)
 })
+
+function showReveal(reveal: LineReveal): void {
+  if (!view) return
+  const doc = view.state.doc
+  const line = doc.line(Math.min(Math.max(reveal.line, 1), doc.lines))
+  view.dispatch({
+    effects: [setMark.of(line.from), EditorView.scrollIntoView(line.from, { y: 'center' })]
+  })
+  emit('revealed', reveal.seq)
+}
+
+watch(
+  () => props.reveal?.seq,
+  () => props.reveal && showReveal(props.reveal)
+)
 
 // The file is reread every time its tab is shown, so the same text comes back often; replacing
 // the document only on a real change keeps the scroll position.
@@ -84,5 +131,9 @@ onBeforeUnmount(() => {
 
 .code-reader :deep(.cm-editor) {
   height: 100%;
+}
+
+.code-reader :deep(.cm-reveal-line) {
+  background: var(--color-amber-muted);
 }
 </style>
