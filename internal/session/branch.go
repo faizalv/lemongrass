@@ -16,8 +16,8 @@ const (
 	CarryConflict = "conflict" // the apply conflicted and the stash was kept
 )
 
-// Only tabs whose agent hooks fired this recently are told, since an idle tab will see the branch when it next looks.
-const BranchNoticeWindow = 5 * time.Minute
+// Only tabs with a prompt or tool call this recently are told. Nothing wakes a tab for a branch move, so a longer window only means a tab used earlier today reads the line with its next prompt.
+const BranchNoticeWindow = 12 * time.Hour
 
 // The ref of a branch row.
 type BranchChange struct {
@@ -30,7 +30,7 @@ func ValidCarry(carry string) bool {
 	return carry == CarryNone || carry == CarryCarried || carry == CarryConflict
 }
 
-// Inserts one branch row for each Claude, Codex or Antigravity tab of the project that was active within the window, and returns those tabs.
+// Inserts one branch row for each Claude, Codex or Antigravity tab of the project with real activity within the window, and returns those tabs. The rows reach a tab only as hook context, never typed (see PendingForTab). The tab handed the open conflict is skipped, since the resolver already reaches it by typed nudge.
 func (s *Store) InsertBranchChanged(change BranchChange, at time.Time) ([]string, error) {
 	if !ValidCarry(change.Carry) {
 		return nil, fmt.Errorf("session: unknown carry %q, want none, carried or conflict", change.Carry)
@@ -47,9 +47,10 @@ func (s *Store) InsertBranchChanged(change BranchChange, at time.Time) ([]string
 	cutoff := at.Add(-BranchNoticeWindow).UTC().Format(time.RFC3339Nano)
 	rows, err := tx.Query(`
 		SELECT t.tab_id FROM lg_tabs t JOIN lg_tab_state st ON st.tab_id = t.tab_id
-		WHERE t.project_id = ? AND t.vendor IN ('claude', 'codex', 'agy') AND st.updated_at > ?
+		WHERE t.project_id = ? AND t.vendor IN ('claude', 'codex', 'agy') AND st.last_active_at > ?
+			AND t.tab_id NOT IN (SELECT assignee FROM lg_threads WHERE project_id = ? AND kind = ? AND closed_at IS NULL)
 		ORDER BY t.tab_id
-	`, s.projectID, cutoff)
+	`, s.projectID, cutoff, s.projectID, ThreadConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -78,20 +79,63 @@ func (s *Store) InsertBranchChanged(change BranchChange, at time.Time) ([]string
 	return tabs, tx.Commit()
 }
 
-// Composed from a fixed template, never from model text. Branch names pass git's ref format check, so they hold no spaces or control characters.
+// Worse carries win when moves are combined: a conflict outranks carried changes, which outrank a clean tree.
+func carryRank(carry string) int {
+	switch carry {
+	case CarryConflict:
+		return 2
+	case CarryCarried:
+		return 1
+	}
+	return 0
+}
+
+// Several moves before the tab's next prompt or tool call read as one, the same rule gitNotice.ts applies to a burst: the first from, the last to, the worst carry. Moves that end where they started say nothing unless one left a conflict, since the tree is where the tab last saw it. False when there is nothing to say.
+func combinedBranchLine(events []PendingEvent) (string, bool) {
+	var combined BranchChange
+	found := false
+	for _, e := range events {
+		if e.Source != SourceBranch {
+			continue
+		}
+		var c BranchChange
+		if err := json.Unmarshal([]byte(e.Ref), &c); err != nil {
+			return Prefix + " the git branch changed. Check git status before you continue.", true
+		}
+		if !found {
+			combined = c
+			found = true
+			continue
+		}
+		combined.To = c.To
+		if carryRank(c.Carry) > carryRank(combined.Carry) {
+			combined.Carry = c.Carry
+		}
+	}
+	if !found || (combined.From == combined.To && combined.Carry != CarryConflict) {
+		return "", false
+	}
+	return formatBranch(combined), true
+}
+
+// Composed from a fixed template, never from model text.
 func formatBranchChange(ref string) string {
 	var c BranchChange
 	if err := json.Unmarshal([]byte(ref), &c); err != nil {
 		return Prefix + " the git branch changed. Check git status before you continue."
 	}
-	middle := ""
+	return formatBranch(c)
+}
+
+// Branch names pass git's ref format check, so they hold no spaces or control characters. A conflict line says the human owns it, because a tab that was working when the conflict appeared tends to take it for its own and resolve it.
+func formatBranch(c BranchChange) string {
 	switch c.Carry {
 	case CarryCarried:
-		middle = ", uncommitted changes carried over"
+		return fmt.Sprintf("%s branch changed from %s to %s, uncommitted changes carried over. Check git status before you continue.", Prefix, c.From, c.To)
 	case CarryConflict:
-		middle = ", the carried changes conflicted and the stash was kept"
+		return fmt.Sprintf("%s the human moved the branch from %s to %s and the carried changes conflicted, so the stash was kept. The human is resolving this conflict. Do not edit the conflicted files or run stash, merge or rebase commands unless the conflict is handed to you.", Prefix, c.From, c.To)
 	}
-	return fmt.Sprintf("%s branch changed from %s to %s%s. Check git status before you continue.", Prefix, c.From, c.To, middle)
+	return fmt.Sprintf("%s branch changed from %s to %s. Check git status before you continue.", Prefix, c.From, c.To)
 }
 
 // One line per event row, after the thread lines.

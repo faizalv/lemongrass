@@ -137,8 +137,18 @@ func (s *Store) NotificationText(pending Pending) string {
 	if len(pending.Threads) > 0 {
 		lines = append(lines, FormatNotification(pending.Threads))
 	}
+	branchDone := false
 	for _, e := range pending.Events {
-		lines = append(lines, formatEvent(e))
+		if e.Source != SourceBranch {
+			lines = append(lines, formatEvent(e))
+			continue
+		}
+		if !branchDone {
+			branchDone = true
+			if line, ok := combinedBranchLine(pending.Events); ok {
+				lines = append(lines, line)
+			}
+		}
 	}
 	return strings.Join(lines, "\n")
 }

@@ -80,3 +80,42 @@ func TestConsumePendingReturnsTheNudgeOnceAndMarksItSent(t *testing.T) {
 		t.Errorf("a second call returned %q, want nothing pending", again)
 	}
 }
+
+// Session start, stop, idle and permission prompts keep the tab's last activity; only a prompt or a tool call moves it.
+func TestOnlyPromptsAndToolCallsRecordActivity(t *testing.T) {
+	store := openHookTestStore(t)
+	tab := notifyTabTarget
+	active := func() bool {
+		_, ok, err := store.TabLastActive(tab)
+		if err != nil {
+			t.Fatalf("TabLastActive: %v", err)
+		}
+		return ok
+	}
+
+	for _, quiet := range []struct {
+		event   string
+		payload hookEvent
+	}{
+		{"SessionStart", hookEvent{}},
+		{"Stop", hookEvent{}},
+		{"Interrupt", hookEvent{}},
+		{"PermissionRequest", hookEvent{}},
+		{"Notification", hookEvent{NotificationType: "idle_prompt"}},
+		{"Notification", hookEvent{NotificationType: "permission_prompt"}},
+	} {
+		quiet.payload.TabID = tab
+		recordTabState(store, quiet.event, quiet.payload)
+		if active() {
+			t.Fatalf("%s recorded activity", quiet.event)
+		}
+	}
+
+	for _, event := range []string{"UserPromptSubmit", "PreToolUse", "PostToolUse"} {
+		recordTabState(store, "SessionEnd", hookEvent{TabID: tab})
+		recordTabState(store, event, hookEvent{TabID: tab})
+		if !active() {
+			t.Errorf("%s did not record activity", event)
+		}
+	}
+}

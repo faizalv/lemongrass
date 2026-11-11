@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/faizalv/lemongrass/internal/session"
-	"github.com/faizalv/lemongrass/internal/threadsvc"
 )
 
-// The app runs this in the project directory after its git panel moved the branch. It queues a branch notice for every recently active agent tab and wakes delivery the way a thread post does.
+// The app runs this in the project directory after its git panel moved the branch. It queues a branch notice for every recently active agent tab and wakes nobody: the tabs read it as hook context at their next prompt or tool call.
 func cmdBranch(args []string) {
 	if len(args) != 4 || args[0] != "changed" {
 		fmt.Fprintln(os.Stderr, "usage: lgrassd branch changed <from> <to> <none|carried|conflict>")
@@ -25,15 +24,7 @@ func cmdBranch(args []string) {
 	}
 	store := openStore()
 	defer store.Close()
-	tabs, err := store.InsertBranchChanged(change, time.Now())
-	if err != nil {
+	if _, err := store.InsertBranchChanged(change, time.Now()); err != nil {
 		fail(err)
 	}
-	if len(tabs) == 0 {
-		return
-	}
-	if threadsvc.Wake(threadsvc.SocketPath()) == nil {
-		return
-	}
-	threadsvc.NewDeliverer(store).DeliverPending()
 }

@@ -27,12 +27,12 @@ func recordTabState(store *session.Store, event string, payload hookEvent) {
 	case "PreToolUse":
 		// The question picker takes an Enter as a choice, so it blocks typing like a permission prompt until its PostToolUse.
 		if payload.ToolName == "AskUserQuestion" {
-			store.SetTabState(tab, session.StatePrompting)
+			store.SetActiveTabState(tab, session.StatePrompting)
 		} else {
-			store.SetTabState(tab, session.StateWorking)
+			store.SetActiveTabState(tab, session.StateWorking)
 		}
 	case "PostToolUse", "UserPromptSubmit":
-		store.SetTabState(tab, session.StateWorking)
+		store.SetActiveTabState(tab, session.StateWorking)
 	case "PermissionRequest":
 		store.SetTabState(tab, session.StatePrompting)
 	case "Notification":

@@ -3,7 +3,10 @@
 
 package session
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestOnlyAnOpenPromptHoldsANudge(t *testing.T) {
 	store := openTestStore(t)
@@ -43,5 +46,35 @@ func TestTabStatesListsThisProjectsRegisteredTabs(t *testing.T) {
 	}
 	if len(states) != 1 || states[tabA] != StateWorking {
 		t.Errorf("TabStates = %v, want only %s working", states, tabA)
+	}
+}
+
+// Only a prompt or tool call records activity; every other state change keeps the last one, and clearing the state forgets it.
+func TestOnlyActiveStateChangesRecordActivity(t *testing.T) {
+	store := openTestStore(t)
+
+	if _, ok, err := store.TabLastActive(tabA); err != nil || ok {
+		t.Errorf("a tab with no state = %v, %v, want no activity", ok, err)
+	}
+	store.SetTabState(tabA, StateIdle)
+	if _, ok, _ := store.TabLastActive(tabA); ok {
+		t.Error("SetTabState recorded activity")
+	}
+	before := time.Now().Add(-time.Second)
+	store.SetActiveTabState(tabA, StateWorking)
+	first, ok, err := store.TabLastActive(tabA)
+	if err != nil || !ok || first.Before(before) {
+		t.Fatalf("after SetActiveTabState = %v, %v, %v, want now", first, ok, err)
+	}
+	store.SetTabState(tabA, StatePrompting)
+	if at, ok, _ := store.TabLastActive(tabA); !ok || !at.Equal(first) {
+		t.Errorf("SetTabState moved the activity to %v, want %v kept", at, first)
+	}
+	if state, _ := store.TabState(tabA); state != StatePrompting {
+		t.Errorf("state = %s, want prompting", state)
+	}
+	store.ClearTabState(tabA)
+	if _, ok, _ := store.TabLastActive(tabA); ok {
+		t.Error("a cleared state kept its activity")
 	}
 }

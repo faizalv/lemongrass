@@ -95,9 +95,12 @@ func (p Pending) RowIDs() []int64 {
 	return ids
 }
 
-// The rows owed to a tab that may wake it, meaning every kind but other. A tab id is globally unique, so this ignores the store's project.
+// A branch row never wakes or is typed: a woken tab spends a turn checking git, and in the middle of a human's merge it takes the conflict for its own. It reaches the tab as hook context at its next prompt or tool call.
+const wakesTab = `n.kind != 'other' AND n.source != 'branch'`
+
+// The rows owed to a tab that may wake it, meaning every kind but other and every source but branch. A tab id is globally unique, so this ignores the store's project.
 func (s *Store) PendingForTab(tabID string) (Pending, error) {
-	return s.pendingRows(tabID, `AND n.kind != 'other' AND `+dueCondition, dueArgs()...)
+	return s.pendingRows(tabID, `AND `+wakesTab+` AND `+dueCondition, dueArgs()...)
 }
 
 // Every pending row of the tab, other included, surfaced as hook context. A typed row is left out, since its line is already on its way.
@@ -281,7 +284,7 @@ func (s *Store) MarkMessagesRead(tabID string, messageIDs []int64) error {
 
 // Tabs owed rows that may wake them, whatever their vendor.
 func (s *Store) PendingTabs() ([]string, error) {
-	rows, err := s.db.Query(`SELECT DISTINCT n.target_tab_id FROM lg_notifications n WHERE n.kind != 'other' AND `+dueCondition, dueArgs()...)
+	rows, err := s.db.Query(`SELECT DISTINCT n.target_tab_id FROM lg_notifications n WHERE `+wakesTab+` AND `+dueCondition, dueArgs()...)
 	if err != nil {
 		return nil, err
 	}

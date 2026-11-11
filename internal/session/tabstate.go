@@ -5,6 +5,7 @@ package session
 
 import (
 	"database/sql"
+	"time"
 )
 
 const (
@@ -20,6 +21,30 @@ func (s *Store) SetTabState(tabID, state string) error {
 		ON CONFLICT (tab_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at
 	`, tabID, state, now())
 	return err
+}
+
+// SetTabState for a prompt or a tool call, which also records real activity. Session start, idle and stop never call this, so restoring a tab does not make it look active.
+func (s *Store) SetActiveTabState(tabID, state string) error {
+	ts := now()
+	_, err := s.db.Exec(`
+		INSERT INTO lg_tab_state (tab_id, state, updated_at, last_active_at) VALUES (?, ?, ?, ?)
+		ON CONFLICT (tab_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at, last_active_at = excluded.last_active_at
+	`, tabID, state, ts, ts)
+	return err
+}
+
+// False, no error, when the tab has had no prompt or tool call since its state was last cleared.
+func (s *Store) TabLastActive(tabID string) (time.Time, bool, error) {
+	var at sql.NullString
+	err := s.db.QueryRow(`SELECT last_active_at FROM lg_tab_state WHERE tab_id = ?`, tabID).Scan(&at)
+	if err == sql.ErrNoRows || (err == nil && !at.Valid) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	t, err := time.Parse(time.RFC3339Nano, at.String)
+	return t, err == nil, err
 }
 
 func (s *Store) ClearTabState(tabID string) error {

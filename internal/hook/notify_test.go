@@ -42,7 +42,7 @@ func TestNotificationContextSurfacesOnceThenMarksSent(t *testing.T) {
 // A tab mid-turn gets the branch line at its next tool call, after its thread line.
 func TestNotificationContextCarriesTheBranchLine(t *testing.T) {
 	store := storeWithPendingMention(t)
-	store.SetTabState(notifyTabTarget, session.StateWorking)
+	store.SetActiveTabState(notifyTabTarget, session.StateWorking)
 	if _, err := store.InsertBranchChanged(session.BranchChange{From: "main", To: "fix-1", Carry: session.CarryConflict}, time.Now()); err != nil {
 		t.Fatalf("InsertBranchChanged: %v", err)
 	}
@@ -52,11 +52,29 @@ func TestNotificationContextCarriesTheBranchLine(t *testing.T) {
 		t.Fatalf("context = %q, want one block", got)
 	}
 	lines := strings.Split(got[0], "\n")
-	if len(lines) != 2 || !strings.Contains(lines[0], ": 1 for you") || lines[1] != "[lg] branch changed from main to fix-1, the carried changes conflicted and the stash was kept. Check git status before you continue." {
+	if len(lines) != 2 || !strings.Contains(lines[0], ": 1 for you") || lines[1] != "[lg] the human moved the branch from main to fix-1 and the carried changes conflicted, so the stash was kept. The human is resolving this conflict. Do not edit the conflicted files or run stash, merge or rebase commands unless the conflict is handed to you." {
 		t.Errorf("context = %q, want the thread line then the branch line", got[0])
 	}
 	if again := notificationContext(store, notifyTabTarget); len(again) != 0 {
 		t.Errorf("the next tool call repeated it: %q", again)
+	}
+}
+
+// A switch and its undo give no context, and their rows are settled so the next tool call stays quiet too.
+func TestNotificationContextIsEmptyForABranchRoundTrip(t *testing.T) {
+	store := openHookTestStore(t)
+	store.RegisterTab(notifyTabTarget, "codex")
+	store.SetActiveTabState(notifyTabTarget, session.StateWorking)
+	for _, move := range [][2]string{{"feature", "staging"}, {"staging", "feature"}} {
+		if _, err := store.InsertBranchChanged(session.BranchChange{From: move[0], To: move[1], Carry: session.CarryNone}, time.Now()); err != nil {
+			t.Fatalf("InsertBranchChanged: %v", err)
+		}
+	}
+	if got := notificationContext(store, notifyTabTarget); len(got) != 0 {
+		t.Errorf("context = %q, want none", got)
+	}
+	if surfaced, _ := store.SurfaceableForTab(notifyTabTarget); !surfaced.Empty() {
+		t.Errorf("rows left pending: %+v", surfaced)
 	}
 }
 

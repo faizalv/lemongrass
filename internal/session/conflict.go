@@ -101,6 +101,10 @@ func (s *Store) OpenConflict(scope, assignee, baseline string) (Thread, error) {
 	} else if _, err := tx.Exec(`UPDATE lg_threads SET assignee = ?, baseline = ? WHERE id = ?`, assignee, baseline, id); err != nil {
 		return Thread{}, err
 	}
+	// The hand-off line supersedes any branch notice the assignee has not seen yet.
+	if _, err := tx.Exec(`UPDATE lg_notifications SET state = 'sent', sent_at = ? WHERE target_tab_id = ? AND source = ? AND state = 'pending'`, ts, assignee, SourceBranch); err != nil {
+		return Thread{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return Thread{}, err
 	}

@@ -176,3 +176,34 @@ func TestOpenRefusesANewerStore(t *testing.T) {
 		t.Errorf("error %q does not name both versions", err)
 	}
 }
+
+// Version 5 adds last_active_at to a store that already has tab states, leaving them inactive.
+func TestMigrationToVersion5LeavesExistingTabsInactive(t *testing.T) {
+	testenv.Home(t)
+	saved := migrations
+	migrations = migrations[:4]
+	store, err := Open(DBPath(), testProjectID)
+	migrations = saved
+	if err != nil {
+		t.Fatalf("Open at version 4: %v", err)
+	}
+	if err := store.SetTabState(tabA, StateWorking); err != nil {
+		t.Fatalf("SetTabState at version 4: %v", err)
+	}
+	store.Close()
+
+	reopened, err := Open(DBPath(), testProjectID)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer reopened.Close()
+	if v := storeVersion(t, reopened); v != len(migrations) {
+		t.Errorf("version = %d, want %d", v, len(migrations))
+	}
+	if state, _ := reopened.TabState(tabA); state != StateWorking {
+		t.Errorf("state = %q, want the old row kept", state)
+	}
+	if _, ok, err := reopened.TabLastActive(tabA); err != nil || ok {
+		t.Errorf("TabLastActive = %v, %v, want an old row inactive", ok, err)
+	}
+}

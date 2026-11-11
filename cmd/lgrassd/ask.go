@@ -77,7 +77,7 @@ func sendAskHint(socketPath string) error {
 	return json.NewDecoder(conn).Decode(&resp)
 }
 
-// deliverAskAnswer queues a ledger row telling the tab its ask has its outcome and wakes delivery, the way lgrassd branch changed does. The row carries only the ask id.
+// deliverAskAnswer queues a ledger row telling the tab its ask has its outcome and wakes delivery, the way a thread post does. The row carries only the ask id.
 func deliverAskAnswer(a vault.Ask) {
 	store, err := session.Open(session.DBPath(), "")
 	if err != nil {

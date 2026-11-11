@@ -359,7 +359,12 @@ func notificationContext(store *session.Store, tab string) []string {
 		return nil
 	}
 	store.MarkNotificationsSent(pending.RowIDs())
-	return []string{store.NotificationText(pending)}
+	// Branch moves that cancel out leave no text, and their rows are settled all the same.
+	text := store.NotificationText(pending)
+	if text == "" {
+		return nil
+	}
+	return []string{text}
 }
 
 // hookVendor reads `--vendor <name>` after the event, which the keeper writes into Codex hook commands on every OS.

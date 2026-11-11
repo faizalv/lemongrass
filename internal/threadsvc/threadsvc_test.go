@@ -101,23 +101,24 @@ func TestDeliverTabTypesOneCoalescedNudgeAndMarksSent(t *testing.T) {
 	}
 }
 
-// A branch row alone wakes an idle tab, and the typed line is the branch line.
-func TestDeliverTabTypesABranchNotice(t *testing.T) {
+// A branch row alone types nothing, even into an idle tab with recent activity; the hook surfaces it instead.
+func TestDeliverTabNeverTypesABranchNotice(t *testing.T) {
 	store := openStore(t)
-	store.SetTabState(tabCodex, session.StateIdle)
+	store.SetActiveTabState(tabCodex, session.StateIdle)
 	if _, err := store.InsertBranchChanged(session.BranchChange{From: "main", To: "fix-1", Carry: session.CarryCarried}, time.Now()); err != nil {
 		t.Fatalf("InsertBranchChanged: %v", err)
 	}
 	rec := &recorder{store: store}
 	d := &Deliverer{Store: store, Nudge: rec.nudge}
-	if typed, err := d.DeliverTab(tabCodex); err != nil || !typed {
-		t.Fatalf("DeliverTab = %v, %v, want a typed nudge", typed, err)
+	if typed, err := d.DeliverTab(tabCodex); err != nil || typed {
+		t.Fatalf("DeliverTab = %v, %v, want nothing typed", typed, err)
 	}
-	if rec.count() != 1 || !strings.HasPrefix(rec.texts[0], "[lg] branch changed from main to fix-1, uncommitted changes carried over.") {
-		t.Errorf("typed %q, want the branch line", rec.texts)
+	d.DeliverPending()
+	if rec.count() != 0 {
+		t.Errorf("typed %q, want nothing", rec.texts)
 	}
-	if typed, _ := d.DeliverTab(tabClaude); typed {
-		t.Error("a tab with no recent hook activity was nudged")
+	if surfaced, _ := store.SurfaceableForTab(tabCodex); len(surfaced.Events) != 1 {
+		t.Errorf("surfaceable = %+v, want the branch row kept for the hook", surfaced)
 	}
 }
 
