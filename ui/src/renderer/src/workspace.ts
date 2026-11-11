@@ -1066,13 +1066,14 @@ export function placeTab(
   tabId: string,
   toPaneId: string,
   zone: DropZone,
-  duplicate: boolean
+  duplicate: boolean,
+  index?: number
 ): void {
   const root = workspaces[project.id].layout.root
   if (!root) return
   const source = tree.findLeaf(root, fromPaneId)?.tabs.find((tab) => tab.id === tabId)
   if (!source || (duplicate && !isDocumentTab(source))) return
-  const result = tree.placeTab(root, fromPaneId, tabId, toPaneId, zone, duplicate)
+  const result = tree.placeTab(root, fromPaneId, tabId, toPaneId, zone, duplicate, index)
   if (!result) return
   commit(project, result.root, tree.findLeafByTab(result.root, result.placed.id)?.id)
 }

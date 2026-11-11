@@ -76,12 +76,16 @@ export function firstLeafId<T extends LayoutTab>(root: LayoutNode<T> | null): st
 export function addTab<T extends LayoutTab>(
   root: LayoutNode<T>,
   paneId: string,
-  tab: T
+  tab: T,
+  index?: number
 ): LayoutNode<T> {
   return (
-    replaceNode(root, paneId, (node) =>
-      node.type === 'leaf' ? { ...node, tabs: [...node.tabs, tab], activeTabId: tab.id } : node
-    ) ?? root
+    replaceNode(root, paneId, (node) => {
+      if (node.type !== 'leaf') return node
+      const tabs = [...node.tabs]
+      tabs.splice(index ?? tabs.length, 0, tab)
+      return { ...node, tabs, activeTabId: tab.id }
+    }) ?? root
   )
 }
 
@@ -146,18 +150,24 @@ export function splitWithTab<T extends LayoutTab>(
 }
 
 // Moves or duplicates a tab into a pane (center) or into a new pane split off its edge.
-// `placed` is the tab as it exists at its destination.
+// `index` places a center drop at that position in the destination's tabs, counted before the
+// move, and lets a tab be reordered within its own pane. `placed` is the tab at its destination.
 export function placeTab<T extends LayoutTab>(
   root: LayoutNode<T>,
   fromPaneId: string,
   tabId: string,
   toPaneId: string,
   zone: DropZone,
-  duplicate: boolean
+  duplicate: boolean,
+  index?: number
 ): { root: LayoutNode<T>; placed: T } | null {
   const source = findLeaf(root, fromPaneId)
   const tab = source?.tabs.find((t) => t.id === tabId)
   if (!source || !tab) return null
+
+  if (!duplicate && fromPaneId === toPaneId && zone === 'center' && index !== undefined) {
+    return reorderTab(root, source, tab, index)
+  }
 
   if (!duplicate && fromPaneId === toPaneId && (zone === 'center' || source.tabs.length === 1)) {
     return null
@@ -165,8 +175,25 @@ export function placeTab<T extends LayoutTab>(
 
   const placed: T = duplicate ? { ...tab, id: crypto.randomUUID() } : tab
   const next =
-    zone === 'center' ? addTab(root, toPaneId, placed) : splitWithTab(root, toPaneId, zone, placed)
+    zone === 'center'
+      ? addTab(root, toPaneId, placed, index)
+      : splitWithTab(root, toPaneId, zone, placed)
   if (duplicate) return { root: next, placed }
   const trimmed = closeTab(next, fromPaneId, tabId)
   return trimmed ? { root: trimmed, placed } : null
+}
+
+function reorderTab<T extends LayoutTab>(
+  root: LayoutNode<T>,
+  leaf: LayoutLeaf<T>,
+  tab: T,
+  index: number
+): { root: LayoutNode<T>; placed: T } | null {
+  const from = leaf.tabs.indexOf(tab)
+  const to = index > from ? index - 1 : index
+  if (to === from) return null
+  const tabs = leaf.tabs.filter((t) => t !== tab)
+  tabs.splice(to, 0, tab)
+  const next = replaceNode(root, leaf.id, () => ({ ...leaf, tabs, activeTabId: tab.id }))
+  return next ? { root: next, placed: tab } : null
 }

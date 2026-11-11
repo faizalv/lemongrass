@@ -43,6 +43,7 @@ import { tabGlow } from '../tabGlow'
 import { joinVendor, liveGroupsOf, openJoin } from '../workgroups'
 import type { UsageWindow, WorkgroupInfo } from '../../../preload/types'
 import type { DropZone, EdgeZone } from '../layoutTree'
+import { currentTabDrag, startTabDrag } from '../tabDrag'
 import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload/types'
 
 type Leaf = Extract<WorkspaceLayoutNode, { type: 'leaf' }>
@@ -122,6 +123,7 @@ function onTabDragStart(event: DragEvent, tabId: string): void {
   if (!event.dataTransfer) return
   event.dataTransfer.effectAllowed = 'copyMove'
   event.dataTransfer.setData(TAB_MIME, JSON.stringify({ paneId: props.leaf.id, tabId }))
+  startTabDrag(event, event.currentTarget as HTMLElement, { paneId: props.leaf.id, tabId })
 }
 
 const bodyEl = ref<HTMLDivElement>()
@@ -156,11 +158,11 @@ function onBodyDragLeave(event: DragEvent): void {
   if (!bodyEl.value?.contains(event.relatedTarget as Node | null)) dropZone.value = null
 }
 
-function receiveDrop(event: DragEvent, zone: DropZone): void {
+function receiveDrop(event: DragEvent, zone: DropZone, index?: number): void {
   const raw = event.dataTransfer?.getData(TAB_MIME)
   if (!raw) return
   const { paneId, tabId } = JSON.parse(raw) as { paneId: string; tabId: string }
-  placeTab(props.project, paneId, tabId, props.leaf.id, zone, event.altKey)
+  placeTab(props.project, paneId, tabId, props.leaf.id, zone, event.altKey, index)
 }
 
 function onBodyDrop(event: DragEvent): void {
@@ -172,16 +174,58 @@ function onBodyDrop(event: DragEvent): void {
   receiveDrop(event, zone)
 }
 
+function stripTabs(): HTMLElement[] {
+  return [...(tabBar.value?.querySelectorAll<HTMLElement>(':scope > .tab') ?? [])]
+}
+
+// Where a strip drop lands: before the first tab whose middle is right of the pointer.
+function stripIndexAt(event: DragEvent): number {
+  const index = stripTabs().findIndex((el) => {
+    const rect = el.getBoundingClientRect()
+    return event.clientX < rect.left + rect.width / 2
+  })
+  return index === -1 ? props.leaf.tabs.length : index
+}
+
+const insertX = ref<number | null>(null)
+
+// The bar sits in the middle of the gap before the tab at `index`, or after the last tab. A move
+// onto the dragged tab's own slot changes nothing, so it shows no bar.
+function insertXAt(index: number, altKey: boolean): number | null {
+  const drag = currentTabDrag()
+  if (drag && !altKey && drag.paneId === props.leaf.id) {
+    const from = props.leaf.tabs.findIndex((t) => t.id === drag.tabId)
+    if (index === from || index === from + 1) return null
+  }
+  const tabs = stripTabs()
+  if (tabs.length === 0 || !tabBar.value) return null
+  const gap = parseFloat(getComputedStyle(tabBar.value).columnGap) || 0
+  if (index < tabs.length) return tabs[index].offsetLeft - gap / 2
+  const last = tabs[tabs.length - 1]
+  return last.offsetLeft + last.offsetWidth + gap / 2
+}
+
 function onTabBarDragOver(event: DragEvent): void {
   if (!isTabDrag(event)) return
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = event.altKey ? 'copy' : 'move'
+  insertX.value = insertXAt(stripIndexAt(event), event.altKey)
+}
+
+function onTabBarDragLeave(event: DragEvent): void {
+  if (!tabBar.value?.contains(event.relatedTarget as Node | null)) insertX.value = null
 }
 
 function onTabBarDrop(event: DragEvent): void {
   if (!isTabDrag(event)) return
   event.preventDefault()
-  receiveDrop(event, 'center')
+  insertX.value = null
+  receiveDrop(event, 'center', stripIndexAt(event))
+}
+
+function clearDropMarks(): void {
+  insertX.value = null
+  dropZone.value = null
 }
 
 const menu = ref<{ tabId: string; x: number; y: number } | null>(null)
@@ -350,6 +394,7 @@ onMounted(() => {
   window.addEventListener('pointerdown', dismissMenu)
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('blur', dismissMenu)
+  window.addEventListener('dragend', clearDropMarks, true)
 })
 
 onBeforeUnmount(() => {
@@ -357,6 +402,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerdown', dismissMenu)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('blur', dismissMenu)
+  window.removeEventListener('dragend', clearDropMarks, true)
 })
 </script>
 
@@ -372,8 +418,10 @@ onBeforeUnmount(() => {
         v-wheel-scroll-x
         class="tab-bar sk-scroll-slim"
         @dragover="onTabBarDragOver"
+        @dragleave="onTabBarDragLeave"
         @drop="onTabBarDrop"
       >
+        <span v-if="insertX !== null" class="tab-insert" :style="{ left: `${insertX}px` }" />
         <div
           v-for="tab in leaf.tabs"
           :key="tab.id"
@@ -741,6 +789,7 @@ onBeforeUnmount(() => {
 }
 
 .tab-bar {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -749,6 +798,18 @@ onBeforeUnmount(() => {
   padding: var(--space-3) var(--space-4) var(--space-2);
   overflow-x: auto;
   overflow-y: hidden;
+}
+
+/* Where a dragged tab lands on the strip. Inside the scrolling strip so it scrolls with the tabs. */
+.tab-insert {
+  position: absolute;
+  top: var(--space-3);
+  bottom: var(--space-2);
+  width: 2px;
+  margin-left: -1px;
+  border-radius: var(--radius-pill);
+  background: var(--color-amber);
+  pointer-events: none;
 }
 
 .tab {
