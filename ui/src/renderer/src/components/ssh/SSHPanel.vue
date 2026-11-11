@@ -9,7 +9,7 @@ import {
   AppBanner,
   AppButton,
   AppEmptyState,
-  AppIconButton,
+  AppIcon,
   AppInput,
   AppMosaic,
   AppSegmented
@@ -108,24 +108,19 @@ function addPrimary(): void {
   <div class="ssh-pane">
     <main class="ssh-main">
       <div class="ssh-content">
-        <div class="ssh-toolbar">
-          <AppSegmented
-            class="ssh-sections"
-            block
-            aria-label="SSH section"
-            :options="SECTIONS"
-            :model-value="section"
-            @update:model-value="section = $event"
-          />
-          <AppIconButton
-            icon="plus"
-            size="sm"
-            variant="tinted"
-            tone="accent"
-            :label="section === 'servers' ? 'Add server' : 'Create key'"
-            @click="addPrimary"
-          />
-        </div>
+        <AppSegmented
+          block
+          aria-label="SSH section"
+          :options="SECTIONS"
+          :model-value="section"
+          @update:model-value="section = $event"
+        />
+        <!-- The add action belongs to the section shown, so it sits under the switch and names
+             what it adds. -->
+        <AppButton variant="ghost" size="sm" class="ssh-add" @click="addPrimary">
+          <AppIcon name="plus" />
+          {{ section === 'servers' ? 'Add server' : 'Create key' }}
+        </AppButton>
 
         <AppBanner v-if="unlinked && section === 'servers'">
           Servers added in lemongrass work in ssh only once your ssh config reads their file.
@@ -150,11 +145,7 @@ function addPrimary(): void {
             :icon="sshIcon"
             title="No servers yet."
             detail="Add the servers you log in to, and pick or create the key each one uses."
-          >
-            <template #action>
-              <AppButton variant="primary" @click="addPrimary">Add server</AppButton>
-            </template>
-          </AppEmptyState>
+          />
           <template v-else>
             <AppInput
               v-model="query"
@@ -187,11 +178,7 @@ function addPrimary(): void {
             :icon="keyIcon"
             title="No keys yet."
             detail="A key logs you in to servers without typing a password each time."
-          >
-            <template #action>
-              <AppButton variant="primary" @click="addPrimary">Create key</AppButton>
-            </template>
-          </AppEmptyState>
+          />
           <template v-else>
             <AppInput
               v-model="query"

@@ -3,6 +3,7 @@
 
 <script setup lang="ts" generic="T extends string | number">
 import { computed, ref, useAttrs, type StyleValue } from 'vue'
+import AppIcon from './AppIcon.vue'
 
 // The one single-line text input. The root is a wrapper so a leading icon can sit inside the
 // frame: a caller's class and style land on the wrapper and set layout (flex, width), while every

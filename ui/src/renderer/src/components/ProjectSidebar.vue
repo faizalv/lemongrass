@@ -16,7 +16,6 @@ import {
   sidebarSettings,
   setFoldHeight,
   toggleSidebarPanel,
-  type SidebarPane,
   type SidebarPanel,
   type SidebarView
 } from '../explorerSettings'
@@ -36,11 +35,6 @@ const VIEWS: { value: SidebarView; label: string }[] = [
   { value: 'biblio', label: 'Biblio' },
   { value: 'files', label: 'Files' }
 ]
-
-const PANE_NAMES: Record<Exclude<SidebarPane, 'files'>, string> = {
-  workgroup: 'Workgroup',
-  ssh: 'SSH'
-}
 
 const PANEL_NAMES: Record<SidebarPanel, string> = {
   git: 'Git'
@@ -125,10 +119,13 @@ function onFoldUp(): void {
               <FileExplorer v-else :project="project" />
             </template>
             <template v-else>
-              <div class="column-head">
-                <span class="column-title">{{ PANE_NAMES[sidebarSettings.pane] }}</span>
-              </div>
-              <WorkgroupPanel v-if="sidebarSettings.pane === 'workgroup'" :project="project" />
+              <template v-if="sidebarSettings.pane === 'workgroup'">
+                <div class="column-head">
+                  <span class="column-title">Workgroup</span>
+                </div>
+                <WorkgroupPanel :project="project" />
+              </template>
+              <!-- The Servers | Keys switch heads the SSH view, as Biblio | Files heads the tree. -->
               <SSHPanel v-else :project="project" />
             </template>
           </div>

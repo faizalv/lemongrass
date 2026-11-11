@@ -19,7 +19,8 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: var(--space-2) var(--space-2) var(--space-3);
+  /* The same inset as the Biblio | Files switch, so the two views' switches line up. */
+  padding: var(--space-3) var(--space-2);
 }
 
 .ssh-pane .ssh-content {
@@ -29,15 +30,8 @@
   gap: var(--space-2);
 }
 
-.ssh-pane .ssh-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.ssh-pane .ssh-sections {
-  flex: 1;
-  min-width: 0;
+.ssh-pane .ssh-add {
+  align-self: stretch;
 }
 
 /* An expanded capsule's facts, such as what a login depends on, as label and value pairs. */
