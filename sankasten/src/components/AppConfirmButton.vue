@@ -14,7 +14,7 @@ defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(
   defineProps<{
-    // The callout's prompt once armed, and the title and aria-label then. Starts with "Click
+    // The callout's prompt once armed, and the aria-label then. Starts with "Click
     // again" so the prompt always says what to do.
     confirmLabel?: string
     // Renders through AppButton in that variant; without it the root is a bare button.
@@ -128,7 +128,8 @@ onBeforeUnmount(() => {
 </script>
 
 <!-- type="button" comes first so a caller can override it, and so a confirm inside a form never
-     submits it on the first click. -->
+     submits it on the first click. The native tooltip is dropped once the confirm starts, since it
+     would cover the callout that already says the same thing. -->
 <template>
   <component
     :is="root.is"
@@ -139,7 +140,7 @@ onBeforeUnmount(() => {
     :class="{ 'is-nudging': nudging }"
     :data-confirm="state"
     :data-tone="tone"
-    :title="armed ? confirmLabel : attrs.title"
+    :title="state === 'idle' ? attrs.title : undefined"
     :aria-label="armed ? confirmLabel : attrs['aria-label']"
     :style="{ '--confirm-delay': `${CONFIRM_DELAY_MS}ms` }"
     @click="onClick"

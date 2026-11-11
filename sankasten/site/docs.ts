@@ -111,7 +111,7 @@ export const DOCS: Record<string, ComponentDoc> = {
         name: 'confirmLabel',
         type: 'string',
         default: "'Click again to confirm'",
-        doc: 'The callout prompt, title and aria-label while armed.'
+        doc: 'The callout prompt and aria-label while armed. The native tooltip is hidden while confirming.'
       },
       {
         name: 'dot',
@@ -162,7 +162,7 @@ export const DOCS: Record<string, ComponentDoc> = {
         name: 'confirmLabel',
         type: 'string',
         default: "'Click again to confirm'",
-        doc: 'The callout prompt, title and aria-label while armed. Start it with "Click again".'
+        doc: 'The callout prompt and aria-label while armed. The native tooltip is hidden while confirming. Start it with "Click again".'
       },
       { ...rowSize, doc: 'Passed to AppButton when a variant is set.' }
     ],
@@ -234,7 +234,7 @@ export const DOCS: Record<string, ComponentDoc> = {
         name: 'confirmLabel',
         type: 'string',
         default: "'Click again to close without saving'",
-        doc: 'Title and aria-label while armed.'
+        doc: 'The callout prompt and aria-label while armed.'
       },
       { ...size, doc: '18px (sm) in a strip of small tabs, 22px (md) in a tab bar.' }
     ],
