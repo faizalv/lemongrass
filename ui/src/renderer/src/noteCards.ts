@@ -112,8 +112,8 @@ const notesField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field)
 })
 
-// Same width and sticky placement as the comment cards, measured by the comment gutter. Violet,
-// the model's color in the resolver; amber stays with the human's comments.
+// Same width and sticky placement as the comment cards, measured by the comment gutter. Neutral,
+// since the model has no color of its own in the resolver; amber stays with the human's comments.
 const theme = EditorView.theme({
   '.cm-note-card': {
     position: 'sticky',
@@ -122,7 +122,7 @@ const theme = EditorView.theme({
     width: 'var(--cm-annotation-width, 100%)',
     margin: '2px 0 4px',
     padding: '4px 8px',
-    borderLeft: '3px solid var(--color-violet)',
+    borderLeft: '3px solid var(--color-fg-muted)',
     borderRadius: 'var(--radius-sm)',
     background: 'var(--color-surface-1)',
     fontFamily: 'var(--font-body)',
@@ -130,7 +130,7 @@ const theme = EditorView.theme({
     cursor: 'auto'
   },
   '.cm-note-head': { display: 'flex', gap: '6px', color: 'var(--color-fg-muted)' },
-  '.cm-note-author': { color: 'var(--color-violet)', fontWeight: 'var(--weight-medium)' },
+  '.cm-note-author': { color: 'var(--color-fg-secondary)', fontWeight: 'var(--weight-medium)' },
   '.cm-note-body': {
     color: 'var(--color-fg-primary)',
     whiteSpace: 'pre-wrap',

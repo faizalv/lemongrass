@@ -306,10 +306,10 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
   white-space: nowrap;
 }
 
-/* Violet is the model's work, as in the resolver. */
+/* The model's work is neutral, as in the resolver, so it never outranks a file left for the human. */
 .file-status.proposed {
-  background: var(--color-violet-muted);
-  color: var(--color-violet);
+  background: var(--color-surface-2);
+  color: var(--color-fg-secondary);
 }
 
 .file-status.markers {

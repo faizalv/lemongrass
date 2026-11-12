@@ -314,11 +314,6 @@ function onKeydown(event: KeyboardEvent): void {
   border-left: 2px solid var(--color-border-default);
 }
 
-/* Violet is the model's, as in the resolver; the human's own messages stay neutral. */
-.message.tab {
-  border-left-color: var(--color-violet);
-}
-
 .message-head {
   display: flex;
   flex-wrap: wrap;
@@ -329,10 +324,6 @@ function onKeydown(event: KeyboardEvent): void {
 .message-author {
   color: var(--color-fg-primary);
   font-weight: var(--weight-medium);
-}
-
-.message.tab .message-author {
-  color: var(--color-violet);
 }
 
 .message-context {

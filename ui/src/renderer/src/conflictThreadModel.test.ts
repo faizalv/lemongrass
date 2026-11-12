@@ -4,7 +4,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WorkgroupThreadMessage } from '../../preload/types'
-import { fileStatus, latestSubmit, mergeMessages, notesFor } from './conflictThreadModel.ts'
+import {
+  fileStatus,
+  fileStatusText,
+  isQuestionNote,
+  latestSubmit,
+  mergeMessages,
+  notesFor
+} from './conflictThreadModel.ts'
 
 function message(
   id: number,
@@ -60,7 +67,29 @@ test('the latest submit wins and decides which files are proposed', () => {
   )
   assert.deepEqual(fileStatus(messages, 'a.ts', 0), { kind: 'proposed', notes: 2 })
   assert.equal(fileStatus(messages, 'b.ts', 0), null)
-  assert.deepEqual(fileStatus(messages, 'a.ts', 2), { kind: 'markers', blocks: 2 })
+  assert.deepEqual(fileStatus(messages, 'a.ts', 2), { kind: 'markers', blocks: 2, questions: 0 })
+})
+
+test('a note quoting a marker block is a question, and the file status counts it', () => {
+  const block = {
+    path: 'a.ts',
+    startLine: 2,
+    endLine: 6,
+    quote: '<<<<<<< ours\nx\n=======\ny\n>>>>>>> theirs'
+  }
+  const messages = [
+    message(1, 'note', { anchor: block }),
+    message(2, 'note', { anchor: anchor('a.ts', 9) }),
+    message(3, 'submit', { files: ['a.ts'] })
+  ]
+  assert.equal(isQuestionNote(messages[0]), true)
+  assert.equal(isQuestionNote(messages[1]), false)
+  assert.equal(isQuestionNote(message(4, 'message', { anchor: block })), false)
+  const status = fileStatus(messages, 'a.ts', 1)
+  assert.deepEqual(status, { kind: 'markers', blocks: 1, questions: 1 })
+  assert.equal(fileStatusText(status!), '1 needs your call')
+  assert.equal(fileStatusText({ kind: 'markers', blocks: 3, questions: 2 }), '2 need your call')
+  assert.equal(fileStatusText({ kind: 'markers', blocks: 3, questions: 0 }), 'markers left')
 })
 
 test('nothing is proposed before the first submit', () => {

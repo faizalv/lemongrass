@@ -25,7 +25,7 @@ import {
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, invertedEffects } from '@codemirror/commands'
 import type { GitLineRange } from '../../preload/types'
-import type { ConflictSide, MiddleChunk, SideDecision } from './conflictModel'
+import type { ConflictSide, MiddleChunk, SideMark } from './conflictModel'
 
 // A conflict's place in a side pane, which never changes since the side panes are read only.
 export interface SideChunk {
@@ -115,12 +115,17 @@ const modelEditDecorations = EditorView.decorations.compute(['doc', modelEdits],
 )
 
 // Accept keeps the model's text for these conflicts and resolves them. Only the decisions change,
-// through the same effect as a take, so undo brings the proposals back.
-export function acceptChunks(state: EditorState, indexes: number[]): TransactionSpec | null {
+// through the same effect as a take, so undo brings the proposals back. accepted is conflictModel's
+// acceptedChunk, passed in because node's test runner cannot load a local value import here.
+export function acceptChunks(
+  state: EditorState,
+  indexes: number[],
+  accepted: (chunk: MiddleChunk) => MiddleChunk
+): TransactionSpec | null {
   const effects = state
     .field(middleChunks)
     .filter((chunk) => indexes.includes(chunk.index) && chunk.proposed && !chunk.resolved)
-    .map((chunk) => setChunk.of({ ...chunk, proposed: false, resolved: true }))
+    .map((chunk) => setChunk.of(accepted(chunk)))
   return effects.length ? { effects } : null
 }
 
@@ -137,10 +142,10 @@ const sideChunks = StateField.define<SideChunk[]>({
   update: (value) => value
 })
 
-const setDecisions = StateEffect.define<Record<number, SideDecision>>()
+const setDecisions = StateEffect.define<Record<number, SideMark>>()
 
-// What the middle decided for this pane's side of each conflict, pushed in from the middle.
-const sideDecisions = StateField.define<Record<number, SideDecision>>({
+// How this pane's side of each conflict stands in the middle, pushed in from the middle.
+const sideDecisions = StateField.define<Record<number, SideMark>>({
   create: () => ({}),
   update(value, tr) {
     for (const effect of tr.effects) if (effect.is(setDecisions)) value = effect.value
@@ -168,15 +173,16 @@ function iconButton(className: string, path: string, label: string, action: stri
   return button
 }
 
-// The chevron takes this pane's side into the middle and the cross rejects it. The decided one
-// stays lit.
+// The chevron takes this pane's side into the middle and the cross rejects it. The human's decision
+// stays lit, the model's waiting pick is outlined, and once the block is settled another way both
+// dim. Every state stays clickable, so a click always overrides.
 // branch names the side in titles, since left and right are never shown to the human.
 class DecideMarker extends GutterMarker {
   readonly side: ConflictSide
   readonly branch: string
-  readonly decision: SideDecision
+  readonly decision: SideMark
 
-  constructor(side: ConflictSide, branch: string, decision: SideDecision) {
+  constructor(side: ConflictSide, branch: string, decision: SideMark) {
     super()
     this.side = side
     this.branch = branch
@@ -192,18 +198,25 @@ class DecideMarker extends GutterMarker {
   toDOM(): Node {
     const dom = document.createElement('span')
     dom.className = 'cm-decide'
-    const lit = (own: SideDecision): string =>
-      this.decision === 'open' ? '' : this.decision === own ? ' on' : ' off'
+    const look = (own: 'taken' | 'rejected'): string => {
+      const pending = own === 'taken' ? 'pendingTaken' : 'pendingRejected'
+      if (this.decision === 'open') return ''
+      if (this.decision === own) return ' on'
+      if (this.decision === pending) return ' pending'
+      return ' off'
+    }
+    const pick = this.decision === 'pendingTaken' || this.decision === 'pendingRejected'
+    const suffix = pick ? ". The model's pick waits for Accept." : ''
     const take = iconButton(
-      `take${lit('taken')}`,
+      `take${look('taken')}`,
       CHEVRONS[this.side],
-      `Take ${this.branch}`,
+      `Take ${this.branch}${this.decision === 'pendingTaken' ? suffix : ''}`,
       'taken'
     )
     const reject = iconButton(
-      `reject${lit('rejected')}`,
+      `reject${look('rejected')}`,
       CROSS,
-      `Reject ${this.branch}`,
+      `Reject ${this.branch}${this.decision === 'pendingRejected' ? suffix : ''}`,
       'rejected'
     )
     // The chevron points into the middle, so it sits on the middle's side of the cross.
@@ -285,13 +298,16 @@ export function acceptAction(onAccept: OnAccept): Extension {
   return acceptHandler.of(onAccept)
 }
 
-// The solid jade Accept on a proposed block, so the decision sits where the eye already is.
-function acceptButton(index: number, onAccept: OnAccept): HTMLElement {
+// The solid jade Accept on a proposed block, so the decision sits where the eye already is. The
+// title says whether it confirms the model's picks or keeps text the model wrote itself.
+function acceptButton(index: number, onAccept: OnAccept, picks: boolean): HTMLElement {
   const button = document.createElement('button')
   button.type = 'button'
   button.className = 'cm-accept'
   button.textContent = 'Accept'
-  button.title = "Keep the model's text for this conflict"
+  button.title = picks
+    ? "Confirm the model's picks, shown outlined in the side panes"
+    : 'Edited by the model. Keep its text for this conflict'
   // mousedown, not click, so the editor never moves its cursor or selection under the press.
   button.addEventListener('mousedown', (event) => {
     event.preventDefault()
@@ -303,19 +319,23 @@ function acceptButton(index: number, onAccept: OnAccept): HTMLElement {
 class AcceptWidget extends WidgetType {
   readonly index: number
   readonly onAccept: OnAccept
+  readonly picks: boolean
 
-  constructor(index: number, onAccept: OnAccept) {
+  constructor(index: number, onAccept: OnAccept, picks: boolean) {
     super()
     this.index = index
     this.onAccept = onAccept
+    this.picks = picks
   }
 
   eq(other: AcceptWidget): boolean {
-    return other.index === this.index && other.onAccept === this.onAccept
+    return (
+      other.index === this.index && other.onAccept === this.onAccept && other.picks === this.picks
+    )
   }
 
   toDOM(): HTMLElement {
-    return acceptButton(this.index, this.onAccept)
+    return acceptButton(this.index, this.onAccept, this.picks)
   }
 
   ignoreEvent(): boolean {
@@ -355,7 +375,7 @@ class EmptyChunkWidget extends WidgetType {
         ? 'The model removed these lines.'
         : 'No lines here. Decide each side or type.'
     if (this.look === 'proposed' && this.onAccept) {
-      el.append(acceptButton(this.index, this.onAccept))
+      el.append(acceptButton(this.index, this.onAccept, false))
     }
     return el
   }
@@ -444,7 +464,8 @@ function lineClasses(
 type ChunkLook = 'open' | 'picked' | 'proposed'
 
 // A middle conflict is red until it holds something chosen: a taken side, a hand edit, or both
-// sides decided. The model's proposal is violet until the human settles it.
+// sides decided. The model's proposal is neutral until the human settles it, so the model's work
+// never outranks the human's own.
 function lookOf(chunk: MiddleChunk): ChunkLook {
   if (chunk.proposed && !chunk.resolved) return 'proposed'
   return chunk.resolved || chunk.taken.length > 0 ? 'picked' : 'open'
@@ -482,9 +503,10 @@ const middleDecorations = EditorView.decorations.compute(
       ? chunks
           .filter((chunk) => chunk.from < chunk.to && lookOf(chunk) === 'proposed')
           .map((chunk) =>
-            Decoration.widget({ widget: new AcceptWidget(chunk.index, onAccept), side: 1 }).range(
-              state.doc.lineAt(chunk.from).to
-            )
+            Decoration.widget({
+              widget: new AcceptWidget(chunk.index, onAccept, !!chunk.modelTaken?.length),
+              side: 1
+            }).range(state.doc.lineAt(chunk.from).to)
           )
       : []
     const add = [...empty, ...accepts]
@@ -492,7 +514,8 @@ const middleDecorations = EditorView.decorations.compute(
   }
 )
 
-// A side block is blue while that side is open and loses its color once decided, as used.
+// A side block is blue while that side waits for the human, a pick the model made included, and
+// loses its color once decided or settled, as used.
 const sideDecorations = EditorView.decorations.compute(
   ['doc', sideChunks, sideDecisions, currentChunk],
   (state) => {
@@ -510,7 +533,7 @@ const sideDecorations = EditorView.decorations.compute(
             from: doc.line(range.start).from,
             to: Math.min(last.to + 1, doc.length),
             className: [
-              (decisions[index] ?? 'open') === 'open' ? 'cm-conflict-side' : 'cm-conflict-used',
+              waitsForHuman(decisions[index] ?? 'open') ? 'cm-conflict-side' : 'cm-conflict-used',
               index === current ? 'cm-conflict-current' : ''
             ]
               .filter(Boolean)
@@ -522,6 +545,10 @@ const sideDecorations = EditorView.decorations.compute(
     return lines
   }
 )
+
+function waitsForHuman(mark: SideMark): boolean {
+  return mark === 'open' || mark === 'pendingTaken' || mark === 'pendingRejected'
+}
 
 const theme = EditorView.theme({
   '&': {
@@ -549,9 +576,10 @@ const theme = EditorView.theme({
   // red until something is picked and jade after, an open side is sapphire.
   '.cm-conflict-open': { backgroundColor: 'var(--color-error-muted)' },
   '.cm-conflict-picked': { backgroundColor: 'var(--color-jade-muted)' },
-  // Violet is the model's: a proposal waiting for the human, and its edits outside the conflicts.
-  '.cm-conflict-proposed': { backgroundColor: 'var(--color-violet-muted)' },
-  '.cm-model-edit': { boxShadow: 'inset 3px 0 0 var(--color-violet-dim)' },
+  // The model has no color of its own: a proposal waiting for the human is a neutral tint and its
+  // edits outside the conflicts a muted bar.
+  '.cm-conflict-proposed': { backgroundColor: 'var(--color-surface-2)' },
+  '.cm-model-edit': { boxShadow: 'inset 3px 0 0 var(--color-fg-muted)' },
   '.cm-conflict-side': { backgroundColor: 'var(--color-sapphire-muted)' },
   '.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-jade)' },
   '.cm-conflict-side.cm-conflict-current, .cm-conflict-used.cm-conflict-current': {
@@ -583,6 +611,8 @@ const theme = EditorView.theme({
   '.cm-decide-button.reject': { color: 'var(--color-error)' },
   '.cm-decide-button.on': { backgroundColor: 'var(--color-surface-2)' },
   '.cm-decide-button.off': { color: 'var(--color-fg-disabled)' },
+  // The model's pick keeps its color but only outlined, so it reads as a decision not yet made.
+  '.cm-decide-button.pending': { boxShadow: 'inset 0 0 0 1px currentColor' },
   '.cm-decide-button.take.off:hover': { color: 'var(--color-jade)' },
   '.cm-decide-button.reject.off:hover': { color: 'var(--color-error)' },
   '.cm-lineNumbers-after .cm-gutterElement': { textAlign: 'left', padding: '0 5px 0 3px' },
@@ -595,7 +625,7 @@ const theme = EditorView.theme({
   },
   '.cm-conflict-empty.open': { backgroundColor: 'var(--color-error-muted)' },
   '.cm-conflict-empty.picked': { backgroundColor: 'var(--color-jade-muted)' },
-  '.cm-conflict-empty.proposed': { backgroundColor: 'var(--color-violet-muted)' },
+  '.cm-conflict-empty.proposed': { backgroundColor: 'var(--color-surface-2)' },
   // The go action for one block, sticky to the right edge so on a line wider than the pane it stays
   // in view. It then sits over the line's text, so it is solid: a see-through one lets the text
   // bleed into it.
@@ -711,7 +741,7 @@ export function sideState(
   })
 }
 
-export function showDecisions(view: EditorView, decisions: Record<number, SideDecision>): void {
+export function showDecisions(view: EditorView, decisions: Record<number, SideMark>): void {
   view.dispatch({ effects: setDecisions.of(decisions) })
 }
 

@@ -33,6 +33,7 @@ import {
   type NoteMark
 } from '../../noteCards'
 import {
+  acceptedChunk,
   applyText,
   buildMiddle,
   buildProposal,
@@ -47,13 +48,15 @@ import {
   locateChunks,
   mapScroll,
   middleRanges,
+  questionChunks,
   savedText,
+  sideMark,
   splitLines,
   stripChunks,
   toDisk,
   type ConflictSide,
   type ConflictTake,
-  type SideDecision
+  type MiddleChunk
 } from '../../conflictModel'
 import {
   acceptAction,
@@ -118,6 +121,8 @@ const conflictIndexes = computed(() =>
 const unresolved = ref(0)
 // Proposals still waiting for the human.
 const proposedLeft = ref(0)
+// Open blocks the model left with a question on them, a subset of what is unresolved.
+const questionsLeft = ref(0)
 const dirty = ref(false)
 const current = ref<number | null>(null)
 const applying = ref(false)
@@ -154,13 +159,12 @@ const applyBlocked = computed((): string | null => {
   if (applying.value) return 'Applying'
   if (unresolved.value === 0) return null
   const left = unresolved.value === 1 ? '1 conflict left' : `${unresolved.value} conflicts left`
-  const proposedPart =
-    proposedLeft.value === 0
-      ? ''
-      : proposedLeft.value === unresolved.value
-        ? ', proposed by the model'
-        : `, ${proposedLeft.value} of them proposed`
-  return `${left}${proposedPart}. Settle each one first.`
+  const parts = [
+    ...(questionsLeft.value > 0 ? [`${questionsLeft.value} waiting for your call`] : []),
+    ...(proposedLeft.value > 0 ? [`${proposedLeft.value} proposed by the model`] : [])
+  ]
+  const detail = parts.length ? `, ${parts.join(' and ')}` : ''
+  return `${left}${detail}. Settle each one first.`
 })
 
 // The toolbar is status, not controls: a short counter, then what is left as plain text.
@@ -172,8 +176,10 @@ const counterText = computed(() => {
 
 const statusText = computed(() => {
   if (conflictIndexes.value.length === 0) return ''
-  const open = unresolved.value - proposedLeft.value
+  const open = unresolved.value - proposedLeft.value - questionsLeft.value
+  const calls = questionsLeft.value
   const parts = [
+    ...(calls > 0 ? [calls === 1 ? '1 needs your call' : `${calls} need your call`] : []),
     ...(proposedLeft.value > 0 ? [`${proposedLeft.value} proposed`] : []),
     ...(open > 0 ? [`${open} open`] : [])
   ]
@@ -184,7 +190,7 @@ const statusTitle = computed(() => {
   const total = conflictIndexes.value.length
   if (total === 0) return 'No conflicts left in this file'
   const at = position.value ? `Conflict ${position.value} of ${total}. ` : ''
-  return `${at}${unresolved.value} unresolved, ${proposedLeft.value} of them proposed by the model.`
+  return `${at}${unresolved.value} unresolved: ${questionsLeft.value} the model asked you about, ${proposedLeft.value} proposed by the model.`
 })
 
 // The whole-file actions replace every conflict in this file at once, so they sit behind the
@@ -338,6 +344,8 @@ function onMiddleUpdate(state: EditorState): void {
   unresolved.value = chunks.filter((chunk) => !chunk.resolved).length
   const waiting = chunks.filter((chunk) => chunk.proposed && !chunk.resolved)
   proposedLeft.value = waiting.length
+  const questions = questionsOf()
+  questionsLeft.value = chunks.filter((c) => !c.resolved && questions.has(c.index)).length
   // An accepted proposal changes no text but is still work a reload would lose.
   dirty.value =
     loaded.value !== null &&
@@ -345,18 +353,34 @@ function onMiddleUpdate(state: EditorState): void {
   pushDecisions(chunks)
 }
 
+// The blocks the model left open with a question on them, by chunk index.
+function questionsOf(): Map<number, number> {
+  if (!loaded.value) return new Map()
+  const anchored = props.notes.flatMap((note) =>
+    note.anchor
+      ? [{ id: note.id, startLine: note.anchor.startLine, endLine: note.anchor.endLine }]
+      : []
+  )
+  return questionChunks(loaded.value.chunks, anchored, proposed)
+}
+
 let shownDecisions = ''
 
 // The side panes draw the middle's decisions on their chevrons, so they hear about every change.
-function pushDecisions(chunks: { index: number; left: SideDecision; right: SideDecision }[]): void {
-  const key = JSON.stringify(chunks.map(({ index, left, right }) => [index, left, right]))
+function pushDecisions(chunks: MiddleChunk[]): void {
+  const marks = chunks.map((chunk) => ({
+    index: chunk.index,
+    left: sideMark(chunk, 'left'),
+    right: sideMark(chunk, 'right')
+  }))
+  const key = JSON.stringify(marks.map(({ index, left, right }) => [index, left, right]))
   if (key === shownDecisions || !left || !right) return
   shownDecisions = key
   for (const [view, side] of [
     [left, 'left'],
     [right, 'right']
   ] as const) {
-    showDecisions(view, Object.fromEntries(chunks.map((chunk) => [chunk.index, chunk[side]])))
+    showDecisions(view, Object.fromEntries(marks.map((mark) => [mark.index, mark[side]])))
   }
 }
 
@@ -496,7 +520,7 @@ function accept(indexes: number[] | 'all'): void {
   if (!middle) return
   const chosen =
     indexes === 'all' ? middle.state.field(middleChunks).map((chunk) => chunk.index) : indexes
-  const spec = acceptChunks(middle.state, chosen)
+  const spec = acceptChunks(middle.state, chosen, acceptedChunk)
   if (spec) middle.dispatch(spec)
 }
 
@@ -583,7 +607,9 @@ watch(
 watch(
   () => props.notes,
   () => {
-    if (middle) refreshNotes(middle)
+    if (!middle) return
+    refreshNotes(middle)
+    onMiddleUpdate(middle.state)
   }
 )
 

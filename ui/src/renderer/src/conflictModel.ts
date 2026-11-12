@@ -24,7 +24,15 @@ export interface MiddleChunk {
   // Holds the model's text from a submission and waits for the human: Accept keeps it, a side
   // taken or a hand edit replaces it. Unresolved until then, so Apply waits on it.
   proposed?: boolean
+  // The sides, in order, whose lines the model's text equals, so the proposal reads as picks the
+  // model made with the same chevrons the human uses. Absent when the model wrote new text.
+  modelTaken?: ConflictSide[]
 }
+
+// How a side pane draws one side of a conflict: decided by the human, a pick the model made that
+// waits for Accept, or settled some other way (Accept on new text, a hand edit), so it no longer
+// reads as open.
+export type SideMark = SideDecision | 'pendingTaken' | 'pendingRejected' | 'settled'
 
 // One stretch of a pane mapped to the working file. exact means line n of the pane is line n of the
 // disk range; otherwise any line inside maps to the whole disk range.
@@ -71,6 +79,58 @@ export function stripChunks(chunks: GitConflictChunk[]): GitConflictChunk[] {
   )
 }
 
+function sameLines(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((line, i) => line === b[i])
+}
+
+// The sides whose lines the model's text for a conflict equals: one side, or both in either order.
+// Null when it wrote anything else, or nothing.
+export function matchSides(conflict: ConflictChunk, lines: string[]): ConflictSide[] | null {
+  if (lines.length === 0) return null
+  const text = stripCr(lines)
+  const left = stripCr(conflict.left)
+  const right = stripCr(conflict.right)
+  const orders: ConflictSide[][] = [['left'], ['right'], ['left', 'right'], ['right', 'left']]
+  return (
+    orders.find((order) =>
+      sameLines(
+        text,
+        order.flatMap((side) => (side === 'left' ? left : right))
+      )
+    ) ?? null
+  )
+}
+
+// A chunk no longer holding a waiting proposal, for when the human decides it.
+function settledProposal(chunk: MiddleChunk): MiddleChunk {
+  if (!chunk.proposed) return chunk
+  const next: MiddleChunk = { ...chunk, proposed: false }
+  delete next.modelTaken
+  return next
+}
+
+// Accept on a proposal: the model's picks become the human's decisions, so the chunk ends as one
+// decided through the chevrons and undo works the same; new text is kept as it stands.
+export function acceptedChunk(chunk: MiddleChunk): MiddleChunk {
+  const picks = chunk.modelTaken
+  const next = { ...settledProposal(chunk), resolved: true }
+  if (!picks?.length) return next
+  return {
+    ...next,
+    left: picks.includes('left') ? 'taken' : 'rejected',
+    right: picks.includes('right') ? 'taken' : 'rejected',
+    taken: [...picks]
+  }
+}
+
+export function sideMark(chunk: MiddleChunk, side: ConflictSide): SideMark {
+  if (chunk.proposed && !chunk.resolved && chunk.modelTaken?.length) {
+    return chunk.modelTaken.includes(side) ? 'pendingTaken' : 'pendingRejected'
+  }
+  if (chunk[side] !== 'open') return chunk[side]
+  return chunk.resolved ? 'settled' : 'open'
+}
+
 function decidedText(conflict: ConflictChunk, taken: ConflictSide[]): string {
   return lineText(taken.length ? taken.flatMap((side) => conflict[side]) : conflict.base)
 }
@@ -86,7 +146,7 @@ export function decide(
   const others = chunk.taken.filter((entry) => entry !== side)
   const taken =
     decision === 'rejected' ? others : chunk.taken.includes(side) ? chunk.taken : [...others, side]
-  const next = { ...chunk, [side]: decision, taken, ...(chunk.proposed ? { proposed: false } : {}) }
+  const next = { ...settledProposal(chunk), [side]: decision, taken }
   next.resolved = next.left !== 'open' && next.right !== 'open'
   return { chunk: next, text: decidedText(conflict, next.taken) }
 }
@@ -99,12 +159,11 @@ export function decideAll(
 ): { chunk: MiddleChunk; text: string } {
   const taken: ConflictSide[] = take === 'both' ? ['left', 'right'] : [take]
   const next: MiddleChunk = {
-    ...chunk,
+    ...settledProposal(chunk),
     left: taken.includes('left') ? 'taken' : 'rejected',
     right: taken.includes('right') ? 'taken' : 'rejected',
     taken,
-    resolved: true,
-    ...(chunk.proposed ? { proposed: false } : {})
+    resolved: true
   }
   return { chunk: next, text: decidedText(conflict, taken) }
 }
@@ -133,6 +192,7 @@ export function buildMiddle(
     const lines = chunk.kind === 'clean' ? chunk.lines : (proposed ?? chunk.base)
     const part = lineText(lines)
     if (chunk.kind === 'conflict') {
+      const picks = proposed ? matchSides(chunk, proposed) : null
       middle.push({
         index,
         from: text.length,
@@ -141,7 +201,8 @@ export function buildMiddle(
         left: 'open',
         right: 'open',
         taken: [],
-        ...(proposed ? { proposed: true } : {})
+        ...(proposed ? { proposed: true } : {}),
+        ...(picks ? { modelTaken: picks } : {})
       })
     } else {
       for (const edit of proposal?.edits ?? []) {
@@ -619,4 +680,22 @@ export function buildProposal(
 // The chunk indexes holding a proposal, which the middle maps to disk line for line.
 export function proposedIndexes(proposal: MiddleProposal | null): Set<number> {
   return new Set(Object.keys(proposal?.lines ?? {}).map(Number))
+}
+
+// The conflicts the model asked about: an open marker block it left, holding one of its notes.
+// Keyed by chunk index, the value is the note's id. A proposed conflict is never a question, since
+// the model chose there.
+export function questionChunks(
+  chunks: GitConflictChunk[],
+  notes: { id: number; startLine: number; endLine: number }[],
+  proposed: ReadonlySet<number>
+): Map<number, number> {
+  const out = new Map<number, number>()
+  chunks.forEach((chunk, index) => {
+    if (chunk.kind !== 'conflict' || !chunk.disk || proposed.has(index)) return
+    const block = chunk.disk
+    const note = notes.find((n) => n.startLine <= block.end && n.endLine >= block.start)
+    if (note) out.set(index, note.id)
+  })
+  return out
 }

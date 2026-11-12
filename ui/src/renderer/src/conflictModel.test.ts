@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { GitConflictChunk } from '../../preload/types'
 import {
+  acceptedChunk,
   applyText,
   buildMiddle,
   collapseSpans,
@@ -15,8 +16,11 @@ import {
   isCrlf,
   locateChunks,
   mapScroll,
+  matchSides,
   middleRanges,
+  questionChunks,
   savedText,
+  sideMark,
   toDisk
 } from './conflictModel.ts'
 
@@ -227,4 +231,70 @@ test('saved work writes resolved conflicts as text and open ones as markers in g
     rebase.text.split('\n').slice(5).join('\n'),
     '<<<<<<< up\nR1\nR2\n=======\nL1\n>>>>>>> mine'
   )
+})
+
+const fixture = chunks[1] as Extract<GitConflictChunk, { kind: 'conflict' }>
+
+test('a proposal equal to a side, or both in either order, reads as the model picking them', () => {
+  assert.deepEqual(matchSides(fixture, ['L1']), ['left'])
+  assert.deepEqual(matchSides(fixture, ['R1', 'R2']), ['right'])
+  assert.deepEqual(matchSides(fixture, ['L1', 'R1', 'R2']), ['left', 'right'])
+  assert.deepEqual(matchSides(fixture, ['R1', 'R2', 'L1']), ['right', 'left'])
+  assert.deepEqual(matchSides(fixture, ['R1\r', 'R2\r']), ['right'])
+  assert.equal(matchSides(fixture, ['L1', 'R2']), null)
+  assert.equal(matchSides(fixture, []), null)
+})
+
+test('the middle marks the model picks on a proposed conflict and none on new text', () => {
+  const picked = buildMiddle(chunks, { lines: { 1: ['R1', 'R2'] }, edits: [] })
+  assert.deepEqual(picked.chunks[0].modelTaken, ['right'])
+  assert.equal(picked.chunks[0].proposed, true)
+  const edited = buildMiddle(chunks, { lines: { 1: ['L1 and R1'] }, edits: [] })
+  assert.equal(edited.chunks[0].modelTaken, undefined)
+})
+
+test('accepting picks turns them into decisions, accepting new text only settles it', () => {
+  const picked = buildMiddle(chunks, { lines: { 1: ['R1', 'R2', 'L1'] }, edits: [] }).chunks[0]
+  assert.equal(sideMark(picked, 'right'), 'pendingTaken')
+  const rightOnly = buildMiddle(chunks, { lines: { 1: ['R1', 'R2'] }, edits: [] }).chunks[0]
+  assert.equal(sideMark(rightOnly, 'left'), 'pendingRejected')
+  const accepted = acceptedChunk(picked)
+  assert.deepEqual(accepted, {
+    index: 1,
+    from: 2,
+    to: 11,
+    resolved: true,
+    left: 'taken',
+    right: 'taken',
+    taken: ['right', 'left'],
+    proposed: false
+  })
+  assert.equal(sideMark(accepted, 'left'), 'taken')
+
+  const edited = acceptedChunk(buildMiddle(chunks, { lines: { 1: ['new'] }, edits: [] }).chunks[0])
+  assert.equal(edited.resolved, true)
+  assert.equal(edited.left, 'open')
+  assert.equal(sideMark(edited, 'left'), 'settled')
+  assert.equal(sideMark(edited, 'right'), 'settled')
+})
+
+test('a side decided by the human drops the model picks', () => {
+  const picked = buildMiddle(chunks, { lines: { 1: ['L1'] }, edits: [] }).chunks[0]
+  const { chunk } = decide(picked, fixture, 'right', 'taken')
+  assert.equal(chunk.proposed, false)
+  assert.equal('modelTaken' in chunk, false)
+  assert.equal(sideMark(chunk, 'right'), 'taken')
+  assert.equal(sideMark(chunk, 'left'), 'open')
+  const all = decideAll(picked, fixture, 'left').chunk
+  assert.equal('modelTaken' in all, false)
+})
+
+test('a note on an open marker block makes it a question, never on a proposed one', () => {
+  const notes = [
+    { id: 7, startLine: 2, endLine: 7 },
+    { id: 8, startLine: 9, endLine: 9 }
+  ]
+  assert.deepEqual([...questionChunks(chunks, notes, new Set())], [[1, 7]])
+  assert.equal(questionChunks(chunks, notes, new Set([1])).size, 0)
+  assert.equal(questionChunks(chunks, [{ id: 8, startLine: 9, endLine: 9 }], new Set()).size, 0)
 })
