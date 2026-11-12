@@ -5,6 +5,7 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -184,6 +185,42 @@ func TestHumanMessagesMentionAndWakeTheAssignee(t *testing.T) {
 	}
 	if _, err := store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "ok"}, {Body: " "}}); err == nil {
 		t.Error("a blank message was accepted")
+	}
+	if after, _, _ := store.ReadThread(th.ID, 0, 10); len(after) != 2 {
+		t.Errorf("a refused batch stored %d messages, want none added", len(after)-2)
+	}
+}
+
+// A reply answers one message of the same thread and is stored and read with that id. One aimed anywhere else refuses the whole batch.
+func TestHumanReplyAnswersAMessageOfTheSameThread(t *testing.T) {
+	store := conflictStore(t)
+	th, _ := store.OpenConflict(conflictScope, tabA, "")
+	anchor := Anchor{Path: "a.go", StartLine: 3, EndLine: 7, Quote: "<<<<<<< ours"}
+	note, err := store.PostNote(tabA, anchor, "10 or 3? Which threshold?")
+	if err != nil {
+		t.Fatalf("PostNote: %v", err)
+	}
+	if _, err := store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "use 10", Anchor: &anchor, ReplyTo: note.ID}}); err != nil {
+		t.Fatalf("reply: %v", err)
+	}
+	msgs, _, _ := store.ReadThread(th.ID, 0, 10)
+	if msgs[0].ReplyTo != note.ID || msgs[0].TabID != HumanAuthor || msgs[1].ReplyTo != 0 {
+		t.Errorf("messages = %+v, want the reply pointing at note #%d and the note pointing nowhere", msgs, note.ID)
+	}
+	text := FormatThreadRead(th, msgs, false, false)
+	if !strings.Contains(text, fmt.Sprintf("(replying to #%d)", note.ID)) {
+		t.Errorf("thread read = %q, want the reply marked", text)
+	}
+
+	otherID, err := store.CreateThread(tabA, "Elsewhere", "hello")
+	if err != nil {
+		t.Fatalf("CreateThread: %v", err)
+	}
+	elsewhere, _, _ := store.ReadThread(otherID, 0, 1)
+	for _, bad := range []int64{elsewhere[0].ID, 99999} {
+		if _, err := store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "ok"}, {Body: "answer", ReplyTo: bad}}); err == nil {
+			t.Errorf("a reply to message #%d outside the thread was accepted", bad)
+		}
 	}
 	if after, _, _ := store.ReadThread(th.ID, 0, 10); len(after) != 2 {
 		t.Errorf("a refused batch stored %d messages, want none added", len(after)-2)

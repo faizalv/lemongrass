@@ -25,10 +25,11 @@ func (e NotAssigneeError) Error() string {
 	return fmt.Sprintf("session: the conflict is handed to %s, not this tab", TabLabel(e.Assignee))
 }
 
-// HumanMessage is one message the human wrote in the app's conflict thread, with an optional line anchor.
+// HumanMessage is one message the human wrote in the app's conflict thread, with an optional line anchor and the id of the message it answers, 0 for none.
 type HumanMessage struct {
-	Body   string
-	Anchor *Anchor
+	Body    string
+	Anchor  *Anchor
+	ReplyTo int64
 }
 
 func validateScope(scope string) error {
@@ -190,13 +191,30 @@ func (s *Store) PostHumanMessages(scope string, msgs []HumanMessage) ([]Message,
 	assignee := []string{thread.Assignee}
 	out := make([]Message, 0, len(msgs))
 	for _, m := range msgs {
-		msg, err := insertMessage(tx, s.projectID, thread.ID, HumanAuthor, m.Body, assignee, assignee, messageMeta{anchor: m.Anchor}, now())
+		if m.ReplyTo != 0 {
+			if err := replyTarget(tx, thread.ID, m.ReplyTo); err != nil {
+				return nil, err
+			}
+		}
+		msg, err := insertMessage(tx, s.projectID, thread.ID, HumanAuthor, m.Body, assignee, assignee, messageMeta{anchor: m.Anchor, replyTo: m.ReplyTo}, now())
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, msg)
 	}
 	return out, tx.Commit()
+}
+
+// A reply answers a message already in the same thread, so the model can find what it answers by id.
+func replyTarget(tx *sql.Tx, threadID string, id int64) error {
+	var n int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM lg_messages WHERE id = ? AND thread_id = ?`, id, threadID).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("session: message #%d is not in conflict thread %s, so a reply cannot answer it", id, threadID)
+	}
+	return nil
 }
 
 // PostNote posts the assignee's explanation of the lines at anchor. It wakes nobody, since the human reads the thread in the resolver.

@@ -50,8 +50,9 @@ type Anchor struct {
 }
 
 type HumanMessage struct {
-	Body   string  `json:"body"`
-	Anchor *Anchor `json:"anchor"`
+	Body    string  `json:"body"`
+	Anchor  *Anchor `json:"anchor"`
+	ReplyTo int64   `json:"replyTo,omitempty"`
 }
 
 // Grant is the one write a claimed token authorises, minted by the app when the human acted.

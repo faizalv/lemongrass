@@ -23,6 +23,7 @@ var migrations = []func(execer) error{
 	migrateV3,
 	migrateV4,
 	migrateV5,
+	migrateV6,
 }
 
 // Version 1 is the schema as it stood before the store was versioned, applied idempotently so a store from any earlier release lands on the same tables.
@@ -93,6 +94,12 @@ ALTER TABLE lg_messages ADD COLUMN files TEXT NOT NULL DEFAULT '';
 // Version 5 records when a tab last had real activity, a prompt or a tool call, apart from updated_at, which every hook moves. Existing rows start empty and count as inactive.
 func migrateV5(db execer) error {
 	_, err := db.ExecContext(context.Background(), `ALTER TABLE lg_tab_state ADD COLUMN last_active_at TEXT`)
+	return err
+}
+
+// Version 6 lets a human message in a conflict thread answer one earlier message of the same thread, such as a note on a block.
+func migrateV6(db execer) error {
+	_, err := db.ExecContext(context.Background(), `ALTER TABLE lg_messages ADD COLUMN reply_to INTEGER`)
 	return err
 }
 

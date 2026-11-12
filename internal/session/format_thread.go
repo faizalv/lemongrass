@@ -66,6 +66,9 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool) string {
 		if a := m.Anchor; a != nil {
 			fmt.Fprintf(&b, " on %s %s", a.Path, lineSpan(a.StartLine, a.EndLine))
 		}
+		if m.ReplyTo > 0 {
+			fmt.Fprintf(&b, " (replying to #%d)", m.ReplyTo)
+		}
 		if len(m.Mentions) > 0 {
 			fmt.Fprintf(&b, " (mentions %s)", tabList(m.Mentions))
 		}

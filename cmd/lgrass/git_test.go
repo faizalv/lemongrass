@@ -317,7 +317,35 @@ func TestThreadJSONCarriesConflictFields(t *testing.T) {
 	if submit.Author != "tab" || submit.TabID != gitTabA || submit.Kind != "submit" || submit.Anchor != nil || len(submit.Files) != 1 {
 		t.Errorf("submit message = %+v", submit)
 	}
-	if !strings.Contains(out, `"files":[]`) || !strings.Contains(out, `"anchor":null`) {
-		t.Errorf("empty files and anchor must be [] and null: %s", out)
+	if !strings.Contains(out, `"files":[]`) || !strings.Contains(out, `"anchor":null`) || !strings.Contains(out, `"replyTo":null`) {
+		t.Errorf("empty files, anchor and replyTo must be [], null and null: %s", out)
+	}
+}
+
+// A reply posted through a claimed token keeps the id it answers, and the app reads it back as replyTo.
+func TestAppPostCarriesAReplyThroughToTheJSON(t *testing.T) {
+	e, _, _ := gitEnv(t, "", gitTabA)
+	id := startConflict(t, e)
+	note, err := e.store.PostNote(gitTabA, session.Anchor{Path: "a.txt", StartLine: 2, EndLine: 2, Quote: "TAX"}, "which rate?")
+	if err != nil {
+		t.Fatalf("PostNote: %v", err)
+	}
+	sock, _ := fakeConflictApp(t, claimReply(map[string]any{"action": "post", "project_path": "/proj", "scope": gitScope,
+		"messages": []map[string]any{{"body": "0.12", "anchor": map[string]any{"path": "a.txt", "startLine": 2, "endLine": 2, "quote": "TAX"}, "replyTo": note.ID}}}))
+	e.socket = sock
+	e.out = &bytes.Buffer{}
+	if err := conflictApp(e, []string{"--token", "t", "--json"}); err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	tabID = gitTabA
+	defer func() { tabID = "" }()
+	out := captureStdout(t, func() { printThreadJSON(e.store, id, threadArgs{limit: 10}) })
+	var got jsonThread
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("output %q: %v", out, err)
+	}
+	reply := got.Messages[len(got.Messages)-1]
+	if reply.Author != "human" || reply.ReplyTo == nil || *reply.ReplyTo != note.ID {
+		t.Errorf("reply = %+v, want replyTo %d", reply, note.ID)
 	}
 }

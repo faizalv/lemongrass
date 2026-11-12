@@ -234,7 +234,7 @@ func conflictApp(e conflictEnv, args []string) error {
 	case gitconflict.ActionPost:
 		msgs := make([]session.HumanMessage, len(grant.Messages))
 		for i, m := range grant.Messages {
-			msgs[i] = session.HumanMessage{Body: strings.TrimSpace(m.Body)}
+			msgs[i] = session.HumanMessage{Body: strings.TrimSpace(m.Body), ReplyTo: m.ReplyTo}
 			if a := m.Anchor; a != nil {
 				msgs[i].Anchor = &session.Anchor{Path: a.Path, StartLine: a.StartLine, EndLine: a.EndLine, Quote: a.Quote}
 			}

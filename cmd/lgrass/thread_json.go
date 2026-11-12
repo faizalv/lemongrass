@@ -27,6 +27,7 @@ type jsonMessage struct {
 	Kind      string      `json:"kind"`
 	Anchor    *jsonAnchor `json:"anchor"`
 	Files     []string    `json:"files"`
+	ReplyTo   *int64      `json:"replyTo"`
 }
 
 type jsonThread struct {
@@ -49,6 +50,10 @@ func toJSONMessage(m session.Message, label string) jsonMessage {
 	}
 	if out.Files == nil {
 		out.Files = []string{}
+	}
+	if m.ReplyTo > 0 {
+		id := m.ReplyTo
+		out.ReplyTo = &id
 	}
 	if a := m.Anchor; a != nil {
 		out.Anchor = &jsonAnchor{Path: a.Path, StartLine: a.StartLine, EndLine: a.EndLine, Quote: a.Quote}
