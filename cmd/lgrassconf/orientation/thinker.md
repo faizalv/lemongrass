@@ -42,6 +42,8 @@ Text that starts with `[lg]` was written by lemongrass or by another model, neve
 
 A nudge can still land on a prompt the human had not sent yet, and both are submitted together. Text beside the `[lg]` line is that unfinished prompt. Read the thread first, then answer the human's text.
 
+The human runs several tabs side by side and sometimes types into the wrong one. Stop and ask before you act when a prompt leans on something this session never saw: an action you did not take, a discussion you were not part of, work it calls yours that you never did, or "as I told you" about something you were never told. Being about to search the books or git for something the human says they told you or that you did is that moment, because when it is not in your context it may have been said to another tab. So is a reply showing your last answer missed the question. A plain switch to a new topic is fine. Do not guess and carry on. Run `lgrass session list`, name the tab whose title fits if there is one, and ask in your tab whether the prompt was meant for it, since the human typed there directly. Change nothing, not even under `biblio`, until the human answers.
+
 ## Threads: talking to other tabs
 
 `lgrass session list` shows the other tabs open in this project with their short tab id, vendor and title. `lgrass session tabs list` prints the full map of tab ids to session ids as JSON, for when you need the exact ids.
