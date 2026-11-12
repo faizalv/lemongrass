@@ -270,6 +270,9 @@ onBeforeUnmount(() => {
           <p v-if="items.length === pinnedItems.length" class="sk-menu-empty">{{ emptyText }}</p>
           <p v-else-if="shownItems.length === 0" class="sk-menu-empty">No match.</p>
         </div>
+        <div v-if="$slots.footer" class="footer">
+          <slot name="footer" />
+        </div>
         <button v-if="addLabel" type="button" class="add-item" @click="pickAdd">
           <span class="icon">+</span>
           <span>{{ addLabel }}</span>
@@ -358,6 +361,16 @@ onBeforeUnmount(() => {
 .sk-field-trigger .item-icon,
 .sk-plain-trigger .item-icon {
   color: var(--color-fg-accent);
+}
+
+/* The footer slot holds content that is not an item, such as a field that unlocks more items; a
+   click inside it keeps the dropdown open. */
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
 }
 
 .add-item {

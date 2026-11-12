@@ -5,7 +5,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { AppButton, AppEmptyState, AppIcon, AppIconButton, AppInput, AppSwitcher } from '@sankasten'
 import '../../resterClient.css'
-import VaultUnlockGate from '../VaultUnlockGate.vue'
+import VaultUnlockInline from '../VaultUnlockInline.vue'
 import RequestList from './RequestList.vue'
 import RequestEditor from './RequestEditor.vue'
 import ResponsePanel from './ResponsePanel.vue'
@@ -234,8 +234,13 @@ function targetId(rester: string, environment: string): string {
 const pickedScope = ref<Scope | null>(storedScope())
 const lastByRester = storedLast()
 
+// Plain never reaches the vault, so a locked vault leaves the tab usable with Plain only.
+const locked = computed(() => !vaultSession.unlocked)
+
+// While locked the scope is Plain, whatever was picked, so unlocking returns to the picked group.
 // Before anything is picked: the first request's group, else the first target, else Plain.
 const scope = computed<Scope>(() => {
+  if (locked.value) return { rester: '', environment: '' }
   if (pickedScope.value) return pickedScope.value
   const first = requests.value[0] ?? targets.value[0]
   return first
@@ -244,6 +249,7 @@ const scope = computed<Scope>(() => {
 })
 
 function setScope(next: Scope): void {
+  if (locked.value) return
   pickedScope.value = next
   localStorage.setItem(SCOPE_KEY, JSON.stringify(next))
 }
@@ -350,13 +356,32 @@ async function loadResters(): Promise<void> {
 }
 
 // The tab is keep-alive, so it reloads on unlock and after every rester change made in the Vault.
+// A lock drops the resters, since they hold user fields, and cancels a load still running.
 watch(
   () => [vaultSession.unlocked, vaultSession.resterVersion] as const,
   ([unlocked]) => {
-    if (unlocked) loadResters()
+    if (unlocked) {
+      loadResters()
+      return
+    }
+    restersLoad++
+    resters.value = {}
+    restersLoaded.value = false
+    restersLoading.value = false
+    restersError.value = ''
   },
   { immediate: true }
 )
+
+// Keeps the selection in the group the scope allows: Plain while locked, the picked group once
+// unlocked.
+function selectForScope(): void {
+  const rester = scope.value.rester
+  if (selected.value?.rester === rester) return
+  selectedId.value = rememberedIn(rester)?.id ?? null
+}
+
+watch(locked, selectForScope)
 
 onMounted(async () => {
   await loadResterClient()
@@ -364,6 +389,7 @@ onMounted(async () => {
   if (selectedId.value) return
   if (requests.value.some((r) => r.id === remembered)) selectedId.value = remembered
   else selectedId.value = rememberedIn(scope.value.rester)?.id ?? null
+  if (locked.value) selectForScope()
 })
 
 // The request last selected in a rester's group, else its first.
@@ -512,6 +538,8 @@ function onUrlPaste(event: ClipboardEvent): void {
     notes.push(`Matched ${match.target.rester} · ${match.target.environment}.`)
   } else if (becamePlain) {
     notes.push('The URL is under no rester environment, so it is now a Plain request.')
+  } else if (locked.value && pastedURL.includes('://')) {
+    notes.push('Unlock the vault to match the URL to a rester.')
   }
   notes.push(...parsed.notes)
   outcomeOf(request.id).notice = notes.join(' ')
@@ -617,13 +645,7 @@ function onUrlKeydown(event: KeyboardEvent): void {
     @click.capture="noteVaultActivity"
     @keydown.capture="noteVaultActivity"
   >
-    <div v-if="!vaultSession.unlocked" class="vault-tab">
-      <div class="vault-frame vault-frame--gate">
-        <VaultUnlockGate />
-      </div>
-    </div>
-
-    <div v-else class="client-frame">
+    <div class="client-frame">
       <nav class="client-sidebar" :style="{ width: `${sidebarWidth}px` }">
         <div class="sidebar-actions">
           <span class="sidebar-label">Requests</span>
@@ -652,16 +674,24 @@ function onUrlKeydown(event: KeyboardEvent): void {
           <div class="target-picker">
             <AppSwitcher
               framed
-              searchable
+              :searchable="!locked"
               search-placeholder="Search resters"
               :items="targetItems"
               :active-id="selectedTarget"
               placeholder="Pick a rester"
               :empty-text="
-                restersLoading ? 'Loading resters...' : 'No rester has an API environment yet.'
+                locked
+                  ? 'Unlock the vault to use a rester.'
+                  : restersLoading
+                    ? 'Loading resters...'
+                    : 'No rester has an API environment yet.'
               "
               @select="pickTarget"
-            />
+            >
+              <template v-if="locked" #footer>
+                <VaultUnlockInline purpose="use a rester" />
+              </template>
+            </AppSwitcher>
           </div>
           <div v-if="selected && !isPlain" class="user-picker">
             <AppSwitcher
