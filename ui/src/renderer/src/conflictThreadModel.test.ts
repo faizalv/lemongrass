@@ -5,12 +5,15 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WorkgroupThreadMessage } from '../../preload/types'
 import {
+  chipText,
   fileStatus,
   fileStatusText,
+  firstLine,
   isQuestionNote,
   latestSubmit,
   mergeMessages,
-  notesFor
+  notesFor,
+  startsRun
 } from './conflictThreadModel.ts'
 
 function message(
@@ -28,6 +31,7 @@ function message(
     kind,
     anchor: null,
     files: [],
+    replyTo: null,
     ...extra
   }
 }
@@ -95,4 +99,41 @@ test('a note quoting a marker block is a question, and the file status counts it
 test('nothing is proposed before the first submit', () => {
   assert.equal(latestSubmit([message(1, 'message')]), null)
   assert.equal(fileStatus([message(1, 'note', { anchor: anchor('a.ts', 1) })], 'a.ts', 0), null)
+})
+
+test('a chip shows the file and the first code line, skipping marker lines', () => {
+  assert.equal(
+    chipText({ path: 'src/a.ts', quote: '  const x = 1\nconst y = 2' }),
+    'a.ts · const x = 1'
+  )
+  assert.equal(
+    chipText({
+      path: 'src/a.ts',
+      quote: '<<<<<<< ours\nLOW = 10\n=======\nLOW = 3\n>>>>>>> theirs'
+    }),
+    'a.ts · LOW = 10'
+  )
+  assert.equal(chipText({ path: 'a.ts', quote: '' }), 'a.ts')
+  assert.equal(chipText({ path: 'a.ts', quote: 'x'.repeat(60) }).length, 'a.ts · '.length + 48)
+})
+
+test('the author shows once per run, and a submit ends the run', () => {
+  const human = (id: number): WorkgroupThreadMessage =>
+    message(id, 'message', { author: 'human', tabId: '' })
+  const messages = [
+    message(1, 'note'),
+    message(2, 'note'),
+    human(3),
+    message(4, 'submit'),
+    message(5, 'message')
+  ]
+  assert.deepEqual(
+    messages.map((_, i) => startsRun(messages, i)),
+    [true, false, true, true, true]
+  )
+})
+
+test('a reply attachment shows the first non-empty line, shortened', () => {
+  assert.equal(firstLine('\n  Which threshold?\nmore'), 'Which threshold?')
+  assert.equal(firstLine('y'.repeat(100), 10), `${'y'.repeat(9)}…`)
 })

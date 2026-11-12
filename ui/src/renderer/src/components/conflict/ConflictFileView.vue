@@ -33,6 +33,7 @@ const submitId = computed(() => {
   return submit && submit.files.includes(props.path) ? submit.id : null
 })
 const notes = computed(() => notesFor(props.thread.messages, props.path))
+const replies = computed(() => props.thread.messages.filter((m) => typeof m.replyTo === 'number'))
 
 // Reloaded on every status refresh while shown, so a file the model changed or resolved shows here,
 // and once each time it is shown again. The object is replaced only when it differs, since the
@@ -88,6 +89,7 @@ watch(
         :file="okFile"
         :submit-id="submitId"
         :notes="notes"
+        :replies="replies"
       >
         <template #picker><slot name="picker" /></template>
       </ConflictMerge>

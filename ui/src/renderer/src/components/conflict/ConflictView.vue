@@ -2,7 +2,9 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
+import { conflictJumpKey, conflictRevealKey, type ConflictReveal } from '../../conflictJump'
+import type { ConflictMessageAnchor } from '../../../../preload/types'
 import { gitStateOf } from '../../git'
 import { useConflictThread } from '../../conflictThread'
 import { setConflictPath, type ProjectRef } from '../../workspace'
@@ -20,6 +22,16 @@ const props = defineProps<{
 // Read once here for every file view and the picker, since each reader refreshes the thread on
 // every git status change.
 const thread = useConflictThread(() => props.project)
+
+// A chip in the chat opens its file here, and that file's merge screen scrolls to the lines.
+const reveal = ref<ConflictReveal | null>(null)
+let nonce = 0
+function jump(anchor: ConflictMessageAnchor): void {
+  if (anchor.path !== props.path) setConflictPath(props.project, props.tabId, anchor.path)
+  reveal.value = { anchor, nonce: ++nonce }
+}
+provide(conflictJumpKey, jump)
+provide(conflictRevealKey, reveal)
 
 const status = computed(() => gitStateOf(props.project.id).status)
 const conflicted = computed(() =>

@@ -53,6 +53,9 @@ export interface UiState {
   sidebarPanel?: 'git' | 'none'
   sidebarFoldHeight?: number
   gitCommitHeight?: number
+  // The conflict chat's dragged height and whether it is minimized to its head.
+  conflictChatHeight?: number
+  conflictChatMinimized?: boolean
   explorer?: {
     columns: { size: boolean; modified: boolean; git: boolean }
     density: 'compact' | 'comfortable'
@@ -845,10 +848,12 @@ export interface ConflictMessageAnchor {
   quote: string
 }
 
-// One message the human posts into the conflict thread, a line comment when anchored.
+// One message the human posts into the conflict thread, a line comment when anchored. replyTo is
+// the id of the thread message it answers, such as the model's note it was written under.
 export interface ConflictHumanMessage {
   body: string
   anchor: ConflictMessageAnchor | null
+  replyTo?: number
 }
 
 export type ConflictStartResult = { ok: true; threadId: string } | { ok: false; reason: string }
@@ -1107,6 +1112,8 @@ export interface WorkgroupThreadMessage {
   anchor: ConflictMessageAnchor | null
   // The paths a submit message lists, empty for every other kind.
   files: string[]
+  // The message of the same thread this one answers, null for none.
+  replyTo: number | null
 }
 
 export interface WorkgroupThread {

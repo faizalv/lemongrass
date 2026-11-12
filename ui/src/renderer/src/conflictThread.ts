@@ -165,7 +165,8 @@ export async function postToConflict(
     if (typeof resolved === 'string') return resolved
     const plain = messages.map((message) => ({
       body: message.body,
-      anchor: message.anchor ? { ...message.anchor } : null
+      anchor: message.anchor ? { ...message.anchor } : null,
+      ...(message.replyTo ? { replyTo: message.replyTo } : {})
     }))
     const result = await window.api.conflictAgent.post(project.path, plain, resolved)
     if (!result.ok) return result.reason

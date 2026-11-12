@@ -224,9 +224,14 @@ function validMessages(value: unknown): ConflictHumanMessage[] | string {
     const body = typeof item?.body === 'string' ? item.body.trim() : ''
     if (!body) return 'A message is empty'
     if (body.length > MAX_BODY) return `A message is longer than ${MAX_BODY} characters`
+    const replyTo = item.replyTo
+    if (replyTo !== undefined && (!Number.isInteger(replyTo) || replyTo < 1)) {
+      return 'A reply does not say which message it answers'
+    }
+    const reply = replyTo === undefined ? {} : { replyTo }
     const anchor = item.anchor
     if (anchor === null || anchor === undefined) {
-      messages.push({ body, anchor: null })
+      messages.push({ body, anchor: null, ...reply })
       continue
     }
     if (
@@ -242,7 +247,7 @@ function validMessages(value: unknown): ConflictHumanMessage[] | string {
       return 'A line comment does not say where it sits'
     }
     const { path, startLine, endLine, quote } = anchor
-    messages.push({ body, anchor: { path, startLine, endLine, quote } })
+    messages.push({ body, anchor: { path, startLine, endLine, quote }, ...reply })
   }
   return messages
 }

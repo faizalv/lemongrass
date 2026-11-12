@@ -644,11 +644,56 @@ const theme = EditorView.theme({
     fontWeight: 'var(--weight-medium)',
     cursor: 'pointer'
   },
-  '.cm-accept:hover': { backgroundColor: 'var(--color-jade-dim)' }
+  '.cm-accept:hover': { backgroundColor: 'var(--color-jade-dim)' },
+  // Amber is focus, which is what a jump puts on these lines.
+  '.cm-flash': {
+    backgroundColor: 'var(--color-amber-muted) !important',
+    transition: 'background-color 0.3s'
+  }
 })
 
+const setFlash = StateEffect.define<{ from: number; to: number } | null>()
+
+// Lines a jump from the chat landed on, lit for a moment so the eye finds them.
+const flashField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    value = value.map(tr.changes)
+    for (const effect of tr.effects) {
+      if (!effect.is(setFlash)) continue
+      if (!effect.value) {
+        value = Decoration.none
+        continue
+      }
+      const builder = new RangeSetBuilder<Decoration>()
+      const doc = tr.state.doc
+      const last = Math.min(effect.value.to, doc.lines)
+      for (let n = Math.max(1, effect.value.from); n <= last; n++) {
+        builder.add(doc.line(n).from, doc.line(n).from, Decoration.line({ class: 'cm-flash' }))
+      }
+      value = builder.finish()
+    }
+    return value
+  },
+  provide: (field) => EditorView.decorations.from(field)
+})
+
+const FLASH_MS = 1200
+
+// Scrolls lines into the middle of the pane and lights them for a moment.
+export function flashLines(view: EditorView, fromLine: number, toLine: number): void {
+  const line = view.state.doc.line(Math.min(Math.max(1, fromLine), view.state.doc.lines))
+  view.dispatch({
+    effects: [
+      setFlash.of({ from: fromLine, to: toLine }),
+      EditorView.scrollIntoView(line.from, { y: 'center' })
+    ]
+  })
+  setTimeout(() => view.dispatch({ effects: setFlash.of(null) }), FLASH_MS)
+}
+
 function base(extra: Extension[]): Extension[] {
-  return [drawSelection(), currentChunk, theme, ...extra]
+  return [drawSelection(), currentChunk, flashField, theme, ...extra]
 }
 
 type OnMiddleUpdate = (state: EditorState, docChanged: boolean) => void

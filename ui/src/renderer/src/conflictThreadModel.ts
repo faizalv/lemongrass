@@ -66,3 +66,39 @@ export function fileStatus(
   }
   return { kind: 'proposed', notes: notesFor(messages, path).length }
 }
+
+const MARKER = /^(<{7}|={7}|>{7}|\|{7})( |\r?$)/
+const CHIP_QUOTE = 48
+
+// A chip names the file and the first line of code it quotes, never a line number, since line
+// numbers move as the file is edited and the chip opens the lines wherever they are now. A marker
+// line says nothing about the code, so the first line that is not one is shown.
+export function chipText(anchor: { path: string; quote: string }): string {
+  const name = anchor.path.split('/').pop() ?? anchor.path
+  const line = anchor.quote
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l && !MARKER.test(l))
+  if (!line) return name
+  const short = line.length > CHIP_QUOTE ? `${line.slice(0, CHIP_QUOTE - 1)}…` : line
+  return `${name} · ${short}`
+}
+
+// The chat names an author once per run of messages from the same author; a submit, shown as an
+// event row, ends the run.
+export function startsRun(messages: WorkgroupThreadMessage[], index: number): boolean {
+  const message = messages[index]
+  const previous = messages[index - 1]
+  if (!previous || previous.kind === 'submit') return true
+  return previous.author !== message.author || previous.tabId !== message.tabId
+}
+
+// The first line of a message, for the small attachment a reply shows above its own text.
+export function firstLine(body: string, max = 80): string {
+  const line =
+    body
+      .split('\n')
+      .find((l) => l.trim())
+      ?.trim() ?? ''
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line
+}

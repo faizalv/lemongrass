@@ -4,6 +4,7 @@
 <script setup lang="ts">
 import {
   computed,
+  inject,
   onActivated,
   onBeforeUnmount,
   onDeactivated,
@@ -63,6 +64,7 @@ import {
   acceptChunks,
   chunkAtCursor,
   chunkLines,
+  flashLines,
   focusLines,
   middleChunks,
   middleState,
@@ -75,6 +77,8 @@ import {
   sideState
 } from '../../conflictEditor'
 import { hasConflictTab, type ProjectRef } from '../../workspace'
+import { postToConflict } from '../../conflictThread'
+import { conflictRevealKey } from '../../conflictJump'
 import type {
   ConflictPane,
   GitConflictChunk,
@@ -98,8 +102,10 @@ const props = withDefaults(
     // mode, and the model's notes on the file from the conflict thread.
     submitId?: number | null
     notes?: WorkgroupThreadMessage[]
+    // Every message in the thread that answers another, so each note card lists its replies.
+    replies?: WorkgroupThreadMessage[]
   }>(),
-  { submitId: null, notes: () => [] }
+  { submitId: null, notes: () => [], replies: () => [] }
 )
 
 interface Loaded {
@@ -284,15 +290,35 @@ function segmentsOf(pane: ConflictPane): ReturnType<typeof diskSegments> {
   return diskSegments(loaded.value?.chunks ?? [], rangesOf(pane), pane, proposed)
 }
 
-// The model's notes, shown only on its proposal, since their lines are the model's file.
+// The model's notes, each with its replies. On a proposal every note shows, since their lines are
+// the model's file; otherwise only questions, whose marker blocks map onto the open conflicts.
 function notesIn(state: EditorState): NoteMark[] {
-  if (!proposalMode.value || !loaded.value) return []
+  if (!loaded.value) return []
+  const questions = new Set(questionsOf().values())
   const segments = diskSegments(loaded.value.chunks, middleLineRanges(state), 'middle', proposed)
   return props.notes.flatMap((note) => {
-    if (!note.anchor) return []
+    const question = questions.has(note.id)
+    if (!note.anchor || (!proposalMode.value && !question)) return []
     const range = fromDisk(segments, note.anchor.startLine, note.anchor.endLine)
-    return range ? [{ id: note.id, ...range, author: note.label, body: note.body }] : []
+    if (!range) return []
+    const replies = props.replies
+      .filter((reply) => reply.replyTo === note.id)
+      .map((reply) => ({
+        id: reply.id,
+        author: reply.label,
+        mine: reply.author === 'human',
+        body: reply.body
+      }))
+    return [{ id: note.id, ...range, author: note.label, body: note.body, question, replies }]
   })
+}
+
+// A reply from a note card carries the note's own anchor, so a reader without reply support still
+// sees where it points.
+function sendReply(noteId: number, body: string): Promise<string | null> {
+  const note = props.notes.find((n) => n.id === noteId)
+  if (!note?.anchor) return Promise.resolve('That note is no longer in the thread')
+  return postToConflict(props.project, [{ body, anchor: { ...note.anchor }, replyTo: note.id }])
 }
 
 function reviewExtension(pane: ConflictPane): Extension {
@@ -406,7 +432,7 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
   const middleExtras = [
     reviewExtension('middle'),
     focusExtension('middle'),
-    noteCards(notesIn),
+    noteCards(notesIn, sendReply),
     acceptAction((index) => accept([index]))
   ]
   const middleDoc = draft
@@ -460,6 +486,7 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
       effects: EditorView.scrollIntoView(middleDoc.selection.main.head, { y: 'center' })
     })
   } else if (built.chunks.length > 0) goTo(built.chunks[0].index)
+  revealPending()
 }
 
 watch(current, (index) => {
@@ -605,13 +632,37 @@ watch(
 )
 
 watch(
-  () => props.notes,
+  () => [props.notes, props.replies],
   () => {
     if (!middle) return
     refreshNotes(middle)
     onMiddleUpdate(middle.state)
   }
 )
+
+// A jump from the chat to lines of this file: the anchor's working-file lines mapped onto the
+// middle, the other panes following by scroll sync. Lines that no longer map, because the file
+// changed since, land on the first conflict instead.
+const reveal = inject(conflictRevealKey, ref(null))
+let revealed = 0
+
+function revealPending(): void {
+  const request = reveal.value
+  if (!request || request.nonce === revealed || request.anchor.path !== props.path) return
+  if (!middle || !loaded.value) return
+  revealed = request.nonce
+  const segments = diskSegments(
+    loaded.value.chunks,
+    middleLineRanges(middle.state),
+    'middle',
+    proposed
+  )
+  const range = fromDisk(segments, request.anchor.startLine, request.anchor.endLine)
+  if (range) flashLines(middle, range.fromLine, range.toLine)
+  else if (conflictIndexes.value.length) goTo(conflictIndexes.value[0])
+}
+
+watch(reveal, () => revealPending())
 
 function reloadPending(): void {
   const file = pendingReload.value
@@ -708,15 +759,18 @@ let scrollTops: number[] | null = null
 onDeactivated(() => {
   scrollTops = [left, middle, right].map((view) => view?.scrollDOM.scrollTop ?? 0)
 })
+// A jump that switched to this file lands after the restored scroll, so it wins.
 onActivated(() => {
   const tops = scrollTops
   scrollTops = null
-  if (!tops) return
-  ;[left, middle, right].forEach((view, at) => {
-    if (!view) return
-    view.requestMeasure()
-    view.scrollDOM.scrollTop = tops[at]
-  })
+  if (tops) {
+    ;[left, middle, right].forEach((view, at) => {
+      if (!view) return
+      view.requestMeasure()
+      view.scrollDOM.scrollTop = tops[at]
+    })
+  }
+  revealPending()
 })
 
 // The file is unmounted when its project is switched away, its tab moves to another pane or the
