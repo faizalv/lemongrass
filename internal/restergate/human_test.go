@@ -83,6 +83,49 @@ func TestHumanRequestLogsInOnceAndKeepsRawBody(t *testing.T) {
 	}
 }
 
+func TestHumanNoUserSendsOwnAuthWithoutLogin(t *testing.T) {
+	var logins atomic.Int32
+	svc := setUpHumanRester(t, humanServer(t, &logins))
+
+	call := humanCall("", "GET", "/api/echo")
+	call.NoUser = true
+	call.Headers = []vault.Header{{Name: "Authorization", Value: "Basic aW50ZXJuYWw6cHc="}, {Name: "Cookie", Value: "sid=1"}}
+	result, err := svc.HumanRequest("root-secret", call)
+	if err != nil {
+		t.Fatalf("HumanRequest as no user: %v", err)
+	}
+	want := `{"zeta":1,"alpha":"GET Basic aW50ZXJuYWw6cHc="}`
+	if result.Status != 200 || result.Body != want {
+		t.Errorf("status %d body %q, want 200 %q", result.Status, result.Body, want)
+	}
+
+	// Without its own auth the call goes out bare; the rester has two users, so an empty User
+	// alone would have been refused.
+	call.Headers = nil
+	result, err = svc.HumanRequest("root-secret", call)
+	if err != nil {
+		t.Fatalf("HumanRequest as no user without auth: %v", err)
+	}
+	if want := `{"zeta":1,"alpha":"GET "}`; result.Body != want {
+		t.Errorf("body %q, want %q", result.Body, want)
+	}
+	if n := logins.Load(); n != 0 {
+		t.Errorf("logins = %d, want 0", n)
+	}
+
+	call.Headers = []vault.Header{{Name: "Host", Value: "elsewhere.test"}}
+	if _, err := svc.HumanRequest("root-secret", call); err == nil || !strings.Contains(err.Error(), "set by the proxy") {
+		t.Errorf("Host on a no-user call: err = %v, want a proxy-header refusal", err)
+	}
+
+	// A call as a user still may not carry its own credentials.
+	asUser := humanCall("bob", "GET", "/api/echo")
+	asUser.Headers = []vault.Header{{Name: "Authorization", Value: "Basic x"}}
+	if _, err := svc.HumanRequest("root-secret", asUser); err == nil || !strings.Contains(err.Error(), "set by the proxy") {
+		t.Errorf("Authorization as a user: err = %v, want a refusal", err)
+	}
+}
+
 func TestHumanTokensAreSeparateFromChannelsAndUsers(t *testing.T) {
 	var logins atomic.Int32
 	svc := setUpHumanRester(t, humanServer(t, &logins))

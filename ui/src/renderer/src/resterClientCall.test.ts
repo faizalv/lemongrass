@@ -50,6 +50,12 @@ test('a json body leaves the content type to the proxy, and none sends nothing',
   assert.equal(buildCall({ ...request, bodyKind: 'none' }).body, '')
 })
 
+test('an empty user under a rester is sent as no user, and Plain never is', () => {
+  assert.equal(buildCall(request).noUser, undefined)
+  assert.equal(buildCall({ ...request, user: '' }).noUser, true)
+  assert.equal(buildCall({ ...request, rester: '', environment: '', user: '' }).noUser, undefined)
+})
+
 test('apiUsers keeps assigned users that can log in or carry a token', () => {
   const user = (Name: string, envs: string[], Token = ''): VaultResterUser => ({
     Name,

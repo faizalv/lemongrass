@@ -29,7 +29,7 @@ import type {
   ResterClientRun,
   VaultRester
 } from '../../../../preload/types'
-import { plainRequestIcon, resterClientIcon } from '../../icons'
+import { noUserIcon, plainRequestIcon, resterClientIcon } from '../../icons'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 // Where the last selected request is remembered, so reopening the app shows it again.
@@ -50,6 +50,9 @@ const SIDEBAR_MAX_PX = 480
 // A request with no rester is Plain: a full URL sent as written, from main and not through the
 // vault, since no credential is involved. Its group is Plain.
 const PLAIN_ID = targetId('', '')
+// The user picker's id for No user, which a request saves as an empty user. A NUL never appears in
+// a user name, so it cannot collide with one.
+const NO_USER_ID = '\u0000no-user'
 
 interface Scope {
   rester: string
@@ -296,11 +299,20 @@ const baseURL = computed(
 const userItems = computed(() => {
   const rester = selected.value ? resters.value[selected.value.rester] : undefined
   if (!rester || !selected.value) return []
-  return apiUsers(rester, selected.value.environment).map((user) => ({
-    id: user.Name,
-    label: user.Tags?.length ? `${user.Name} (${user.Tags.join(', ')})` : user.Name,
-    search: user.Name
-  }))
+  return [
+    {
+      id: NO_USER_ID,
+      label: 'No user',
+      title: 'Sends no token. Auth headers you write go out as written.',
+      icon: noUserIcon,
+      pinned: true
+    },
+    ...apiUsers(rester, selected.value.environment).map((user) => ({
+      id: user.Name,
+      label: user.Tags?.length ? `${user.Name} (${user.Tags.join(', ')})` : user.Name,
+      search: user.Name
+    }))
+  ]
 })
 
 const resolvedURL = computed(() => {
@@ -310,11 +322,7 @@ const resolvedURL = computed(() => {
 })
 
 const canSend = computed(
-  () =>
-    !!selected.value &&
-    (selected.value.rester === '' || !!selected.value.user) &&
-    !!selected.value.url.trim() &&
-    !outcome.value?.sending
+  () => !!selected.value && !!selected.value.url.trim() && !outcome.value?.sending
 )
 
 // Loads can overlap when resters change in quick succession; only the newest one is applied.
@@ -416,7 +424,7 @@ function addRequest(): void {
   }
   resterClientStore.requests.push(request)
   selectedId.value = request.id
-  if (rester && !request.user) pickDefaultUser(request)
+  if (rester && current?.rester !== rester) pickDefaultUser(request, false)
 }
 
 function removeRequest(id: string): void {
@@ -436,7 +444,9 @@ function renameRequest(id: string, name: string): void {
 }
 
 // Keeps the request's user when the new environment has it, else takes the first usable one.
-function pickDefaultUser(request: ResterClientRequest): void {
+// keepNoUser keeps a deliberate No user (an empty user), for a request that stays in its rester.
+function pickDefaultUser(request: ResterClientRequest, keepNoUser: boolean): void {
+  if (keepNoUser && request.user === '') return
   const rester = resters.value[request.rester]
   const users = rester ? apiUsers(rester, request.environment) : []
   if (!users.some((u) => u.Name === request.user)) request.user = users[0]?.Name ?? ''
@@ -453,7 +463,7 @@ function pickTarget(id: string): void {
   // A rester missing from the vault has no users to pick, so its requests are left as saved.
   if (!request || !rester || !resters.value[rester]) return
   request.environment = environment
-  pickDefaultUser(request)
+  pickDefaultUser(request, true)
 }
 
 function tokenHeaderOf(request: ResterClientRequest): string {
@@ -472,16 +482,19 @@ function onUrlPaste(event: ClipboardEvent): void {
   // A full URL under no rester environment makes the request Plain, which keeps its auth.
   const becamePlain = !match && request.rester !== '' && pastedURL.includes('://')
   if (match) {
+    const sameRester = request.rester === match.target.rester
     request.rester = match.target.rester
     request.environment = match.target.environment
-    pickDefaultUser(request)
+    pickDefaultUser(request, sameRester)
   } else if (becamePlain) {
     request.rester = ''
     request.environment = ''
     request.user = ''
   }
   const parsed =
-    request.rester === '' ? parseCurl(text, '', true) : parseCurl(text, tokenHeaderOf(request))
+    request.rester === '' || request.user === ''
+      ? parseCurl(text, '', true)
+      : parseCurl(text, tokenHeaderOf(request))
   request.method = parsed.method
   request.url = match ? match.path : parsed.url
   request.headers = parsed.headers
@@ -656,15 +669,14 @@ function onUrlKeydown(event: KeyboardEvent): void {
               searchable
               search-placeholder="Search users"
               :items="userItems"
-              :active-id="selected.user || null"
+              :active-id="selected.user || NO_USER_ID"
               placeholder="Pick a user"
               empty-text="No user can call this environment."
-              @select="selected.user = $event"
+              @select="selected.user = $event === NO_USER_ID ? '' : $event"
             />
           </div>
           <AppButton
-            v-if="selected && !isPlain"
-            :disabled="!selected.user"
+            v-if="selected && !isPlain && selected.user"
             title="Drop this user's cached token"
             @click="flush"
           >

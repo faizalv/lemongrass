@@ -981,6 +981,8 @@ export interface ResterClientCall {
   multipart?: ResterClientPart[]
   file?: ResterClientFileBody
   headers: ResterClientPair[]
+  // Set for a request under a rester with no user: no token, and the written auth headers go out.
+  noUser?: boolean
 }
 
 export interface ResterClientResult {

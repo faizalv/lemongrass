@@ -14,7 +14,7 @@ import (
 )
 
 // HumanCall is one request the human sends from the app's Rester Client, as one of a rester's
-// users in one environment. It goes through no channel, so no scope applies: the human holds the
+// users or as no user (NoUser) in one environment. It goes through no channel, so no scope applies: the human holds the
 // passphrase and owns the credentials.
 type HumanCall struct {
 	Rester      string         `json:"rester"`
@@ -25,6 +25,9 @@ type HumanCall struct {
 	Body        []byte         `json:"body,omitempty"`
 	ContentType string         `json:"content_type,omitempty"`
 	Headers     []vault.Header `json:"headers,omitempty"`
+	// NoUser sends the call as no user: no token, and the human's own auth headers go out as
+	// written. An empty User cannot say this, since it means the rester's only user.
+	NoUser bool `json:"no_user,omitempty"`
 }
 
 // HumanResult is a human call's outcome. Body is the raw text, so the app shows it exactly as sent
@@ -95,6 +98,18 @@ func (g *Gate) HumanDownload(rootSecret string, call HumanCall) (Download, error
 	return downloadFrom(resp, target)
 }
 
+// sendNoUser sends a human call with no user: the same body and header checks as any call, but no
+// token cache, so no login, no token and no stale-token retry.
+func (g *Gate) sendNoUser(rester vault.ResolvedRester, call HumanCall, target requestTarget, stream bool) (*http.Response, error) {
+	if err := checkRequestBody(call.Body, call.ContentType); err != nil {
+		return nil, err
+	}
+	if err := checkCallHeaders(rester, call.Headers, true); err != nil {
+		return nil, err
+	}
+	return sendHTTPRequest(rester, "", call.Method, target, call.Body, call.ContentType, call.Headers, stream)
+}
+
 // FlushHumanTokens drops the human's cached tokens for one rester environment, for one user or,
 // when user is empty, for every user, and returns how many were dropped.
 func (g *Gate) FlushHumanTokens(rester, environment, user string) int {
@@ -131,11 +146,18 @@ func (g *Gate) humanExchange(rootSecret string, call HumanCall, stream bool) (*h
 	if err != nil {
 		return nil, requestTarget{}, err
 	}
-	user, err := resolveUser(rester, call.User)
+	target, err := resolveRequestTarget(rester.BaseURL, call.Path)
 	if err != nil {
 		return nil, requestTarget{}, err
 	}
-	target, err := resolveRequestTarget(rester.BaseURL, call.Path)
+	if call.NoUser {
+		resp, err := g.sendNoUser(rester, call, target, stream)
+		if err != nil {
+			return nil, requestTarget{}, err
+		}
+		return resp, target, nil
+	}
+	user, err := resolveUser(rester, call.User)
 	if err != nil {
 		return nil, requestTarget{}, err
 	}

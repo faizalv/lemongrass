@@ -108,7 +108,7 @@ func (g *Gate) send(owner tokenOwner, rester vault.ResolvedRester, user, method 
 	if err := checkRequestBody(body, contentType); err != nil {
 		return nil, err
 	}
-	if err := checkCallHeaders(rester, headers); err != nil {
+	if err := checkCallHeaders(rester, headers, false); err != nil {
 		return nil, err
 	}
 
@@ -181,7 +181,10 @@ func sendHTTPRequest(rester vault.ResolvedRester, token, method string, target r
 	} else if len(body) > 0 {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	injectToken(req, rester.TokenPlacement, token)
+	// A human call with no user has no token, and its own auth headers must not be overwritten.
+	if token != "" {
+		injectToken(req, rester.TokenPlacement, token)
+	}
 
 	client := *httpClient
 	client.Timeout = RequestTimeout

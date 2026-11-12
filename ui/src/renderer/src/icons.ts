@@ -23,6 +23,12 @@ export const plainRequestIcon: IconShape[] = [
   { tag: 'path', attrs: { d: 'M1.8 7h10.4' } }
 ]
 
+// A person struck through: a call sent as no user, carrying no token.
+export const noUserIcon: IconShape[] = [
+  { tag: 'circle', attrs: { cx: 7, cy: 4.6, r: 2.1 } },
+  { tag: 'path', attrs: { d: 'M3 12c.5-2.4 2-3.6 4-3.6s3.5 1.2 4 3.6M2 2l10 10' } }
+]
+
 export const decisionsIcon: IconShape[] = [
   { tag: 'path', attrs: { d: 'M2.5 2.5h9v6.5h-5l-2.5 2.5v-2.5h-1.5z' } },
   { tag: 'path', attrs: { d: 'M5 5.5l1.4 1.4L9 4.3' } }

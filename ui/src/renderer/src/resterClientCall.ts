@@ -33,7 +33,8 @@ export function withBodyDefaults(request: ResterClientRequest): ResterClientRequ
   return request
 }
 
-// Turns a saved request into what the vault sends. A JSON body leaves the content type empty, so the
+// Turns a saved request into what the vault sends. An empty user under a rester is No user, sent
+// with no token so the request's own auth headers go out. A JSON body leaves the content type empty, so the
 // proxy sets application/json; a form body is urlencoded. A multipart or file body travels as its
 // parts or path, because only main can read the files.
 export function buildCall(request: ResterClientRequest): ResterClientCall {
@@ -68,6 +69,7 @@ export function buildCall(request: ResterClientRequest): ResterClientCall {
     contentType: body ? contentType : '',
     ...(multipart ? { multipart } : {}),
     ...(file ? { file } : {}),
+    ...(request.rester && !request.user ? { noUser: true } : {}),
     headers: request.headers
       .filter((header) => header.name.trim() !== '')
       .map((header) => ({ name: header.name.trim(), value: header.value }))

@@ -70,7 +70,8 @@ async function wireCall(call: ResterClientCall): Promise<unknown> {
     path: call.path,
     body: body.length > 0 ? body.toString('base64') : undefined,
     content_type: contentType || undefined,
-    headers: call.headers.map((header) => ({ Name: header.name, Value: header.value }))
+    headers: call.headers.map((header) => ({ Name: header.name, Value: header.value })),
+    no_user: call.noUser || undefined
   }
 }
 

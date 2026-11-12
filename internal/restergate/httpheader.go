@@ -21,13 +21,19 @@ func setHeaders(req *http.Request, headers []vault.Header) {
 }
 
 // checkCallHeaders refuses a caller's header that is malformed, repeated, carries a credential, or is set by the proxy or the rester.
-func checkCallHeaders(rester vault.ResolvedRester, headers []vault.Header) error {
+// ownAuth is for a human call with no user, where no token is sent and the human supplies the auth:
+// the credential headers and the token placement's header are then allowed.
+func checkCallHeaders(rester vault.ResolvedRester, headers []vault.Header, ownAuth bool) error {
+	reserved := rester
+	if ownAuth {
+		reserved.TokenPlacement = vault.TokenPlacement{}
+	}
 	seen := make(map[string]bool, len(headers))
 	for _, h := range headers {
 		if err := vault.CheckHeader(h); err != nil {
 			return fmt.Errorf("restergate: %w", err)
 		}
-		if rester.ReservesHeader(h.Name) || isCredentialHeader(h.Name) {
+		if reserved.ReservesHeader(h.Name) || (!ownAuth && isCredentialHeader(h.Name)) {
 			return fmt.Errorf("restergate: header %q is set by the proxy and cannot be set on a call", h.Name)
 		}
 		if rester.SetsHeader(h.Name) {
