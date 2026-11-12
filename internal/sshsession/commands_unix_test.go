@@ -184,6 +184,61 @@ func TestDownloadDir(t *testing.T) {
 	}
 }
 
+// A folder archive from downloadDir unpacks on the other side under the same name, a taken name is
+// refused, and a broken archive leaves nothing behind.
+func TestUploadDir(t *testing.T) {
+	old := progressEvery
+	progressEvery = 0
+	t.Cleanup(func() { progressEvery = old })
+	h := newHarness(t, nil)
+	writeFile(t, h.path("src/logs/app.log"), []byte(strings.Repeat("line\n", 50000)))
+	writeFile(t, h.path("src/logs/sub/x.log"), []byte("x"))
+	writeFile(t, h.path("dst/keep"), nil)
+	archive := filepath.Join(t.TempDir(), "logs.tar.gz")
+	h.ok(msg{"op": "downloadDir", "remote": h.path("src/logs"), "local": archive, "transfer": "a1"})
+	if _, end := h.events("a1"); end["event"] != "done" {
+		t.Fatalf("archive ended with %v", end)
+	}
+	fi, _ := os.Stat(archive)
+
+	res := h.ok(msg{"op": "uploadDir", "local": archive, "remote": h.path("dst/logs"), "transfer": "u1"})
+	if res["total"] != float64(fi.Size()) {
+		t.Fatalf("reply = %v for a %d byte archive", res, fi.Size())
+	}
+	progress, end := h.events("u1")
+	if end["event"] != "done" {
+		t.Fatalf("ended with %v", end)
+	}
+	if last := progress[len(progress)-1]; last["done"] != float64(fi.Size()) {
+		t.Fatalf("last progress %v", last)
+	}
+	if b, _ := os.ReadFile(h.path("dst/logs/sub/x.log")); string(b) != "x" {
+		t.Fatalf("unpacked x.log = %q", b)
+	}
+	if b, _ := os.ReadFile(h.path("dst/logs/app.log")); len(b) != 250000 {
+		t.Fatalf("unpacked app.log has %d bytes", len(b))
+	}
+
+	h.fails(msg{"op": "uploadDir", "local": archive, "remote": h.path("dst/logs"), "transfer": "u2"}, CodeExists)
+
+	whole, _ := os.ReadFile(archive)
+	broken := filepath.Join(t.TempDir(), "logs.tar.gz")
+	writeFile(t, broken, whole[:len(whole)/2])
+	if err := os.RemoveAll(h.path("dst/logs")); err != nil {
+		t.Fatal(err)
+	}
+	h.ok(msg{"op": "uploadDir", "local": broken, "remote": h.path("dst/logs"), "transfer": "u3"})
+	if _, end := h.events("u3"); end["event"] != "failed" {
+		t.Fatalf("broken archive ended with %v", end)
+	}
+	if _, err := os.Lstat(h.path("dst/logs")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("partial folder left behind: %v", err)
+	}
+	if _, err := os.Stat(h.path("dst/keep")); err != nil {
+		t.Fatalf("sibling lost: %v", err)
+	}
+}
+
 // A replacing download that is cancelled keeps the file it was meant to replace.
 func TestDownloadDirCancelKeepsOld(t *testing.T) {
 	old := progressEvery

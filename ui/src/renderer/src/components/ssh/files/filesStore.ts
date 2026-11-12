@@ -15,22 +15,32 @@ import { describeError } from '../../../vaultSession'
 import { joinRemote } from './remotePath'
 
 // The Files layer's state lives here per server tab, not in the component, because moving a
-// tab to another pane remounts its body; the shown folder, its history, the clipboard and running
-// transfers must survive that. It ends with the tab, in stopFiles.
+// tab to another pane remounts its body; the shown folder, its history and running transfers
+// must survive that. It ends with the tab, in stopFiles. The clipboard is one for every server
+// tab, so a Copy in one server pastes into another.
 
 export type FilesViewKind = 'detailed' | 'tile' | 'basic'
 
 export interface FilesClipboard {
+  // The tab it was taken in, whose helper reads it when it pastes into another server.
+  tabId: string
+  alias: string
   path: string
   name: string
+  dir: boolean
+  // From the listing, for the local staging room check of a copy to another server.
+  size: number
   mode: 'move' | 'copy'
 }
 
 export interface FileTransfer {
   id: string
   name: string
-  direction: 'upload' | 'download'
-  // The remote folder an upload lands in, so its listing refreshes when the upload is done.
+  // relay: a copy from another server, staged locally by main.
+  direction: 'upload' | 'download' | 'relay'
+  // The server a relay copies from.
+  from: string
+  // The remote folder an upload or relay lands in, so its listing refreshes when it is done.
   dir: string
   done: number
   // 0 while unknown, such as a folder streamed as a tar.gz.
@@ -53,7 +63,6 @@ export interface FilesState {
   history: string[]
   historyAt: number
   view: FilesViewKind
-  clipboard: FilesClipboard | null
   // What a slow operation is doing, set only once it has run past SLOW_AFTER_MS.
   slow: string
   // Acting as root through passwordless sudo. Never remembered, so a new tab starts as the user.
@@ -73,6 +82,7 @@ function plain(error: string): string {
 }
 
 const states = reactive<Record<string, FilesState>>({})
+export const filesClipboard = reactive<{ entry: FilesClipboard | null }>({ entry: null })
 const unsubscribe = new Map<string, () => void>()
 
 export function filesOf(tabId: string, alias: string): FilesState {
@@ -91,7 +101,6 @@ export function filesOf(tabId: string, alias: string): FilesState {
       history: [],
       historyAt: -1,
       view: lastView,
-      clipboard: null,
       slow: '',
       sudo: false,
       sudoDropped: ''
@@ -108,6 +117,7 @@ function transferOf(s: FilesState, id: string): FileTransfer {
       id,
       name: '',
       direction: 'upload',
+      from: '',
       dir: '',
       done: 0,
       total: 0
@@ -125,8 +135,10 @@ function onEvent(tabId: string, ev: SSHSessionEvent): void {
   const s = states[tabId]
   if (!s) return
   if (ev.event === 'exit') {
-    if (s.transfers.length) s.notice = `Transfers stopped: ${plain(ev.error)}`
-    s.transfers = []
+    // A relay runs on main and the source tab's helper too; main ends its row when it is over.
+    const own = s.transfers.filter((t) => t.direction !== 'relay')
+    if (own.length) s.notice = `Transfers stopped: ${plain(ev.error)}`
+    s.transfers = s.transfers.filter((t) => t.direction === 'relay')
     return
   }
   if (ev.event === 'failed') {
@@ -142,7 +154,7 @@ function onEvent(tabId: string, ev: SSHSessionEvent): void {
     return
   }
   dropTransfer(s, t.id)
-  if (t.direction === 'upload' && t.dir === s.path) void load(tabId, s.path)
+  if (t.direction !== 'download' && t.dir === s.path) void load(tabId, s.path)
 }
 
 // Runs an operation, publishing its text as the layer's status only once it has taken longer
@@ -401,27 +413,119 @@ export async function removeEntry(tabId: string, name: string): Promise<void> {
   if (accept(s, reply, name)) await load(tabId)
 }
 
-export function setClipboard(tabId: string, name: string, mode: FilesClipboard['mode']): void {
+export function setClipboard(
+  tabId: string,
+  entry: SSHFileEntry,
+  mode: FilesClipboard['mode']
+): void {
   const s = states[tabId]
-  if (s?.path) s.clipboard = { path: joinRemote(s.path, name), name, mode }
+  if (!s?.path) return
+  const path = joinRemote(s.path, entry.name)
+  filesClipboard.entry = {
+    tabId,
+    alias: s.alias,
+    path,
+    name: entry.name,
+    dir: entry.dir,
+    size: entry.size,
+    mode
+  }
 }
 
-// Moves or copies the clipboard's entry into the shown folder under the same name.
+// What Paste reads in a tab, naming the source server when it is another one; null when there is
+// nothing to paste.
+export function pasteLabel(tabId: string): string | null {
+  const clip = filesClipboard.entry
+  const s = states[tabId]
+  if (!clip || !s) return null
+  return clip.alias === s.alias ? `Paste ${clip.name}` : `Paste ${clip.name} from ${clip.alias}`
+}
+
+// Moves or copies the clipboard's entry into the shown folder under the same name. Within one
+// server the server does it; from another server only a copy runs, staged locally by main.
 export async function paste(tabId: string): Promise<void> {
   const s = states[tabId]
-  const clip = s?.clipboard
+  const clip = filesClipboard.entry
   if (!s?.path || !clip) return
-  const to = joinRemote(s.path, clip.name)
-  const text = `${clip.mode === 'move' ? 'Moving' : 'Copying'} ${clip.name}`
-  const reply = await slowly(s, text, () => call(tabId, { op: clip.mode, from: clip.path, to }))
-  if (reply.ok) {
-    if (clip.mode === 'move') s.clipboard = null
-    await load(tabId)
-  } else if (reply.code === 'notLoggedIn') {
-    s.blocked = 'notLoggedIn'
-  } else if (!s.sudoDropped) {
-    s.notice = `${clip.name}: ${replyText(clip.name, reply)}`
+  if (clip.alias !== s.alias) {
+    if (clip.mode === 'move') {
+      s.notice = `Moving between servers is not supported. Copy ${clip.name} instead.`
+      return
+    }
+    await copyAcross(tabId, clip)
+    return
   }
+  if ((await withinServer(tabId, clip.path, clip.name, clip.mode)) && clip.mode === 'move') {
+    filesClipboard.entry = null
+  }
+}
+
+// An entry dropped from another server tab's layer is copied, never moved.
+export async function dropEntry(
+  tabId: string,
+  source: Pick<FilesClipboard, 'tabId' | 'alias' | 'path' | 'name' | 'dir' | 'size'>
+): Promise<void> {
+  const s = states[tabId]
+  if (!s?.path || source.tabId === tabId) return
+  if (source.alias === s.alias) await withinServer(tabId, source.path, source.name, 'copy')
+  else await copyAcross(tabId, source)
+}
+
+// Moves or copies a path of this tab's server into the shown folder; true when it succeeded.
+async function withinServer(
+  tabId: string,
+  from: string,
+  name: string,
+  mode: FilesClipboard['mode']
+): Promise<boolean> {
+  const s = states[tabId]
+  if (!s?.path) return false
+  const to = joinRemote(s.path, name)
+  const text = `${mode === 'move' ? 'Moving' : 'Copying'} ${name}`
+  const reply = await slowly(s, text, () => call(tabId, { op: mode, from, to }))
+  if (reply.ok) {
+    await load(tabId)
+    return true
+  }
+  if (reply.code === 'notLoggedIn') s.blocked = 'notLoggedIn'
+  else if (!s.sudoDropped) s.notice = `${name}: ${replyText(name, reply)}`
+  return false
+}
+
+// Copies an entry of another server tab into this tab's shown folder. A taken name is refused
+// before anything downloads; the destination helper refuses it again at upload as the backstop.
+export async function copyAcross(
+  tabId: string,
+  source: Pick<FilesClipboard, 'tabId' | 'alias' | 'path' | 'name' | 'dir' | 'size'>
+): Promise<void> {
+  const s = states[tabId]
+  if (!s?.path) return
+  if (s.entries.some((e) => e.name === source.name)) {
+    s.notice = `${source.name} already exists there.`
+    return
+  }
+  listen(tabId)
+  const dir = s.path
+  const reply = await settle(() =>
+    window.api.ssh.session.relay({
+      fromTab: source.tabId,
+      fromAlias: source.alias,
+      remote: source.path,
+      dir: source.dir,
+      size: source.size,
+      toTab: tabId,
+      toAlias: s.alias,
+      remoteDir: dir
+    })
+  )
+  if (!reply.ok) {
+    s.notice = plain(reply.error)
+    return
+  }
+  track(s, reply.result, 'relay')
+  const t = transferOf(s, reply.result.transfer)
+  t.from = source.alias
+  t.dir = dir
 }
 
 function startText(name: string, reply: { error: string; code?: string }): string {
@@ -434,7 +538,7 @@ function track(s: FilesState, start: SSHTransferStart, direction: FileTransfer['
   const t = transferOf(s, start.transfer)
   t.name = start.name
   t.direction = direction
-  t.dir = direction === 'upload' ? (s.path ?? '') : ''
+  t.dir = direction === 'download' ? '' : (s.path ?? '')
   if (!t.total) t.total = start.total
 }
 
@@ -484,6 +588,13 @@ export async function downloadEntry(tabId: string, entry: SSHFileEntry): Promise
 export async function cancelTransfer(tabId: string, id: string): Promise<void> {
   const s = states[tabId]
   if (!s) return
+  if (s.transfers.find((t) => t.id === id)?.direction === 'relay') {
+    await settle(async () => {
+      await window.api.ssh.session.relayCancel(id)
+      return { ok: true, result: null }
+    })
+    return
+  }
   const reply = await call(tabId, { op: 'cancel', transfer: id })
   // The transfer may have finished meanwhile; its own event settles the row either way.
   if (!reply.ok) s.notice = plain(reply.error)
@@ -491,6 +602,8 @@ export async function cancelTransfer(tabId: string, id: string): Promise<void> {
 
 // Called when the server tab closes: ends the helper and forgets the drawer.
 export function stopFiles(tabId: string): void {
+  // A clipboard entry is read through its tab's helper, so it cannot outlive the tab.
+  if (filesClipboard.entry?.tabId === tabId) filesClipboard.entry = null
   window.api.ssh.session.stop(tabId)
   unsubscribe.get(tabId)?.()
   unsubscribe.delete(tabId)

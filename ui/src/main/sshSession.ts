@@ -5,8 +5,15 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { basename, isAbsolute, join, posix } from 'node:path'
 import { app, BrowserWindow, dialog, ipcMain, type WebContents } from 'electron'
-import type { SSHSessionReply, SSHSessionRequest, SSHTransferStart } from '../preload/types'
+import type {
+  SSHRelayRequest,
+  SSHSessionReply,
+  SSHSessionRequest,
+  SSHTransferStart
+} from '../preload/types'
 import { ALIAS_PATTERN } from './sshHosts'
+import { createRelayHub, type RelayHub } from './sshRelay'
+import { relayStagePorts, removeStagesNow, sweepStaleStages } from './sshRelayStage'
 import { createSessionLink, type SessionLink, type SessionMessage } from './sshSessionLink'
 import { controlPath } from './sshTerminal'
 
@@ -27,6 +34,10 @@ const helpers = new Map<string, Helper>()
 // Tabs whose drawer acts as root. Kept in memory only, so sudo is off each time a tab opens.
 const sudoTabs = new Set<string>()
 const watchedSenders = new WeakSet<WebContents>()
+// The window each relay's source and destination tab live in, to start their helpers and send
+// the destination the relay's events.
+const relaySenders = new Map<string, WebContents>()
+let relays: RelayHub | null = null
 const STDERR_KEEP = 2000
 
 const REQUEST_OPS = new Set<SSHSessionRequest['op']>([
@@ -52,6 +63,7 @@ function watchSender(sender: WebContents): void {
   watchedSenders.add(sender)
   sender.once('destroyed', () => {
     for (const [tabId, helper] of helpers) if (helper.sender === sender) stopSession(tabId)
+    for (const [tabId, s] of relaySenders) if (s === sender) stopSession(tabId)
   })
 }
 
@@ -76,7 +88,9 @@ function startHelper(
     (line) => {
       if (proc.stdin.writable) proc.stdin.write(line)
     },
-    (event) => send(sender, { ...event, tabId })
+    (event) => {
+      if (!relays?.claim(tabId, event)) send(sender, { ...event, tabId })
+    }
   )
   const helper: Helper = { proc, link, sender, stopped: false }
   let stderr = ''
@@ -87,6 +101,7 @@ function startHelper(
     ended = true
     if (helpers.get(tabId) === helper) helpers.delete(tabId)
     link.close(error)
+    relays?.helperEnded(tabId, error)
     if (!helper.stopped) send(sender, { tabId, event: 'exit', error })
   }
 
@@ -121,6 +136,8 @@ function stopHelper(tabId: string): void {
 }
 
 export function stopSession(tabId: string): void {
+  relays?.tabClosed(tabId)
+  relaySenders.delete(tabId)
   stopHelper(tabId)
   sudoTabs.delete(tabId)
 }
@@ -156,6 +173,21 @@ async function startTransfer(
 }
 
 export function registerSSHSessionHandlers(lgrassdPath: string | null): void {
+  const hub = createRelayHub({
+    ...relayStagePorts,
+    request: (tabId, alias, body) => {
+      const sender = relaySenders.get(tabId) ?? helpers.get(tabId)?.sender
+      if (!sender) throw new Error('ssh: the server tab is closed.')
+      return startHelper(lgrassdPath, tabId, alias, sender).link.request(body)
+    },
+    emit: (event) => {
+      const sender = relaySenders.get(event.tabId)
+      if (sender) send(sender, event)
+    }
+  })
+  relays = hub
+  void sweepStaleStages()
+
   ipcMain.handle(
     'ssh:sessionRequest',
     (event, tabId: string, alias: string, req: SSHSessionRequest) => {
@@ -223,9 +255,27 @@ export function registerSSHSessionHandlers(lgrassdPath: string | null): void {
     return picked.canceled ? [] : picked.filePaths
   })
 
+  // A copy between two server tabs, staged locally. Both tabs live in the window that asks, so its
+  // sender serves either side's helper and receives the destination's events.
+  ipcMain.handle('ssh:sessionRelay', (event, req: SSHRelayRequest) => {
+    if (req.fromAlias === req.toAlias)
+      throw new Error('ssh: a copy within one server is a copy op.')
+    absoluteRemote(req.remote)
+    absoluteRemote(req.remoteDir)
+    relaySenders.set(req.fromTab, event.sender)
+    relaySenders.set(req.toTab, event.sender)
+    watchSender(event.sender)
+    return hub.start({ ...req, size: Number(req.size) || 0, dir: req.dir === true })
+  })
+  ipcMain.handle('ssh:sessionRelayCancel', (_event, id: string) => hub.cancel(id))
+
   ipcMain.on('ssh:sessionStop', (_event, tabId: string) => stopSession(tabId))
   ipcMain.handle('ssh:sessionSetSudo', (_event, tabId: string, on: boolean) =>
     setSudo(tabId, on === true)
   )
-  app.on('will-quit', stopAllSessions)
+  // Staging goes first: ending the sessions ends their relays, which forgets their folders.
+  app.on('will-quit', () => {
+    removeStagesNow(hub.stages())
+    stopAllSessions()
+  })
 }

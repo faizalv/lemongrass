@@ -30,6 +30,10 @@ const (
 	mvScript  = `IFS= read -r a && IFS= read -r b && exec mv -- "$a" "$b"`
 	cpScript  = `IFS= read -r a && IFS= read -r b && exec cp -a -- "$a" "$b"`
 	tarScript = `IFS= read -r d && IFS= read -r n && exec tar -C "$d" -czf - -- "$n"`
+	// The archive follows the path line on stdin; read consumes only that line, so tar reads the
+	// rest. -o leaves the files owned by whoever extracts them, since the source server's user
+	// and group ids mean nothing here.
+	untarScript = `IFS= read -r d && exec tar -C "$d" -xozf -`
 )
 
 // exitError is a remote command that ran and failed.
@@ -185,5 +189,59 @@ func (s *Session) startDownloadDir(c *sftp.Client, remote, local, id string, rep
 			err = dst.commit()
 		}
 		s.finish(ctx, m, err, dst.abort)
+	}}, nil
+}
+
+// startUploadDir unpacks a local gzip tar, as startDownloadDir writes it, into the remote folder
+// that holds remote, whose base name must be the archive's top entry. Progress counts archive
+// bytes sent; a failure or cancel removes what was unpacked.
+func (s *Session) startUploadDir(c *sftp.Client, local, remote, id string) (any, error) {
+	if !filepath.IsAbs(local) {
+		return nil, errors.New("sshsession: local path must be absolute")
+	}
+	if remote == "/" {
+		return nil, errors.New("sshsession: cannot unpack over /")
+	}
+	fi, err := os.Stat(local)
+	if err != nil {
+		return nil, fmt.Errorf("sshsession: upload %s: %w", local, err)
+	}
+	if fi.IsDir() {
+		return nil, withCode(CodeIsDir, "sshsession: %s is a folder, not an archive", local)
+	}
+	if ok, err := taken(c, remote); err != nil {
+		return nil, fmt.Errorf("sshsession: upload to %s: %w", remote, err)
+	} else if ok {
+		return nil, withCode(CodeExists, "sshsession: %s already exists", remote)
+	}
+	ctx, err := s.register(id)
+	if err != nil {
+		return nil, err
+	}
+	src, err := os.Open(local)
+	if err != nil {
+		s.unregister(id)
+		return nil, fmt.Errorf("sshsession: upload %s: %w", local, err)
+	}
+	m := &meter{s: s, ctx: ctx, id: id, total: fi.Size(), last: time.Now()}
+	dir := path.Dir(remote)
+	cmd, err := s.command(ctx, "tar", untarScript, []string{dir}, nil)
+	if err == nil {
+		cmd.cmd.Stdin = io.MultiReader(strings.NewReader(dir+"\n"), meterReader{r: src, m: m})
+		err = cmd.cmd.Start()
+		if err != nil {
+			err = fmt.Errorf("sshsession: start ssh: %w", err)
+		}
+	}
+	if err != nil {
+		src.Close()
+		s.unregister(id)
+		return nil, err
+	}
+	return &pending{Transfer: id, Total: fi.Size(), run: func() {
+		defer s.unregister(id)
+		err := cmd.wait(cmd.cmd.Wait())
+		src.Close()
+		s.finish(ctx, m, err, func() { _ = removeAll(c, remote) })
 	}}, nil
 }

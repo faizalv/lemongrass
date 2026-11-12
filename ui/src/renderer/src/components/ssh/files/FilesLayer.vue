@@ -18,10 +18,12 @@ import {
   cancelTransfer,
   createEntry,
   downloadEntry,
+  dropEntry,
   filesOf,
   load,
   navigate,
   paste,
+  pasteLabel,
   removeEntry,
   renameEntry,
   setClipboard,
@@ -29,6 +31,7 @@ import {
   uploadPicked
 } from './filesStore'
 import { joinRemote } from './remotePath'
+import { currentFileDrag, droppedEntry, isEntryDrag, startFileDrag } from './fileDrag'
 import { openServerFile } from '../editor/remoteFiles'
 import type { SSHFileEntry } from '../../../../../preload/types'
 
@@ -47,7 +50,9 @@ const showList = computed(() => state.value.loaded && !state.value.blocked)
 const selected = ref<string | null>(null)
 const menu = ref<{ x: number; y: number; entry: SSHFileEntry | null } | null>(null)
 const ask = ref<NameAsk | null>(null)
-const dropping = ref(false)
+// What a drag over the layer would do: upload desktop files, or copy an entry from another tab.
+const dropping = ref<'files' | 'entry' | null>(null)
+const dropText = ref('')
 
 onMounted(() => {
   if (!state.value.loaded && !state.value.loading) void navigate(props.tabId, null)
@@ -89,8 +94,8 @@ const menuItems = computed((): MenuItem[] => {
     { key: 'newFile', label: 'New file', icon: FILES_PATHS.newFile },
     { key: 'upload', label: 'Upload', icon: FILES_PATHS.upload }
   ]
-  const clip = state.value.clipboard
-  if (clip) items.push({ key: 'paste', label: `Paste ${clip.name}`, icon: FILES_PATHS.paste })
+  const label = pasteLabel(props.tabId)
+  if (label) items.push({ key: 'paste', label, icon: FILES_PATHS.paste })
   return items
 })
 
@@ -111,7 +116,7 @@ function onSelect(key: string): void {
   else if (key === 'paste') void paste(tabId)
   else if (!entry) return
   else if (key === 'open') open(entry)
-  else if (key === 'move' || key === 'copy') setClipboard(tabId, entry.name, key)
+  else if (key === 'move' || key === 'copy') setClipboard(tabId, entry, key)
   else if (key === 'download') void downloadEntry(tabId, entry)
   else if (key === 'rename') {
     ask.value = {
@@ -126,21 +131,62 @@ function isFileDrag(event: DragEvent): boolean {
   return event.dataTransfer?.types.includes('Files') ?? false
 }
 
+function onEntryDragStart(event: DragEvent, entry: SSHFileEntry): void {
+  const path = state.value.path
+  if (!path) return
+  startFileDrag(event, event.currentTarget as HTMLElement, {
+    tabId: props.tabId,
+    alias: props.alias,
+    path: joinRemote(path, entry.name),
+    name: entry.name,
+    dir: entry.dir,
+    size: entry.size
+  })
+}
+
+// A drag from this same layer is not a drop target, so it shows no veil and cannot copy onto
+// itself.
+function entryDropText(): string | null {
+  const drag = currentFileDrag()
+  if (!drag || drag.tabId === props.tabId) return null
+  const from = drag.alias === props.alias ? '' : ` from ${drag.alias}`
+  return `Drop to copy ${drag.name}${from} into ${folderName.value}`
+}
+
 function onDragOver(event: DragEvent): void {
-  if (!isFileDrag(event) || !showList.value) return
+  if (!showList.value) return
+  if (isEntryDrag(event)) {
+    const text = entryDropText()
+    if (!text) return
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    dropping.value = 'entry'
+    dropText.value = text
+    return
+  }
+  if (!isFileDrag(event)) return
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
-  dropping.value = true
+  dropping.value = 'files'
+  dropText.value = `Drop to upload into ${folderName.value}`
 }
 
 function onDragLeave(event: DragEvent): void {
   const root = event.currentTarget as HTMLElement
-  if (!root.contains(event.relatedTarget as Node | null)) dropping.value = false
+  if (!root.contains(event.relatedTarget as Node | null)) dropping.value = null
 }
 
 function onDrop(event: DragEvent): void {
-  dropping.value = false
-  if (!isFileDrag(event) || !showList.value) return
+  const was = dropping.value
+  dropping.value = null
+  if (!showList.value) return
+  if (was === 'entry') {
+    event.preventDefault()
+    const entry = droppedEntry(event)
+    if (entry) void dropEntry(props.tabId, entry)
+    return
+  }
+  if (!isFileDrag(event)) return
   event.preventDefault()
   const paths = [...(event.dataTransfer?.files ?? [])]
     .map((file) => window.api.ssh.session.pathForFile(file))
@@ -213,6 +259,7 @@ const folderName = computed(() => {
         @select="(name) => (selected = name)"
         @open="open"
         @menu="onMenu"
+        @drag="onEntryDragStart"
       />
     </div>
 
@@ -223,7 +270,7 @@ const folderName = computed(() => {
     />
 
     <div v-if="dropping" class="drop-veil">
-      <span>Drop to upload into {{ folderName }}</span>
+      <span>{{ dropText }}</span>
     </div>
 
     <AppContextMenu

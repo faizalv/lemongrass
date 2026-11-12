@@ -14,10 +14,10 @@ defineProps<{ slow: string; transfers: FileTransfer[] }>()
 const emit = defineEmits<{ cancel: [id: string] }>()
 
 function transferText(t: FileTransfer): string {
-  const verb = t.direction === 'upload' ? 'Uploading' : 'Downloading'
-  if (t.total > 0)
-    return `${verb} ${t.name} ${Math.min(100, Math.round((t.done / t.total) * 100))}%`
-  return t.done > 0 ? `${verb} ${t.name} ${formatSize(t.done)}` : `${verb} ${t.name}`
+  const verb = { upload: 'Uploading', download: 'Downloading', relay: 'Copying' }[t.direction]
+  const what = t.direction === 'relay' ? `${t.name} from ${t.from}` : t.name
+  if (t.total > 0) return `${verb} ${what} ${Math.min(100, Math.round((t.done / t.total) * 100))}%`
+  return t.done > 0 ? `${verb} ${what} ${formatSize(t.done)}` : `${verb} ${what}`
 }
 </script>
 

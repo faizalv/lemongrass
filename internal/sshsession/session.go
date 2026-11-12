@@ -251,6 +251,8 @@ func (s *Session) op(c *sftp.Client, home string, req request) (any, error) {
 		return s.startDownloadDir(c, resolve(home, req.Remote), req.Local, req.Transfer, req.Replace)
 	case "upload":
 		return s.startUpload(c, req.Local, resolve(home, req.Remote), req.Transfer)
+	case "uploadDir":
+		return s.startUploadDir(c, req.Local, resolve(home, req.Remote), req.Transfer)
 	default:
 		return nil, fmt.Errorf("sshsession: unknown op %q", req.Op)
 	}

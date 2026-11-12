@@ -4,7 +4,8 @@
 <script setup lang="ts">
 // The shown folder in one of three views: Detailed and Basic rows, or a Tile grid of large icons.
 // Click selects, double-click enters a folder or opens a file, and a right click asks the layer for the entry's
-// menu, or the empty space's menu when it lands outside every entry.
+// menu, or the empty space's menu when it lands outside every entry. Every entry can be dragged
+// toward another server tab's layer; the layer starts the drag.
 import TabIcon from '../../TabIcon.vue'
 import FileRow from './FileRow.vue'
 import { fileIconOf, folderIconOf } from '../../../fileIcons'
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   select: [name: string | null]
   open: [entry: SSHFileEntry]
   menu: [event: MouseEvent, entry: SSHFileEntry | null]
+  drag: [event: DragEvent, entry: SSHFileEntry]
 }>()
 
 function iconOf(entry: SSHFileEntry): ReturnType<typeof fileIconOf> {
@@ -51,6 +53,8 @@ function onMenu(event: MouseEvent, entry: SSHFileEntry | null): void {
         :class="{ selected: selected === entry.name }"
         role="listitem"
         :title="entry.link ? `${entry.name} (link)` : entry.name"
+        draggable="true"
+        @dragstart="emit('drag', $event, entry)"
         @click="emit('select', entry.name)"
         @dblclick="emit('open', entry)"
         @contextmenu="onMenu($event, entry)"
@@ -71,6 +75,8 @@ function onMenu(event: MouseEvent, entry: SSHFileEntry | null): void {
         :entry="entry"
         :detailed="view === 'detailed'"
         :selected="selected === entry.name"
+        draggable="true"
+        @dragstart="emit('drag', $event, entry)"
         @click="emit('select', entry.name)"
         @dblclick="emit('open', entry)"
         @contextmenu="onMenu($event, entry)"

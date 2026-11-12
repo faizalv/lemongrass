@@ -12,6 +12,7 @@ import type {
   SSHKeyList,
   SSHRunData,
   SSHRunExit,
+  SSHRelayRequest,
   SSHRunRequest,
   SSHSessionEvent,
   SSHSessionReply,
@@ -434,6 +435,10 @@ interface Api {
         remote: string,
         dir: boolean
       ) => Promise<SSHSessionReply<SSHTransferStart | null>>
+      // A copy from another server tab into this one, staged locally by main; its events arrive
+      // under the destination tab.
+      relay: (req: SSHRelayRequest) => Promise<SSHSessionReply<SSHTransferStart>>
+      relayCancel: (id: string) => Promise<void>
       pickUploads: () => Promise<string[]>
       stop: (tabId: string) => void
       setSudo: (tabId: string, on: boolean) => Promise<void>

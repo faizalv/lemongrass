@@ -14,6 +14,7 @@ import {
   load,
   navigate,
   paste,
+  pasteLabel,
   setSudo,
   setView,
   transferRunning,
@@ -35,6 +36,7 @@ const draft = ref(props.state.path ?? '')
 const editing = ref(false)
 const ready = computed(() => props.state.loaded && !props.state.blocked)
 const busyTransfers = computed(() => transferRunning(props.state))
+const pasteText = computed(() => pasteLabel(props.tabId))
 
 // The field follows the shown folder unless the human is typing in it.
 watch(
@@ -96,10 +98,10 @@ function onBlur(): void {
       @keydown="onKey"
     />
     <AppIconButton
-      v-if="state.clipboard"
+      v-if="pasteText"
       size="sm"
       tone="accent"
-      :label="`Paste ${state.clipboard.name}`"
+      :label="pasteText"
       :disabled="!ready"
       @click="paste(tabId)"
     >

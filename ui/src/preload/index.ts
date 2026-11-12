@@ -37,6 +37,7 @@ import type {
   SSHKeyList,
   SSHRunData,
   SSHRunExit,
+  SSHRelayRequest,
   SSHRunRequest,
   SSHSessionEvent,
   SSHSessionReply,
@@ -493,6 +494,9 @@ const ssh = {
       dir: boolean
     ): Promise<SSHSessionReply<SSHTransferStart | null>> =>
       ipcRenderer.invoke('ssh:sessionDownload', tabId, alias, remote, dir),
+    relay: (req: SSHRelayRequest): Promise<SSHSessionReply<SSHTransferStart>> =>
+      ipcRenderer.invoke('ssh:sessionRelay', req),
+    relayCancel: (id: string): Promise<void> => ipcRenderer.invoke('ssh:sessionRelayCancel', id),
     pickUploads: (): Promise<string[]> => ipcRenderer.invoke('ssh:sessionPickUploads'),
     stop: (tabId: string): void => ipcRenderer.send('ssh:sessionStop', tabId),
     setSudo: (tabId: string, on: boolean): Promise<void> =>

@@ -342,6 +342,19 @@ export interface SSHTransferStart {
   total: number
 }
 
+// A copy from one server tab to another, staged locally by main. size is the source file's size
+// from its listing, for the staging room check; a folder's is unknown and ignored.
+export interface SSHRelayRequest {
+  fromTab: string
+  fromAlias: string
+  remote: string
+  dir: boolean
+  size: number
+  toTab: string
+  toAlias: string
+  remoteDir: string
+}
+
 // exit is sent by main when the helper process ends; the next request starts a new one.
 export type SSHSessionEvent =
   | { tabId: string; event: 'progress'; transfer: string; done: number; total: number }
