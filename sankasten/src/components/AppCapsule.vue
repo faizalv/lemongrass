@@ -4,6 +4,7 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
 import { capsuleHue } from '../lib/capsuleHue'
+import AppBadge from './AppBadge.vue'
 import { MOSAIC_KEY } from './mosaic'
 
 // A named item in an AppMosaic, on a neutral surface so the shared buttons sit on it as on any
@@ -16,8 +17,12 @@ const props = withDefaults(
     label: string
     // What the dot's hue is computed from, when it should differ from the label.
     hueKey?: string
+    // A neutral count pill after the label, such as how many of the item are open; hidden at 0
+    // or when absent.
+    count?: number
+    countTitle?: string
   }>(),
-  { hueKey: undefined }
+  { hueKey: undefined, count: undefined, countTitle: undefined }
 )
 
 const mosaic = inject(MOSAIC_KEY, null)
@@ -43,6 +48,7 @@ function onKey(event: KeyboardEvent): void {
     >
       <span class="capsule-dot" :class="`hue-${hue}`" aria-hidden="true" />
       <span class="capsule-label">{{ label }}</span>
+      <AppBadge v-if="count" tone="neutral" size="sm" :title="countTitle">{{ count }}</AppBadge>
     </button>
     <div v-if="expanded" class="capsule-detail">
       <slot />

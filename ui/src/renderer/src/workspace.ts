@@ -889,8 +889,8 @@ export function openResterClient(project: ProjectRef): void {
   openSingletonTab(project, 'resterClient', newResterClientTab)
 }
 
-// One tab per server: opening it again focuses the open tab wherever it lives, since a second
-// login to the same server is rarely what the click meant.
+// Every open adds a new tab, so one server can sit in several panes side by side. A repeat costs
+// no second login: server terminals share the first one's ControlMaster connection.
 export function openSSHServer(project: ProjectRef, alias: string): void {
   const layout = workspaces[project.id].layout
   const root = layout.root
@@ -902,16 +902,24 @@ export function openSSHServer(project: ProjectRef, alias: string): void {
     return
   }
   const leaves = tree.allLeaves(root)
-  for (const leaf of leaves) {
-    const existing = leaf.tabs.find((t) => t.kind === 'sshServer' && t.alias === alias)
-    if (!existing) continue
-    commit(project, tree.setActiveTab(root, leaf.id, existing.id), leaf.id)
-    focusShellAfterMount(existing.id)
-    return
-  }
   const focused = leaves.find((leaf) => leaf.id === layout.focusedPaneId) ?? leaves[0]
   commit(project, tree.addTab(root, focused.id, tab), focused.id)
   focusShellAfterMount(tab.id)
+}
+
+// A server's open tabs in pane order, with the pane each sits in, for the server's capsule.
+export function sshServerTabs(
+  projectId: string,
+  alias: string
+): { tabId: string; paneId: string; showing: boolean }[] {
+  const root = workspaces[projectId]?.layout.root ?? null
+  return tree
+    .allLeaves(root)
+    .flatMap((leaf) =>
+      leaf.tabs
+        .filter((tab) => tab.kind === 'sshServer' && tab.alias === alias)
+        .map((tab) => ({ tabId: tab.id, paneId: leaf.id, showing: leaf.activeTabId === tab.id }))
+    )
 }
 
 function openSingletonTab(

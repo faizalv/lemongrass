@@ -239,6 +239,13 @@ export function serverRequest<T>(
   return call<T>(tabId, req)
 }
 
+// The folder a tab's Files layer shows, or null while the layer is closed. It only reads, so a
+// list of a server's tabs can ask without creating Files state for every tab.
+export function filesFolderOf(tabId: string): string | null {
+  const s = states[tabId]
+  return s?.open ? s.path : null
+}
+
 export function actingAsRoot(tabId: string): boolean {
   return states[tabId]?.sudo ?? false
 }

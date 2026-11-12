@@ -2,12 +2,14 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-// One server as a capsule in the SSH view's mosaic: only its name at rest; clicked open, where it
-// points, the key it logs in with and its actions. Its config entry shows only when asked for.
+// One server as a capsule in the SSH view's mosaic: its name and open tab count at rest; clicked
+// open, where it points, the key it logs in with, its open tabs and its actions. Its config entry
+// shows only when asked for.
 import { computed, ref } from 'vue'
-import { AppButton, AppCapsule, AppIconButton } from '@sankasten'
+import { AppButton, AppCapsule, AppIconButton, AppNavItem } from '@sankasten'
 import CodeReader from '../CodeReader.vue'
 import { describeError } from '../../vaultSession'
+import { filesFolderOf } from './files/filesStore'
 import { missingKeyPath, tildePath } from './sshView'
 import type { SSHHostBlock, SSHHostEntry, SSHKey } from '../../../../preload/types'
 
@@ -16,10 +18,14 @@ const props = defineProps<{
   keys: SSHKey[]
   sshDir: string
   home: string
+  // Every tab of this server shares one title, so a row tells them apart by its place in pane
+  // order and the folder its Files layer shows.
+  openTabs: { tabId: string; paneId: string; showing: boolean }[]
 }>()
 
 const emit = defineEmits<{
   open: []
+  focus: [tabId: string, paneId: string]
   edit: []
   changed: []
 }>()
@@ -88,13 +94,30 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <AppCapsule :label="host.alias">
+  <AppCapsule
+    :label="host.alias"
+    :count="openTabs.length"
+    :count-title="openTabs.length === 1 ? '1 tab open' : `${openTabs.length} tabs open`"
+  >
     <dl v-if="host.resolved" class="ssh-facts">
       <template v-for="fact in facts" :key="fact.label">
         <dt>{{ fact.label }}</dt>
         <dd>{{ fact.value }}</dd>
       </template>
     </dl>
+
+    <div v-if="openTabs.length" class="ssh-open-tabs" aria-label="Open tabs">
+      <AppNavItem
+        v-for="(open, index) in openTabs"
+        :key="open.tabId"
+        size="sm"
+        :label="`Tab ${index + 1}`"
+        :state="filesFolderOf(open.tabId) ?? 'Terminal only'"
+        :active="open.showing"
+        :title="`Go to tab ${index + 1} of ${host.alias}`"
+        @click="emit('focus', open.tabId, open.paneId)"
+      />
+    </div>
 
     <p v-if="host.resolveError" class="settings-error">{{ host.resolveError }}</p>
     <p v-if="missing" class="ssh-card-warn">

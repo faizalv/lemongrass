@@ -60,6 +60,13 @@
   font-family: var(--font-body);
 }
 
+/* An expanded server capsule's open tabs, one row each. */
+.ssh-pane .ssh-open-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .ssh-pane .ssh-capsule-actions {
   display: flex;
   align-items: center;

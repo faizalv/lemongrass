@@ -18,7 +18,7 @@ import '../../ssh.css'
 import { describeError } from '../../vaultSession'
 import { keyIcon, sshIcon } from '../../icons'
 import { matchesQuery } from '../connector/listFilter'
-import { openSSHServer, type ProjectRef } from '../../workspace'
+import { activateTab, openSSHServer, sshServerTabs, type ProjectRef } from '../../workspace'
 import SSHKeyCapsule from './SSHKeyCapsule.vue'
 import SSHKeyModal from './SSHKeyModal.vue'
 import SSHLinkModal from './SSHLinkModal.vue'
@@ -162,7 +162,9 @@ function addPrimary(): void {
                 :keys="allKeys"
                 :ssh-dir="sshDir"
                 :home="home"
+                :open-tabs="sshServerTabs(props.project.id, host.alias)"
                 @open="openSSHServer(props.project, host.alias)"
+                @focus="(tabId, paneId) => activateTab(props.project, paneId, tabId)"
                 @edit="serverModal = { host, presetKey: null }"
                 @changed="refresh"
               />
