@@ -29,7 +29,7 @@ import type {
   ResterClientRun,
   VaultRester
 } from '../../../../preload/types'
-import { resterClientIcon } from '../../icons'
+import { plainRequestIcon, resterClientIcon } from '../../icons'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 // Where the last selected request is remembered, so reopening the app shows it again.
@@ -39,6 +39,22 @@ const SPLIT_KEY = 'resterClient.split'
 const COLLAPSED_KEY = 'resterClient.collapsed'
 // Each box keeps this width while both are open, so a drag can never squeeze one away.
 const BOX_MIN_PX = 280
+// The picked rester and environment, which decide the group the list shows, and the request last
+// selected in each group, by rester.
+const SCOPE_KEY = 'resterClient.scope'
+const LAST_KEY = 'resterClient.lastByRester'
+const SIDEBAR_KEY = 'resterClient.sidebarWidth'
+const SIDEBAR_DEFAULT_PX = 240
+const SIDEBAR_MIN_PX = 180
+const SIDEBAR_MAX_PX = 480
+// A request with no rester is Plain: a full URL sent as written, from main and not through the
+// vault, since no credential is involved. Its group is Plain.
+const PLAIN_ID = targetId('', '')
+
+interface Scope {
+  rester: string
+  environment: string
+}
 
 type Box = 'request' | 'response'
 
@@ -72,6 +88,31 @@ function storedSplit(): number {
 function storedCollapsed(): Box | null {
   const value = localStorage.getItem(COLLAPSED_KEY)
   return value === 'request' || value === 'response' ? value : null
+}
+
+function storedScope(): Scope | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(SCOPE_KEY) ?? 'null')
+    return typeof value?.rester === 'string' && typeof value?.environment === 'string'
+      ? { rester: value.rester, environment: value.environment }
+      : null
+  } catch {
+    return null
+  }
+}
+
+function storedLast(): Record<string, string> {
+  try {
+    const value = JSON.parse(localStorage.getItem(LAST_KEY) ?? '{}')
+    return value && typeof value === 'object' ? value : {}
+  } catch {
+    return {}
+  }
+}
+
+function storedSidebarWidth(): number {
+  const value = Number(localStorage.getItem(SIDEBAR_KEY))
+  return value >= SIDEBAR_MIN_PX && value <= SIDEBAR_MAX_PX ? value : SIDEBAR_DEFAULT_PX
 }
 
 const split = ref(storedSplit())
@@ -117,9 +158,37 @@ function resetSplit(): void {
   localStorage.setItem(SPLIT_KEY, '0.5')
 }
 
+const sidebarWidth = ref(storedSidebarWidth())
+let sidebarDrag: { x: number; width: number } | null = null
+
+function onSidebarDown(event: PointerEvent): void {
+  if (event.button !== 0) return
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  sidebarDrag = { x: event.clientX, width: sidebarWidth.value }
+}
+
+function onSidebarMove(event: PointerEvent): void {
+  if (!sidebarDrag) return
+  const width = sidebarDrag.width + event.clientX - sidebarDrag.x
+  sidebarWidth.value = Math.max(SIDEBAR_MIN_PX, Math.min(SIDEBAR_MAX_PX, width))
+}
+
+function onSidebarUp(): void {
+  if (!sidebarDrag) return
+  sidebarDrag = null
+  localStorage.setItem(SIDEBAR_KEY, String(sidebarWidth.value))
+}
+
+function resetSidebar(): void {
+  sidebarWidth.value = SIDEBAR_DEFAULT_PX
+  localStorage.setItem(SIDEBAR_KEY, String(SIDEBAR_DEFAULT_PX))
+}
+
 const resters = ref<Record<string, VaultRester>>({})
 const restersError = ref('')
 const restersLoading = ref(false)
+// Set after the first load, so a request's rester is called missing only once the vault answered.
+const restersLoaded = ref(false)
 
 const selected = computed(() => requests.value.find((r) => r.id === selectedId.value) ?? null)
 
@@ -159,17 +228,63 @@ function targetId(rester: string, environment: string): string {
   return JSON.stringify([rester, environment])
 }
 
-const targetItems = computed(() =>
-  targets.value.map((t) => ({
-    id: targetId(t.rester, t.environment),
-    label: `${t.rester} · ${t.environment}`,
-    title: t.baseURL
-  }))
-)
+const pickedScope = ref<Scope | null>(storedScope())
+const lastByRester = storedLast()
 
-const selectedTarget = computed(() =>
-  selected.value?.rester ? targetId(selected.value.rester, selected.value.environment) : null
-)
+// Before anything is picked: the first request's group, else the first target, else Plain.
+const scope = computed<Scope>(() => {
+  if (pickedScope.value) return pickedScope.value
+  const first = requests.value[0] ?? targets.value[0]
+  return first
+    ? { rester: first.rester, environment: first.environment }
+    : { rester: '', environment: '' }
+})
+
+function setScope(next: Scope): void {
+  pickedScope.value = next
+  localStorage.setItem(SCOPE_KEY, JSON.stringify(next))
+}
+
+const isPlain = computed(() => scope.value.rester === '')
+const groupRequests = computed(() => requests.value.filter((r) => r.rester === scope.value.rester))
+
+// Plain is pinned on top. A target a saved request names but the vault no longer has stays
+// listed, so the requests under it remain reachable.
+const targetItems = computed(() => {
+  const items: {
+    id: string
+    label: string
+    title?: string
+    hint?: string
+    icon?: typeof plainRequestIcon
+    pinned?: boolean
+  }[] = [
+    {
+      id: PLAIN_ID,
+      label: 'Plain',
+      title: 'A full URL sent as written, with no rester and no user',
+      icon: plainRequestIcon,
+      pinned: true
+    }
+  ]
+  const listed = new Set([PLAIN_ID])
+  for (const t of targets.value) {
+    const id = targetId(t.rester, t.environment)
+    listed.add(id)
+    items.push({ id, label: `${t.rester} · ${t.environment}`, title: t.baseURL })
+  }
+  if (restersLoaded.value) {
+    for (const r of requests.value) {
+      const id = targetId(r.rester, r.environment)
+      if (listed.has(id)) continue
+      listed.add(id)
+      items.push({ id, label: `${r.rester} · ${r.environment}`, hint: 'not in the vault' })
+    }
+  }
+  return items
+})
+
+const selectedTarget = computed(() => targetId(scope.value.rester, scope.value.environment))
 
 const baseURL = computed(
   () =>
@@ -197,8 +312,7 @@ const resolvedURL = computed(() => {
 const canSend = computed(
   () =>
     !!selected.value &&
-    !!selected.value.rester &&
-    !!selected.value.user &&
+    (selected.value.rester === '' || !!selected.value.user) &&
     !!selected.value.url.trim() &&
     !outcome.value?.sending
 )
@@ -216,7 +330,10 @@ async function loadResters(): Promise<void> {
     for (const name of names) {
       loadedResters[name] = await window.api.vault.getRester(vaultSession.passphrase, name)
     }
-    if (load === restersLoad) resters.value = loadedResters
+    if (load === restersLoad) {
+      resters.value = loadedResters
+      restersLoaded.value = true
+    }
   } catch (err) {
     if (load === restersLoad) restersError.value = describeError(err)
   } finally {
@@ -236,10 +353,36 @@ watch(
 onMounted(async () => {
   await loadResterClient()
   const remembered = localStorage.getItem(SELECTED_KEY)
-  selectedId.value ??= requests.value.some((r) => r.id === remembered)
-    ? remembered
-    : (requests.value[0]?.id ?? null)
+  if (selectedId.value) return
+  if (requests.value.some((r) => r.id === remembered)) selectedId.value = remembered
+  else selectedId.value = rememberedIn(scope.value.rester)?.id ?? null
 })
+
+// The request last selected in a rester's group, else its first.
+function rememberedIn(rester: string): ResterClientRequest | undefined {
+  const group = requests.value.filter((r) => r.rester === rester)
+  return group.find((r) => r.id === lastByRester[rester]) ?? group[0]
+}
+
+// The scope follows the selected request, so a curl paste that moves it to another rester, or a
+// run that put back another environment, moves the list with it.
+watch(
+  () =>
+    selected.value &&
+    ([selected.value.id, selected.value.rester, selected.value.environment] as const),
+  (now) => {
+    if (!now) return
+    const [id, rester, environment] = now
+    if (rester !== scope.value.rester || environment !== scope.value.environment) {
+      setScope({ rester, environment })
+    }
+    if (lastByRester[rester] !== id) {
+      lastByRester[rester] = id
+      localStorage.setItem(LAST_KEY, JSON.stringify(lastByRester))
+    }
+  },
+  { immediate: true }
+)
 
 watch(selectedId, async (id) => {
   if (!id) return
@@ -255,12 +398,13 @@ watch(selectedId, async (id) => {
 
 function addRequest(): void {
   const current = selected.value
+  const { rester, environment } = scope.value
   const request: ResterClientRequest = {
     id: crypto.randomUUID(),
     name: '',
-    rester: current?.rester ?? targets.value[0]?.rester ?? '',
-    environment: current?.environment ?? targets.value[0]?.environment ?? '',
-    user: current?.user ?? '',
+    rester,
+    environment,
+    user: rester && current?.rester === rester ? current.user : '',
     method: 'GET',
     url: '',
     headers: [],
@@ -272,16 +416,17 @@ function addRequest(): void {
   }
   resterClientStore.requests.push(request)
   selectedId.value = request.id
-  if (!request.user) pickDefaultUser(request)
+  if (rester && !request.user) pickDefaultUser(request)
 }
 
 function removeRequest(id: string): void {
-  const index = requests.value.findIndex((r) => r.id === id)
+  const index = groupRequests.value.findIndex((r) => r.id === id)
   if (index < 0) return
   removeStoredRequest(id)
   delete outcomes[id]
   if (selectedId.value === id) {
-    selectedId.value = requests.value[Math.min(index, requests.value.length - 1)]?.id ?? null
+    const group = groupRequests.value
+    selectedId.value = group[Math.min(index, group.length - 1)]?.id ?? null
   }
 }
 
@@ -297,12 +442,18 @@ function pickDefaultUser(request: ResterClientRequest): void {
   if (!users.some((u) => u.Name === request.user)) request.user = users[0]?.Name ?? ''
 }
 
+// Another environment of the same rester retargets the selected request. Another rester switches
+// the list to its group and reselects the request last used there, moved to the picked environment.
 function pickTarget(id: string): void {
-  if (!selected.value) return
   const [rester, environment] = JSON.parse(id) as [string, string]
-  selected.value.rester = rester
-  selected.value.environment = environment
-  pickDefaultUser(selected.value)
+  const sameGroup = rester === scope.value.rester
+  setScope({ rester, environment })
+  const request = sameGroup ? selected.value : (rememberedIn(rester) ?? null)
+  if (!sameGroup) selectedId.value = request?.id ?? null
+  // A rester missing from the vault has no users to pick, so its requests are left as saved.
+  if (!request || !rester || !resters.value[rester]) return
+  request.environment = environment
+  pickDefaultUser(request)
 }
 
 function tokenHeaderOf(request: ResterClientRequest): string {
@@ -316,13 +467,21 @@ function onUrlPaste(event: ClipboardEvent): void {
   if (!selected.value || !looksLikeCurl(text)) return
   event.preventDefault()
   const request = selected.value
-  const match = matchBaseURL(parseCurl(text).url, targets.value)
+  const pastedURL = parseCurl(text).url
+  const match = matchBaseURL(pastedURL, targets.value)
+  // A full URL under no rester environment makes the request Plain, which keeps its auth.
+  const becamePlain = !match && request.rester !== '' && pastedURL.includes('://')
   if (match) {
     request.rester = match.target.rester
     request.environment = match.target.environment
     pickDefaultUser(request)
+  } else if (becamePlain) {
+    request.rester = ''
+    request.environment = ''
+    request.user = ''
   }
-  const parsed = parseCurl(text, tokenHeaderOf(request))
+  const parsed =
+    request.rester === '' ? parseCurl(text, '', true) : parseCurl(text, tokenHeaderOf(request))
   request.method = parsed.method
   request.url = match ? match.path : parsed.url
   request.headers = parsed.headers
@@ -338,8 +497,8 @@ function onUrlPaste(event: ClipboardEvent): void {
   }
   if (match) {
     notes.push(`Matched ${match.target.rester} · ${match.target.environment}.`)
-  } else if (parsed.url.includes('://')) {
-    notes.push('The URL is under no rester environment, so it cannot be sent as it is.')
+  } else if (becamePlain) {
+    notes.push('The URL is under no rester environment, so it is now a Plain request.')
   }
   notes.push(...parsed.notes)
   outcomeOf(request.id).notice = notes.join(' ')
@@ -452,28 +611,38 @@ function onUrlKeydown(event: KeyboardEvent): void {
     </div>
 
     <div v-else class="client-frame">
-      <nav class="client-sidebar">
+      <nav class="client-sidebar" :style="{ width: `${sidebarWidth}px` }">
         <div class="sidebar-actions">
           <span class="sidebar-label">Requests</span>
           <AppButton size="sm" @click="addRequest">+ Request</AppButton>
         </div>
         <RequestList
-          :requests="requests"
+          :requests="groupRequests"
           :selected-id="selectedId"
           @select="selectedId = $event"
           @remove="removeRequest"
           @rename="renameRequest"
         />
       </nav>
+      <div
+        class="sidebar-gutter"
+        title="Drag to resize. Double-click to reset."
+        @pointerdown="onSidebarDown"
+        @pointermove="onSidebarMove"
+        @pointerup="onSidebarUp"
+        @pointercancel="onSidebarUp"
+        @dblclick="resetSidebar"
+      />
 
-      <section v-if="selected && outcome" class="client-main">
+      <section class="client-main">
         <div class="target-row">
           <div class="target-picker">
             <AppSwitcher
               framed
+              searchable
+              search-placeholder="Search resters"
               :items="targetItems"
               :active-id="selectedTarget"
-              :label="selected.rester ? undefined : 'Pick a rester'"
               placeholder="Pick a rester"
               :empty-text="
                 restersLoading ? 'Loading resters...' : 'No rester has an API environment yet.'
@@ -481,7 +650,7 @@ function onUrlKeydown(event: KeyboardEvent): void {
               @select="pickTarget"
             />
           </div>
-          <div class="user-picker">
+          <div v-if="selected && !isPlain" class="user-picker">
             <AppSwitcher
               framed
               searchable
@@ -494,6 +663,7 @@ function onUrlKeydown(event: KeyboardEvent): void {
             />
           </div>
           <AppButton
+            v-if="selected && !isPlain"
             :disabled="!selected.user"
             title="Drop this user's cached token"
             @click="flush"
@@ -503,7 +673,15 @@ function onUrlKeydown(event: KeyboardEvent): void {
         </div>
         <p v-if="restersError" class="error-text">{{ restersError }}</p>
 
-        <div class="url-row">
+        <AppEmptyState
+          v-if="!selected || !outcome"
+          layout="fill"
+          :icon="resterClientIcon"
+          title="Add a request to start."
+          detail="Paste a curl command into its URL box to fill it."
+        />
+
+        <div v-if="selected && outcome" class="url-row">
           <div class="method-picker">
             <AppSwitcher
               framed
@@ -520,7 +698,11 @@ function onUrlKeydown(event: KeyboardEvent): void {
             class="url-input"
             type="text"
             spellcheck="false"
-            placeholder="/path, a full URL, or paste a curl command"
+            :placeholder="
+              isPlain
+                ? 'https://example.com/path, or paste a curl command'
+                : '/path, a full URL, or paste a curl command'
+            "
             @paste="onUrlPaste"
             @keydown="onUrlKeydown"
           />
@@ -528,9 +710,9 @@ function onUrlKeydown(event: KeyboardEvent): void {
           <AppButton :disabled="!canSend" @click="send(true)">Send and download</AppButton>
         </div>
         <p v-if="resolvedURL" class="hint resolved">{{ resolvedURL }}</p>
-        <p v-if="outcome.notice" class="hint notice">{{ outcome.notice }}</p>
+        <p v-if="outcome?.notice" class="hint notice">{{ outcome.notice }}</p>
 
-        <div ref="panesEl" class="panes">
+        <div v-if="selected && outcome" ref="panesEl" class="panes">
           <div v-if="collapsed === 'request'" class="box-rail" @click="collapsed = null">
             <AppIconButton size="sm" label="Show Request" @click="collapsed = null">
               <AppIcon name="chevronRight" />
@@ -576,15 +758,6 @@ function onUrlKeydown(event: KeyboardEvent): void {
             <span class="rail-title">Response</span>
           </div>
         </div>
-      </section>
-
-      <section v-else class="client-main">
-        <AppEmptyState
-          layout="fill"
-          :icon="resterClientIcon"
-          title="Add a request to start."
-          detail="Paste a curl command into its URL box to fill it."
-        />
       </section>
     </div>
   </div>

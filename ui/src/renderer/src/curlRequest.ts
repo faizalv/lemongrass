@@ -171,8 +171,10 @@ export function looksLikeCurl(text: string): boolean {
 }
 
 // Parses a curl command into a request. tokenHeader is the rester's own token header name, dropped
-// like the standard credential headers.
-export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
+// like the standard credential headers. keepAuth is for a Plain request, where no rester user
+// supplies auth: the credential headers stay, and --user, --cookie and --oauth2-bearer become the
+// headers curl would send.
+export function parseCurl(command: string, tokenHeader = '', keepAuth = false): ParsedCurl {
   const words = shellWords(command.trim())
   const result: ParsedCurl = {
     method: '',
@@ -191,7 +193,7 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
   let jsonBody: string | null = null
   let getMode = false
   const credentialNames = new Set(
-    [...CREDENTIAL_HEADERS, tokenHeader.toLowerCase()].filter(Boolean)
+    keepAuth ? [] : [...CREDENTIAL_HEADERS, tokenHeader.toLowerCase()].filter(Boolean)
   )
 
   const addHeader = (raw: string): void => {
@@ -278,14 +280,19 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
       }
       case 'u':
       case 'user':
-        result.dropped.push('--user')
+        if (keepAuth) addHeader(`Authorization: Basic ${base64(value ?? '')}`)
+        else result.dropped.push('--user')
         break
       case 'b':
       case 'cookie':
-        result.dropped.push('--cookie')
+        // Without a '=' curl reads the value as a cookie file.
+        if (!keepAuth) result.dropped.push('--cookie')
+        else if ((value ?? '').includes('=')) addHeader(`Cookie: ${value}`)
+        else result.notes.push(`The cookie file ${value} was not read.`)
         break
       case 'oauth2-bearer':
-        result.dropped.push('--oauth2-bearer')
+        if (keepAuth) addHeader(`Authorization: Bearer ${value ?? ''}`)
+        else result.dropped.push('--oauth2-bearer')
         break
       case 'A':
       case 'user-agent':
@@ -340,6 +347,13 @@ export function parseCurl(command: string, tokenHeader = ''): ParsedCurl {
 
   if (!result.method) result.method = result.bodyKind === 'none' ? 'GET' : 'POST'
   return result
+}
+
+// Base64 of the text's UTF-8 bytes, as curl encodes --user.
+function base64(text: string): string {
+  let binary = ''
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte)
+  return btoa(binary)
 }
 
 function textPart(name: string, value: string): ResterClientPart {

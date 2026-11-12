@@ -35,6 +35,23 @@ test('a browser copy as cURL keeps method, url, headers and json body, and drops
   assert.deepEqual(parsed.dropped, ['authorization', 'cookie'])
 })
 
+test('a Plain paste keeps auth headers and turns curl auth options into headers', () => {
+  const parsed = parseCurl(
+    `curl https://x.test/login -H 'Authorization: Bearer abc' -H 'Cookie: sid=1' -u 'me:pé' -b 'a=1' --oauth2-bearer t -b jar.txt`,
+    'authorization',
+    true
+  )
+  assert.deepEqual(parsed.dropped, [])
+  assert.deepEqual(parsed.headers, [
+    { name: 'Authorization', value: 'Bearer abc' },
+    { name: 'Cookie', value: 'sid=1' },
+    { name: 'Authorization', value: 'Basic bWU6cMOp' },
+    { name: 'Cookie', value: 'a=1' },
+    { name: 'Authorization', value: 'Bearer t' }
+  ])
+  assert.deepEqual(parsed.notes, ['The cookie file jar.txt was not read.'])
+})
+
 test('data without a json content type becomes form fields and implies POST', () => {
   const parsed = parseCurl(
     `curl https://x.test/login -d 'name=a%20b&tag=1' --data-urlencode 'q=c&d'`

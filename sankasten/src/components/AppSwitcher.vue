@@ -5,9 +5,11 @@
 // The dropdown renders in body, fixed to the window at the trigger, so a modal or a scrolling pane
 // that clips with overflow never crops it.
 import AppIcon from './AppIcon.vue'
+import IconFrame from './IconFrame.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppInput from './AppInput.vue'
 import type { AppInputHandle } from './appInput'
+import type { IconShape } from '../icons/appIcons'
 import { placeFloat, placementStyle } from '../lib/floatPlace'
 
 const props = withDefaults(
@@ -15,7 +17,10 @@ const props = withDefaults(
     // search is the text the filter box matches, the label when absent. disabled is the reason
     // the item cannot be picked, shown beside its label; hint is muted text in the same place for
     // an item that can be picked. group puts the item under a heading; items of one group must be
-    // next to each other.
+    // next to each other. icon is stroke shapes in a 14 by 14 box, drawn before the label and on the
+    // trigger while the item is picked. A pinned item sits above the rest, past a divider, and
+    // stays shown while the search filters the others; it is for a fixed entry that is not one of
+    // the configured items.
     items: {
       id: string
       label: string
@@ -24,6 +29,8 @@ const props = withDefaults(
       disabled?: string
       hint?: string
       group?: string
+      icon?: IconShape[]
+      pinned?: boolean
     }[]
     activeId: string | null
     placeholder: string
@@ -105,15 +112,18 @@ function listen(on: boolean): void {
 
 watch(open, (isOpen) => listen(isOpen))
 
+const pinnedItems = computed(() => props.items.filter((item) => item.pinned))
+
 const shownItems = computed(() => {
   const q = query.value.trim().toLowerCase()
-  if (!q) return props.items
-  return props.items.filter((item) => (item.search ?? item.label).toLowerCase().includes(q))
+  const rest = props.items.filter((item) => !item.pinned)
+  if (!q) return rest
+  return rest.filter((item) => (item.search ?? item.label).toLowerCase().includes(q))
 })
 
-const activeLabel = computed(
-  () => props.label ?? props.items.find((i) => i.id === props.activeId)?.label ?? props.placeholder
-)
+const activeItem = computed(() => props.items.find((i) => i.id === props.activeId))
+
+const activeLabel = computed(() => props.label ?? activeItem.value?.label ?? props.placeholder)
 
 function headingAt(index: number): string | undefined {
   const group = shownItems.value[index].group
@@ -133,7 +143,9 @@ async function toggleOpen(): Promise<void> {
 }
 
 function pickFirstShown(): void {
-  const first = shownItems.value.find((item) => !item.disabled)
+  const first = (
+    query.value.trim() ? shownItems.value : [...pinnedItems.value, ...shownItems.value]
+  ).find((item) => !item.disabled)
   if (first) pick(first.id)
 }
 
@@ -175,6 +187,14 @@ onBeforeUnmount(() => {
       :disabled="disabled"
       @click="toggleOpen"
     >
+      <IconFrame v-if="activeItem?.icon && !label" class="item-icon" :size="13">
+        <component
+          :is="shape.tag"
+          v-for="(shape, i) in activeItem.icon"
+          :key="i"
+          v-bind="shape.attrs"
+        />
+      </IconFrame>
       <span class="trigger-label">{{ activeLabel }}</span>
       <AppIcon class="sk-trigger-caret" name="chevronDown" :size="9" />
     </button>
@@ -199,6 +219,30 @@ onBeforeUnmount(() => {
           @keydown.enter.prevent="pickFirstShown"
           @keydown.escape="open = false"
         />
+        <div v-if="pinnedItems.length" class="pinned-list">
+          <button
+            v-for="item in pinnedItems"
+            :key="item.id"
+            type="button"
+            class="sk-menu-row pinned"
+            :class="{ 'is-active': item.id === activeId }"
+            :title="item.disabled ?? item.title"
+            :disabled="!!item.disabled"
+            @click="pick(item.id)"
+          >
+            <IconFrame v-if="item.icon" class="item-icon" :size="13">
+              <component
+                :is="shape.tag"
+                v-for="(shape, si) in item.icon"
+                :key="si"
+                v-bind="shape.attrs"
+              />
+            </IconFrame>
+            <span class="sk-menu-label">{{ item.label }}</span>
+            <span v-if="item.disabled" class="sk-menu-hint">{{ item.disabled }}</span>
+            <span v-else-if="item.hint" class="sk-menu-hint">{{ item.hint }}</span>
+          </button>
+        </div>
         <div class="item-list">
           <template v-for="(item, i) in shownItems" :key="item.id">
             <p v-if="headingAt(i)" class="sk-menu-heading">{{ headingAt(i) }}</p>
@@ -210,12 +254,20 @@ onBeforeUnmount(() => {
               :disabled="!!item.disabled"
               @click="pick(item.id)"
             >
+              <IconFrame v-if="item.icon" class="item-icon" :size="13">
+                <component
+                  :is="shape.tag"
+                  v-for="(shape, si) in item.icon"
+                  :key="si"
+                  v-bind="shape.attrs"
+                />
+              </IconFrame>
               <span class="sk-menu-label">{{ item.label }}</span>
               <span v-if="item.disabled" class="sk-menu-hint">{{ item.disabled }}</span>
               <span v-else-if="item.hint" class="sk-menu-hint">{{ item.hint }}</span>
             </button>
           </template>
-          <p v-if="items.length === 0" class="sk-menu-empty">{{ emptyText }}</p>
+          <p v-if="items.length === pinnedItems.length" class="sk-menu-empty">{{ emptyText }}</p>
           <p v-else-if="shownItems.length === 0" class="sk-menu-empty">No match.</p>
         </div>
         <button v-if="addLabel" type="button" class="add-item" @click="pickAdd">
@@ -282,6 +334,30 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+/* The pinned rows stand apart from the configured items: a divider below them and an accent icon. */
+.pinned-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-2) 0;
+}
+
+.pinned-list + .item-list {
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.item-icon {
+  flex-shrink: 0;
+  color: var(--color-fg-secondary);
+}
+
+.sk-menu-row.pinned .item-icon,
+.sk-field-trigger .item-icon,
+.sk-plain-trigger .item-icon {
+  color: var(--color-fg-accent);
 }
 
 .add-item {

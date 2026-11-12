@@ -16,6 +16,13 @@ export const resterClientIcon: IconShape[] = [
   { tag: 'path', attrs: { d: 'M12 9.5H2.5l2 2' } }
 ]
 
+// A globe: a request to any address on the web, with no rester behind it.
+export const plainRequestIcon: IconShape[] = [
+  { tag: 'circle', attrs: { cx: 7, cy: 7, r: 5.2 } },
+  { tag: 'path', attrs: { d: 'M7 1.8c-2.9 2.9-2.9 7.5 0 10.4M7 1.8c2.9 2.9 2.9 7.5 0 10.4' } },
+  { tag: 'path', attrs: { d: 'M1.8 7h10.4' } }
+]
+
 export const decisionsIcon: IconShape[] = [
   { tag: 'path', attrs: { d: 'M2.5 2.5h9v6.5h-5l-2.5 2.5v-2.5h-1.5z' } },
   { tag: 'path', attrs: { d: 'M5 5.5l1.4 1.4L9 4.3' } }

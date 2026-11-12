@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, extname, isAbsolute, join } from 'node:path'
-import type { ResterClientFileBody, ResterClientPart } from '../preload/types'
+import type { ResterClientCall, ResterClientFileBody, ResterClientPart } from '../preload/types'
 
 // restergate.MaxRequestBodyBytes; the vault enforces it again as the authority.
 export const MAX_REQUEST_BODY_BYTES = 25 * 1024 * 1024
@@ -142,4 +142,11 @@ export async function buildMultipart(
   const body = Buffer.concat(chunks)
   if (body.length > MAX_REQUEST_BODY_BYTES) throw limitError('the multipart body', body.length)
   return { body, contentType: `multipart/form-data; boundary=${boundary}` }
+}
+
+// A text body comes from the renderer as is; a multipart or file body is read from disk here.
+export async function callBody(call: ResterClientCall): Promise<BuiltBody> {
+  if (call.multipart) return buildMultipart(call.multipart)
+  if (call.file) return buildFileBody(call.file)
+  return { body: Buffer.from(call.body, 'utf-8'), contentType: call.contentType }
 }

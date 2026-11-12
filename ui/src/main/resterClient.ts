@@ -25,7 +25,8 @@ import {
   saveRequests
 } from './resterClientStore'
 import { ipcConnect } from './ipcAddress'
-import { buildFileBody, buildMultipart, type BuiltBody } from './resterUpload'
+import { plainDownload, plainRequest } from './plainRequest'
+import { callBody } from './resterUpload'
 import { vaultCall } from './vault'
 
 const STORE_DIR = join(homedir(), '.lemongrass', 'rester-client')
@@ -58,16 +59,9 @@ interface WireHeader {
   payload?: { inline?: WireInline; stream?: { status: number; name: string } }
 }
 
-// A text body comes from the renderer as is; a multipart or file body is read from disk here.
-async function bodyOf(call: ResterClientCall): Promise<BuiltBody> {
-  if (call.multipart) return buildMultipart(call.multipart)
-  if (call.file) return buildFileBody(call.file)
-  return { body: Buffer.from(call.body, 'utf-8'), contentType: call.contentType }
-}
-
 // The vault takes a []byte body as base64 and vault.Header with Go's field names.
 async function wireCall(call: ResterClientCall): Promise<unknown> {
-  const { body, contentType } = await bodyOf(call)
+  const { body, contentType } = await callBody(call)
   return {
     rester: call.rester,
     environment: call.environment,
@@ -142,6 +136,15 @@ async function humanFlush(rester: string, environment: string, user: string): Pr
   return flushed
 }
 
+// The save dialog of a download, opening in Downloads with the server's file name.
+async function chooseSavePath(win: BrowserWindow | null, name: string): Promise<string | null> {
+  const options = { defaultPath: join(app.getPath('downloads'), name || 'download') }
+  const picked = win
+    ? await dialog.showSaveDialog(win, options)
+    : await dialog.showSaveDialog(options)
+  return picked.canceled || !picked.filePath ? null : picked.filePath
+}
+
 // Streams a 2xx body to a file the human picks once the response has started, so the dialog can
 // offer the server's file name. The socket is paused while the dialog is open; the vault gives up
 // on a write after restergate.RequestTimeout, which bounds how long the dialog can stay open.
@@ -187,16 +190,13 @@ async function humanDownload(
     const chooseFile = async (name: string): Promise<void> => {
       choosing = true
       socket.pause()
-      const options = { defaultPath: join(app.getPath('downloads'), name || 'download') }
-      const picked = win
-        ? await dialog.showSaveDialog(win, options)
-        : await dialog.showSaveDialog(options)
+      const picked = await chooseSavePath(win, name)
       if (settled) return
-      if (picked.canceled || !picked.filePath) {
+      if (!picked) {
         settle(() => resolve({ kind: 'cancelled' }))
         return
       }
-      filePath = picked.filePath
+      filePath = picked
       file = createWriteStream(filePath)
       file.on('error', fail)
       choosing = false
@@ -273,13 +273,23 @@ async function humanDownload(
   })
 }
 
+async function sendPlain(call: ResterClientCall): Promise<ResterClientResult> {
+  return plainRequest(call, await callBody(call))
+}
+
 export function registerResterClientHandlers(): void {
+  // A call with no rester is a Plain request, sent from here without the vault.
   ipcMain.handle('resterClient:request', (_event, passphrase: string, call: ResterClientCall) =>
-    humanRequest(passphrase, call)
+    call.rester ? humanRequest(passphrase, call) : sendPlain(call)
   )
-  ipcMain.handle('resterClient:download', (event, passphrase: string, call: ResterClientCall) =>
-    humanDownload(BrowserWindow.fromWebContents(event.sender), passphrase, call)
-  )
+  ipcMain.handle('resterClient:download', (event, passphrase: string, call: ResterClientCall) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    return call.rester
+      ? humanDownload(win, passphrase, call)
+      : callBody(call).then((body) =>
+          plainDownload(call, body, (name) => chooseSavePath(win, name))
+        )
+  })
   ipcMain.handle(
     'resterClient:flush',
     (_event, rester: string, environment: string, user: string) =>
