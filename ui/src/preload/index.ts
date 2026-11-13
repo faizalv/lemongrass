@@ -81,7 +81,7 @@ import type {
   GitConflictFile,
   ConflictActionResult,
   ConflictHumanMessage,
-  ConflictReviewFile,
+  ConflictVerdictBatch,
   ConflictStartResult,
   ConflictSubmitted,
   ConflictThreadStatus,
@@ -174,23 +174,25 @@ const review = {
     ipcRenderer.invoke('review:submit', projectPath, tabId, submission)
 }
 
-// Handing a conflict to an agent tab. resolved is what saveConflictWork returns, so main can tell
-// the model which blocks the human already resolved.
+// Handing a conflict to an agent tab. settled is the blocks the human resolved before handing over,
+// one verdicts batch per file, which main posts quietly so the model keeps them.
 const conflictAgent = {
   status: (projectPath: string): Promise<ConflictThreadStatus | null> =>
     ipcRenderer.invoke('conflict:status', projectPath),
   start: (
     projectPath: string,
     tabId: string,
-    resolved: ConflictReviewFile[]
+    settled: ConflictVerdictBatch[]
   ): Promise<ConflictStartResult> =>
-    ipcRenderer.invoke('conflict:start', projectPath, tabId, resolved),
-  post: (
+    ipcRenderer.invoke('conflict:start', projectPath, tabId, settled),
+  post: (projectPath: string, messages: ConflictHumanMessage[]): Promise<ConflictActionResult> =>
+    ipcRenderer.invoke('conflict:post', projectPath, messages),
+  verdicts: (
     projectPath: string,
-    messages: ConflictHumanMessage[],
-    resolved: ConflictReviewFile[]
+    batch: ConflictVerdictBatch,
+    quiet: boolean
   ): Promise<ConflictActionResult> =>
-    ipcRenderer.invoke('conflict:post', projectPath, messages, resolved),
+    ipcRenderer.invoke('conflict:verdicts', projectPath, batch, quiet),
   close: (projectPath: string): Promise<ConflictActionResult> =>
     ipcRenderer.invoke('conflict:close', projectPath),
   onSubmitted: (callback: (submitted: ConflictSubmitted) => void): (() => void) => {
@@ -373,6 +375,8 @@ const git = {
     ipcRenderer.invoke('git:conflictApply', projectPath, path, content),
   conflictSave: (projectPath: string, path: string, content: string): Promise<GitActionResult> =>
     ipcRenderer.invoke('git:conflictSave', projectPath, path, content),
+  conflictStage: (projectPath: string, path: string): Promise<GitActionResult> =>
+    ipcRenderer.invoke('git:conflictStage', projectPath, path),
   conflictPick: (
     projectPath: string,
     path: string,

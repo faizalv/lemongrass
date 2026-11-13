@@ -261,6 +261,11 @@ export function applyConflict(
   )
 }
 
+// Stages a conflicted file as it is on disk, once every block in it is settled.
+export function stageConflict(project: ProjectRef, path: string): Promise<string | null> {
+  return runBranchAction(project, 'branch', () => window.api.git.conflictStage(project.path, path))
+}
+
 // Keeps one side of a conflict that has no lines to merge, or deletes the file.
 export function pickConflict(
   project: ProjectRef,

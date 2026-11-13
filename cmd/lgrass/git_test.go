@@ -199,7 +199,8 @@ func TestModelCommandsRefuseAnUnpickedTabAndNoConflict(t *testing.T) {
 	e.socket = sock
 	for name, run := range map[string]func() error{
 		"show":   func() error { return conflictShow(e) },
-		"note":   func() error { return conflictNote(e, []string{"a.txt", "2", "why"}) },
+		"decide": func() error { return conflictDecide(e, []string{"a.txt", "1", "why"}) },
+		"ask":    func() error { return conflictAsk(e, []string{"a.txt", "1", "which?"}) },
 		"submit": func() error { return conflictSubmit(e) },
 	} {
 		if err := run(); err == nil || !strings.Contains(err.Error(), "handed to aaaaaaaa") {
@@ -215,13 +216,25 @@ func TestModelCommandsRefuseAnUnpickedTabAndNoConflict(t *testing.T) {
 	}
 }
 
-func TestShowNoteAndSubmitForTheAssignee(t *testing.T) {
-	sock, got := fakeConflictApp(t, func(req map[string]any) map[string]any {
-		if req["op"] == "conflict_show" {
+// blockApp answers conflict_block with what the test says block 1 of a.txt holds, and every other op with ok.
+func blockApp(t *testing.T, state *string) (string, *[]map[string]any) {
+	return fakeConflictApp(t, func(req map[string]any) map[string]any {
+		switch req["op"] {
+		case "conflict_show":
 			return map[string]any{"ok": true, "text": "the merge of feature into main\n"}
+		case "conflict_block":
+			if req["block"] != float64(1) {
+				return map[string]any{"ok": false, "error": "a.txt has 1 block"}
+			}
+			return map[string]any{"ok": true, "blocks": 1, "state": *state}
 		}
 		return map[string]any{"ok": true}
 	})
+}
+
+func TestDecideAskAndSubmitForTheAssignee(t *testing.T) {
+	state := "markers"
+	sock, got := blockApp(t, &state)
 	e, out, _ := gitEnv(t, sock, gitTabA)
 	id := startConflict(t, e)
 	e.socket = sock
@@ -232,28 +245,37 @@ func TestShowNoteAndSubmitForTheAssignee(t *testing.T) {
 	if req := (*got)[0]; req["op"] != "conflict_show" || req["tab_id"] != gitTabA || req["scope"] != gitScope || req["thread_id"] != id || req["project_path"] != "/proj" {
 		t.Errorf("show request = %v", req)
 	}
-
 	if err := conflictSubmit(e); err == nil || !strings.Contains(err.Error(), "nothing to submit") {
-		t.Errorf("submit before any change: err = %v", err)
+		t.Errorf("submit before any report: err = %v", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(e.dir, "a.txt"), []byte("one\nTAX\nthree\n"), 0o644); err != nil {
-		t.Fatal(err)
+	if err := conflictDecide(e, []string{"a.txt", "1", "took TAX"}); err == nil || !strings.Contains(err.Error(), "still holds its conflict markers") {
+		t.Errorf("decide on a block with markers: err = %v", err)
 	}
-	if err := conflictNote(e, []string{"a.txt", "2", "theirs renamed the rate to TAX"}); err != nil {
-		t.Fatalf("note: %v", err)
+	if err := conflictAsk(e, []string{"a.txt", "1", "which name?", "--option", "TAX", "--option", "TAX_RATE"}); err != nil {
+		t.Fatalf("ask: %v", err)
 	}
-	if err := conflictNote(e, []string{"b.txt", "1", "x"}); err == nil || !strings.Contains(err.Error(), "not a conflicted file") {
-		t.Errorf("note on a clean file: err = %v", err)
+	if req := (*got)[len(*got)-1]; req["op"] != "conflict_block" || req["path"] != "a.txt" || req["block"] != float64(1) || req["scope"] != gitScope {
+		t.Errorf("block request = %v", req)
 	}
-	if err := conflictNote(e, []string{"a.txt", "9", "x"}); err == nil {
-		t.Error("note past the end of the file was accepted")
+	state = "written"
+	if err := conflictAsk(e, []string{"a.txt", "1", "which?"}); err == nil || !strings.Contains(err.Error(), "no longer holds") {
+		t.Errorf("ask on a written block: err = %v", err)
 	}
-	if err := conflictNote(e, []string{"../a.txt", "1", "x"}); err == nil {
-		t.Error("note outside the repo was accepted")
+	if err := conflictDecide(e, []string{"a.txt", "1", "theirs renamed the rate to TAX"}); err != nil {
+		t.Fatalf("decide: %v", err)
 	}
-	if err := conflictNote(e, []string{"a.txt", "2-1", "x"}); err == nil {
-		t.Error("a backwards range was accepted")
+	if err := conflictDecide(e, []string{"a.txt", "2", "x"}); err == nil || !strings.Contains(err.Error(), "has 1 block") {
+		t.Errorf("decide past the last block: err = %v", err)
+	}
+	if err := conflictDecide(e, []string{"a.txt", "x", "x"}); err == nil || !strings.Contains(err.Error(), "not a block number") {
+		t.Errorf("decide with no number: err = %v", err)
+	}
+	if err := conflictDecide(e, []string{"b.txt", "1", "x"}); err == nil || !strings.Contains(err.Error(), "not a conflicted file") {
+		t.Errorf("decide on a clean file: err = %v", err)
+	}
+	if err := conflictDecide(e, []string{"../a.txt", "1", "x"}); err == nil {
+		t.Error("decide outside the repo was accepted")
 	}
 
 	if err := conflictSubmit(e); err != nil {
@@ -268,29 +290,62 @@ func TestShowNoteAndSubmitForTheAssignee(t *testing.T) {
 	}
 
 	msgs, _, _ := e.store.ReadThread(id, 0, 10)
-	if len(msgs) != 2 || msgs[0].Kind != session.MessageSubmit || msgs[0].Files[0] != "a.txt" || strings.Contains(msgs[0].Body, "markers") {
-		t.Errorf("submit message = %+v", msgs[0])
+	if len(msgs) != 3 || msgs[0].Kind != session.MessageSubmit || msgs[0].Body != "Round done: 1 decision, 1 question." {
+		t.Fatalf("thread = %+v", msgs)
 	}
-	if msgs[1].Kind != session.MessageNote || msgs[1].Anchor == nil || msgs[1].Anchor.Path != "a.txt" || msgs[1].Anchor.Quote != "TAX" {
-		t.Errorf("note message = %+v", msgs[1])
+	if msgs[1].Kind != session.MessageDecision || msgs[1].Data != `{"path":"a.txt","block":1}` || msgs[1].Body != "theirs renamed the rate to TAX" {
+		t.Errorf("decision = %+v", msgs[1])
+	}
+	if msgs[2].Kind != session.MessageQuestion || msgs[2].Data != `{"path":"a.txt","block":1,"options":["TAX","TAX_RATE"]}` {
+		t.Errorf("question = %+v", msgs[2])
 	}
 }
 
-func TestSubmitNamesFilesStillHoldingMarkers(t *testing.T) {
-	sock, _ := fakeConflictApp(t, func(map[string]any) map[string]any { return map[string]any{"ok": true} })
-	e, _, _ := gitEnv(t, sock, gitTabA)
-	startConflict(t, e)
+// The human's verdicts arrive through a claimed token, wake the assignee unless quiet, and show in the model's show and thread read.
+func TestAppVerdictsReachTheModel(t *testing.T) {
+	state := "markers"
+	sock, _ := blockApp(t, &state)
+	e, out, notified := gitEnv(t, sock, gitTabA)
+	id := startConflict(t, e)
 	e.socket = sock
-	path := filepath.Join(e.dir, "a.txt")
-	data, _ := os.ReadFile(path)
-	os.WriteFile(path, append([]byte("// touched\n"), data...), 0o644)
-	if err := conflictSubmit(e); err != nil {
-		t.Fatalf("submit: %v", err)
+	if err := conflictAsk(e, []string{"a.txt", "1", "which name?"}); err != nil {
+		t.Fatalf("ask: %v", err)
 	}
 	th, _ := e.store.OpenConflictThread()
 	msgs, _, _ := e.store.ReadThread(th.ID, 0, 1)
-	if !strings.Contains(msgs[0].Body, "Still holding conflict markers: a.txt.") {
-		t.Errorf("submit body = %q", msgs[0].Body)
+	question := msgs[0].ID
+
+	verdicts := []map[string]any{{"block": 1, "verdict": "answered", "text": "TAX_RATE", "question": question}}
+	sock2, _ := fakeConflictApp(t, claimReply(map[string]any{"action": "verdicts", "project_path": "/proj", "scope": gitScope, "path": "a.txt", "verdicts": verdicts}))
+	e.socket = sock2
+	if err := conflictApp(e, []string{"--token", "t", "--json"}); err != nil {
+		t.Fatalf("verdicts: %v", err)
+	}
+	if *notified != 1 {
+		t.Errorf("notified %d, want 1", *notified)
+	}
+	quiet := []map[string]any{{"block": 1, "verdict": "resolved", "digest": "abc"}}
+	sock3, _ := fakeConflictApp(t, claimReply(map[string]any{"action": "verdicts", "project_path": "/proj", "scope": gitScope, "path": "a.txt", "verdicts": quiet, "quiet": true}))
+	e.socket = sock3
+	if err := conflictApp(e, []string{"--token", "t", "--json"}); err != nil {
+		t.Fatalf("quiet verdicts: %v", err)
+	}
+	if *notified != 1 {
+		t.Errorf("a quiet batch woke the model: notified %d", *notified)
+	}
+
+	read, _, _ := e.store.ReadThread(id, 0, 10)
+	text := session.FormatThreadRead(th, read, false, false)
+	if !strings.Contains(text, "verdicts on a.txt (mentions aaaaaaaa):\nblock 1: the human answered your question #") || !strings.Contains(text, "block 1: resolved by the human, keep it exactly as is") {
+		t.Errorf("thread read = %s", text)
+	}
+	e.socket = sock
+	out.Reset()
+	if err := conflictShow(e); err != nil {
+		t.Fatalf("show: %v", err)
+	}
+	if !strings.Contains(out.String(), "The human's verdicts so far:\na.txt\n  settled, keep exactly as is: block 1 (resolved by the human)") {
+		t.Errorf("show = %s", out.String())
 	}
 }
 
@@ -298,7 +353,7 @@ func TestThreadJSONCarriesConflictFields(t *testing.T) {
 	e, _, _ := gitEnv(t, "", gitTabA)
 	id := startConflict(t, e)
 	e.store.PostHumanMessages(gitScope, []session.HumanMessage{{Body: "why?", Anchor: &session.Anchor{Path: "a.txt", StartLine: 2, EndLine: 2, Quote: "TAX"}}})
-	e.store.PostSubmit(gitTabA, "Submitted.", []string{"a.txt"})
+	e.store.PostSubmit(gitTabA, "Round done.", []string{"a.txt"})
 	tabID = gitTabA
 	defer func() { tabID = "" }()
 
@@ -322,16 +377,16 @@ func TestThreadJSONCarriesConflictFields(t *testing.T) {
 	}
 }
 
-// A reply posted through a claimed token keeps the id it answers, and the app reads it back as replyTo.
-func TestAppPostCarriesAReplyThroughToTheJSON(t *testing.T) {
+// A reply posted through a claimed token keeps the id it answers, and the app reads it back as replyTo; a decision's data reaches the app as JSON.
+func TestAppPostCarriesAReplyAndDataThroughToTheJSON(t *testing.T) {
 	e, _, _ := gitEnv(t, "", gitTabA)
 	id := startConflict(t, e)
-	note, err := e.store.PostNote(gitTabA, session.Anchor{Path: "a.txt", StartLine: 2, EndLine: 2, Quote: "TAX"}, "which rate?")
+	decision, err := e.store.PostDecision(gitTabA, "a.txt", 1, "took TAX")
 	if err != nil {
-		t.Fatalf("PostNote: %v", err)
+		t.Fatalf("PostDecision: %v", err)
 	}
 	sock, _ := fakeConflictApp(t, claimReply(map[string]any{"action": "post", "project_path": "/proj", "scope": gitScope,
-		"messages": []map[string]any{{"body": "0.12", "anchor": map[string]any{"path": "a.txt", "startLine": 2, "endLine": 2, "quote": "TAX"}, "replyTo": note.ID}}}))
+		"messages": []map[string]any{{"body": "0.12", "anchor": nil, "replyTo": decision.ID}}}))
 	e.socket = sock
 	e.out = &bytes.Buffer{}
 	if err := conflictApp(e, []string{"--token", "t", "--json"}); err != nil {
@@ -344,8 +399,11 @@ func TestAppPostCarriesAReplyThroughToTheJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("output %q: %v", out, err)
 	}
+	if first := got.Messages[0]; first.Kind != "decision" || string(first.Data) != `{"path":"a.txt","block":1}` {
+		t.Errorf("decision = %+v", first)
+	}
 	reply := got.Messages[len(got.Messages)-1]
-	if reply.Author != "human" || reply.ReplyTo == nil || *reply.ReplyTo != note.ID {
-		t.Errorf("reply = %+v, want replyTo %d", reply, note.ID)
+	if reply.Author != "human" || reply.ReplyTo == nil || *reply.ReplyTo != decision.ID || string(reply.Data) != "null" {
+		t.Errorf("reply = %+v, want replyTo %d and null data", reply, decision.ID)
 	}
 }

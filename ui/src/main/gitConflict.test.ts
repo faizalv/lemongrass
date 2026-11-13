@@ -9,9 +9,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { WRITE_TIMEOUT_MS, readEnv, run } from './gitRun.ts'
 import type { GitRunner } from './gitMove.ts'
+import type { GitConflictChunk } from '../preload/types.ts'
 import {
   applyResolution,
   conflictBlockRanges,
+  conflictBlocks,
+  matchMarkerBlocks,
+  stageWorking,
   conflictBlocksLeft,
   operationRefs,
   pickSide,
@@ -315,4 +319,67 @@ test('the marker blocks left are given with their line ranges', () => {
     { start: 8, end: 11 }
   ])
   assert.deepEqual(conflictBlockRanges(root, 'a.txt'), [])
+})
+
+// main and feat change two separate lines, so the merge leaves two blocks.
+function twoBlocks(): string {
+  const root = join(scratch, `repo${++repoCount}`)
+  execFileSync('git', ['init', '-q', '-b', 'main', root])
+  write(root, 'a.txt', LINES)
+  commit(root, 'base')
+  git(root, 'switch', '-q', '-c', 'feat')
+  write(root, 'a.txt', ['l1', 'feat2', ...LINES.slice(2, 6), 'feat7', 'l8'])
+  commit(root, 'feat')
+  git(root, 'switch', '-q', 'main')
+  write(root, 'a.txt', ['l1', 'main2', ...LINES.slice(2, 6), 'main7', 'l8'])
+  commit(root, 'main')
+  gitMayFail(root, 'merge', 'feat')
+  return root
+}
+
+test('a block keeps its number when a block before it is written', async () => {
+  const root = twoBlocks()
+  const before = conflictBlocks(await readConflict(runner(root), root, 'a.txt'))
+  assert.deepEqual(
+    before?.map((block) => [block.left, block.right, block.markers]),
+    [
+      [['main2'], ['feat2'], { start: 2, end: 6 }],
+      [['main7'], ['feat7'], { start: 11, end: 15 }]
+    ]
+  )
+  const working = readFileSync(join(root, 'a.txt'), 'utf8').split('\n')
+  writeFileSync(join(root, 'a.txt'), ['l1', 'feat2', ...working.slice(6)].join('\n'))
+  const after = conflictBlocks(await readConflict(runner(root), root, 'a.txt'))
+  assert.deepEqual(
+    after?.map((block) => block.markers),
+    [null, { start: 7, end: 11 }]
+  )
+})
+
+test('a marker block whose sides were edited matches no block', () => {
+  const block = (
+    left: string[],
+    right: string[],
+    start: number
+  ): Extract<GitConflictChunk, { kind: 'conflict' }> => ({
+    kind: 'conflict' as const,
+    left,
+    base: [],
+    right,
+    disk: { start, end: start + 4, left: null, base: null, right: null }
+  })
+  const git = [block(['a'], ['b'], 1), block(['c'], ['d'], 1)]
+  assert.deepEqual(matchMarkerBlocks(git, [block(['a'], ['B'], 3), block(['c'], ['d\r'], 9)]), [
+    null,
+    { start: 9, end: 13 }
+  ])
+})
+
+test('staging the working file refuses one still holding markers', async () => {
+  const root = twoBlocks()
+  const refused = await stageWorking(runner(root), root, 'a.txt')
+  assert.deepEqual(refused, { ok: false, error: 'a.txt still holds 2 conflict blocks.' })
+  write(root, 'a.txt', ['l1', 'feat2', ...LINES.slice(2, 6), 'main7', 'l8'])
+  assert.deepEqual(await stageWorking(runner(root), root, 'a.txt'), { ok: true })
+  assert.equal(unmerged(root), '')
 })

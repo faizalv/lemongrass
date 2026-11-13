@@ -12,7 +12,7 @@ import {
   run,
   stoppedOperation
 } from './gitRun'
-import { applyResolution, pickSide, readConflict, saveWorking } from './gitConflict'
+import { applyResolution, pickSide, readConflict, saveWorking, stageWorking } from './gitConflict'
 import { forecastMerge } from './gitForecast'
 import type { GitRunner } from './gitMove'
 import { endConflictThreadIfOver } from './conflictAgent'
@@ -137,6 +137,12 @@ async function conflictApply(
   return applyResolution(conflictRunner(root), root, path, content)
 }
 
+async function conflictStage(projectPath: string, path: string): Promise<GitActionResult> {
+  const root = await conflictRoot(projectPath, path)
+  if (typeof root !== 'string') return { ok: false, ...root }
+  return stageWorking(conflictRunner(root), root, path)
+}
+
 async function conflictSave(
   projectPath: string,
   path: string,
@@ -197,6 +203,11 @@ export function registerGitSyncHandlers(): void {
       return result
     }
   )
+  ipcMain.handle('git:conflictStage', async (_event, projectPath: string, path: string) => {
+    const result = await conflictStage(projectPath, path)
+    endConflictThreadIfOver(projectPath)
+    return result
+  })
   ipcMain.handle('git:conflictSave', (_event, projectPath: string, path: string, content: string) =>
     conflictSave(projectPath, path, content)
   )

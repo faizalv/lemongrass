@@ -21,7 +21,14 @@ export const CONFLICT_ICONS = {
   takeRight: ['M11 3.5L7.5 7l3.5 3.5M6.5 3.5L3 7l3.5 3.5'],
   takeBoth: ['M2.5 3.5L6 7l-3.5 3.5', 'M11.5 3.5L8 7l3.5 3.5'],
   reset: ['M2 7a5 5 0 1 0 1.46-3.54L2 4.9', 'M2 2v2.9h2.9'],
-  acceptAll: ['M1.5 7.5L4 10l5-5.5', 'M7 9.5l.5.5 5-5.5']
+  reject: ['M4 4l6 6M10 4l-6 6'],
+  // A speech bubble: asking the model about the block under the cursor.
+  ask: [
+    'M3 2.5h8a1.5 1.5 0 0 1 1.5 1.5v4.5a1.5 1.5 0 0 1-1.5 1.5H6.5L4 12V10H3a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 3 2.5z'
+  ],
+  // Ticked rows: the decisions to make. Three columns: the three panes resolved by hand.
+  decisions: ['M1.5 3.5l1.2 1.2L5 2.5', 'M7 3.5h5.5', 'M1.5 9.5l1.2 1.2L5 8.5', 'M7 9.5h5.5'],
+  manual: ['M1.5 2.5h11v9h-11z', 'M5.2 2.5v9', 'M8.8 2.5v9']
 } as const satisfies Record<string, readonly string[]>
 
 export type ConflictIconName = keyof typeof CONFLICT_ICONS

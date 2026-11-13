@@ -173,10 +173,54 @@ export interface ConflictIntent {
   right: SideIntent
 }
 
+// One block of a file for show: its number, both sides in pane order, and where its markers sit in
+// the working file, or null once the model wrote it.
+export interface ShowBlock {
+  left: string[]
+  right: string[]
+  markers: GitLineRange | null
+}
+
+// A conflicted file for show, with blocks null when it has no line blocks to resolve.
+export interface ShowFile {
+  path: string
+  blocks: ShowBlock[] | null
+}
+
 export interface ConflictShow extends ConflictSides {
   threadId: string
-  files: ConflictFileState[]
+  files: ShowFile[]
   intent: ConflictIntent
+}
+
+// A side longer than this is cut in show; the model reads the rest in the stages if it needs it.
+const SHOW_SIDE_LINES = 40
+
+function sideLines(ref: string, lines: string[]): string[] {
+  const shown = lines.slice(0, SHOW_SIDE_LINES).map((line) => `      | ${line.replace(/\r$/, '')}`)
+  const head = lines.length === 0 ? `    ${ref}: no lines` : `    ${ref}:`
+  const cut =
+    lines.length > SHOW_SIDE_LINES ? [`      and ${lines.length - SHOW_SIDE_LINES} more lines`] : []
+  return [head, ...shown, ...cut]
+}
+
+function showFiles(sides: ConflictSides, files: ShowFile[]): string {
+  if (files.length === 0) return ''
+  const sections = files.map((file) => {
+    if (!file.blocks) {
+      return `${file.path}\n  no line blocks (binary, deleted on one side, or added on both); the human picks a side for it`
+    }
+    const lines = [file.path]
+    file.blocks.forEach((block, i) => {
+      const where = block.markers
+        ? `still holds its markers, ${rangeList([block.markers])}`
+        : 'no markers left, written in the working file'
+      lines.push(`  block ${i + 1}: ${where}`)
+      lines.push(...sideLines(sides.leftRef, block.left), ...sideLines(sides.rightRef, block.right))
+    })
+    return lines.join('\n')
+  })
+  return `Files and their blocks, numbered from 1:\n${sections.join('\n')}`
 }
 
 function sideTitles(sides: ConflictSides): { left: string; right: string } {
@@ -213,15 +257,15 @@ function sideSection(title: string, side: SideIntent): string {
   return lines.join('\n')
 }
 
-// What `lgrass git conflict show` prints for the tab the human handed the conflict to: the same
-// files section a review carries, the conflict thread, and what each side meant.
+// What `lgrass git conflict show` prints for the tab the human handed the conflict to: the
+// conflict thread, every file's blocks by number with both sides, and what each side meant.
 export function composeShow(show: ConflictShow): string {
   const titles = sideTitles(show)
   const body = [
     `The human handed you the conflicts in ${conflictSubject(show)}. Line numbers are of each ` +
       'file as it is on disk now.',
     `Conflict thread: ${show.threadId}`,
-    conflictScopeFormatter.details({ kind: 'conflict', files: show.files }),
+    showFiles(show, show.files),
     sideSection(titles.left, show.intent.left),
     sideSection(titles.right, show.intent.right)
   ]

@@ -24,6 +24,7 @@ var migrations = []func(execer) error{
 	migrateV4,
 	migrateV5,
 	migrateV6,
+	migrateV7,
 }
 
 // Version 1 is the schema as it stood before the store was versioned, applied idempotently so a store from any earlier release lands on the same tables.
@@ -100,6 +101,12 @@ func migrateV5(db execer) error {
 // Version 6 lets a human message in a conflict thread answer one earlier message of the same thread, such as a note on a block.
 func migrateV6(db execer) error {
 	_, err := db.ExecContext(context.Background(), `ALTER TABLE lg_messages ADD COLUMN reply_to INTEGER`)
+	return err
+}
+
+// Version 7 gives a conflict thread message a structured part, such as the block a model's decision is on or the human's verdicts on a file, as JSON.
+func migrateV7(db execer) error {
+	_, err := db.ExecContext(context.Background(), `ALTER TABLE lg_messages ADD COLUMN data TEXT`)
 	return err
 }
 

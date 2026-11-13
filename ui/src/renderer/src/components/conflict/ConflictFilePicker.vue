@@ -5,16 +5,20 @@
 import { computed } from 'vue'
 import { gitStateOf } from '../../git'
 import type { ConflictThreadState } from '../../conflictThread'
-import { fileStatus, fileStatusText } from '../../conflictThreadModel'
+import { fileStatusText } from '../../conflictDecisions'
+import { useFileDecisions } from '../../conflictFiles'
 import type { ProjectRef } from '../../workspace'
 import { AppSwitcher } from '@sankasten'
 
-// Switches the file the conflict tab shows, among the files git still reports conflicted.
+// Switches the file the conflict tab shows, among the files git still reports conflicted. While a
+// model holds the conflict each file says what waits for the human in it.
 const props = defineProps<{
   project: ProjectRef
   path: string
   thread: ConflictThreadState
 }>()
+
+const decisions = useFileDecisions(() => props.project)
 
 const emit = defineEmits<{ select: [path: string] }>()
 
@@ -33,17 +37,14 @@ const items = computed(() =>
   (gitStateOf(props.project.id).status?.files ?? [])
     .filter((file) => file.group === 'conflicted')
     .map((file) => {
-      const status = fileStatus(props.thread.messages, file.path, file.conflictBlocks)
+      const cards = decisions.value.find((d) => d.path === file.path)?.cards ?? null
+      const status = props.thread.status ? fileStatusText(cards) : null
       return {
         id: file.path,
         label: nameOf(file.path),
         title: file.path,
         search: file.path,
-        hint: status
-          ? fileStatusText(status)
-          : file.conflictBlocks
-            ? blocksText(file.conflictBlocks)
-            : undefined
+        hint: status ?? (file.conflictBlocks ? blocksText(file.conflictBlocks) : undefined)
       }
     })
 )

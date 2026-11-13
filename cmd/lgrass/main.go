@@ -140,10 +140,12 @@ COMMANDS
                                      the project; lgrass flutter alone prints each command
 
   git conflict show                 Model-facing, for the tab the human handed a conflict to: the operation,
-                                     refs, files and blocks, and both sides' commit intent
-  git conflict note <path> <N|N-M> "<why>"
-                                     Explains a choice for those lines of a conflicted file in the conflict thread
-  git conflict submit               Hands the resolution back; the human reviews it in the resolver
+                                     refs, each file's numbered blocks, the human's verdicts, both sides' intent
+  git conflict decide <path> <N> "<why>"
+                                     Reports block N, after writing its resolution into the working file
+  git conflict ask <path> <N> "<question>" --option "<a>" ...
+                                     Asks the human about block N, left with its markers
+  git conflict submit               Ends the round; the human reviews the decisions and answers the questions
   git conflict status [--json]      The project's open conflict thread and the tab it is handed to
 
   version                           Print version

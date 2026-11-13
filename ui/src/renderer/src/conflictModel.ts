@@ -21,26 +21,20 @@ export interface MiddleChunk {
   left: SideDecision
   right: SideDecision
   taken: ConflictSide[]
-  // Holds the model's text from a submission and waits for the human: Accept keeps it, a side
-  // taken or a hand edit replaces it. Unresolved until then, so Apply waits on it.
+  // Holds text a model wrote into the working file, not yet settled by the human. Drawn as open:
+  // a side taken or a hand edit replaces it, and Apply waits on it.
   proposed?: boolean
-  // The sides, in order, whose lines the model's text equals, so the proposal reads as picks the
-  // model made with the same chevrons the human uses. Absent when the model wrote new text.
-  modelTaken?: ConflictSide[]
+  // Resolved when loaded, because the human already accepted or resolved it, so it is not work
+  // done in this middle. Any decision or edit on it clears the mark.
+  settled?: boolean
+  // What the working file holds for this block when a model wrote it, shown or not, so saving
+  // partial work never puts markers back over it.
+  modelLines?: string[]
 }
 
-// How a side pane draws one side of a conflict: decided by the human, a pick the model made that
-// waits for Accept, or settled some other way (Accept on new text, a hand edit), so it no longer
-// reads as open.
-export type SideMark = SideDecision | 'pendingTaken' | 'pendingRejected' | 'settled'
-
-// One stretch of a pane mapped to the working file. exact means line n of the pane is line n of the
-// disk range; otherwise any line inside maps to the whole disk range.
-export interface DiskSegment {
-  pane: GitLineRange
-  disk: GitLineRange | null
-  exact: boolean
-}
+// How a side pane draws one side of a conflict: decided by the human, or settled some other way (a
+// hand edit, or a block loaded settled), so it no longer reads as open.
+export type SideMark = SideDecision | 'settled'
 
 function lineText(lines: string[]): string {
   return lines.map((line) => `${line}\n`).join('')
@@ -79,54 +73,16 @@ export function stripChunks(chunks: GitConflictChunk[]): GitConflictChunk[] {
   )
 }
 
-function sameLines(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((line, i) => line === b[i])
-}
-
-// The sides whose lines the model's text for a conflict equals: one side, or both in either order.
-// Null when it wrote anything else, or nothing.
-export function matchSides(conflict: ConflictChunk, lines: string[]): ConflictSide[] | null {
-  if (lines.length === 0) return null
-  const text = stripCr(lines)
-  const left = stripCr(conflict.left)
-  const right = stripCr(conflict.right)
-  const orders: ConflictSide[][] = [['left'], ['right'], ['left', 'right'], ['right', 'left']]
-  return (
-    orders.find((order) =>
-      sameLines(
-        text,
-        order.flatMap((side) => (side === 'left' ? left : right))
-      )
-    ) ?? null
-  )
-}
-
-// A chunk no longer holding a waiting proposal, for when the human decides it.
-function settledProposal(chunk: MiddleChunk): MiddleChunk {
-  if (!chunk.proposed) return chunk
-  const next: MiddleChunk = { ...chunk, proposed: false }
-  delete next.modelTaken
+// A chunk the human decides is the human's work from then on: it no longer holds a model's waiting
+// text, nor counts as settled before this middle.
+function humanChunk(chunk: MiddleChunk): MiddleChunk {
+  const next = { ...chunk }
+  delete next.proposed
+  delete next.settled
   return next
 }
 
-// Accept on a proposal: the model's picks become the human's decisions, so the chunk ends as one
-// decided through the chevrons and undo works the same; new text is kept as it stands.
-export function acceptedChunk(chunk: MiddleChunk): MiddleChunk {
-  const picks = chunk.modelTaken
-  const next = { ...settledProposal(chunk), resolved: true }
-  if (!picks?.length) return next
-  return {
-    ...next,
-    left: picks.includes('left') ? 'taken' : 'rejected',
-    right: picks.includes('right') ? 'taken' : 'rejected',
-    taken: [...picks]
-  }
-}
-
 export function sideMark(chunk: MiddleChunk, side: ConflictSide): SideMark {
-  if (chunk.proposed && !chunk.resolved && chunk.modelTaken?.length) {
-    return chunk.modelTaken.includes(side) ? 'pendingTaken' : 'pendingRejected'
-  }
   if (chunk[side] !== 'open') return chunk[side]
   return chunk.resolved ? 'settled' : 'open'
 }
@@ -146,7 +102,7 @@ export function decide(
   const others = chunk.taken.filter((entry) => entry !== side)
   const taken =
     decision === 'rejected' ? others : chunk.taken.includes(side) ? chunk.taken : [...others, side]
-  const next = { ...settledProposal(chunk), [side]: decision, taken }
+  const next = { ...humanChunk(chunk), [side]: decision, taken }
   next.resolved = next.left !== 'open' && next.right !== 'open'
   return { chunk: next, text: decidedText(conflict, next.taken) }
 }
@@ -159,7 +115,7 @@ export function decideAll(
 ): { chunk: MiddleChunk; text: string } {
   const taken: ConflictSide[] = take === 'both' ? ['left', 'right'] : [take]
   const next: MiddleChunk = {
-    ...settledProposal(chunk),
+    ...humanChunk(chunk),
     left: taken.includes('left') ? 'taken' : 'rejected',
     right: taken.includes('right') ? 'taken' : 'rejected',
     taken,
@@ -168,51 +124,53 @@ export function decideAll(
   return { chunk: next, text: decidedText(conflict, taken) }
 }
 
-// The model's submitted work laid over the chunks: the lines it proposed for some conflicts, by
-// chunk index, and the lines it changed inside clean chunks, as 0-based inclusive offsets into that
-// chunk's lines.
+// What the working file holds where git's conflicts were: the lines written in place of some
+// conflicts, by chunk index, the lines changed inside clean chunks, as 0-based inclusive offsets
+// into that chunk's lines, and the block numbers each conflict chunk covers.
 export interface MiddleProposal {
   lines: Record<number, string[]>
   edits: { index: number; start: number; end: number }[]
+  blocks?: Record<number, number[]>
 }
 
+// How the middle loads a conflict whose working-file text was written: settled, because the human
+// already accepted or resolved it; model, still waiting for the human, shown as open; or reopen,
+// back to its base with both sides open, for a block the human chose to resolve by hand.
+export type LoadPlan = 'settled' | 'model' | 'reopen'
+
 // The middle starts as git's clean text with each conflict holding its base lines, unresolved. With
-// a proposal, a proposed conflict holds the model's lines instead, and the model's edits outside
-// the conflicts come back as middle lines.
+// a proposal, a written conflict holds the working file's lines instead, loaded as plan says,
+// 'model' when it says nothing.
 export function buildMiddle(
   chunks: GitConflictChunk[],
-  proposal: MiddleProposal | null = null
-): { text: string; chunks: MiddleChunk[]; edits: GitLineRange[] } {
+  proposal: MiddleProposal | null = null,
+  plan: Record<number, LoadPlan> = {}
+): { text: string; chunks: MiddleChunk[] } {
   let text = ''
-  let line = 1
   const middle: MiddleChunk[] = []
-  const edits: GitLineRange[] = []
   chunks.forEach((chunk, index) => {
-    const proposed = chunk.kind === 'conflict' ? proposal?.lines[index] : undefined
-    const lines = chunk.kind === 'clean' ? chunk.lines : (proposed ?? chunk.base)
+    const written = chunk.kind === 'conflict' ? proposal?.lines[index] : undefined
+    const how = written ? (plan[index] ?? 'model') : null
+    const lines =
+      chunk.kind === 'clean' ? chunk.lines : written && how !== 'reopen' ? written : chunk.base
     const part = lineText(lines)
     if (chunk.kind === 'conflict') {
-      const picks = proposed ? matchSides(chunk, proposed) : null
       middle.push({
         index,
         from: text.length,
         to: text.length + part.length,
-        resolved: false,
+        resolved: how === 'settled',
         left: 'open',
         right: 'open',
         taken: [],
-        ...(proposed ? { proposed: true } : {}),
-        ...(picks ? { modelTaken: picks } : {})
+        ...(how === 'model' ? { proposed: true } : {}),
+        ...(how === 'settled' ? { settled: true } : {}),
+        ...(written ? { modelLines: written } : {})
       })
-    } else {
-      for (const edit of proposal?.edits ?? []) {
-        if (edit.index === index) edits.push({ start: line + edit.start, end: line + edit.end })
-      }
     }
     text += part
-    line += lines.length
   })
-  return { text, chunks: middle, edits }
+  return { text, chunks: middle }
 }
 
 // The text Apply writes: the middle without the last newline when the file had none, and with
@@ -251,17 +209,18 @@ export function savedText(
     if (!conflict || conflict.kind !== 'conflict') continue
     text += doc.slice(at, chunk.from)
     at = chunk.to
-    // A proposal still waiting for the human stays as the model wrote it, so saving never puts
-    // markers back over the model's work. Only the human's own resolutions are reported.
-    if (chunk.proposed && !chunk.resolved) {
-      text += doc.slice(chunk.from, chunk.to)
-      continue
-    }
     if (chunk.resolved) {
       const part = doc.slice(chunk.from, chunk.to)
       const start = lineCount(text) + 1
-      resolved.push({ start, end: start + lineCount(part) - 1 })
+      // Only the human's own resolutions are reported; a block loaded settled already was.
+      if (!chunk.settled) resolved.push({ start, end: start + lineCount(part) - 1 })
       text += part
+      continue
+    }
+    // Text a model wrote, waiting or reopened for the human, stays as it is on disk, so saving
+    // never puts markers back over the model's work.
+    if (chunk.modelLines) {
+      text += lineText(chunk.modelLines)
       continue
     }
     text +=
@@ -375,91 +334,6 @@ export function middleRanges(
   return ranges
 }
 
-// Pairs each chunk's range in a pane with where it sits on disk. The middle maps a conflict to its
-// whole marker block, a side pane to that side's lines between the markers. A proposed conflict
-// has no markers: the middle holds the file's own lines, so it maps line for line while its length
-// is unchanged.
-export function diskSegments(
-  chunks: GitConflictChunk[],
-  ranges: GitLineRange[],
-  pane: ConflictSide | 'middle',
-  proposed: ReadonlySet<number> = new Set()
-): DiskSegment[] {
-  return chunks.map((chunk, index) => {
-    const range = ranges[index]
-    if (chunk.kind === 'clean') {
-      return { pane: range, disk: chunk.disk, exact: sameLength(range, chunk.disk) }
-    }
-    if (!chunk.disk) return { pane: range, disk: null, exact: false }
-    if (pane === 'middle') {
-      return {
-        pane: range,
-        disk: chunk.disk,
-        exact: proposed.has(index) && sameLength(range, chunk.disk)
-      }
-    }
-    const disk = chunk.disk[pane]
-    return { pane: range, disk, exact: sameLength(range, disk) }
-  })
-}
-
-function sameLength(a: GitLineRange, b: GitLineRange | null): boolean {
-  return b !== null && a.end - a.start === b.end - b.start
-}
-
-function segmentAt(
-  segments: DiskSegment[],
-  line: number,
-  side: 'pane' | 'disk'
-): DiskSegment | null {
-  const filled = segments.filter((s) => s[side] !== null && s[side]!.end >= s[side]!.start)
-  return (
-    filled.find((s) => s[side]!.start <= line && line <= s[side]!.end) ??
-    // A line past the last chunk, such as the empty line after the final newline.
-    (filled.length > 0 && line > filled[filled.length - 1][side]!.end
-      ? filled[filled.length - 1]
-      : null)
-  )
-}
-
-function mapLine(
-  segments: DiskSegment[],
-  line: number,
-  edge: 'start' | 'end',
-  from: 'pane' | 'disk'
-): number | null {
-  const to = from === 'pane' ? 'disk' : 'pane'
-  const segment = segmentAt(segments, line, from)
-  const source = segment?.[from]
-  const target = segment?.[to]
-  if (!source || !target) return null
-  if (segment.exact) return target.start + Math.min(line, source.end) - source.start
-  return edge === 'start' ? target.start : target.end
-}
-
-// Pane lines to working file lines, 1-based and inclusive, or null when a part is not on disk.
-export function toDisk(
-  segments: DiskSegment[],
-  fromLine: number,
-  toLine: number
-): { startLine: number; endLine: number } | null {
-  const startLine = mapLine(segments, fromLine, 'start', 'pane')
-  const endLine = mapLine(segments, toLine, 'end', 'pane')
-  if (startLine === null || endLine === null) return null
-  return { startLine, endLine: Math.max(startLine, endLine) }
-}
-
-export function fromDisk(
-  segments: DiskSegment[],
-  startLine: number,
-  endLine: number
-): { fromLine: number; toLine: number } | null {
-  const fromLine = mapLine(segments, startLine, 'start', 'disk')
-  const toLine = mapLine(segments, endLine, 'end', 'disk')
-  if (fromLine === null || toLine === null) return null
-  return { fromLine, toLine: Math.max(fromLine, toLine) }
-}
-
 // Maps a scroll position, as a line boundary with a fraction, from one pane to another by
 // interpolating between the chunk boundaries the two panes share.
 export function mapScroll(
@@ -519,12 +393,12 @@ export function collapseSpans(
   return spans
 }
 
-// The middle of a resolver opened on the model's submission: the chunks of the model's working
-// file, with git's conflicts mapped into it as proposed conflicts.
+// The middle of a resolver opened on the working file: its chunks, with git's conflicts mapped into
+// it, written ones as proposed conflicts and the rest as the marker blocks still there.
 export interface Proposal {
   chunks: GitConflictChunk[]
   finalNewline: boolean
-  proposal: MiddleProposal
+  proposal: MiddleProposal & { blocks: Record<number, number[]> }
 }
 
 // One line of the working file as the diff sees it, or a whole marker block the model left.
@@ -614,6 +488,15 @@ export function buildProposal(
   const proposed = mapped.filter(
     (range) => !entries.slice(range.from, range.to).some((entry) => entry.block)
   )
+  // git's block number of each conflict, counted from 1 in git's order.
+  const ordinal = new Map<number, number>()
+  gitChunks.forEach((chunk, index) => {
+    if (chunk.kind === 'conflict') ordinal.set(index, ordinal.size + 1)
+  })
+  const numbers = (first: number, last: number): number[] =>
+    gitChunks.flatMap((_, index) =>
+      index >= first && index <= last && ordinal.has(index) ? [ordinal.get(index)!] : []
+    )
 
   // Entries the diff reports as written by the model, outside every proposed conflict.
   const edited = new Set<number>()
@@ -625,7 +508,9 @@ export function buildProposal(
   }
 
   const chunks: GitConflictChunk[] = []
-  const proposal: MiddleProposal = { lines: {}, edits: [] }
+  const proposal: Proposal['proposal'] = { lines: {}, edits: [], blocks: {} }
+  // The output chunk each marker block entry became, to give it the blocks git placed on it.
+  const blockChunk = new Map<number, number>()
   let clean: number[] = []
   const flush = (): void => {
     if (clean.length === 0) return
@@ -659,6 +544,7 @@ export function buildProposal(
       proposal.lines[chunks.length] = entries
         .slice(range.from, range.to)
         .map((item) => stripCr([lines[item.line - 1]])[0])
+      proposal.blocks[chunks.length] = numbers(range.first, range.last)
       chunks.push({
         ...joinConflicts(gitChunks, range.first, range.last),
         disk: { ...disk, left: disk, base: null, right: disk }
@@ -669,33 +555,22 @@ export function buildProposal(
     const item = entries[entry]
     if (item.block) {
       flush()
+      blockChunk.set(entry, chunks.length)
+      proposal.blocks[chunks.length] = []
       chunks.push(item.block)
     } else clean.push(entry)
   }
   flush()
+  for (const range of mapped) {
+    if (proposed.includes(range)) continue
+    for (let entry = range.from; entry < range.to; entry++) {
+      const at = blockChunk.get(entry)
+      if (at === undefined) continue
+      for (const n of numbers(range.first, range.last)) {
+        if (!proposal.blocks[at].includes(n)) proposal.blocks[at].push(n)
+      }
+    }
+  }
 
   return { chunks, finalNewline: working.endsWith('\n'), proposal }
-}
-
-// The chunk indexes holding a proposal, which the middle maps to disk line for line.
-export function proposedIndexes(proposal: MiddleProposal | null): Set<number> {
-  return new Set(Object.keys(proposal?.lines ?? {}).map(Number))
-}
-
-// The conflicts the model asked about: an open marker block it left, holding one of its notes.
-// Keyed by chunk index, the value is the note's id. A proposed conflict is never a question, since
-// the model chose there.
-export function questionChunks(
-  chunks: GitConflictChunk[],
-  notes: { id: number; startLine: number; endLine: number }[],
-  proposed: ReadonlySet<number>
-): Map<number, number> {
-  const out = new Map<number, number>()
-  chunks.forEach((chunk, index) => {
-    if (chunk.kind !== 'conflict' || !chunk.disk || proposed.has(index)) return
-    const block = chunk.disk
-    const note = notes.find((n) => n.startLine <= block.end && n.endLine >= block.start)
-    if (note) out.set(index, note.id)
-  })
-  return out
 }

@@ -13,7 +13,7 @@ func TestManualsRender(t *testing.T) {
 	cases := map[string][]string{
 		"ask request":   {"lgrass ask <path>", "operations: [select]", "methods: [GET, POST]", "Removed tables", "type: db", "type: rester", "type: command", "lgrass ask show <id>", "Do not ask again with a variation"},
 		"book write":    {"Split.", "never how it broke", "toc.md"},
-		"git resolve":   {"lgrass git conflict show", "lgrass git conflict note", "lgrass git conflict submit", "never stage"},
+		"git resolve":   {"lgrass git conflict show", "lgrass git conflict decide", "lgrass git conflict ask", "lgrass git conflict submit", "never stage"},
 		"laws write":    {"explicit yes", "biblio/laws/summary.md", "Never write a law to memory"},
 		"leader create": {"lgrass workgroup create <config>", "lgrass how thinker start", "lgrass how task close <slug>", "lgrass how task handover <slug>"},
 		"thinker start": {"lgrass workgroup thread", "wait for the leader's go"},

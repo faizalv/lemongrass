@@ -130,9 +130,12 @@ function show(fields: Partial<ConflictShow> = {}): ConflictShow {
     files: [
       {
         path: 'src/tax.js',
-        unresolved: [{ start: 4, end: 8 }],
-        resolved: [{ start: 12, end: 12 }]
-      }
+        blocks: [
+          { left: ['TAX_RATE = 0.2'], right: ['TAX = 0.1\r'], markers: { start: 4, end: 8 } },
+          { left: [], right: ['x'], markers: null }
+        ]
+      },
+      { path: 'logo.png', blocks: null }
     ],
     intent: {
       left: {
@@ -164,10 +167,19 @@ test('show names the conflict, the thread, each file and what each side meant', 
       '',
       'Conflict thread: abc123',
       '',
-      'Files:',
+      'Files and their blocks, numbered from 1:',
       'src/tax.js',
-      '  still in conflict: lines 4-8',
-      '  resolved by the human, keep as is: line 12',
+      '  block 1: still holds its markers, lines 4-8',
+      '    main:',
+      '      | TAX_RATE = 0.2',
+      '    feature:',
+      '      | TAX = 0.1',
+      '  block 2: no markers left, written in the working file',
+      '    main: no lines',
+      '    feature:',
+      '      | x',
+      'logo.png',
+      '  no line blocks (binary, deleted on one side, or added on both); the human picks a side for it',
       '',
       'Intent of main, the current branch, commits that touched these files since the merge base:',
       '- a1b2c3d Raise the tax rate',

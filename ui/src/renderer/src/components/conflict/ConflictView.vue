@@ -2,36 +2,31 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, provide, ref, watch } from 'vue'
-import { conflictJumpKey, conflictRevealKey, type ConflictReveal } from '../../conflictJump'
-import type { ConflictMessageAnchor } from '../../../../preload/types'
+import { computed, watch } from 'vue'
 import { gitStateOf } from '../../git'
 import { useConflictThread } from '../../conflictThread'
+import { conflictMode, modelHolds, setConflictMode } from '../../conflictVerdicts'
 import { setConflictPath, type ProjectRef } from '../../workspace'
 import ConflictFilePicker from './ConflictFilePicker.vue'
 import ConflictFileView from './ConflictFileView.vue'
+import ConflictModeSwitch from './ConflictModeSwitch.vue'
+import DecisionsView from './DecisionsView.vue'
 import { AppEmptyState } from '@sankasten'
 
-// The conflict tab: one for the whole conflict session, showing one file at a time.
+// The conflict tab: one for the whole conflict session. While a model holds the conflict it shows
+// Decisions, every block of every file the human has to decide; the switch shows one file in
+// Manual, the three panes, and back. Without a model it is always Manual.
 const props = defineProps<{
   project: ProjectRef
   path: string
   tabId: string
 }>()
 
-// Read once here for every file view and the picker, since each reader refreshes the thread on
-// every git status change.
+// Read once here for every view and the picker, since each reader refreshes the thread on every
+// git status change.
 const thread = useConflictThread(() => props.project)
-
-// A chip in the chat opens its file here, and that file's merge screen scrolls to the lines.
-const reveal = ref<ConflictReveal | null>(null)
-let nonce = 0
-function jump(anchor: ConflictMessageAnchor): void {
-  if (anchor.path !== props.path) setConflictPath(props.project, props.tabId, anchor.path)
-  reveal.value = { anchor, nonce: ++nonce }
-}
-provide(conflictJumpKey, jump)
-provide(conflictRevealKey, reveal)
+const holds = computed(() => modelHolds(props.project.id))
+const mode = computed(() => conflictMode(props.project.id))
 
 const status = computed(() => gitStateOf(props.project.id).status)
 const conflicted = computed(() =>
@@ -57,11 +52,16 @@ watch(
   },
   { immediate: true }
 )
+
+// A card's file opens in Manual: the tab moves to it first. Without a path the switch shows the
+// file the tab last showed.
+function openInManual(path: string | null): void {
+  if (path) setConflictPath(props.project, props.tabId, path)
+  setConflictMode(props.project.id, 'manual')
+}
 </script>
 
 <template>
-  <!-- Each file the tab showed stays cached, keyed by path, so switching files keeps its unsaved
-       middle and its undo history, as switching tabs does. -->
   <div v-if="noneLeft" class="none-left">
     <AppEmptyState
       layout="fill"
@@ -69,6 +69,15 @@ watch(
       detail="You can close this tab."
     />
   </div>
+  <DecisionsView
+    v-else-if="holds && mode === 'decisions'"
+    :project="project"
+    :thread="thread"
+    :files="conflicted"
+    @manual="openInManual"
+  />
+  <!-- Each file the tab showed stays cached, keyed by path, so switching files keeps its unsaved
+       middle and its undo history, as switching tabs does. -->
   <KeepAlive v-else>
     <ConflictFileView :key="path" :project="project" :path="path" :thread="thread">
       <template #picker>
@@ -77,6 +86,11 @@ watch(
           :path="path"
           :thread="thread"
           @select="setConflictPath(project, tabId, $event)"
+        />
+        <ConflictModeSwitch
+          v-if="holds"
+          mode="manual"
+          @switch="setConflictMode(project.id, 'decisions')"
         />
       </template>
     </ConflictFileView>

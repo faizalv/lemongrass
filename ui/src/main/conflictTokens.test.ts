@@ -86,4 +86,16 @@ test('the claim reply carries each action in the shape lgrass reads', () => {
     claimReply({ action: 'close', projectPath: '/p', scope: SCOPE, threadId: 'abc123' }),
     { action: 'close', project_path: '/p', scope: SCOPE, thread_id: 'abc123' }
   )
+  const verdicts = [{ block: 2, verdict: 'rejected' as const, text: 'Keep the old name.' }]
+  assert.deepEqual(
+    claimReply({
+      action: 'verdicts',
+      projectPath: '/p',
+      scope: SCOPE,
+      path: 'a.txt',
+      verdicts,
+      quiet: false
+    }),
+    { action: 'verdicts', project_path: '/p', scope: SCOPE, path: 'a.txt', verdicts, quiet: false }
+  )
 })

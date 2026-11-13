@@ -5,17 +5,18 @@
 import { computed, onActivated, onDeactivated, shallowRef, watch } from 'vue'
 import { gitStateOf } from '../../git'
 import { dropDraft } from '../../conflictDrafts'
-import { conflictScope } from '../../conflictAnnotations'
 import type { ProjectRef } from '../../workspace'
 import type { GitConflictFile } from '../../../../preload/types'
 import ConflictMerge from './ConflictMerge.vue'
 import ConflictSides from './ConflictSides.vue'
-import ConflictThreadBar from './ConflictThreadBar.vue'
 import type { ConflictThreadState } from '../../conflictThread'
-import { latestSubmit, notesFor } from '../../conflictThreadModel'
+import { buildProposal } from '../../conflictModel'
+import { fileDecisions } from '../../conflictDecisions'
+import { modelHolds, reopenedBlocks } from '../../conflictVerdicts'
 
-// One file of the conflict tab, cached by the tab while another file is shown. The picker slot is
-// the tab's file picker, placed at the start of whichever top row this file shows.
+// One file of the conflict tab in Manual, cached by the tab while another file is shown. The
+// picker slot is the tab's file picker and mode switch, placed at the start of whichever top row
+// this file shows.
 const props = defineProps<{
   project: ProjectRef
   path: string
@@ -27,13 +28,22 @@ const okFile = computed(() => (file.value?.status === 'ok' ? file.value : null))
 let loading = false
 let active = false
 
-// The model's latest submission, when it lists this file, puts the middle in proposed mode.
-const submitId = computed(() => {
-  const submit = latestSubmit(props.thread.messages)
-  return submit && submit.files.includes(props.path) ? submit.id : null
+const holds = computed(() => modelHolds(props.project.id))
+
+// Where this file's blocks stand in Decisions, so the three panes load the settled ones settled
+// and the ones the human chose to resolve by hand open.
+const cards = computed(() => {
+  const ok = okFile.value
+  if (!holds.value || !ok?.chunks || ok.working === null) return []
+  const mapped = buildProposal(ok.chunks, ok.working, ok.workingChunks)
+  return fileDecisions(ok, mapped, props.thread.messages).cards ?? []
 })
-const notes = computed(() => notesFor(props.thread.messages, props.path))
-const replies = computed(() => props.thread.messages.filter((m) => typeof m.replyTo === 'number'))
+const settledBlocks = computed(() =>
+  cards.value.flatMap((card) =>
+    card.state === 'accepted' || card.state === 'resolved' ? card.blocks : []
+  )
+)
+const reopenBlocks = computed(() => [...reopenedBlocks(props.project.id, cards.value)])
 
 // Reloaded on every status refresh while shown, so a file the model changed or resolved shows here,
 // and once each time it is shown again. The object is replaced only when it differs, since the
@@ -87,20 +97,13 @@ watch(
         :project="project"
         :path="path"
         :file="okFile"
-        :submit-id="submitId"
-        :notes="notes"
-        :replies="replies"
+        :model-holds="holds"
+        :settled-blocks="settledBlocks"
+        :reopen-blocks="reopenBlocks"
       >
         <template #picker><slot name="picker" /></template>
       </ConflictMerge>
       <ConflictSides v-else :project="project" :path="path" :file="okFile" />
-      <!-- The conflict thread takes the review bar's place in the conflict scope: line comments go
-           out as anchored messages on Send instead of one pasted review. -->
-      <ConflictThreadBar
-        :project="project"
-        :scope="conflictScope(okFile.operation, okFile.leftRef, okFile.rightRef)"
-        :thread="thread"
-      />
     </template>
   </div>
 </template>

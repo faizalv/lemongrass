@@ -4,15 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { GitConflictChunk } from '../../preload/types'
-import {
-  buildMiddle,
-  buildProposal,
-  diskSegments,
-  fromDisk,
-  proposedIndexes,
-  savedText,
-  toDisk
-} from './conflictModel.ts'
+import { buildMiddle, buildProposal, savedText } from './conflictModel.ts'
 
 const clean = (lines: string[]): GitConflictChunk => ({ kind: 'clean', lines, disk: null })
 const conflict = (left: string[], base: string[], right: string[]): GitConflictChunk => ({
@@ -49,34 +41,15 @@ test('a resolved conflict maps onto the model lines and edits outside it are mar
   ])
   assert.deepEqual(result.proposal, {
     lines: { 1: ['X', 'Y'] },
-    edits: [{ index: 0, start: 0, end: 0 }]
+    edits: [{ index: 0, start: 0, end: 0 }],
+    blocks: { 1: [1] }
   })
 
   const middle = buildMiddle(result.chunks, result.proposal)
   assert.equal(middle.text, 'a2\nb\nX\nY\nc\nd\n')
-  assert.deepEqual(middle.edits, [{ start: 1, end: 1 }])
   assert.equal(middle.chunks.length, 1)
   assert.equal(middle.chunks[0].proposed, true)
   assert.equal(middle.chunks[0].resolved, false)
-  assert.deepEqual(proposedIndexes(result.proposal), new Set([1]))
-})
-
-test('the middle maps a proposed conflict to disk line for line, so a note finds its line', () => {
-  const result = buildProposal(git, 'a\nb\nX\nY\nc\nd\n', null)
-  assert.ok(result)
-  const ranges = [
-    { start: 1, end: 2 },
-    { start: 3, end: 4 },
-    { start: 5, end: 6 }
-  ]
-  const segments = diskSegments(result.chunks, ranges, 'middle', proposedIndexes(result.proposal))
-  assert.deepEqual(fromDisk(segments, 4, 4), { fromLine: 4, toLine: 4 })
-  assert.deepEqual(toDisk(segments, 3, 3), { startLine: 3, endLine: 3 })
-  // Without the proposal set the block maps as a whole, as a marker block does.
-  assert.deepEqual(fromDisk(diskSegments(result.chunks, ranges, 'middle'), 4, 4), {
-    fromLine: 3,
-    toLine: 4
-  })
 })
 
 test('a conflict the model deleted becomes an empty proposal', () => {
@@ -90,7 +63,7 @@ test('a conflict the model deleted becomes an empty proposal', () => {
     right: ['R'],
     disk: { start: 3, end: 2, left: { start: 3, end: 2 }, base: null, right: { start: 3, end: 2 } }
   })
-  assert.deepEqual(result.proposal, { lines: { 1: [] }, edits: [] })
+  assert.deepEqual(result.proposal, { lines: { 1: [] }, edits: [], blocks: { 1: [1] } })
   assert.equal(buildMiddle(result.chunks, result.proposal).text, 'a\nb\nc\nd\n')
 })
 
@@ -128,7 +101,7 @@ test('a marker block the model left stays an open conflict and keeps its git con
     ]
   )
   assert.equal(result.chunks[3], block)
-  assert.deepEqual(result.proposal, { lines: { 1: ['X1'] }, edits: [] })
+  assert.deepEqual(result.proposal, { lines: { 1: ['X1'] }, edits: [], blocks: { 1: [1], 3: [2] } })
   const middle = buildMiddle(result.chunks, result.proposal)
   assert.equal(middle.text, 'a\nX1\nm\nz\n')
   assert.deepEqual(
@@ -182,5 +155,5 @@ test('CRLF files compare without their carriage returns', () => {
     null
   )
   assert.ok(result)
-  assert.deepEqual(result.proposal, { lines: { 1: ['X'] }, edits: [] })
+  assert.deepEqual(result.proposal, { lines: { 1: ['X'] }, edits: [], blocks: { 1: [1] } })
 })

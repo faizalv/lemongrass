@@ -4,7 +4,6 @@
 <script setup lang="ts">
 import {
   computed,
-  inject,
   onActivated,
   onBeforeUnmount,
   onDeactivated,
@@ -24,44 +23,29 @@ import {
   takeDraft,
   type ConflictDraft
 } from '../../conflictDrafts'
-import { conflictCommentExtension, refreshConflictComments } from '../../conflictAnnotations'
-import { commentedLineRanges, isAnnotationChange } from '../../annotationGutter'
 import {
-  isNoteChange,
-  notedLineRanges,
-  noteCards,
-  refreshNotes,
-  type NoteMark
-} from '../../noteCards'
-import {
-  acceptedChunk,
   applyText,
   buildMiddle,
   buildProposal,
-  proposedIndexes,
-  type MiddleProposal,
   collapseSpans,
   decide,
   decideAll,
-  diskSegments,
-  fromDisk,
   isCrlf,
   locateChunks,
   mapScroll,
   middleRanges,
-  questionChunks,
   savedText,
   sideMark,
   splitLines,
   stripChunks,
-  toDisk,
   type ConflictSide,
   type ConflictTake,
-  type MiddleChunk
+  type LoadPlan,
+  type MiddleChunk,
+  type MiddleProposal
 } from '../../conflictModel'
+import { blockDigest } from '../../conflictDecisions'
 import {
-  acceptAction,
-  acceptChunks,
   chunkAtCursor,
   chunkLines,
   flashLines,
@@ -77,35 +61,49 @@ import {
   sideState
 } from '../../conflictEditor'
 import { hasConflictTab, type ProjectRef } from '../../workspace'
-import { postToConflict } from '../../conflictThread'
-import { conflictRevealKey } from '../../conflictJump'
+import { handConflictTo } from '../../conflictThread'
+import {
+  askAboutBlocks,
+  focusOf,
+  publishManual,
+  writtenBeforeHandOver
+} from '../../conflictVerdicts'
 import type {
   ConflictPane,
   GitConflictChunk,
   GitConflictFile,
   GitConflictStage,
-  GitLineRange,
-  WorkgroupThreadMessage
+  GitLineRange
 } from '../../../../preload/types'
-import { AppButton, AppIconButton, AppMenuButton, AppModal, type MenuItem } from '@sankasten'
+import {
+  AppButton,
+  AppIconButton,
+  AppMenuButton,
+  AppModal,
+  AppTextarea,
+  type MenuItem
+} from '@sankasten'
 import ConflictIcon from './ConflictIcon.vue'
+import ResolveWithMenu from '../ResolveWithMenu.vue'
 import { CONFLICT_ICONS } from '../../conflictIcons'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
 
+// Manual: the three panes as a merge tool, with none of a model's marks. While a model holds the
+// conflict the middle is the working file with git's blocks mapped into it, so a block the human
+// settled in Decisions loads settled, one the human chose to resolve by hand loads open on its
+// base, and any other text a model wrote loads as an open block holding that text.
 const props = withDefaults(
   defineProps<{
     project: ProjectRef
     path: string
     file: ConflictFile
-    // The model's latest submit message that lists this file, which puts the middle in proposed
-    // mode, and the model's notes on the file from the conflict thread.
-    submitId?: number | null
-    notes?: WorkgroupThreadMessage[]
-    // Every message in the thread that answers another, so each note card lists its replies.
-    replies?: WorkgroupThreadMessage[]
+    modelHolds?: boolean
+    // Block numbers the human already accepted or resolved, and those to reopen by hand.
+    settledBlocks?: number[]
+    reopenBlocks?: number[]
   }>(),
-  { submitId: null, notes: () => [], replies: () => [] }
+  { modelHolds: false, settledBlocks: () => [], reopenBlocks: () => [] }
 )
 
 interface Loaded {
@@ -115,6 +113,8 @@ interface Loaded {
   doc: Text
   left: GitLineRange[]
   right: GitLineRange[]
+  // git's block numbers each conflict chunk covers, by chunk index.
+  blocks: Record<number, number[]>
 }
 
 const leftHost = ref<HTMLElement | null>(null)
@@ -125,10 +125,6 @@ const conflictIndexes = computed(() =>
   (loaded.value?.chunks ?? []).flatMap((chunk, index) => (chunk.kind === 'conflict' ? [index] : []))
 )
 const unresolved = ref(0)
-// Proposals still waiting for the human.
-const proposedLeft = ref(0)
-// Open blocks the model left with a question on them, a subset of what is unresolved.
-const questionsLeft = ref(0)
 const dirty = ref(false)
 const current = ref<number | null>(null)
 const applying = ref(false)
@@ -144,12 +140,10 @@ type Source = {
   chunks: GitConflictChunk[]
   finalNewline: boolean
   proposal?: MiddleProposal | null
+  plan?: Record<number, LoadPlan>
 }
 // What the middle was loaded from, which Reset goes back to.
 let source: Source = { chunks: [], finalNewline: true }
-// The chunk indexes holding the model's proposal in what is loaded.
-let proposed = new Set<number>()
-const proposalMode = ref(false)
 // Set once the work is written, so unmounting keeps no draft of it.
 let applied = false
 let left: EditorView | null = null
@@ -165,12 +159,7 @@ const applyBlocked = computed((): string | null => {
   if (applying.value) return 'Applying'
   if (unresolved.value === 0) return null
   const left = unresolved.value === 1 ? '1 conflict left' : `${unresolved.value} conflicts left`
-  const parts = [
-    ...(questionsLeft.value > 0 ? [`${questionsLeft.value} waiting for your call`] : []),
-    ...(proposedLeft.value > 0 ? [`${proposedLeft.value} proposed by the model`] : [])
-  ]
-  const detail = parts.length ? `, ${parts.join(' and ')}` : ''
-  return `${left}${detail}. Settle each one first.`
+  return `${left}. Settle each one first.`
 })
 
 // The toolbar is status, not controls: a short counter, then what is left as plain text.
@@ -182,58 +171,48 @@ const counterText = computed(() => {
 
 const statusText = computed(() => {
   if (conflictIndexes.value.length === 0) return ''
-  const open = unresolved.value - proposedLeft.value - questionsLeft.value
-  const calls = questionsLeft.value
-  const parts = [
-    ...(calls > 0 ? [calls === 1 ? '1 needs your call' : `${calls} need your call`] : []),
-    ...(proposedLeft.value > 0 ? [`${proposedLeft.value} proposed`] : []),
-    ...(open > 0 ? [`${open} open`] : [])
-  ]
-  return parts.length ? parts.join(', ') : 'all settled'
+  return unresolved.value > 0 ? `${unresolved.value} open` : 'all settled'
 })
 
 const statusTitle = computed(() => {
   const total = conflictIndexes.value.length
   if (total === 0) return 'No conflicts left in this file'
   const at = position.value ? `Conflict ${position.value} of ${total}. ` : ''
-  return `${at}${unresolved.value} unresolved: ${questionsLeft.value} the model asked you about, ${proposedLeft.value} proposed by the model.`
+  return `${at}${unresolved.value} unresolved.`
 })
 
 // The whole-file actions replace every conflict in this file at once, so they sit behind the
-// overflow icon, and confirm with a second click whenever a waiting proposal or the human's edits
-// would go. They never reach past this file: the human still reads each file's code and proposal.
+// overflow icon, and confirm with a second click whenever the human's edits would go. They never
+// reach past this file.
 const menuItems = computed((): MenuItem[] => {
   const none = conflictIndexes.value.length === 0
-  const atRisk = proposedLeft.value > 0 || dirty.value
   return [
     {
       key: 'left',
       label: `Take ${props.file.leftRef} in this file`,
       icon: CONFLICT_ICONS.takeLeft,
       disabled: none,
-      confirm: atRisk
+      confirm: dirty.value
     },
     {
       key: 'right',
       label: `Take ${props.file.rightRef} in this file`,
       icon: CONFLICT_ICONS.takeRight,
       disabled: none,
-      confirm: atRisk
+      confirm: dirty.value
     },
     {
       key: 'both',
       label: 'Take both in this file',
       icon: CONFLICT_ICONS.takeBoth,
       disabled: none,
-      confirm: atRisk
+      confirm: dirty.value
     },
     {
       key: 'reset',
-      label: proposalMode.value ? 'Reset to proposal' : 'Reset',
+      label: 'Reset',
       icon: CONFLICT_ICONS.reset,
-      title: proposalMode.value
-        ? 'Put the middle back as the model proposed it'
-        : 'Put the middle back as it was loaded',
+      title: 'Put the middle back as it was loaded',
       disabled: !dirty.value,
       confirm: true
     }
@@ -245,34 +224,48 @@ function onMenu(key: string): void {
   else if (key === 'reset') reset()
 }
 
-// Below this toolbar width Accept all gives way; each proposed block still has its own Accept.
-const NARROW_TOOLBAR = 320
-const toolbarEl = ref<HTMLElement | null>(null)
-const narrow = ref(false)
-let toolbarObserver: ResizeObserver | null = null
-
 function stageText(stage: GitConflictStage): string {
   return stage.state === 'text' ? stage.text.replace(/\r\n/g, '\n') : ''
 }
 
-// The middle starts from git's merge of the stages. After the file changed on disk it starts from
-// the file instead, whose remaining markers become its conflicts. Once the model submitted this
-// file, it starts from the model's file with git's conflicts mapped into it as proposals.
-function chunksOf(file: ConflictFile, fromWorking: boolean): Source {
-  if (props.submitId !== null && file.chunks && file.working !== null) {
+// How each written block loads: settled when the human already accepted or resolved it, or when
+// no model holds the conflict, since the text is then the human's own saved work; reopened when the
+// human chose to resolve it by hand; otherwise a model's text still waiting for Decisions.
+function planOf(
+  proposal: MiddleProposal & { blocks: Record<number, number[]> }
+): Record<number, LoadPlan> {
+  const plan: Record<number, LoadPlan> = {}
+  for (const index of Object.keys(proposal.lines).map(Number)) {
+    const blocks = proposal.blocks[index] ?? []
+    if (blocks.some((n) => props.reopenBlocks.includes(n))) plan[index] = 'reopen'
+    else if (!props.modelHolds || blocks.every((n) => props.settledBlocks.includes(n))) {
+      plan[index] = 'settled'
+    } else plan[index] = 'model'
+  }
+  return plan
+}
+
+// The middle is the working file with git's blocks mapped into it, so it shows what is on disk,
+// the human's saved work and a model's text included. A file with no working text, or one too
+// large to map, starts from git's merge of the stages.
+function chunksOf(file: ConflictFile): Source {
+  if (file.chunks && file.working !== null) {
     const built = buildProposal(file.chunks, file.working, file.workingChunks)
-    if (built) return built
+    if (built) return { ...built, plan: planOf(built.proposal) }
   }
-  if (!fromWorking || file.working === null) {
-    return { chunks: file.chunks ?? [], finalNewline: file.finalNewline }
-  }
-  const finalNewline = file.working.endsWith('\n')
-  if (file.workingChunks) return { chunks: file.workingChunks, finalNewline }
-  const lines = splitLines(file.working)
-  return {
-    chunks: [{ kind: 'clean', lines, disk: { start: 1, end: lines.length } }],
-    finalNewline
-  }
+  return { chunks: file.chunks ?? [], finalNewline: file.finalNewline }
+}
+
+// git's block numbers of each conflict chunk: given by the mapping, or counted in order when the
+// middle came straight from git's merge.
+function blocksOf(raw: Source): Record<number, number[]> {
+  if (raw.proposal?.blocks) return raw.proposal.blocks
+  const out: Record<number, number[]> = {}
+  let n = 0
+  raw.chunks.forEach((chunk, index) => {
+    if (chunk.kind === 'conflict') out[index] = [++n]
+  })
+  return out
 }
 
 function middleLineRanges(state: EditorState): GitLineRange[] {
@@ -286,60 +279,7 @@ function rangesOf(pane: ConflictPane): GitLineRange[] {
   return loaded.value?.[pane] ?? []
 }
 
-function segmentsOf(pane: ConflictPane): ReturnType<typeof diskSegments> {
-  return diskSegments(loaded.value?.chunks ?? [], rangesOf(pane), pane, proposed)
-}
-
-// The model's notes, each with its replies. On a proposal every note shows, since their lines are
-// the model's file; otherwise only questions, whose marker blocks map onto the open conflicts.
-function notesIn(state: EditorState): NoteMark[] {
-  if (!loaded.value) return []
-  const questions = new Set(questionsOf().values())
-  const segments = diskSegments(loaded.value.chunks, middleLineRanges(state), 'middle', proposed)
-  return props.notes.flatMap((note) => {
-    const question = questions.has(note.id)
-    if (!note.anchor || (!proposalMode.value && !question)) return []
-    const range = fromDisk(segments, note.anchor.startLine, note.anchor.endLine)
-    if (!range) return []
-    const replies = props.replies
-      .filter((reply) => reply.replyTo === note.id)
-      .map((reply) => ({
-        id: reply.id,
-        author: reply.label,
-        mine: reply.author === 'human',
-        body: reply.body
-      }))
-    return [{ id: note.id, ...range, author: note.label, body: note.body, question, replies }]
-  })
-}
-
-// A reply from a note card carries the note's own anchor, so a reader without reply support still
-// sees where it points.
-function sendReply(noteId: number, body: string): Promise<string | null> {
-  const note = props.notes.find((n) => n.id === noteId)
-  if (!note?.anchor) return Promise.resolve('That note is no longer in the thread')
-  return postToConflict(props.project, [{ body, anchor: { ...note.anchor }, replyTo: note.id }])
-}
-
-function reviewExtension(pane: ConflictPane): Extension {
-  return conflictCommentExtension({
-    project: props.project,
-    path: props.path,
-    pane,
-    operation: props.file.operation,
-    leftRef: props.file.leftRef,
-    rightRef: props.file.rightRef,
-    toDisk: (fromLine, toLine) => toDisk(segmentsOf(pane), fromLine, toLine),
-    fromDisk: (startLine, endLine) => fromDisk(segmentsOf(pane), startLine, endLine),
-    chunks: () =>
-      conflictIndexes.value
-        .map((index) => rangesOf(pane)[index])
-        .filter((range) => range && range.end >= range.start)
-        .map((range) => ({ fromLine: range.start, toLine: range.end }))
-  })
-}
-
-// Focus hides clean lines away from the conflicts, but never a line that carries a comment.
+// Focus hides clean lines away from the conflicts.
 function focusExtension(pane: ConflictPane): Extension {
   return focusLines(
     (state) => {
@@ -348,13 +288,9 @@ function focusExtension(pane: ConflictPane): Extension {
       const clean = chunks.flatMap((chunk, index) =>
         chunk.kind === 'clean' ? [ranges[index]] : []
       )
-      const keep = [...commentedLineRanges(state), ...notedLineRanges(state)].map((range) => ({
-        start: range.fromLine,
-        end: range.toLine
-      }))
-      return collapseSpans(clean, keep, state.doc.lines)
+      return collapseSpans(clean, [], state.doc.lines)
     },
-    (tr) => isAnnotationChange(tr) || isNoteChange(tr)
+    () => false
   )
 }
 
@@ -368,26 +304,22 @@ function onMiddleUpdate(state: EditorState): void {
   if (at !== null) current.value = at
   const chunks = state.field(middleChunks)
   unresolved.value = chunks.filter((chunk) => !chunk.resolved).length
-  const waiting = chunks.filter((chunk) => chunk.proposed && !chunk.resolved)
-  proposedLeft.value = waiting.length
-  const questions = questionsOf()
-  questionsLeft.value = chunks.filter((c) => !c.resolved && questions.has(c.index)).length
-  // An accepted proposal changes no text but is still work a reload would lose.
-  dirty.value =
-    loaded.value !== null &&
-    (!state.doc.eq(loaded.value.doc) || (proposalMode.value && chunks.some((c) => c.resolved)))
+  dirty.value = loaded.value !== null && !state.doc.eq(loaded.value.doc)
   pushDecisions(chunks)
+  publishResolved(state, chunks)
 }
 
-// The blocks the model left open with a question on them, by chunk index.
-function questionsOf(): Map<number, number> {
-  if (!loaded.value) return new Map()
-  const anchored = props.notes.flatMap((note) =>
-    note.anchor
-      ? [{ id: note.id, startLine: note.anchor.startLine, endLine: note.anchor.endLine }]
-      : []
-  )
-  return questionChunks(loaded.value.chunks, anchored, proposed)
+// The blocks the human resolved here, with the digest of their lines, for Decisions to show and
+// send, and for a later hand-over to pass on as settled.
+function publishResolved(state: EditorState, chunks: MiddleChunk[]): void {
+  if (!loaded.value) return
+  const resolved = new Map<number, string>()
+  for (const chunk of chunks) {
+    if (!chunk.resolved || chunk.settled) continue
+    const lines = splitLines(state.doc.sliceString(chunk.from, chunk.to))
+    for (const n of loaded.value.blocks[chunk.index] ?? []) resolved.set(n, blockDigest(lines))
+  }
+  publishManual(props.project.id, props.path, resolved)
 }
 
 let shownDecisions = ''
@@ -413,11 +345,9 @@ function pushDecisions(chunks: MiddleChunk[]): void {
 // A draft restores the middle as it was left, decisions included; otherwise it is built from raw.
 function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = null): void {
   source = raw
-  proposed = proposedIndexes(raw.proposal ?? null)
-  proposalMode.value = !!raw.proposal
   const crlf = isCrlf(raw.chunks)
   const chunks = stripChunks(raw.chunks)
-  const built = buildMiddle(chunks, raw.proposal ?? null)
+  const built = buildMiddle(chunks, raw.proposal ?? null, raw.plan ?? {})
   const leftText = stageText(file.left)
   const rightText = stageText(file.right)
   const empty = chunks.map(() => ({ start: 1, end: 0 }))
@@ -429,22 +359,18 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     chunks.flatMap((chunk, index) =>
       chunk.kind === 'conflict' ? [{ index, range: located[pane][index] }] : []
     )
-  const middleExtras = [
-    reviewExtension('middle'),
-    focusExtension('middle'),
-    noteCards(notesIn, sendReply),
-    acceptAction((index) => accept([index]))
-  ]
+  const middleExtras = [focusExtension('middle')]
   const middleDoc = draft
     ? restoreMiddle(draft.middle, onMiddleUpdate, middleExtras)
-    : middleState(built.text, built.chunks, onMiddleUpdate, middleExtras, built.edits)
+    : middleState(built.text, built.chunks, onMiddleUpdate, middleExtras)
   loaded.value = {
     chunks,
     finalNewline: raw.finalNewline,
     crlf,
     doc: draft ? Text.of(draft.loadedText.split('\n')) : middleDoc.doc,
     left: located.left,
-    right: located.right
+    right: located.right,
+    blocks: blocksOf(raw)
   }
   const leftDoc = sideState(
     leftText,
@@ -452,7 +378,7 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     'left',
     file.leftRef,
     (index, d) => decideSide(index, 'left', d),
-    [reviewExtension('left'), focusExtension('left')]
+    [focusExtension('left')]
   )
   const rightDoc = sideState(
     rightText,
@@ -460,13 +386,12 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     'right',
     file.rightRef,
     (index, d) => decideSide(index, 'right', d),
-    [reviewExtension('right'), focusExtension('right')]
+    [focusExtension('right')]
   )
   if (left && middle && right) {
     left.setState(leftDoc)
     middle.setState(middleDoc)
     right.setState(rightDoc)
-    for (const view of [left, middle, right]) refreshConflictComments(view)
   } else {
     left = new EditorView({ state: leftDoc, parent: leftHost.value! })
     middle = new EditorView({ state: middleDoc, parent: middleHost.value! })
@@ -485,8 +410,11 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     middle.dispatch({
       effects: EditorView.scrollIntoView(middleDoc.selection.main.head, { y: 'center' })
     })
-  } else if (built.chunks.length > 0) goTo(built.chunks[0].index)
-  revealPending()
+  } else {
+    const firstOpen = built.chunks.find((chunk) => !chunk.resolved) ?? built.chunks[0]
+    if (firstOpen) goTo(firstOpen.index)
+  }
+  landFocus()
 }
 
 watch(current, (index) => {
@@ -514,6 +442,29 @@ function step(direction: 1 | -1): void {
   goTo(list[(next + list.length) % list.length])
 }
 
+// A block Decisions sent the human here for: the middle lands on it and lights it for a moment.
+let landed = 0
+function landFocus(): void {
+  const request = focusOf(props.project.id)
+  if (!request || request.nonce === landed || request.path !== props.path) return
+  if (!middle || !loaded.value) return
+  landed = request.nonce
+  const blocks = loaded.value.blocks
+  const index = Object.keys(blocks)
+    .map(Number)
+    .find((i) => blocks[i].includes(request.block))
+  const chunk = middle.state.field(middleChunks).find((c) => c.index === index)
+  if (index === undefined || !chunk) return
+  goTo(index)
+  const lines = chunkLines(middle.state.doc, chunk)
+  flashLines(middle, lines.start, Math.max(lines.start, lines.end))
+}
+
+watch(
+  () => focusOf(props.project.id)?.nonce,
+  () => landFocus()
+)
+
 function conflictAt(index: number): Extract<GitConflictChunk, { kind: 'conflict' }> | null {
   const chunk = loaded.value?.chunks[index]
   return chunk?.kind === 'conflict' ? chunk : null
@@ -538,16 +489,6 @@ function takeAll(take: ConflictTake): void {
     return conflict ? [decideAll(chunk, conflict, take)] : []
   })
   const spec = chunkReplacements(middle.state, updates)
-  if (spec) middle.dispatch(spec)
-}
-
-// Accept keeps the model's text for the current conflict, Accept all for every proposal left.
-// Accept keeps the model's text: one block from its own Accept, or every proposal left.
-function accept(indexes: number[] | 'all'): void {
-  if (!middle) return
-  const chosen =
-    indexes === 'all' ? middle.state.field(middleChunks).map((chunk) => chunk.index) : indexes
-  const spec = acceptChunks(middle.state, chosen, acceptedChunk)
   if (spec) middle.dispatch(spec)
 }
 
@@ -600,6 +541,7 @@ async function apply(): Promise<void> {
     dirty.value = false
     applied = true
     dropDraft(props.project.id, props.path)
+    publishManual(props.project.id, props.path, new Map())
   }
   applying.value = false
 }
@@ -613,63 +555,27 @@ function onFileChange(file: ConflictFile): void {
     return
   }
   workingSeen = file.working
-  load(file, chunksOf(file, true))
+  load(file, chunksOf(file))
 }
 
 watch(() => props.file, onFileChange)
 
-// A new submission reloads the proposal, or asks first when the middle holds the human's work.
-watch(
-  () => props.submitId,
-  () => {
-    if (dirty.value) {
-      pendingReload.value = props.file
-      return
-    }
-    workingSeen = props.file.working
-    load(props.file, chunksOf(props.file, true))
-  }
+// What Decisions settled or sent here changed: the middle loads again, unless it holds the human's
+// own edits, which are never dropped without asking.
+const planKey = computed(() =>
+  JSON.stringify([props.modelHolds, props.settledBlocks, props.reopenBlocks])
 )
-
-watch(
-  () => [props.notes, props.replies],
-  () => {
-    if (!middle) return
-    refreshNotes(middle)
-    onMiddleUpdate(middle.state)
-  }
-)
-
-// A jump from the chat to lines of this file: the anchor's working-file lines mapped onto the
-// middle, the other panes following by scroll sync. Lines that no longer map, because the file
-// changed since, land on the first conflict instead.
-const reveal = inject(conflictRevealKey, ref(null))
-let revealed = 0
-
-function revealPending(): void {
-  const request = reveal.value
-  if (!request || request.nonce === revealed || request.anchor.path !== props.path) return
-  if (!middle || !loaded.value) return
-  revealed = request.nonce
-  const segments = diskSegments(
-    loaded.value.chunks,
-    middleLineRanges(middle.state),
-    'middle',
-    proposed
-  )
-  const range = fromDisk(segments, request.anchor.startLine, request.anchor.endLine)
-  if (range) flashLines(middle, range.fromLine, range.toLine)
-  else if (conflictIndexes.value.length) goTo(conflictIndexes.value[0])
-}
-
-watch(reveal, () => revealPending())
+watch(planKey, () => {
+  if (dirty.value) return
+  load(props.file, chunksOf(props.file))
+})
 
 function reloadPending(): void {
   const file = pendingReload.value
   pendingReload.value = null
   if (!file) return
   workingSeen = file.working
-  load(file, chunksOf(file, true))
+  load(file, chunksOf(file))
 }
 
 function keepEdits(): void {
@@ -716,14 +622,62 @@ function syncScroll(from: EditorView): void {
   }
 }
 
+// Ask the model about the block under the cursor. Without a model holding the conflict the tab
+// list opens first, and the question follows the hand-over.
+const askOpen = ref(false)
+const askText = ref('')
+const asking = ref(false)
+const askError = ref<string | null>(null)
+const asked = ref(false)
+const tabMenu = ref<InstanceType<typeof ResolveWithMenu> | null>(null)
+const handing = ref(false)
+
+const askBlocks = computed(() =>
+  current.value === null ? [] : (loaded.value?.blocks[current.value] ?? [])
+)
+
+function startAsk(event: MouseEvent): void {
+  askError.value = null
+  asked.value = false
+  if (props.modelHolds) {
+    askOpen.value = true
+    return
+  }
+  tabMenu.value?.toggle(event.currentTarget as HTMLElement)
+}
+
+async function handOverThenAsk(tabId: string): Promise<void> {
+  handing.value = true
+  const refused = await handConflictTo(props.project, tabId, () =>
+    writtenBeforeHandOver(props.project)
+  )
+  handing.value = false
+  if (refused) {
+    error.value = refused
+    return
+  }
+  tabMenu.value?.hide()
+  askOpen.value = true
+}
+
+async function sendAsk(): Promise<void> {
+  asking.value = true
+  askError.value = await askAboutBlocks(props.project, props.path, askBlocks.value, askText.value)
+  asking.value = false
+  if (askError.value) return
+  askOpen.value = false
+  askText.value = ''
+  asked.value = true
+}
+
 const refs = {
   operation: props.file.operation,
   leftRef: props.file.leftRef,
   rightRef: props.file.rightRef
 }
 
-// A review saves this tab's work to disk first, but only once the middle differs from what it
-// loaded.
+// A hand-over or a send saves this tab's work to disk first, but only once the middle differs from
+// what it loaded.
 const unregisterWork = registerWork(props.project.id, props.path, () => {
   if (!middle || !loaded.value || middle.state.doc.eq(loaded.value.doc)) return null
   const saved = savedText(
@@ -734,21 +688,17 @@ const unregisterWork = registerWork(props.project.id, props.path, () => {
     loaded.value.finalNewline,
     loaded.value.crlf
   )
-  return { ...saved, markSeen: (text: string) => (workingSeen = text) }
+  return { ...saved, seen: workingSeen, markSeen: (text: string) => (workingSeen = text) }
 })
 
 onMounted(() => {
-  toolbarObserver = new ResizeObserver(([entry]) => {
-    narrow.value = entry.contentRect.width < NARROW_TOOLBAR
-  })
-  if (toolbarEl.value) toolbarObserver.observe(toolbarEl.value)
   const draft = takeDraft(props.project.id, props.path, stagesOf(props.file))
   if (draft) {
     workingSeen = draft.workingSeen
     focus.value = draft.focus
     sizes.value = draft.sizes
   }
-  load(props.file, draft ?? chunksOf(props.file, false), draft)
+  load(props.file, draft ?? chunksOf(props.file), draft)
   // A working file that changed while the tab was away reloads or asks, as it would have.
   if (draft && props.file.working !== workingSeen) onFileChange(props.file)
 })
@@ -759,7 +709,7 @@ let scrollTops: number[] | null = null
 onDeactivated(() => {
   scrollTops = [left, middle, right].map((view) => view?.scrollDOM.scrollTop ?? 0)
 })
-// A jump that switched to this file lands after the restored scroll, so it wins.
+// A block Decisions sent the human to lands after the restored scroll, so it wins.
 onActivated(() => {
   const tops = scrollTops
   scrollTops = null
@@ -770,13 +720,12 @@ onActivated(() => {
       view.scrollDOM.scrollTop = tops[at]
     })
   }
-  revealPending()
+  landFocus()
 })
 
 // The file is unmounted when its project is switched away, its tab moves to another pane or the
 // tab closes; it keeps its work for the next mount unless the tab was closed or it was applied.
 onBeforeUnmount(() => {
-  toolbarObserver?.disconnect()
   unregisterWork()
   if (middle && loaded.value && !applied && hasConflictTab(props.project.id)) {
     saveDraft(props.project.id, props.path, {
@@ -784,6 +733,7 @@ onBeforeUnmount(() => {
       chunks: source.chunks,
       finalNewline: source.finalNewline,
       proposal: source.proposal ?? null,
+      plan: source.plan,
       loadedText: loaded.value.doc.toString(),
       refs,
       middle: snapshotMiddle(middle.state),
@@ -801,7 +751,7 @@ onBeforeUnmount(() => {
   <div class="conflict-merge">
     <!-- Apply is the only button with a frame: navigation and Focus are bare icons, what is left
          is plain text, and the whole-file takes wait behind the overflow icon. -->
-    <div ref="toolbarEl" class="toolbar">
+    <div class="toolbar">
       <slot name="picker" />
       <div class="nav">
         <AppIconButton
@@ -825,19 +775,23 @@ onBeforeUnmount(() => {
         </AppIconButton>
       </div>
       <span v-if="statusText" class="status" :title="statusTitle">{{ statusText }}</span>
-      <AppButton
-        v-if="proposalMode && proposedLeft > 0 && !narrow"
-        type="button"
-        variant="text"
-        tone="success"
-        size="sm"
-        class="accept-all"
-        title="Keep the model's text for every conflict it proposed in this file"
-        @click="accept('all')"
-      >
-        Accept all
-      </AppButton>
       <span class="spacer" />
+      <AppButton
+        variant="text"
+        tone="accent"
+        size="sm"
+        class="ask"
+        :disabled="askBlocks.length === 0"
+        :title="
+          askBlocks.length
+            ? 'Ask a model about the block under the cursor'
+            : 'Put the cursor in a conflict block to ask about it'
+        "
+        @click="startAsk"
+      >
+        <ConflictIcon name="ask" />
+        Ask model
+      </AppButton>
       <AppIconButton
         size="sm"
         tone="accent"
@@ -861,6 +815,8 @@ onBeforeUnmount(() => {
         Apply
       </AppButton>
     </div>
+    <ResolveWithMenu ref="tabMenu" :project="project" :sending="handing" @pick="handOverThenAsk" />
+    <p v-if="asked" class="merge-note">Asked. The answer comes back in Decisions.</p>
     <p v-if="error" class="merge-error">{{ error }}</p>
     <div ref="panesEl" class="panes">
       <section class="pane" :style="{ flexGrow: sizes[0] }">
@@ -885,6 +841,24 @@ onBeforeUnmount(() => {
         <div ref="rightHost" class="pane-body" />
       </section>
     </div>
+
+    <AppModal v-if="askOpen" title="Ask the model about this block" @close="askOpen = false">
+      <AppTextarea
+        v-model="askText"
+        size="sm"
+        rows="3"
+        class="ask-text"
+        placeholder="What should it tell you or change here?"
+        @keydown.enter.exact.prevent="sendAsk"
+      />
+      <p v-if="askError" class="merge-error">{{ askError }}</p>
+      <template #footer>
+        <AppButton @click="askOpen = false">Cancel</AppButton>
+        <AppButton variant="primary" :disabled="asking || !askText.trim()" @click="sendAsk">
+          Ask
+        </AppButton>
+      </template>
+    </AppModal>
 
     <AppModal v-if="pendingReload" :title="`${path} changed on disk`" @close="keepEdits">
       <p class="reload-note">
@@ -942,8 +916,20 @@ onBeforeUnmount(() => {
   color: var(--color-fg-muted);
 }
 
-.accept-all {
+.ask {
   flex-shrink: 0;
+}
+
+.merge-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-fg-secondary);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.ask-text {
+  width: 100%;
 }
 
 .toolbar .apply {

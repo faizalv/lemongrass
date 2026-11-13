@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { randomUUID } from 'node:crypto'
-import type { ConflictHumanMessage } from '../preload/types'
+import type { ConflictHumanMessage, ConflictVerdict } from '../preload/types'
 
 // No value imports outside node builtins, so node --test loads this file straight from source.
 
@@ -13,6 +13,14 @@ export type ConflictGrant =
   | { action: 'start'; projectPath: string; scope: string; tabId: string }
   | { action: 'post'; projectPath: string; scope: string; messages: ConflictHumanMessage[] }
   | { action: 'close'; projectPath: string; scope: string; threadId: string }
+  | {
+      action: 'verdicts'
+      projectPath: string
+      scope: string
+      path: string
+      verdicts: ConflictVerdict[]
+      quiet: boolean
+    }
 
 export const CONFLICT_TOKEN_TTL_MS = 5 * 60_000
 
@@ -37,5 +45,8 @@ export function claimReply(grant: ConflictGrant): Record<string, unknown> {
   const base = { action: grant.action, project_path: grant.projectPath, scope: grant.scope }
   if (grant.action === 'start') return { ...base, tab_id: grant.tabId }
   if (grant.action === 'post') return { ...base, messages: grant.messages }
+  if (grant.action === 'verdicts') {
+    return { ...base, path: grant.path, verdicts: grant.verdicts, quiet: grant.quiet }
+  }
   return { ...base, thread_id: grant.threadId }
 }

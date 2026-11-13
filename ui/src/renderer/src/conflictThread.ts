@@ -9,8 +9,8 @@ import { saveConflictWork } from './conflictSave'
 import { openConflictBeside, projectRefByPath, type ProjectRef } from './workspace'
 import type {
   ConflictHumanMessage,
-  ConflictReviewFile,
   ConflictThreadStatus,
+  ConflictVerdictBatch,
   WorkgroupThreadMessage
 } from '../../preload/types'
 
@@ -65,8 +65,9 @@ export function refreshConflictStatus(project: ProjectRef): Promise<void> {
   return run
 }
 
-// Model messages, notes and submits wake nobody, so the app learns of them only by reading the
-// thread again. The first read pages back to the start, since notes on any file may be old.
+// The model's decisions, questions and submits wake nobody, so the app learns of them only by
+// reading the thread again. The first read pages back to the start, since a block's latest word
+// may be old.
 export function refreshConflictMessages(project: ProjectRef): Promise<void> {
   const running = readRuns.get(project.id)
   if (running) return running
@@ -128,24 +129,23 @@ export function useConflictThread(project: () => ProjectRef): ComputedRef<Confli
   return computed(() => conflictThreadOf(project().id))
 }
 
-// The resolver's unsaved work goes to disk first, unstaged, so the model reads what the human sees,
-// and its resolved ranges travel along so main can tell the model to keep them.
-async function savedWork(project: ProjectRef): Promise<ConflictReviewFile[] | string> {
-  const saved = await saveConflictWork(project)
-  if (!saved.ok) return saved.error
-  return saved.files.map((file) => ({
-    path: file.path,
-    resolved: file.resolved.map((r) => ({ ...r }))
-  }))
-}
-
-// Hands the whole conflict to a tab: opens or reuses the conflict thread with that tab as its
-// assignee and types the one-line start into it. Returns the refusal, or null.
-export async function handConflictTo(project: ProjectRef, tabId: string): Promise<string | null> {
+// Hands the whole conflict to a tab: the resolver's unsaved work goes to disk first, unstaged, so
+// the model reads what the human sees; the thread opens or is reused with that tab as its
+// assignee, the blocks already resolved go along as settled, read by settled once the work is
+// saved, and the one-line start is typed into the tab. Returns the refusal, or null.
+export async function handConflictTo(
+  project: ProjectRef,
+  tabId: string,
+  settled: () => Promise<ConflictVerdictBatch[]>
+): Promise<string | null> {
   try {
-    const resolved = await savedWork(project)
-    if (typeof resolved === 'string') return resolved
-    const result = await window.api.conflictAgent.start(project.path, tabId, resolved)
+    const saved = await saveConflictWork(project)
+    if (!saved.ok) return saved.error
+    const batches = (await settled()).map((batch) => ({
+      path: batch.path,
+      verdicts: batch.verdicts.map((v) => ({ ...v }))
+    }))
+    const result = await window.api.conflictAgent.start(project.path, tabId, batches)
     if (!result.ok) return result.reason
     await refreshConflictStatus(project)
     return null
@@ -154,21 +154,19 @@ export async function handConflictTo(project: ProjectRef, tabId: string): Promis
   }
 }
 
-// Posts the human's messages into the open conflict thread, which nudges the assignee. Returns the
-// refusal, or null.
+// Posts the human's plain messages into the open conflict thread, which nudges the assignee.
+// Returns the refusal, or null.
 export async function postToConflict(
   project: ProjectRef,
   messages: ConflictHumanMessage[]
 ): Promise<string | null> {
   try {
-    const resolved = await savedWork(project)
-    if (typeof resolved === 'string') return resolved
     const plain = messages.map((message) => ({
       body: message.body,
       anchor: message.anchor ? { ...message.anchor } : null,
       ...(message.replyTo ? { replyTo: message.replyTo } : {})
     }))
-    const result = await window.api.conflictAgent.post(project.path, plain, resolved)
+    const result = await window.api.conflictAgent.post(project.path, plain)
     if (!result.ok) return result.reason
     await refreshConflictMessages(project)
     return null
@@ -177,8 +175,8 @@ export async function postToConflict(
   }
 }
 
-// A submit opens the first submitted file in the model's pane. The thread is read first, so the
-// resolver finds the submission when it mounts.
+// The end of a model's round brings the conflict tab forward beside the model's tab without taking
+// the human's focus. The thread is read first, so Decisions shows the round when it mounts.
 window.api.conflictAgent.onSubmitted(async (submitted) => {
   const project = projectRefByPath(submitted.projectPath)
   if (!project) return

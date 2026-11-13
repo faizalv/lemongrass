@@ -25,8 +25,13 @@ const (
 	ThreadConflict  = "conflict"
 
 	MessagePlain  = "message"
-	MessageNote   = "note"
+	MessageNote   = "note" // written by older lemongrass only, still read
 	MessageSubmit = "submit"
+	// The model's report on one block of a conflicted file, and its question about one.
+	MessageDecision = "decision"
+	MessageQuestion = "question"
+	// The human's batch of verdicts on one file's blocks.
+	MessageVerdicts = "verdicts"
 )
 
 type Thread struct {
@@ -64,6 +69,7 @@ type Message struct {
 	Anchor    *Anchor
 	Files     []string // submit messages only
 	ReplyTo   int64    // the message of the same thread this one answers, 0 for none
+	Data      string   // JSON for decision, question and verdicts messages, empty otherwise
 }
 
 // The parts of a message beyond its author and body, zero for a plain message.
@@ -72,6 +78,7 @@ type messageMeta struct {
 	anchor  *Anchor
 	files   []string
 	replyTo int64
+	data    string
 }
 
 func validateMessage(body string) error {
@@ -239,8 +246,12 @@ func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body st
 	if meta.replyTo > 0 {
 		replyTo = sql.NullInt64{Int64: meta.replyTo, Valid: true}
 	}
-	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		threadID, tabID, body, ts, meta.kind, path, start, end, quote, strings.Join(meta.files, "\n"), replyTo)
+	var data sql.NullString
+	if meta.data != "" {
+		data = sql.NullString{String: meta.data, Valid: true}
+	}
+	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files, reply_to, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		threadID, tabID, body, ts, meta.kind, path, start, end, quote, strings.Join(meta.files, "\n"), replyTo, data)
 	if err != nil {
 		return Message{}, err
 	}
@@ -264,7 +275,7 @@ func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body st
 			return Message{}, err
 		}
 	}
-	return Message{ID: id, ThreadID: threadID, TabID: tabID, Body: body, CreatedAt: ts, Mentions: mentions, Kind: meta.kind, Anchor: meta.anchor, Files: meta.files, ReplyTo: meta.replyTo}, nil
+	return Message{ID: id, ThreadID: threadID, TabID: tabID, Body: body, CreatedAt: ts, Mentions: mentions, Kind: meta.kind, Anchor: meta.anchor, Files: meta.files, ReplyTo: meta.replyTo, Data: meta.data}, nil
 }
 
 // An ad hoc thread notifies the mentioned tabs plus every registered tab that has posted to it or been mentioned in it, so a reply reaches the tab it answers without a mention.
@@ -372,7 +383,7 @@ func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTa
 	if limit < 1 {
 		limit = 1
 	}
-	query := `SELECT id, thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files, reply_to FROM lg_messages WHERE thread_id = ?`
+	query := `SELECT id, thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files, reply_to, data FROM lg_messages WHERE thread_id = ?`
 	args := []interface{}{threadID}
 	if beforeID > 0 {
 		query += ` AND id < ?`
@@ -400,7 +411,8 @@ func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTa
 		var start, end sql.NullInt64
 		var files string
 		var replyTo sql.NullInt64
-		if err := rows.Scan(&m.ID, &m.ThreadID, &m.TabID, &m.Body, &m.CreatedAt, &m.Kind, &path, &start, &end, &quote, &files, &replyTo); err != nil {
+		var data sql.NullString
+		if err := rows.Scan(&m.ID, &m.ThreadID, &m.TabID, &m.Body, &m.CreatedAt, &m.Kind, &path, &start, &end, &quote, &files, &replyTo, &data); err != nil {
 			return nil, false, err
 		}
 		if path.Valid {
@@ -410,6 +422,7 @@ func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTa
 			m.Files = strings.Split(files, "\n")
 		}
 		m.ReplyTo = replyTo.Int64
+		m.Data = data.String
 		msgs = append(msgs, m)
 	}
 	if err := rows.Err(); err != nil {

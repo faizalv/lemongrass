@@ -53,9 +53,6 @@ export interface UiState {
   sidebarPanel?: 'git' | 'none'
   sidebarFoldHeight?: number
   gitCommitHeight?: number
-  // The conflict chat's dragged height and whether it is minimized to its head.
-  conflictChatHeight?: number
-  conflictChatMinimized?: boolean
   explorer?: {
     columns: { size: boolean; modified: boolean; git: boolean }
     density: 'compact' | 'comfortable'
@@ -869,12 +866,31 @@ export interface ConflictHumanMessage {
   replyTo?: number
 }
 
+export type ConflictVerdictKind = 'accepted' | 'rejected' | 'resolved' | 'answered' | 'asked'
+
+// The human's word on one block of a file: block is its number in git's merge of the stages, from
+// 1. text is the sentence of a rejection, an answer or a question; question the id of the model's
+// question an answer answers; digest the block's lines an accepted or resolved verdict settled.
+export interface ConflictVerdict {
+  block: number
+  verdict: ConflictVerdictKind
+  text?: string
+  question?: number
+  digest?: string
+}
+
+// One file's verdicts as the human sends them on Apply.
+export interface ConflictVerdictBatch {
+  path: string
+  verdicts: ConflictVerdict[]
+}
+
 export type ConflictStartResult = { ok: true; threadId: string } | { ok: false; reason: string }
 
 export type ConflictActionResult = { ok: true } | { ok: false; reason: string }
 
-// Pushed to the renderer when the picked tab runs `lgrass git conflict submit`. files are relative
-// to the repository's top level.
+// Pushed to the renderer when the picked tab ends a round with `lgrass git conflict submit`. files
+// are the ones it reported on, relative to the repository's top level.
 export interface ConflictSubmitted {
   projectPath: string
   tabId: string
@@ -1113,7 +1129,7 @@ export interface WorkgroupPending {
 
 export type ThreadKind = 'adhoc' | 'workgroup' | 'conflict'
 
-export type ThreadMessageKind = 'message' | 'note' | 'submit'
+export type ThreadMessageKind = 'message' | 'note' | 'submit' | 'decision' | 'question' | 'verdicts'
 
 export interface WorkgroupThreadMessage {
   id: number
@@ -1129,6 +1145,9 @@ export interface WorkgroupThreadMessage {
   files: string[]
   // The message of the same thread this one answers, null for none.
   replyTo: number | null
+  // The structured part of a decision, question or verdicts message, null for every other kind.
+  // Model data: read it through the guards in conflictDecisions.ts, never trust its shape.
+  data: unknown
 }
 
 export interface WorkgroupThread {

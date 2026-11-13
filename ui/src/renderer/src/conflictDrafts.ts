@@ -7,7 +7,7 @@ import type {
   GitConflictOperation,
   GitLineRange
 } from '../../preload/types'
-import type { MiddleProposal } from './conflictModel'
+import type { LoadPlan, MiddleProposal } from './conflictModel'
 
 // Only the active project's workspace is mounted, so switching projects unmounts the conflict tab
 // and every file it cached. Each file's work in progress is kept here by project and path and
@@ -18,8 +18,9 @@ export interface ConflictDraft {
   // The chunks the middle was loaded from, which Reset goes back to.
   chunks: GitConflictChunk[]
   finalNewline: boolean
-  // The model's submission the chunks were mapped from, when the middle was a proposal.
+  // The working file's written blocks the chunks were mapped from, and how each loaded.
   proposal?: MiddleProposal | null
+  plan?: Record<number, LoadPlan>
   loadedText: string
   refs: ConflictRefs
   middle: unknown
@@ -35,12 +36,14 @@ export interface ConflictRefs {
   rightRef: string
 }
 
-// One file's partial work as it would be saved before a review. markSeen records the saved text
-// as the working text already seen, so the save never brings up the reload prompt.
+// One file's partial work as it would be saved before a send. seen is the working text the work
+// was built on; markSeen records the saved text as seen, so the save never brings up the reload
+// prompt.
 export interface ConflictWork {
   path: string
   text: string
   resolved: GitLineRange[]
+  seen: string | null
   markSeen: (text: string) => void
 }
 

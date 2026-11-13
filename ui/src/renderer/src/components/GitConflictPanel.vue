@@ -15,7 +15,9 @@ import { computed, ref } from 'vue'
 import { finishOperation, gitStateOf } from '../git'
 import { openConflict, type ProjectRef } from '../workspace'
 import { handConflictTo, useConflictThread } from '../conflictThread'
-import { fileStatus, fileStatusText, type ConflictFileStatus } from '../conflictThreadModel'
+import { fileStatusText } from '../conflictDecisions'
+import { useFileDecisions } from '../conflictFiles'
+import { setConflictMode, writtenBeforeHandOver } from '../conflictVerdicts'
 import { shellTitles } from '../shellRegistry'
 import type { GitFile } from '../../../preload/types'
 import ResolveWithMenu from './ResolveWithMenu.vue'
@@ -52,17 +54,30 @@ const assignee = computed(() => {
   return tabId ? (shellTitles[tabId] ?? 'a tab that is closed') : null
 })
 
-function statusOf(file: GitFile): ConflictFileStatus | null {
-  return fileStatus(thread.value.messages, file.path, file.conflictBlocks)
+const decisions = useFileDecisions(() => props.project)
+
+// What waits for the human in a file while a model holds the conflict, in the words the resolver
+// uses: questions first, then takes to review.
+function statusOf(file: GitFile): string | null {
+  if (!thread.value.status) return null
+  return fileStatusText(decisions.value.find((d) => d.path === file.path)?.cards ?? null)
 }
 
+// A hand-over opens Decisions, where the model's questions and takes arrive as it reports them.
 async function handOver(tabId: string): Promise<void> {
   handing.value = true
   error.value = null
-  const refused = await handConflictTo(props.project, tabId)
+  const refused = await handConflictTo(props.project, tabId, () =>
+    writtenBeforeHandOver(props.project)
+  )
   handing.value = false
-  if (refused) error.value = refused
-  else menu.value?.hide()
+  if (refused) {
+    error.value = refused
+    return
+  }
+  menu.value?.hide()
+  setConflictMode(props.project.id, 'decisions')
+  if (conflicted.value.length > 0) openConflict(props.project, conflicted.value[0].path)
 }
 
 // The refs are split out so the sentence can set them apart; without refs it is a plain sentence.
@@ -100,6 +115,7 @@ function toggleDrawer(): void {
 }
 
 function resolve(): void {
+  setConflictMode(props.project.id, 'manual')
   if (conflicted.value.length > 0) openConflict(props.project, conflicted.value[0].path)
 }
 
@@ -180,9 +196,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
           >
             <span class="file-name">{{ fileName(file) }}</span>
             <span class="file-dir">{{ fileDir(file) }}</span>
-            <span v-if="statusOf(file)" class="file-status" :class="statusOf(file)!.kind">{{
-              fileStatusText(statusOf(file)!)
-            }}</span>
+            <span v-if="statusOf(file)" class="file-status">{{ statusOf(file) }}</span>
             <span v-if="file.conflictBlocks != null" class="file-blocks">{{
               file.conflictBlocks
             }}</span>
@@ -299,22 +313,14 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
   color: var(--color-fg-muted);
 }
 
+/* What waits for the human in the file, neutral like everything the model reports. */
 .file-status {
   flex-shrink: 0;
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   white-space: nowrap;
-}
-
-/* The model's work is neutral, as in the resolver, so it never outranks a file left for the human. */
-.file-status.proposed {
   background: var(--color-surface-2);
   color: var(--color-fg-secondary);
-}
-
-.file-status.markers {
-  background: var(--color-error-muted);
-  color: var(--color-error);
 }
 
 .file-blocks {

@@ -374,6 +374,85 @@ export async function readConflict(
   }
 }
 
+const notConflicted = 'That file is no longer in conflict.'
+
+type ConflictChunk = Extract<GitConflictChunk, { kind: 'conflict' }>
+
+// One block of a conflicted file: the Nth conflict of git's merge of its stages, and where its
+// markers sit in the working file, or null once they are gone.
+export interface ConflictBlock {
+  left: string[]
+  base: string[]
+  right: string[]
+  markers: GitLineRange | null
+}
+
+function sameSides(a: ConflictChunk, b: ConflictChunk): boolean {
+  const same = (x: string[], y: string[]): boolean =>
+    x.length === y.length &&
+    x.every((line, i) => line.replace(/\r$/, '') === y[i].replace(/\r$/, ''))
+  return same(a.left, b.left) && same(a.right, b.right)
+}
+
+// Pairs each marker block left in the working file with git's block holding the same two sides,
+// in order, so a block keeps its number however many blocks before it were written. A marker block
+// whose sides were edited matches nothing. Two git blocks with identical sides pair in order, so
+// when only the second of them keeps its markers the first is named instead; the resolver's own
+// mapping, which reads the whole file, places it right.
+export function matchMarkerBlocks(
+  git: ConflictChunk[],
+  working: ConflictChunk[]
+): (GitLineRange | null)[] {
+  const out: (GitLineRange | null)[] = git.map(() => null)
+  let next = 0
+  for (const block of working) {
+    const at = git.findIndex((candidate, i) => i >= next && sameSides(candidate, block))
+    if (at === -1 || !block.disk) continue
+    out[at] = { start: block.disk.start, end: block.disk.end }
+    next = at + 1
+  }
+  return out
+}
+
+// A file's blocks and whether each still holds its markers, or null when the file has no line
+// blocks: a side is binary or missing, or both sides added it.
+export function conflictBlocks(file: GitConflictFile): ConflictBlock[] | null {
+  if (file.status !== 'ok' || !file.chunks) return null
+  const git = file.chunks.filter((chunk): chunk is ConflictChunk => chunk.kind === 'conflict')
+  const working = (file.workingChunks ?? []).filter(
+    (chunk): chunk is ConflictChunk => chunk.kind === 'conflict'
+  )
+  const markers = matchMarkerBlocks(git, working)
+  return git.map((chunk, i) => ({
+    left: chunk.left,
+    base: chunk.base,
+    right: chunk.right,
+    markers: markers[i]
+  }))
+}
+
+// Stages the working file as it is, once nothing in it is still marked, for a file whose every
+// block the human settled and whose text is already on disk.
+export async function stageWorking(
+  git: GitRunner,
+  root: string,
+  path: string
+): Promise<GitActionResult> {
+  const entries = await stages(git, path)
+  if (typeof entries === 'string') return { ok: false, error: entries }
+  if (entries.size === 0) return { ok: false, error: notConflicted }
+  const left = conflictBlocksLeft(root, path)
+  if (left === null) return { ok: false, error: `${path} cannot be read as text.` }
+  if (left > 0) {
+    return {
+      ok: false,
+      error: `${path} still holds ${left === 1 ? 'a conflict block' : `${left} conflict blocks`}.`
+    }
+  }
+  const added = await git.write(['add', '--', path])
+  return added.code === 0 ? { ok: true } : { ok: false, error: errorText(added) }
+}
+
 // Counts the conflicts still marked in the working file, which drops as the human or a model
 // resolves them by hand before the file is staged.
 export function conflictBlocksLeft(root: string, path: string): number | null {
@@ -391,8 +470,6 @@ export function conflictBlockRanges(root: string, path: string): GitLineRange[] 
     'kind' in part ? [] : [{ start: part.disk.start, end: part.disk.end }]
   )
 }
-
-const notConflicted = 'That file is no longer in conflict.'
 
 // Only a conflicted path may be written, so this call cannot overwrite any other file. The file
 // stays unmerged in the index, so a partial result with markers left in it is still a conflict.

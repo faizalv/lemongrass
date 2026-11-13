@@ -57,11 +57,16 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool) string {
 	fmt.Fprintf(&b, "%s thread %s [%s], opened by %s %s, %d msgs%s, newest first, times UTC\n", Prefix, t.ID, t.Title, TabLabel(t.CreatedBy), formatDate(t.CreatedAt), t.MessageCount, scope)
 	for _, m := range msgs {
 		fmt.Fprintf(&b, "\n#%d %s %s", m.ID, formatMessageTime(m.CreatedAt, msgs[0].CreatedAt), TabLabel(m.TabID))
+		body := m.Body
 		switch m.Kind {
 		case MessageNote:
 			b.WriteString(" note")
 		case MessageSubmit:
 			fmt.Fprintf(&b, " submitted %s", strings.Join(m.Files, ", "))
+		case MessageDecision, MessageQuestion, MessageVerdicts:
+			var suffix string
+			suffix, body = formatBlockMessage(m)
+			b.WriteString(suffix)
 		}
 		if a := m.Anchor; a != nil {
 			fmt.Fprintf(&b, " on %s %s", a.Path, lineSpan(a.StartLine, a.EndLine))
@@ -78,7 +83,7 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool) string {
 				fmt.Fprintf(&b, "> %s\n", line)
 			}
 		}
-		fmt.Fprintf(&b, "%s\n", m.Body)
+		fmt.Fprintf(&b, "%s\n", body)
 	}
 	if more && len(msgs) > 0 {
 		fmt.Fprintf(&b, "\nolder messages: lgrass thread read %s --before %d\n", t.ID, msgs[len(msgs)-1].ID)

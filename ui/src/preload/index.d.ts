@@ -80,7 +80,7 @@ import type {
   GitConflictFile,
   ConflictActionResult,
   ConflictHumanMessage,
-  ConflictReviewFile,
+  ConflictVerdictBatch,
   ConflictStartResult,
   ConflictSubmitted,
   ConflictThreadStatus,
@@ -337,6 +337,7 @@ interface Api {
     conflict: (projectPath: string, path: string) => Promise<GitConflictFile>
     conflictApply: (projectPath: string, path: string, content: string) => Promise<GitActionResult>
     conflictSave: (projectPath: string, path: string, content: string) => Promise<GitActionResult>
+    conflictStage: (projectPath: string, path: string) => Promise<GitActionResult>
     conflictPick: (
       projectPath: string,
       path: string,
@@ -368,12 +369,13 @@ interface Api {
     start: (
       projectPath: string,
       tabId: string,
-      resolved: ConflictReviewFile[]
+      settled: ConflictVerdictBatch[]
     ) => Promise<ConflictStartResult>
-    post: (
+    post: (projectPath: string, messages: ConflictHumanMessage[]) => Promise<ConflictActionResult>
+    verdicts: (
       projectPath: string,
-      messages: ConflictHumanMessage[],
-      resolved: ConflictReviewFile[]
+      batch: ConflictVerdictBatch,
+      quiet: boolean
     ) => Promise<ConflictActionResult>
     close: (projectPath: string) => Promise<ConflictActionResult>
     onSubmitted: (callback: (submitted: ConflictSubmitted) => void) => () => void

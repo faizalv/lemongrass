@@ -217,15 +217,7 @@ func replyTarget(tx *sql.Tx, threadID string, id int64) error {
 	return nil
 }
 
-// PostNote posts the assignee's explanation of the lines at anchor. It wakes nobody, since the human reads the thread in the resolver.
-func (s *Store) PostNote(tabID string, anchor Anchor, body string) (Message, error) {
-	if err := validateAnchor(&anchor); err != nil {
-		return Message{}, err
-	}
-	return s.postConflictMeta(tabID, body, messageMeta{kind: MessageNote, anchor: &anchor})
-}
-
-// PostSubmit records the assignee's submission with the conflicted files it changed. It wakes nobody; the app opens the resolver instead.
+// PostSubmit records that the assignee finished a round, with the files it reported on. It wakes nobody; the app brings the resolver forward instead.
 func (s *Store) PostSubmit(tabID string, body string, files []string) (Message, error) {
 	if len(files) == 0 {
 		return Message{}, errors.New("session: a submission names at least one file")

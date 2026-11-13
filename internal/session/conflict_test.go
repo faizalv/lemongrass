@@ -196,9 +196,9 @@ func TestHumanReplyAnswersAMessageOfTheSameThread(t *testing.T) {
 	store := conflictStore(t)
 	th, _ := store.OpenConflict(conflictScope, tabA, "")
 	anchor := Anchor{Path: "a.go", StartLine: 3, EndLine: 7, Quote: "<<<<<<< ours"}
-	note, err := store.PostNote(tabA, anchor, "10 or 3? Which threshold?")
+	note, err := store.PostQuestion(tabA, "a.go", 1, "10 or 3? Which threshold?", nil)
 	if err != nil {
-		t.Fatalf("PostNote: %v", err)
+		t.Fatalf("PostQuestion: %v", err)
 	}
 	if _, err := store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "use 10", Anchor: &anchor, ReplyTo: note.ID}}); err != nil {
 		t.Fatalf("reply: %v", err)
@@ -227,15 +227,15 @@ func TestHumanReplyAnswersAMessageOfTheSameThread(t *testing.T) {
 	}
 }
 
-func TestNotesAndSubmitsWakeNobodyAndOnlyTheAssigneePosts(t *testing.T) {
+func TestReportsAndSubmitsWakeNobodyAndOnlyTheAssigneePosts(t *testing.T) {
 	store := conflictStore(t)
 	th, _ := store.OpenConflict(conflictScope, tabA, "")
 	store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "hi"}})
 
-	if _, err := store.PostNote(tabA, Anchor{Path: "a.go", StartLine: 2, EndLine: 2, Quote: "z"}, "kept ours, theirs renamed it"); err != nil {
-		t.Fatalf("PostNote: %v", err)
+	if _, err := store.PostDecision(tabA, "a.go", 2, "kept ours, theirs renamed it"); err != nil {
+		t.Fatalf("PostDecision: %v", err)
 	}
-	if _, err := store.PostSubmit(tabA, "Submitted 1 file(s): a.go.", []string{"a.go"}); err != nil {
+	if _, err := store.PostSubmit(tabA, "Round done.", []string{"a.go"}); err != nil {
 		t.Fatalf("PostSubmit: %v", err)
 	}
 	if _, err := store.PostMessage(tabA, th.ID, "which side do you want?"); err != nil {
@@ -245,12 +245,18 @@ func TestNotesAndSubmitsWakeNobodyAndOnlyTheAssigneePosts(t *testing.T) {
 		t.Error("a model post in a conflict thread notified a tab")
 	}
 	msgs, _, _ := store.ReadThread(th.ID, 0, 10)
-	if msgs[0].Kind != MessagePlain || msgs[1].Kind != MessageSubmit || len(msgs[1].Files) != 1 || msgs[1].Files[0] != "a.go" || msgs[2].Kind != MessageNote || msgs[2].Anchor.Quote != "z" {
+	if msgs[0].Kind != MessagePlain || msgs[1].Kind != MessageSubmit || len(msgs[1].Files) != 1 || msgs[1].Files[0] != "a.go" || msgs[2].Kind != MessageDecision || msgs[2].Data != `{"path":"a.go","block":2}` {
 		t.Errorf("messages = %+v", msgs)
 	}
 
-	if _, err := store.PostNote(tabB, Anchor{Path: "a.go", StartLine: 1, EndLine: 1}, "x"); err == nil {
-		t.Error("a note from another tab was accepted")
+	if _, err := store.PostDecision(tabB, "a.go", 1, "x"); err == nil {
+		t.Error("a decision from another tab was accepted")
+	}
+	if _, err := store.PostQuestion(tabA, "a.go", 0, "x", nil); err == nil {
+		t.Error("a question on block 0 was accepted")
+	}
+	if _, err := store.PostQuestion(tabA, "a.go", 1, "x", []string{"a", " "}); err == nil {
+		t.Error("a question with an empty option was accepted")
 	}
 	if _, err := store.PostSubmit(tabA, "x", nil); err == nil {
 		t.Error("a submission with no files was accepted")
@@ -285,14 +291,81 @@ func TestThreadReadShowsAnchorsAndKinds(t *testing.T) {
 	store := conflictStore(t)
 	th, _ := store.OpenConflict(conflictScope, tabA, "")
 	store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "why this?", Anchor: &Anchor{Path: "a.go", StartLine: 4, EndLine: 5, Quote: "one\ntwo"}}})
-	store.PostNote(tabA, Anchor{Path: "a.go", StartLine: 7, EndLine: 7, Quote: "seven"}, "kept both")
+	store.PostDecision(tabA, "a.go", 2, "kept both")
+	store.PostQuestion(tabA, "b.go", 1, "which threshold?", []string{"10", "3"})
 	store.PostSubmit(tabA, "Submitted.", []string{"a.go", "b.go"})
 	th, _ = store.ThreadByID(th.ID)
 	msgs, more, _ := store.ReadThread(th.ID, 0, 10)
 	out := FormatThreadRead(th, msgs, more, false)
-	for _, want := range []string{"opened by human", "human on a.go lines 4-5 (mentions aaaaaaaa):\n> one\n> two\nwhy this?", "aaaaaaaa note on a.go line 7:\n> seven\nkept both", "aaaaaaaa submitted a.go, b.go:\nSubmitted."} {
+	for _, want := range []string{"opened by human", "human on a.go lines 4-5 (mentions aaaaaaaa):\n> one\n> two\nwhy this?", "aaaaaaaa decision on a.go block 2:\nkept both", "aaaaaaaa question on b.go block 1:\nwhich threshold?\n  option 1: 10\n  option 2: 3", "aaaaaaaa submitted a.go, b.go:\nSubmitted."} {
 		if !strings.Contains(out, want) {
 			t.Errorf("read missing %q in:\n%s", want, out)
 		}
+	}
+}
+
+func TestVerdictsAreCheckedAndStandingsFollowTheLatestWord(t *testing.T) {
+	store := conflictStore(t)
+	th, _ := store.OpenConflict(conflictScope, tabA, "")
+	q, _ := store.PostQuestion(tabA, "a.go", 1, "which?", []string{"x", "y"})
+	store.PostDecision(tabA, "a.go", 2, "took both")
+	store.PostDecision(tabA, "b.go", 1, "took ours")
+
+	bad := []Verdicts{
+		{Path: "", Verdicts: []Verdict{{Block: 1, Verdict: VerdictAccepted, Digest: "d"}}},
+		{Path: "a.go"},
+		{Path: "a.go", Verdicts: []Verdict{{Block: 0, Verdict: VerdictAccepted, Digest: "d"}}},
+		{Path: "a.go", Verdicts: []Verdict{{Block: 2, Verdict: VerdictAccepted}}},
+		{Path: "a.go", Verdicts: []Verdict{{Block: 2, Verdict: VerdictRejected, Text: " "}}},
+		{Path: "a.go", Verdicts: []Verdict{{Block: 1, Verdict: VerdictAnswered, Text: "x"}}},
+		{Path: "a.go", Verdicts: []Verdict{{Block: 1, Verdict: VerdictAnswered, Text: "x", Question: q.ID + 1}}},
+		{Path: "a.go", Verdicts: []Verdict{{Block: 1, Verdict: "maybe"}}},
+	}
+	for i, batch := range bad {
+		if _, err := store.PostVerdicts(conflictScope, batch, false); err == nil {
+			t.Errorf("bad batch %d was accepted", i)
+		}
+	}
+	if _, err := store.PostVerdicts("conflict:other", Verdicts{Path: "a.go", Verdicts: []Verdict{{Block: 2, Verdict: VerdictAccepted, Digest: "d"}}}, false); err == nil {
+		t.Error("verdicts for another scope were accepted")
+	}
+
+	msg, err := store.PostVerdicts(conflictScope, Verdicts{Path: "a.go", Verdicts: []Verdict{
+		{Block: 1, Verdict: VerdictAnswered, Text: "y", Question: q.ID},
+		{Block: 2, Verdict: VerdictAccepted, Digest: "d2"},
+	}}, false)
+	if err != nil {
+		t.Fatalf("PostVerdicts: %v", err)
+	}
+	if msg.Body != "Verdicts on a.go: 1 accepted, 1 answered." || msg.Kind != MessageVerdicts {
+		t.Errorf("verdicts message = %+v", msg)
+	}
+	if rows := ownedRows(t, store, tabA); rows.Empty() {
+		t.Error("verdicts did not wake the assignee")
+	}
+	store.PostVerdicts(conflictScope, Verdicts{Path: "b.go", Verdicts: []Verdict{{Block: 1, Verdict: VerdictResolved, Digest: "d3"}}}, true)
+
+	standings, err := store.BlockStandings(th.ID)
+	if err != nil {
+		t.Fatalf("BlockStandings: %v", err)
+	}
+	want := []BlockStanding{{"a.go", 1, VerdictAnswered, msg.ID}, {"a.go", 2, VerdictAccepted, msg.ID}, {"b.go", 1, VerdictResolved, msg.ID + 1}}
+	if fmt.Sprint(standings) != fmt.Sprint(want) {
+		t.Errorf("standings = %v, want %v", standings, want)
+	}
+	text := FormatStandings(standings)
+	for _, line := range []string{"a.go\n  settled, keep exactly as is: block 2 (you wrote it, accepted)\n  waiting for you: block 1 (answered, see #", "b.go\n  settled, keep exactly as is: block 1 (resolved by the human)"} {
+		if !strings.Contains(text, line) {
+			t.Errorf("standings text missing %q in:\n%s", line, text)
+		}
+	}
+
+	decisions, questions, files, _ := store.RoundReports(th.ID)
+	if decisions+questions != 0 || len(files) != 0 {
+		t.Errorf("round after the human wrote = %d, %d, %v, want nothing", decisions, questions, files)
+	}
+	store.PostDecision(tabA, "a.go", 1, "took y")
+	if decisions, _, files, _ = store.RoundReports(th.ID); decisions != 1 || len(files) != 1 || files[0] != "a.go" {
+		t.Errorf("round = %d, %v", decisions, files)
 	}
 }

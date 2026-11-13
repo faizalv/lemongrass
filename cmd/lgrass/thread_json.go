@@ -28,6 +28,8 @@ type jsonMessage struct {
 	Anchor    *jsonAnchor `json:"anchor"`
 	Files     []string    `json:"files"`
 	ReplyTo   *int64      `json:"replyTo"`
+	// The structured part of a decision, question or verdicts message, null for every other kind.
+	Data json.RawMessage `json:"data"`
 }
 
 type jsonThread struct {
@@ -54,6 +56,9 @@ func toJSONMessage(m session.Message, label string) jsonMessage {
 	if m.ReplyTo > 0 {
 		id := m.ReplyTo
 		out.ReplyTo = &id
+	}
+	if m.Data != "" && json.Valid([]byte(m.Data)) {
+		out.Data = json.RawMessage(m.Data)
 	}
 	if a := m.Anchor; a != nil {
 		out.Anchor = &jsonAnchor{Path: a.Path, StartLine: a.StartLine, EndLine: a.EndLine, Quote: a.Quote}
