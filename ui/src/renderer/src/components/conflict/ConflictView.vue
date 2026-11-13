@@ -81,16 +81,17 @@ function openInManual(path: string | null): void {
   <KeepAlive v-else>
     <ConflictFileView :key="path" :project="project" :path="path" :thread="thread">
       <template #picker>
+        <!-- First, as in Decisions, so it stays where it is whatever the file name's width. -->
+        <ConflictModeSwitch
+          v-if="holds"
+          mode="manual"
+          @switch="setConflictMode(project.id, 'decisions')"
+        />
         <ConflictFilePicker
           :project="project"
           :path="path"
           :thread="thread"
           @select="setConflictPath(project, tabId, $event)"
-        />
-        <ConflictModeSwitch
-          v-if="holds"
-          mode="manual"
-          @switch="setConflictMode(project.id, 'decisions')"
         />
       </template>
     </ConflictFileView>

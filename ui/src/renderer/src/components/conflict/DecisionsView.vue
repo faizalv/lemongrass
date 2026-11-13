@@ -3,19 +3,26 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { AppButton, AppDisclosure, AppEmptyState, AppInput } from '@sankasten'
+import { AppButton, AppEmptyState, AppInput, AppSegmented } from '@sankasten'
 import { postToConflict, type ConflictThreadState } from '../../conflictThread'
 import { useFileDecisions } from '../../conflictFiles'
 import {
+  countStates,
   generalLine,
+  handOverAsked,
+  isQueued,
+  listLabel,
+  listStateOf,
   manualDigest,
+  nextStep,
   roundDone,
   type BlockCard,
-  type CardState,
-  type FileDecisions
+  type FileDecisions,
+  type ListState
 } from '../../conflictDecisions'
 import {
   applyFile,
+  askAboutBlocks,
   draftsOf,
   focusBlock,
   manualOf,
@@ -25,14 +32,16 @@ import {
 } from '../../conflictVerdicts'
 import { tabParts, type NamePart } from '../../tabNames'
 import type { ProjectRef } from '../../workspace'
-import DecisionCard from './DecisionCard.vue'
+import AskModelModal from './AskModelModal.vue'
 import ConflictModeSwitch from './ConflictModeSwitch.vue'
+import DecisionWorkspace from './DecisionWorkspace.vue'
 import MarkedText from '../MarkedText.vue'
 
-// Decisions: what the human has to decide, across every conflicted file. The model's questions
-// come first, then its takes to review, then what waits for the model, then what is done. The
-// conversation itself is never shown: the model's latest plain message is one line on top, and the
-// human answers it in one line.
+// Decisions: what the human has to decide, across every conflicted file, as a list and a
+// workspace. The list has a row per block with its state, the workspace shows the selected block
+// large with its one primary action, and the top says whose move it is and holds the one button
+// that sends the human's decisions. The conversation itself is never shown: the model's latest
+// plain message is one line under the top, and the human answers it in one line.
 const props = defineProps<{
   project: ProjectRef
   thread: ConflictThreadState
@@ -45,40 +54,124 @@ const emit = defineEmits<{ manual: [path: string | null] }>()
 const decisions = useFileDecisions(() => props.project)
 const drafts = computed(() => draftsOf(props.project.id))
 
-interface Placed {
+interface Row {
   card: BlockCard
   file: FileDecisions
+  state: ListState
+  label: string
 }
 
-const placed = computed((): Placed[] =>
-  decisions.value.flatMap((file) => (file.cards ?? []).map((card) => ({ card, file })))
+const finished = computed(() => roundDone(props.thread.messages))
+const asked = computed(() => handOverAsked(props.thread.messages))
+
+const rows = computed((): Row[] =>
+  decisions.value.flatMap((file) =>
+    (file.cards ?? []).map((card) => {
+      const queued = isQueued(card, drafts.value[card.key], manualOf(props.project.id, card.path))
+      const state = listStateOf(card, queued, asked.value, finished.value)
+      return { card, file, state, label: listLabel(state, card) }
+    })
+  )
 )
 
-function inStates(states: CardState[]): Placed[] {
-  return placed.value.filter(({ card }) => states.includes(card.state))
+const counts = computed(() => countStates(rows.value.map((row) => row.state)))
+
+// "Needs you" keeps the decisions already made in view until they are sent, so one can be undone.
+const filterChoice = ref<'needs' | 'all' | null>(null)
+const filter = computed(
+  () => filterChoice.value ?? (counts.value.needs + counts.value.queued > 0 ? 'needs' : 'all')
+)
+const filterOptions: { value: 'needs' | 'all'; label: string }[] = [
+  { value: 'needs', label: 'Needs you' },
+  { value: 'all', label: 'All' }
+]
+
+const shown = computed(() =>
+  filter.value === 'all'
+    ? rows.value
+    : rows.value.filter((row) => row.state === 'needs' || row.state === 'queued')
+)
+
+interface Group {
+  path: string
+  name: string
+  dir: string
+  rows: Row[]
 }
 
-const questions = computed(() => inStates(['question']))
-const review = computed(() => inStates(['take', 'changed', 'mismatch']))
-const waiting = computed(() => inStates(['waiting', 'open']))
-const done = computed(() => inStates(['accepted', 'resolved']))
-const noBlocks = computed(() => decisions.value.filter((file) => file.cards === null))
-// Lines changed outside every block are staged with the file but no block report covers them.
-const outside = computed(() => decisions.value.filter((file) => file.editsOutside > 0))
-const doneOpen = ref(false)
+const groups = computed((): Group[] => {
+  const out: Group[] = []
+  for (const row of shown.value) {
+    let group = out.find((g) => g.path === row.card.path)
+    if (!group) {
+      const cut = row.card.path.lastIndexOf('/')
+      group = {
+        path: row.card.path,
+        name: row.card.path.slice(cut + 1),
+        dir: cut === -1 ? '' : row.card.path.slice(0, cut),
+        rows: []
+      }
+      out.push(group)
+    }
+    group.rows.push(row)
+  }
+  return out
+})
+
+const selectedKey = ref<string | null>(null)
+// The picked block while it is listed, else the first block that needs the human, else the first.
+const current = computed(
+  (): Row | null =>
+    shown.value.find((row) => row.card.key === selectedKey.value) ??
+    shown.value.find((row) => row.state === 'needs') ??
+    shown.value[0] ??
+    null
+)
+
+function blocksText(card: BlockCard): string {
+  const blocks = card.blocks
+  return blocks.length === 1 ? `Block ${blocks[0]}` : `Blocks ${blocks[0]} to ${blocks.at(-1)}`
+}
+
+function select(key: string): void {
+  selectedKey.value = key
+}
+
+// Up and Down walk the list, as in any list that has a selection.
+function onListKey(event: KeyboardEvent): void {
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+  const list = shown.value
+  if (list.length === 0) return
+  event.preventDefault()
+  const at = list.findIndex((row) => row.card.key === current.value?.card.key)
+  const next = Math.min(list.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))
+  selectedKey.value = list[next].card.key
+}
+
+// After a decision the selection moves to the next block that still needs the human, after the
+// current one first and then from the top.
+function advance(): void {
+  const list = rows.value
+  const at = list.findIndex((row) => row.card.key === current.value?.card.key)
+  const after = [...list.slice(at + 1), ...list.slice(0, at)]
+  const next = after.find((row) => row.state === 'needs')
+  if (next) selectedKey.value = next.card.key
+}
 
 // Who holds the conflict, highlighted since its title is the model's own words.
 const holder = computed((): NamePart[] => {
   const tabId = props.thread.status?.assignee
   return tabId ? tabParts(tabId) : [{ text: 'a model' }]
 })
-const statusParts = computed((): NamePart[] =>
-  roundDone(props.thread.messages)
-    ? [...holder.value, { text: ' finished its round.' }]
-    : [{ text: 'Handed to ' }, ...holder.value, { text: '.' }]
-)
+const statusParts = computed((): NamePart[] => {
+  const step = ` ${nextStep(counts.value)}`
+  return finished.value
+    ? [...holder.value, { text: ` finished its round.${step}` }]
+    : [{ text: 'Handed to ' }, ...holder.value, { text: `.${step}` }]
+})
 
 const line = computed(() => generalLine(props.thread.messages))
+const messaging = ref(false)
 const reply = ref('')
 const replying = ref(false)
 const replyError = ref<string | null>(null)
@@ -89,7 +182,10 @@ async function sendReply(): Promise<void> {
   replying.value = true
   replyError.value = await postToConflict(props.project, [{ body, anchor: null }])
   replying.value = false
-  if (!replyError.value) reply.value = ''
+  if (!replyError.value) {
+    reply.value = ''
+    messaging.value = false
+  }
 }
 
 function byHand(card: BlockCard): void {
@@ -102,7 +198,25 @@ function showInManual(card: BlockCard): void {
   emit('manual', card.path)
 }
 
-// Files with something to send on Apply, and what Apply would do with each.
+const askCard = ref<BlockCard | null>(null)
+const asking = ref(false)
+const askError = ref<string | null>(null)
+
+function startAsk(card: BlockCard): void {
+  askError.value = null
+  askCard.value = card
+}
+
+async function sendAsk(payload: { tabId: string | null; text: string }): Promise<void> {
+  const card = askCard.value
+  if (!card) return
+  asking.value = true
+  askError.value = await askAboutBlocks(props.project, card.path, card.blocks, payload.text, null)
+  asking.value = false
+  if (!askError.value) askCard.value = null
+}
+
+// Files with something to send, and what sending would do with each.
 const ready = computed(() =>
   decisions.value.flatMap((file) => {
     if (!file.cards) return []
@@ -115,11 +229,19 @@ const ready = computed(() =>
   })
 )
 
+const noBlocks = computed(() => decisions.value.filter((file) => file.cards === null))
+// Lines changed outside every block are staged with the file but no block report covers them.
+const outside = computed(() => decisions.value.filter((file) => file.editsOutside > 0))
+
+function fileName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
+}
+
 function summary(verdicts: { verdict: string; block: number }[], settled: boolean): string {
-  const counts = new Map<string, Set<number>>()
+  const counted = new Map<string, Set<number>>()
   for (const v of verdicts) {
-    if (!counts.has(v.verdict)) counts.set(v.verdict, new Set())
-    counts.get(v.verdict)!.add(v.block)
+    if (!counted.has(v.verdict)) counted.set(v.verdict, new Set())
+    counted.get(v.verdict)!.add(v.block)
   }
   const words: Record<string, string> = {
     accepted: 'accepted',
@@ -127,26 +249,40 @@ function summary(verdicts: { verdict: string; block: number }[], settled: boolea
     resolved: 'resolved by you',
     answered: 'answered'
   }
-  const parts = [...counts].map(([kind, blocks]) => `${blocks.size} ${words[kind] ?? kind}`)
+  const parts = [...counted].map(([kind, blocks]) => `${blocks.size} ${words[kind] ?? kind}`)
   if (settled) parts.push('stages the file')
   return parts.join(', ')
 }
 
-const applying = ref<string | null>(null)
-const applyErrors = ref<Record<string, string>>({})
+// Stage when every file waiting holds nothing the model has to read, else Send to model.
+const staging = computed(() => ready.value.length > 0 && ready.value.every((item) => item.settled))
+const sendLabel = computed(() => {
+  if (ready.value.length === 0) return 'Send to model'
+  if (staging.value) return ready.value.length === 1 ? 'Stage' : `Stage (${ready.value.length})`
+  return `Send to model (${counts.value.queued})`
+})
+const sendTitle = computed(() =>
+  ready.value.length === 0
+    ? 'Nothing is decided yet.'
+    : ready.value
+        .map((item) => `${fileName(item.file.path)}: ${summary(item.verdicts, item.settled)}`)
+        .join('\n')
+)
 
-async function apply(file: FileDecisions): Promise<void> {
-  applying.value = file.path
-  const refused = await applyFile(props.project, file)
-  applying.value = null
-  const errors = { ...applyErrors.value }
-  if (refused) errors[file.path] = refused
-  else delete errors[file.path]
-  applyErrors.value = errors
-}
+const sending = ref(false)
+const sendError = ref<string | null>(null)
 
-function fileName(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1)
+// One batch per file, each posted together and staged when its file is settled.
+async function send(): Promise<void> {
+  if (sending.value || ready.value.length === 0) return
+  sending.value = true
+  const errors: string[] = []
+  for (const item of [...ready.value]) {
+    const refused = await applyFile(props.project, item.file)
+    if (refused) errors.push(`${fileName(item.file.path)}: ${refused}`)
+  }
+  sendError.value = errors.length > 0 ? errors.join(' ') : null
+  sending.value = false
 }
 </script>
 
@@ -154,151 +290,153 @@ function fileName(path: string): string {
   <div class="decisions">
     <header class="top">
       <ConflictModeSwitch mode="decisions" @switch="emit('manual', null)" />
-      <MarkedText class="holder" :parts="statusParts" capitalize />
+      <MarkedText class="status" :parts="statusParts" capitalize />
+      <AppButton
+        variant="primary"
+        size="sm"
+        class="send"
+        :disabled="ready.length === 0 || sending"
+        :title="sendTitle"
+        @click="send"
+      >
+        {{ sending ? 'Sending' : sendLabel }}
+      </AppButton>
     </header>
 
-    <!-- The one line the model writes to the human, and the one line back. -->
-    <div class="general">
-      <p v-if="line" class="general-line" :title="line.body">
-        <span class="general-author">Model</span>
-        {{ line.body }}
-      </p>
-      <AppInput
-        v-model="reply"
-        size="sm"
-        class="general-reply"
-        :placeholder="
-          line ? 'Reply in one line' : 'Tell the model something about the whole conflict'
-        "
-        :disabled="replying"
-        @keydown.enter.prevent="sendReply"
-      />
-      <p v-if="replyError" class="error">{{ replyError }}</p>
-    </div>
+    <p v-if="sendError" class="error">{{ sendError }}</p>
+    <p v-if="line" class="general" :title="line.body">
+      <span class="general-author">Model</span>
+      {{ line.body }}
+    </p>
 
-    <div class="body">
-      <AppEmptyState
-        v-if="placed.length === 0 && noBlocks.length === 0"
-        layout="fill"
-        :loading="decisions.length < files.length"
-        title="Nothing to decide yet."
-        detail="Each block the model reports shows here."
-      />
-
-      <section v-if="questions.length" class="group">
-        <h3 class="group-title">Your answer needed</h3>
-        <DecisionCard
-          v-for="{ card, file } in questions"
-          :key="card.key"
-          :card="card"
-          :left-ref="file.leftRef"
-          :right-ref="file.rightRef"
-          :draft="drafts[card.key]"
-          :manual-digest="manualDigest(card, manualOf(project.id, card.path))"
-          @draft="setDraft(project.id, card.key, $event)"
-          @by-hand="byHand(card)"
-          @manual="showInManual(card)"
-        />
-      </section>
-
-      <section v-if="review.length" class="group">
-        <h3 class="group-title">To review</h3>
-        <DecisionCard
-          v-for="{ card, file } in review"
-          :key="card.key"
-          :card="card"
-          :left-ref="file.leftRef"
-          :right-ref="file.rightRef"
-          :draft="drafts[card.key]"
-          :manual-digest="manualDigest(card, manualOf(project.id, card.path))"
-          @draft="setDraft(project.id, card.key, $event)"
-          @by-hand="byHand(card)"
-          @manual="showInManual(card)"
-        />
-      </section>
-
-      <section v-if="waiting.length" class="group">
-        <h3 class="group-title">With the model</h3>
-        <DecisionCard
-          v-for="{ card, file } in waiting"
-          :key="card.key"
-          :card="card"
-          :left-ref="file.leftRef"
-          :right-ref="file.rightRef"
-          :draft="drafts[card.key]"
-          :manual-digest="manualDigest(card, manualOf(project.id, card.path))"
-          compact
-          @draft="setDraft(project.id, card.key, $event)"
-          @by-hand="byHand(card)"
-          @manual="showInManual(card)"
-        />
-      </section>
-
-      <section v-if="outside.length" class="group">
-        <h3 class="group-title">Changed outside the blocks</h3>
-        <div v-for="file in outside" :key="file.path" class="no-blocks">
-          <span class="no-blocks-file" :title="file.path">{{ fileName(file.path) }}</span>
-          <span class="no-blocks-text">
-            {{ file.editsOutside === 1 ? '1 line' : `${file.editsOutside} lines` }} changed outside
-            the blocks. Apply stages them with the file.
-          </span>
-          <AppButton variant="text" size="xs" @click="emit('manual', file.path)">Manual</AppButton>
-        </div>
-      </section>
-
-      <section v-if="noBlocks.length" class="group">
-        <h3 class="group-title">No blocks to decide</h3>
-        <div v-for="file in noBlocks" :key="file.path" class="no-blocks">
-          <span class="no-blocks-file" :title="file.path">{{ fileName(file.path) }}</span>
-          <span class="no-blocks-text">Binary, or deleted on one side. Pick a side in Manual.</span>
-          <AppButton variant="text" size="xs" @click="emit('manual', file.path)">Manual</AppButton>
-        </div>
-      </section>
-
-      <section v-if="done.length" class="group">
-        <AppDisclosure v-model:open="doneOpen" block label="Done" :count="done.length" />
-        <template v-if="doneOpen">
-          <DecisionCard
-            v-for="{ card, file } in done"
-            :key="card.key"
-            :card="card"
-            :left-ref="file.leftRef"
-            :right-ref="file.rightRef"
-            :draft="drafts[card.key]"
-            :manual-digest="manualDigest(card, manualOf(project.id, card.path))"
-            compact
-            @draft="setDraft(project.id, card.key, $event)"
-            @by-hand="byHand(card)"
-            @manual="showInManual(card)"
+    <AppEmptyState
+      v-if="rows.length === 0 && noBlocks.length === 0"
+      layout="fill"
+      :loading="decisions.length < files.length"
+      title="Nothing to decide yet."
+      detail="Each block shows here as soon as there is one."
+    />
+    <div v-else class="layout">
+      <aside class="list">
+        <header class="list-head">
+          <span class="list-title">Blocks</span>
+          <AppSegmented
+            size="sm"
+            aria-label="Which blocks to list"
+            :options="filterOptions"
+            :model-value="filter"
+            @update:model-value="filterChoice = $event"
           />
-        </template>
-      </section>
+        </header>
+
+        <div class="list-body" tabindex="0" role="listbox" @keydown="onListKey">
+          <p v-if="groups.length === 0" class="list-empty">
+            Nothing needs you. Switch to All to see every block.
+          </p>
+          <section v-for="group in groups" :key="group.path" class="group">
+            <h3 class="group-name" :title="group.path">
+              <span class="group-file">{{ group.name }}</span>
+              <span v-if="group.dir" class="group-dir">{{ group.dir }}</span>
+            </h3>
+            <button
+              v-for="row in group.rows"
+              :key="row.card.key"
+              type="button"
+              class="row"
+              :class="[row.state, { selected: row.card.key === current?.card.key }]"
+              role="option"
+              :aria-selected="row.card.key === current?.card.key"
+              @click="select(row.card.key)"
+            >
+              <span class="dot" />
+              <span class="row-name">{{ blocksText(row.card) }}</span>
+              <span class="row-state">{{ row.label }}</span>
+            </button>
+          </section>
+
+          <section v-if="noBlocks.length || outside.length" class="group">
+            <h3 class="group-name">Other changes</h3>
+            <button
+              v-for="file in noBlocks"
+              :key="`n-${file.path}`"
+              type="button"
+              class="other"
+              :title="`${file.path}: binary, or deleted on one side. Pick a side in Manual.`"
+              @click="emit('manual', file.path)"
+            >
+              <span class="group-file">{{ fileName(file.path) }}</span>
+              <span class="other-text">Pick a side in Manual</span>
+            </button>
+            <button
+              v-for="file in outside"
+              :key="`o-${file.path}`"
+              type="button"
+              class="other"
+              :title="`${file.path}: ${file.editsOutside} line(s) changed outside the blocks. Send stages them with the file.`"
+              @click="emit('manual', file.path)"
+            >
+              <span class="group-file">{{ fileName(file.path) }}</span>
+              <span class="other-text">
+                {{ file.editsOutside === 1 ? '1 line' : `${file.editsOutside} lines` }} outside the
+                blocks
+              </span>
+            </button>
+          </section>
+        </div>
+
+        <footer class="list-foot">
+          <template v-if="messaging">
+            <AppInput
+              v-model="reply"
+              size="sm"
+              class="reply"
+              placeholder="A line for the model, then Enter"
+              :disabled="replying"
+              @keydown.enter.prevent="sendReply"
+              @keydown.escape="messaging = false"
+            />
+            <p v-if="replyError" class="error">{{ replyError }}</p>
+          </template>
+          <AppButton v-else variant="text" size="sm" @click="messaging = true">
+            Message the model
+          </AppButton>
+        </footer>
+      </aside>
+
+      <DecisionWorkspace
+        v-if="current"
+        :key="current.card.key"
+        :card="current.card"
+        :list-state="current.state"
+        :label="current.label"
+        :left-ref="current.file.leftRef"
+        :right-ref="current.file.rightRef"
+        :draft="drafts[current.card.key]"
+        :manual-digest="manualDigest(current.card, manualOf(project.id, current.card.path))"
+        @draft="setDraft(project.id, current.card.key, $event)"
+        @by-hand="byHand(current.card)"
+        @manual="showInManual(current.card)"
+        @ask="startAsk(current.card)"
+        @decided="advance"
+      />
+      <AppEmptyState
+        v-else
+        layout="fill"
+        title="Pick a block."
+        detail="The blocks that need you are listed on the left."
+      />
     </div>
 
-    <!-- Verdicts go to the model one file at a time, together, on that file's Apply. -->
-    <footer v-if="ready.length" class="apply-bar">
-      <div v-for="item in ready" :key="item.file.path" class="apply-row">
-        <span class="apply-file" :title="item.file.path">{{ fileName(item.file.path) }}</span>
-        <span class="apply-summary">{{ summary(item.verdicts, item.settled) }}</span>
-        <span v-if="applyErrors[item.file.path]" class="error">{{
-          applyErrors[item.file.path]
-        }}</span>
-        <span class="spacer" />
-        <AppButton
-          variant="primary"
-          size="sm"
-          :disabled="applying !== null"
-          :title="
-            item.settled
-              ? 'Send the verdicts and stage the file'
-              : 'Send the verdicts on this file to the model'
-          "
-          @click="apply(item.file)"
-        >
-          Apply
-        </AppButton>
-      </div>
-    </footer>
+    <AskModelModal
+      v-if="askCard"
+      :project="project"
+      held
+      :blocks="askCard.blocks.length"
+      :sending="asking"
+      :error="askError"
+      @submit="sendAsk"
+      @close="askCard = null"
+    />
   </div>
 </template>
 
@@ -320,28 +458,27 @@ function fileName(path: string): string {
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.holder {
+.status {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--color-fg-secondary);
 }
 
-.general {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--color-border-subtle);
+.send {
+  flex-shrink: 0;
 }
 
-.general-line {
+.general {
   margin: 0;
+  padding: var(--space-2) var(--space-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-bottom: 1px solid var(--color-border-subtle);
   font-size: var(--text-sm);
   color: var(--color-fg-primary);
 }
@@ -352,85 +489,185 @@ function fileName(path: string): string {
   color: var(--color-fg-secondary);
 }
 
-.general-reply {
-  width: 100%;
+.layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
-.body {
+.list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  flex-shrink: 0;
+  width: 280px;
+  min-height: 0;
+  border-right: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.list-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-fg-secondary);
+}
+
+.list-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-3);
+  padding: var(--space-2);
+  outline: none;
+}
+
+.list-empty {
+  margin: 0;
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
 }
 
 .group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 2px;
 }
 
-.group-title {
+.group-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
   margin: 0;
+  padding: var(--space-1) var(--space-2);
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   color: var(--color-fg-secondary);
 }
 
-.no-blocks {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-}
-
-.no-blocks-file {
+.group-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   color: var(--color-fg-primary);
 }
 
-.no-blocks-text {
+.group-dir {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--color-fg-muted);
 }
 
-.apply-bar {
+.row,
+.other {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover,
+.other:hover {
+  background: var(--color-surface-2);
+}
+
+.row.selected {
+  background: var(--color-surface-3);
+}
+
+.dot {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-fg-muted);
+}
+
+.row.needs .dot {
+  border-color: var(--color-fg-accent);
+  background: var(--color-fg-accent);
+}
+
+.row.queued .dot,
+.row.done .dot {
+  border-color: var(--color-jade);
+  background: var(--color-jade);
+}
+
+.row.model .dot {
+  border-color: var(--color-violet);
+  background: var(--color-violet);
+}
+
+.row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-state {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.row.needs .row-state {
+  color: var(--color-fg-accent);
+}
+
+.other {
+  justify-content: space-between;
+  font-size: var(--text-xs);
+}
+
+.other-text {
+  flex-shrink: 0;
+  color: var(--color-fg-muted);
+}
+
+.list-foot {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--color-border-subtle);
-  background: var(--color-surface-1);
 }
 
-.apply-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  font-size: var(--text-xs);
-}
-
-.apply-file {
-  font-family: var(--font-mono);
-  color: var(--color-fg-primary);
-}
-
-.apply-summary {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-fg-secondary);
-}
-
-.spacer {
-  flex: 1;
+.reply {
+  width: 100%;
 }
 
 .error {
   margin: 0;
+  padding: var(--space-1) var(--space-3);
   font-size: var(--text-xs);
   color: var(--color-error);
 }

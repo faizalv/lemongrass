@@ -14,14 +14,20 @@ const props = defineProps<{
   hold: BlockHold
   leftRef: string
   rightRef: string
+  // The workspace shows every line from the start, scrolling inside a box past a screenful.
+  expanded?: boolean
+  // Hides the result, for a block whose result is not on disk yet.
+  noResult?: boolean
 }>()
 
 // Past this many lines a box is cut until the human opens it.
 const SHORT = 8
-const full = ref(false)
+const full = ref(props.expanded === true)
 
 const taken = computed(() => (props.hold.kind === 'written' ? (props.hold.sides ?? []) : []))
-const result = computed(() => (props.hold.kind === 'written' ? props.hold.lines : null))
+const result = computed(() =>
+  props.hold.kind === 'written' && !props.noResult ? props.hold.lines : null
+)
 const longest = computed(() =>
   Math.max(props.sides.left.length, props.sides.right.length, result.value?.length ?? 0)
 )
@@ -58,7 +64,13 @@ function more(lines: string[]): number {
       <p v-else class="empty">The block is removed</p>
       <p v-if="more(result)" class="cut">{{ more(result) }} more lines</p>
     </section>
-    <AppButton v-if="longest > SHORT" variant="text" size="xs" class="toggle" @click="full = !full">
+    <AppButton
+      v-if="longest > SHORT && !expanded"
+      variant="text"
+      size="xs"
+      class="toggle"
+      @click="full = !full"
+    >
       {{ full ? 'Show less' : 'Show every line' }}
     </AppButton>
   </div>

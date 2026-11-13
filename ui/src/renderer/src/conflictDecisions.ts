@@ -362,3 +362,113 @@ export function fileStatusText(cards: BlockCard[] | null): string | null {
   if (done === cards.length) return 'all settled'
   return null
 }
+
+// Where a block sits in the Decisions list. needs waits for the human; queued is decided and goes
+// to the model on Send; model is with the model; untouched is a block nobody was asked to work
+// on, or one the model's finished round never reported; done is accepted or resolved.
+export type ListState = 'needs' | 'queued' | 'model' | 'untouched' | 'done'
+
+// The blocks the hand-over asked about, by path, or null when the conflict was handed over whole.
+// The hand-over posts the human's resolved blocks and then the asked ones before anything else is
+// said, so only the opening verdict batches of the thread count: a later ask, once the model has
+// reported or the human has written, says nothing about how the conflict was handed over.
+export function handOverAsked(messages: WorkgroupThreadMessage[]): Map<string, Set<number>> | null {
+  const asked = new Map<string, Set<number>>()
+  for (const message of messages) {
+    const batch = verdictsOf(message)
+    if (!batch) break
+    const kinds = batch.verdicts.map((v) => v.verdict)
+    if (kinds.every((kind) => kind === 'resolved' || kind === 'accepted')) continue
+    if (!kinds.every((kind) => kind === 'asked')) break
+    const blocks = asked.get(batch.path) ?? new Set<number>()
+    for (const v of batch.verdicts) blocks.add(v.block)
+    asked.set(batch.path, blocks)
+  }
+  return asked.size > 0 ? asked : null
+}
+
+// Whether the human's word on a card waits for Send: an accept, reject or answer that still fits,
+// or a block resolved in the three panes that the thread does not hold yet.
+export function isQueued(
+  card: BlockCard,
+  draft: Draft | undefined,
+  manual: ManualResolved | undefined
+): boolean {
+  const resolved = manualDigest(card, manual)
+  if (resolved !== null && !(card.state === 'resolved' && card.verdict?.digest === resolved)) {
+    return true
+  }
+  return !!draft && draft.kind !== 'manual' && draftFits(card, draft)
+}
+
+// finished is the model's round being over with nothing from the human since, so a block it never
+// reported is not coming. asked is handOverAsked.
+export function listStateOf(
+  card: BlockCard,
+  queued: boolean,
+  asked: Map<string, Set<number>> | null,
+  finished: boolean
+): ListState {
+  if (queued) return 'queued'
+  switch (card.state) {
+    case 'question':
+    case 'take':
+    case 'changed':
+    case 'mismatch':
+      return 'needs'
+    case 'accepted':
+    case 'resolved':
+      return 'done'
+    case 'waiting':
+      return 'model'
+    case 'open': {
+      if (finished) return 'untouched'
+      const blocks = asked?.get(card.path)
+      if (asked && !card.blocks.some((n) => blocks?.has(n))) return 'untouched'
+      return 'model'
+    }
+  }
+}
+
+// The one or two words on a list row.
+export function listLabel(state: ListState, card: BlockCard): string {
+  switch (state) {
+    case 'queued':
+      return 'Queued'
+    case 'model':
+      return 'With model'
+    case 'untouched':
+      return 'Untouched'
+    case 'done':
+      return 'Done'
+    case 'needs':
+      break
+  }
+  if (card.state === 'question') return 'Question'
+  if (card.state === 'take') return 'Review'
+  if (card.state === 'changed') return 'Changed'
+  return 'Check'
+}
+
+export type ListCounts = Record<ListState, number>
+
+export function countStates(states: ListState[]): ListCounts {
+  const counts: ListCounts = { needs: 0, queued: 0, model: 0, untouched: 0, done: 0 }
+  for (const state of states) counts[state]++
+  return counts
+}
+
+// What the human should do next, in one sentence, from where the blocks stand.
+export function nextStep(counts: ListCounts): string {
+  const blocks = (n: number): string => `${n} block${n === 1 ? '' : 's'}`
+  if (counts.needs > 0) {
+    const untouched = counts.untouched > 0 ? ` ${counts.untouched} untouched.` : ''
+    return `${blocks(counts.needs)} ${counts.needs === 1 ? 'needs' : 'need'} you.${untouched}`
+  }
+  if (counts.queued > 0) return `${counts.queued} decided and waiting for Send.`
+  if (counts.untouched > 0) {
+    return `Nothing needs you. ${counts.untouched} untouched: ask a model or resolve them yourself.`
+  }
+  if (counts.model > 0) return 'Nothing needs you while the model works.'
+  return 'Everything is settled.'
+}

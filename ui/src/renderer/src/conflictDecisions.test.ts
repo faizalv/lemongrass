@@ -10,8 +10,14 @@ import {
   fileDecisions,
   fileSettled,
   fileStatusText,
+  countStates,
   generalLine,
+  handOverAsked,
+  isQueued,
+  listLabel,
+  listStateOf,
   matchSides,
+  nextStep,
   roundDone,
   verdictBatch,
   type BlockCard,
@@ -205,4 +211,67 @@ test('the general line, the end of a round and the file status read the thread',
   assert.equal(fileStatusText(cardsOf([decision, question])), '1 question')
   assert.equal(fileStatusText(cardsOf([decision])), '1 to review')
   assert.equal(fileStatusText(null), null)
+})
+
+const verdictsMessage = (
+  path: string,
+  verdicts: { block: number; verdict: string; text?: string; digest?: string }[]
+): WorkgroupThreadMessage =>
+  message({ author: 'human', kind: 'verdicts', data: { path, verdicts } })
+
+test('a hand-over that asked about blocks is read from the opening verdict batches only', () => {
+  const resolved = verdictsMessage('src/a.js', [{ block: 1, verdict: 'resolved', digest: 'd' }])
+  const asked = verdictsMessage('src/a.js', [{ block: 2, verdict: 'asked', text: 'look' }])
+  const opening = handOverAsked([resolved, asked])
+  assert.deepEqual([...(opening?.get('src/a.js') ?? [])], [2])
+  assert.equal(handOverAsked([resolved]), null)
+  assert.equal(handOverAsked([]), null)
+  // The model reported first, so a later ask says nothing about how the conflict was handed over.
+  assert.equal(handOverAsked([decision, asked]), null)
+})
+
+test('a block no one was asked about, or the model never reported, is untouched', () => {
+  const [first, second] = cardsOf([decision])
+  assert.equal(first.state, 'take')
+  assert.equal(second.state, 'open')
+  const asked = new Map([['src/a.js', new Set([1])]])
+  assert.equal(listStateOf(second, false, null, false), 'model')
+  assert.equal(listStateOf(second, false, asked, false), 'untouched')
+  assert.equal(listStateOf(second, false, new Map([['src/a.js', new Set([2])]]), false), 'model')
+  assert.equal(listStateOf(second, false, null, true), 'untouched')
+  assert.equal(listLabel('untouched', second), 'Untouched')
+})
+
+test('a decided card is queued, a take to review needs the human, a settled one is done', () => {
+  const [take, ask] = cardsOf([decision, question])
+  assert.equal(listStateOf(take, false, null, false), 'needs')
+  assert.equal(listLabel('needs', take), 'Review')
+  assert.equal(listLabel('needs', ask), 'Question')
+  const accept: Draft = { kind: 'accept', digest: take.digest }
+  assert.equal(isQueued(take, accept, undefined), true)
+  assert.equal(isQueued(take, { kind: 'accept', digest: 'old' }, undefined), false)
+  assert.equal(isQueued(take, { kind: 'manual' }, undefined), false)
+  assert.equal(isQueued(ask, undefined, new Map([[2, 'd2']])), true)
+  assert.equal(listStateOf(take, true, null, false), 'queued')
+  const accepted = cardsOf([
+    decision,
+    verdictsMessage('src/a.js', [{ block: 1, verdict: 'accepted', digest: take.digest }])
+  ])[0]
+  assert.equal(listStateOf(accepted, false, null, false), 'done')
+})
+
+test('the next step says whose move it is from the counts', () => {
+  const counts = countStates
+  assert.equal(
+    nextStep(counts(['needs', 'untouched', 'untouched'])),
+    '1 block needs you. 2 untouched.'
+  )
+  assert.equal(nextStep(counts(['needs', 'needs'])), '2 blocks need you.')
+  assert.equal(nextStep(counts(['queued', 'done'])), '1 decided and waiting for Send.')
+  assert.equal(
+    nextStep(counts(['untouched', 'done'])),
+    'Nothing needs you. 1 untouched: ask a model or resolve them yourself.'
+  )
+  assert.equal(nextStep(counts(['model'])), 'Nothing needs you while the model works.')
+  assert.equal(nextStep(counts(['done', 'done'])), 'Everything is settled.')
 })
