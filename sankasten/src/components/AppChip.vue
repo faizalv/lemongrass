@@ -90,6 +90,14 @@ const emit = defineEmits<{ remove: []; action: [] }>()
   color: var(--color-fg-secondary);
 }
 
+.tone-accent,
+.tone-info,
+.tone-success,
+.tone-danger {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
+}
+
 .tone-accent {
   background: var(--color-amber-muted);
   color: var(--color-amber);

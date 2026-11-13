@@ -361,7 +361,7 @@
 .vault-tab .field-label {
   display: block;
   margin-bottom: var(--space-1);
-  color: var(--color-fg-muted);
+  color: var(--color-fg-secondary);
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
 }

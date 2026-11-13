@@ -63,11 +63,11 @@ const title = computed(() =>
 }
 
 .context-meter-warn .context-meter-fill {
-  background: var(--color-orange);
+  background: var(--color-warning);
 }
 
 .context-meter-warn .context-meter-value {
-  color: var(--color-orange);
+  color: var(--color-warning);
 }
 
 .context-meter-danger .context-meter-fill {

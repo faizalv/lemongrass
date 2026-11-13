@@ -281,7 +281,7 @@ watch(ownAnswer, (text) => {
 }
 
 .card.ask {
-  border-color: var(--color-sapphire);
+  border-color: var(--color-info);
 }
 
 .card.warn {
@@ -327,7 +327,7 @@ watch(ownAnswer, (text) => {
 }
 
 .card.ask .headline {
-  color: var(--color-sapphire);
+  color: var(--color-info);
 }
 
 .spacer {
@@ -362,7 +362,7 @@ watch(ownAnswer, (text) => {
 }
 
 .accepted-mark {
-  color: var(--color-jade);
+  color: var(--color-success);
 }
 
 .answer,

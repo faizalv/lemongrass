@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { AppButton, AppEmptyState, AppModal } from '@sankasten'
+import { AppBanner, AppButton, AppEmptyState, AppModal } from '@sankasten'
 import { bodyParts, type BodyPart } from '../mentions'
 import { disbandWorkgroup, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import { GROUP_COLORS, groupColorVar } from '../groupColors'
@@ -223,7 +223,9 @@ onBeforeUnmount(() => clearInterval(timer))
         </AppButton>
       </header>
 
-      <p v-if="state.error" class="pane-error">{{ state.error }}</p>
+      <AppBanner v-if="state.error" tone="danger"
+        ><p class="pane-error">{{ state.error }}</p></AppBanner
+      >
 
       <ul class="members">
         <li v-for="member in group.members" :key="member.tabId">
@@ -255,7 +257,9 @@ onBeforeUnmount(() => clearInterval(timer))
           >
             {{ loadingOlder ? 'Loading...' : 'Load earlier messages' }}
           </AppButton>
-          <p v-if="threadError" class="pane-error">{{ threadError }}</p>
+          <AppBanner v-if="threadError" tone="danger"
+            ><p class="pane-error">{{ threadError }}</p></AppBanner
+          >
           <AppEmptyState v-else-if="messages.length === 0" title="No messages yet." />
           <article
             v-for="message in messages"
@@ -378,10 +382,6 @@ onBeforeUnmount(() => clearInterval(timer))
 }
 
 .pane-error {
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-error-muted);
-  border-radius: var(--radius-md);
-  color: var(--color-error);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;

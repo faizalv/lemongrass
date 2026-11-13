@@ -16,7 +16,9 @@ const style = HighlightStyle.define([
     tag: [t.number, t.bool, t.null, t.atom, t.unit, t.constant(t.variableName)],
     color: 'var(--color-syntax-constant)'
   },
-  { tag: t.comment, color: 'var(--color-syntax-comment)', fontStyle: 'italic' },
+  // Comments, meta and quotes read fg-muted itself, not a syntax alias declared at the root, so a
+  // tinted line's muted redefinition reaches them.
+  { tag: t.comment, color: 'var(--color-fg-muted)', fontStyle: 'italic' },
   {
     tag: [
       t.function(t.variableName),
@@ -39,11 +41,11 @@ const style = HighlightStyle.define([
   },
   {
     tag: [t.meta, t.processingInstruction, t.annotation],
-    color: 'var(--color-syntax-meta)'
+    color: 'var(--color-fg-muted)'
   },
   { tag: t.heading, color: 'var(--color-syntax-heading)', fontWeight: 'bold' },
   { tag: [t.link, t.url], color: 'var(--color-syntax-link)', textDecoration: 'underline' },
-  { tag: t.quote, color: 'var(--color-syntax-comment)' },
+  { tag: t.quote, color: 'var(--color-fg-muted)' },
   { tag: t.monospace, color: 'var(--color-syntax-string)' },
   { tag: t.emphasis, fontStyle: 'italic' },
   { tag: t.strong, fontWeight: 'bold' },

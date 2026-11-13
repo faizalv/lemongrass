@@ -3,6 +3,7 @@
 
 <script setup lang="ts">
 import {
+  AppBanner,
   AppContextMenu,
   AppIcon,
   AppInput,
@@ -360,7 +361,9 @@ onBeforeUnmount(removeListeners)
         aria-label="Filter branches"
         @keydown.enter="openFirst"
       />
-      <p v-if="error" class="branch-error">{{ error }}</p>
+      <AppBanner v-if="error" tone="danger" class="branch-error"
+        ><p class="branch-error-text">{{ error }}</p></AppBanner
+      >
       <p v-if="notice" class="branch-notice">{{ notice }}</p>
       <p v-if="!branches" class="sk-menu-empty">Loading...</p>
       <div v-else class="branch-lists" role="listbox">
@@ -461,12 +464,11 @@ onBeforeUnmount(removeListeners)
 
 .branch-error {
   flex-shrink: 0;
+}
+
+.branch-error-text {
   max-height: 120px;
   overflow-y: auto;
-  padding: var(--space-2);
-  background: var(--color-error-muted);
-  border-radius: var(--radius-md);
-  color: var(--color-error);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;

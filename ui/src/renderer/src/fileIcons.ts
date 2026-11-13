@@ -297,7 +297,10 @@ const FOLDER_OPEN: IconShape[] = [
 export function fileIconOf(name: string): FileIcon {
   const fam = fileFamilyOf(name)
   const shapes = fam === 'image' ? IMAGE : [...PAGE, ...GLYPHS[fam]]
-  return { shapes, color: `var(--color-icon-${fam})` }
+  // A plain file reads fg-muted itself rather than through a token aliased at the root, since an
+  // alias resolves there and would miss a tinted row's muted redefinition.
+  const color = fam === 'file' ? 'var(--color-fg-muted)' : `var(--color-icon-${fam})`
+  return { shapes, color }
 }
 
 export function folderIconOf(name: string, open: boolean): FileIcon {

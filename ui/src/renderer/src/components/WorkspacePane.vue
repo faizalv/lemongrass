@@ -828,6 +828,8 @@ onBeforeUnmount(() => {
 }
 
 .tab.active {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
 }
@@ -940,6 +942,8 @@ onBeforeUnmount(() => {
 }
 
 .tab.glow {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-jade-muted);
   box-shadow: inset 0 0 0 1px var(--color-jade);
 }

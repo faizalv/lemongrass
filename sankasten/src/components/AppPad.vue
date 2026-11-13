@@ -79,6 +79,8 @@ defineOptions({ inheritAttrs: false })
 }
 
 .selected .pad-main {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
   border-color: var(--color-amber);
   background: var(--color-amber-muted);
   color: var(--color-fg-primary);

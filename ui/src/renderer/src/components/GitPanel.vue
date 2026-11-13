@@ -3,6 +3,7 @@
 
 <script setup lang="ts">
 import {
+  AppBanner,
   AppButton,
   AppCheckbox,
   AppDisclosure,
@@ -227,7 +228,9 @@ const pushTitle = computed(() => {
           <GitIcon name="push" />
         </AppIconButton>
       </div>
-      <p v-if="rowError" class="git-error">{{ rowError }}</p>
+      <AppBanner v-if="rowError" tone="danger"
+        ><p class="git-error">{{ rowError }}</p></AppBanner
+      >
       <p v-if="rowNotice" class="git-notice">{{ rowNotice }}</p>
       <div class="changes-head">
         <AppCheckbox
@@ -292,7 +295,9 @@ const pushTitle = computed(() => {
           :disabled="state.busy !== null"
           @update:height="setCommitHeight"
         />
-        <p v-if="state.error" class="git-error">{{ state.error }}</p>
+        <AppBanner v-if="state.error" tone="danger"
+          ><p class="git-error">{{ state.error }}</p></AppBanner
+        >
         <p v-if="hint" class="git-hint">{{ hint }}</p>
         <div class="git-actions">
           <AppButton
@@ -454,6 +459,10 @@ const pushTitle = computed(() => {
 }
 
 .file-row.active {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
+  /* Dimmed text on this tint needs more opacity to stay above its contrast floor. */
+  --opacity-text-dim: 0.8;
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
 }
@@ -511,10 +520,6 @@ const pushTitle = computed(() => {
 .git-error {
   max-height: 120px;
   overflow-y: auto;
-  padding: var(--space-2);
-  background: var(--color-error-muted);
-  border-radius: var(--radius-md);
-  color: var(--color-error);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;

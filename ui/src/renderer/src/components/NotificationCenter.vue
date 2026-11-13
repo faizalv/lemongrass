@@ -181,6 +181,8 @@ watch(
 }
 
 .row.waiting {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   color: var(--color-fg-primary);
   background: var(--color-amber-muted);
 }

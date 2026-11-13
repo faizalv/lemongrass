@@ -444,10 +444,20 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--color-amber-muted) !important'
   },
   // Faint tints so syntax colors can come later, never amber, which marks comments: the middle is
-  // red until something is picked and jade after, an open side is sapphire.
-  '.cm-conflict-open': { backgroundColor: 'var(--color-error-muted)' },
-  '.cm-conflict-picked': { backgroundColor: 'var(--color-jade-muted)' },
-  '.cm-conflict-side': { backgroundColor: 'var(--color-sapphire-muted)' },
+  // red until something is picked and jade after, an open side is sapphire. Muted text reads as
+  // secondary on each tint, keeping it above its contrast floor.
+  '.cm-conflict-open': {
+    backgroundColor: 'var(--color-error-muted)',
+    '--color-fg-muted': 'var(--color-fg-secondary)'
+  },
+  '.cm-conflict-picked': {
+    backgroundColor: 'var(--color-jade-muted)',
+    '--color-fg-muted': 'var(--color-fg-secondary)'
+  },
+  '.cm-conflict-side': {
+    backgroundColor: 'var(--color-sapphire-muted)',
+    '--color-fg-muted': 'var(--color-fg-secondary)'
+  },
   '.cm-conflict-current': { boxShadow: 'inset 2px 0 0 var(--color-jade)' },
   '.cm-conflict-side.cm-conflict-current, .cm-conflict-used.cm-conflict-current': {
     boxShadow: 'inset 2px 0 0 var(--color-sapphire)'
@@ -488,8 +498,14 @@ const theme = EditorView.theme({
     color: 'var(--color-fg-muted)',
     backgroundColor: 'var(--color-surface-1)'
   },
-  '.cm-conflict-empty.open': { backgroundColor: 'var(--color-error-muted)' },
-  '.cm-conflict-empty.picked': { backgroundColor: 'var(--color-jade-muted)' },
+  '.cm-conflict-empty.open': {
+    backgroundColor: 'var(--color-error-muted)',
+    '--color-fg-muted': 'var(--color-fg-secondary)'
+  },
+  '.cm-conflict-empty.picked': {
+    backgroundColor: 'var(--color-jade-muted)',
+    '--color-fg-muted': 'var(--color-fg-secondary)'
+  },
   // Amber is focus, which is what a jump puts on these lines.
   '.cm-flash': {
     backgroundColor: 'var(--color-amber-muted) !important',

@@ -3,6 +3,7 @@
 
 <script setup lang="ts">
 import {
+  AppBanner,
   AppButton,
   AppCheckbox,
   AppDisclosure,
@@ -95,7 +96,9 @@ async function save(): Promise<void> {
           Stash
         </AppButton>
       </div>
-      <p v-if="error" class="stash-error">{{ error }}</p>
+      <AppBanner v-if="error" tone="danger"
+        ><p class="stash-error">{{ error }}</p></AppBanner
+      >
       <AppEmptyState v-if="stashes.length === 0" size="sm" title="No stashes" />
       <ul v-else class="stash-list">
         <li v-for="stash in stashes" :key="stash.ref" class="stash-item">
@@ -174,10 +177,6 @@ async function save(): Promise<void> {
 .stash-error {
   max-height: 120px;
   overflow-y: auto;
-  padding: var(--space-2);
-  background: var(--color-error-muted);
-  border-radius: var(--radius-md);
-  color: var(--color-error);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;

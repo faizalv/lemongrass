@@ -46,9 +46,11 @@ test('special folders map to a family, others are plain', () => {
 test('every icon colors through a token and has shapes', () => {
   for (const name of ['a.ts', 'a.png', 'a.xyz', 'yarn.lock']) {
     const icon = fileIconOf(name)
-    assert.match(icon.color, /^var\(--color-icon-[a-z-]+\)$/)
+    assert.match(icon.color, /^var\(--color-(icon-[a-z-]+|fg-muted)\)$/)
     assert.ok(icon.shapes.length > 0)
   }
+  // A plain file reads fg-muted directly, so a tinted row's muted redefinition reaches it.
+  assert.equal(fileIconOf('a.xyz').color, 'var(--color-fg-muted)')
   assert.equal(folderIconOf('lib', false).color, 'var(--color-icon-folder-src)')
   assert.equal(folderIconOf('misc', true).color, 'var(--color-icon-folder)')
   assert.notDeepEqual(folderIconOf('misc', true).shapes, folderIconOf('misc', false).shapes)

@@ -4,12 +4,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
+  AppBanner,
   AppContextMenu,
   AppEmptyState,
   AppIconButton,
   AppInput,
-  type AppInputHandle,
   AppMenuButton,
+  type AppInputHandle,
   type MenuItem
 } from '@sankasten'
 import TabIcon from '../TabIcon.vue'
@@ -658,7 +659,9 @@ function rowKey(row: Row): string {
         :status="search.status.value"
         placeholder="Search files"
       />
-      <p v-if="opError" class="op-error" role="alert" @click="opError = null">{{ opError }}</p>
+      <AppBanner v-if="opError" tone="danger" class="op-error" @click="opError = null">{{
+        opError
+      }}</AppBanner>
 
       <SearchRows
         v-if="search.active.value"
@@ -820,12 +823,8 @@ function rowKey(row: Row): string {
 }
 
 .op-error {
+  flex-shrink: 0;
   margin: 0 0 var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-md);
-  background: var(--color-error-muted);
-  color: var(--color-error);
-  font-size: var(--text-xs);
   cursor: pointer;
 }
 

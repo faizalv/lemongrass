@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { AppButton, AppEmptyState, AppModal, AppPad } from '@sankasten'
+import { AppBanner, AppButton, AppEmptyState, AppModal, AppPad } from '@sankasten'
 import WorkspaceLayout from './WorkspaceLayout.vue'
 import {
   addShell,
@@ -110,8 +110,8 @@ const showAccounts = computed(
           </button>
         </div>
       </template>
-      <p v-if="selectedMissing" class="agent-warning"><MarkedText :parts="missingParts" /></p>
-      <p v-else-if="selectedAgentWarning" class="agent-warning">{{ selectedAgentWarning }}</p>
+      <AppBanner v-if="selectedMissing"><MarkedText :parts="missingParts" /></AppBanner>
+      <AppBanner v-else-if="selectedAgentWarning">{{ selectedAgentWarning }}</AppBanner>
       <template #footer>
         <AppButton size="md" @click="cancelShellPicker">Cancel</AppButton>
         <AppButton
@@ -188,6 +188,8 @@ const showAccounts = computed(
 }
 
 .agent-option.selected {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   border-color: var(--color-amber);
   background: var(--color-amber-muted);
   color: var(--color-fg-primary);
@@ -201,12 +203,5 @@ const showAccounts = computed(
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
-}
-
-.agent-warning {
-  margin: 0;
-  color: var(--color-amber);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
 }
 </style>

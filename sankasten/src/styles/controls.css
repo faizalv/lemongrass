@@ -155,6 +155,8 @@
 }
 
 .sk-menu-row.is-active {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
   font-weight: var(--weight-medium);

@@ -116,12 +116,20 @@ defineExpose({ focus: () => root.value?.focus({ preventScroll: false }), el: roo
 }
 
 .tree-row.active {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
+  /* Dimmed text on this tint needs more opacity to stay above its contrast floor. */
+  --opacity-text-dim: 0.8;
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
   font-weight: var(--weight-medium);
 }
 
 .tree-row.drop-target {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
+  /* Dimmed text on this tint needs more opacity to stay above its contrast floor. */
+  --opacity-text-dim: 0.8;
   background: var(--color-amber-muted);
   box-shadow: inset 0 0 0 1px var(--color-amber);
 }

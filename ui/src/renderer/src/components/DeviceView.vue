@@ -488,7 +488,7 @@ onBeforeUnmount(teardown)
 
 .error {
   max-width: 480px;
-  color: var(--color-coral);
+  color: var(--color-error);
   font-size: var(--text-sm);
   white-space: pre-wrap;
 }

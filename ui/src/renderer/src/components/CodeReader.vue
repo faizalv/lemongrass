@@ -134,6 +134,8 @@ onBeforeUnmount(() => {
 }
 
 .code-reader :deep(.cm-reveal-line) {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-amber-muted);
 }
 </style>

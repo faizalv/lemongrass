@@ -11,6 +11,7 @@ import type {
   GitRevFiles,
   GitRevision
 } from '../../../preload/types'
+import { GIT_MARKS } from '../explorerOps'
 import BlameView from './BlameView.vue'
 import DiffBody from './DiffBody.vue'
 
@@ -99,6 +100,9 @@ watch(selected, loadDiff)
           >
             <span class="rev-name">{{ fileName(file.path) }}</span>
             <span class="rev-dir">{{ fileDir(file.path) }}</span>
+            <span class="rev-mark" :title="GIT_MARKS[groupOf(file)].title">{{
+              GIT_MARKS[groupOf(file)].letter
+            }}</span>
           </button>
         </li>
       </ul>
@@ -151,6 +155,10 @@ watch(selected, loadDiff)
 }
 
 .rev-file.active {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
+  /* Dimmed text on this tint needs more opacity to stay above its contrast floor. */
+  --opacity-text-dim: 0.8;
   background: var(--color-amber-muted);
 }
 
@@ -182,6 +190,15 @@ watch(selected, loadDiff)
   text-overflow: ellipsis;
   white-space: nowrap;
   opacity: var(--opacity-text-dim);
+}
+
+.rev-mark {
+  flex-shrink: 0;
+  width: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-align: center;
 }
 
 .rev-diff {

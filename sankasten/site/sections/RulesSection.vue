@@ -78,6 +78,84 @@ const more = [
         darkest layer wherever they are, so a field always reads as cut into its container.
       </p>
     </article>
+
+    <article id="rules-color-steps" class="rule">
+      <h3>Text steps by role</h3>
+      <p>
+        <code>fg-primary</code> is the thing itself: names, values, titles.
+        <code>fg-secondary</code> is supporting text, such as a detail or a description.
+        <code>fg-muted</code> is only for metadata a reader can skip, such as a path, a count, a
+        timestamp or a hint. <code>fg-disabled</code> is only for a disabled control. Nothing a
+        reader must read to act is muted.
+      </p>
+      <div class="example">
+        <span class="step-primary">inventory.js</span>
+        <span class="step-secondary">Changed by the last merge.</span>
+        <span class="spacer" />
+        <span class="status">src · 2 min ago</span>
+      </div>
+    </article>
+
+    <article id="rules-color-surface" class="rule">
+      <h3>Contrast against the real surface</h3>
+      <p>
+        Primary and secondary text keep at least 4.5:1, muted hints at least 4:1. Measure against
+        what is drawn under the text, not the layer the screen sits on. A row's hover, a selection
+        or a tint is part of that surface.
+      </p>
+    </article>
+
+    <article id="rules-color-tint" class="rule">
+      <h3>A tint is a surface</h3>
+      <p>
+        A muted fill, such as an active row, a pressed toggle, a banner or a selection, lowers the
+        contrast of everything on it. <code>fg-muted</code> drops from 4.2:1 on
+        <code>surface-2</code> to 3.1:1 on <code>amber-muted</code> over it. On a tint the lowest
+        text step is <code>fg-secondary</code>. A component that draws a tint redefines
+        <code>fg-muted</code> as <code>fg-secondary</code> inside itself, so content written for a
+        plain layer stays readable without knowing where it sits.
+      </p>
+      <div class="example tint-example">
+        <div class="tint-row">
+          <span class="tint-name">merge/a-to-staging</span>
+          <span class="status">current</span>
+        </div>
+        <div class="tint-row tint-fixed">
+          <span class="tint-name">merge/a-to-staging</span>
+          <span class="status">current</span>
+        </div>
+      </div>
+      <p class="hint">
+        The first row leaves the hint muted on the tint. The second redefines muted inside the row.
+      </p>
+    </article>
+
+    <article id="rules-color-jobs" class="rule">
+      <h3>Every color has a job</h3>
+      <p>
+        Amber marks focus, the active or selected thing and the one primary action. Status colors
+        mark state: success, warning, error, info and deleted. The named hues tell kinds of things
+        apart, such as file types, syntax, monograms and terminal colors, and carry no state. Jade
+        is the one exception: it marks running work and a go action. Never pick a hue because it
+        looks right.
+      </p>
+    </article>
+
+    <article id="rules-color-alone" class="rule">
+      <h3>Color never works alone</h3>
+      <p>
+        A state shown by color also has an icon, a word or a shape. Dense screens and color
+        blindness both lose a difference that only a hue carries.
+      </p>
+    </article>
+
+    <article id="rules-color-fix" class="rule">
+      <h3>Fix color where it is defined</h3>
+      <p>
+        A color that reads badly is fixed in its token or in the component that draws the surface,
+        and every screen gets the fix. A screen never overrides a color to patch its own contrast.
+      </p>
+    </article>
   </section>
 </template>
 
@@ -123,5 +201,39 @@ const more = [
 
 .hint {
   font-size: var(--text-xs);
+}
+
+.step-primary {
+  color: var(--color-fg-primary);
+  font-size: var(--text-sm);
+}
+
+.step-secondary {
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+}
+
+.tint-example {
+  flex-direction: column;
+  align-items: stretch;
+  background: var(--layer-raised);
+}
+
+.tint-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-amber-muted);
+}
+
+.tint-fixed {
+  --color-fg-muted: var(--color-fg-secondary);
+}
+
+.tint-name {
+  color: var(--color-fg-accent);
+  font-size: var(--text-sm);
 }
 </style>

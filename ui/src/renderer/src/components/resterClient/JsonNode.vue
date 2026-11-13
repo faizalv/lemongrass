@@ -247,8 +247,9 @@ const comma = computed(() => (props.last ? '' : ','))
   color: var(--color-jade);
 }
 
+/* Values take the code reader's syntax colors; amber is focus and marks a search hit here. */
 .number {
-  color: var(--color-amber);
+  color: var(--color-syntax-constant);
 }
 
 .boolean,
@@ -276,6 +277,8 @@ const comma = computed(() => (props.last ? '' : ','))
   color: var(--color-on-fill);
 }
 .branch.record {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   padding: 0 var(--space-1);
   margin-left: calc(-1 * var(--space-1));
   border-radius: var(--radius-sm);

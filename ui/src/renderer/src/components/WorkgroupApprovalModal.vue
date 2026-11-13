@@ -273,6 +273,8 @@ watch(
 }
 
 .request-row.selected {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
 }

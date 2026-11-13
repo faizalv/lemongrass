@@ -257,14 +257,14 @@
 
 .rester-client .status.redirect,
 .rester-float .status.redirect {
-  background: var(--color-sapphire-muted);
-  color: var(--color-sapphire);
+  background: color-mix(in oklab, var(--color-info) 14%, transparent);
+  color: var(--color-info);
 }
 
 .rester-client .status.client,
 .rester-float .status.client {
   background: var(--color-amber-muted);
-  color: var(--color-amber);
+  color: var(--color-warning);
 }
 
 .rester-client .status.server,

@@ -32,7 +32,13 @@ const groups: { title: string; links: { id: string; label: string }[] }[] = [
       { id: 'rules-sizes', label: 'Sizes' },
       { id: 'rules-labels', label: 'Icon labels' },
       { id: 'rules-copy', label: 'UI copy' },
-      { id: 'rules-tokens', label: 'Tokens and layers' }
+      { id: 'rules-tokens', label: 'Tokens and layers' },
+      { id: 'rules-color-steps', label: 'Text steps' },
+      { id: 'rules-color-surface', label: 'Contrast' },
+      { id: 'rules-color-tint', label: 'Tints' },
+      { id: 'rules-color-jobs', label: 'Color jobs' },
+      { id: 'rules-color-alone', label: 'Color never alone' },
+      { id: 'rules-color-fix', label: 'Fixing color' }
     ]
   },
   {

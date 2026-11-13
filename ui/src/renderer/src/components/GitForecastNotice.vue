@@ -126,8 +126,7 @@ const heading = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* Muted is too dim on the banner's amber tint. */
-  color: var(--color-fg-secondary);
+  color: var(--color-fg-muted);
 }
 
 .forecast-later {

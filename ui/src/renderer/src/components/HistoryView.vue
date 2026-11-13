@@ -9,6 +9,7 @@ import { buildGraph } from '../historyGraph'
 import type { ProjectRef } from '../workspace'
 import type { GitCommit, GitCommitInfo, GitLogSearchMode } from '../../../preload/types'
 import {
+  AppBanner,
   AppButton,
   AppContextMenu,
   AppEmptyState,
@@ -242,7 +243,11 @@ function laneX(lane: number): number {
         {{ pushLabel }}
       </AppButton>
     </div>
-    <p v-if="pushError" class="push-error">{{ pushError }}</p>
+    <div v-if="pushError" class="push-error">
+      <AppBanner tone="danger"
+        ><p class="push-error-text">{{ pushError }}</p></AppBanner
+      >
+    </div>
 
     <div class="history-body">
       <div class="history-list" @scroll="onScroll">
@@ -411,11 +416,13 @@ function laneX(lane: number): number {
 }
 
 .push-error {
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.push-error-text {
   max-height: 120px;
   overflow-y: auto;
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-error-muted);
-  color: var(--color-error);
   font-size: var(--text-xs);
   white-space: pre-wrap;
   word-break: break-word;
@@ -467,6 +474,8 @@ function laneX(lane: number): number {
 }
 
 .commit-row.selected {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
 }
@@ -524,8 +533,9 @@ function laneX(lane: number): number {
   color: var(--color-on-fill);
 }
 
+/* Branch, remote and tag are kinds of ref, so they take named hues, never a status color. */
 .commit-ref.branch {
-  color: var(--color-info);
+  color: var(--color-sapphire);
 }
 
 .commit-ref.remote {
@@ -533,7 +543,7 @@ function laneX(lane: number): number {
 }
 
 .commit-ref.tag {
-  color: var(--color-success);
+  color: var(--color-violet);
 }
 
 .commit-pushed {

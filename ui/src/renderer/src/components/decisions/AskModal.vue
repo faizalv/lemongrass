@@ -379,13 +379,13 @@ const removedLines = computed(() =>
 }
 
 .ask-status--done {
-  background: var(--color-jade-muted);
-  color: var(--color-jade);
+  background: var(--color-success-muted);
+  color: var(--color-success);
 }
 
 .ask-status--running {
-  background: var(--color-amber-muted);
-  color: var(--color-fg-accent);
+  background: var(--color-jade-muted);
+  color: var(--color-jade);
 }
 
 .ask-status--muted {

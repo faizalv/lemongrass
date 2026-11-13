@@ -113,6 +113,8 @@ defineExpose({ focus: () => el.value?.focus() })
 }
 
 .danger:hover:not(:disabled) {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-error-muted);
 }
 
@@ -143,6 +145,8 @@ defineExpose({ focus: () => el.value?.focus() })
 .text.is-pressed,
 .ghost.is-pressed:hover:not(:disabled),
 .text.is-pressed:hover:not(:disabled) {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-amber-muted);
   color: var(--color-amber);
 }

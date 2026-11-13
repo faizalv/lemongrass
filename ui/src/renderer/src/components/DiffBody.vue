@@ -89,10 +89,14 @@ function cellClass(line: GitDiffLine | null): string {
 }
 
 .del {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-error-muted);
 }
 
 .add {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-success-muted);
 }
 

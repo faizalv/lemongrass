@@ -5,7 +5,7 @@
 import { onMounted, ref } from 'vue'
 import type { ProjectRef } from '../workspace'
 import type { GitCommit } from '../../../preload/types'
-import { AppButton, AppModal, AppTextarea } from '@sankasten'
+import { AppBanner, AppButton, AppModal, AppTextarea } from '@sankasten'
 
 const props = defineProps<{
   project: ProjectRef
@@ -46,10 +46,10 @@ async function save(): Promise<void> {
       aria-label="Commit message"
       :disabled="!loaded || busy"
     />
-    <p v-if="!commit.unpushed" class="amend-warning">
+    <AppBanner v-if="!commit.unpushed" class="amend-warning">
       This commit is already on a remote. Pushing the amended commit is rejected, and this app never
       forces a push.
-    </p>
+    </AppBanner>
     <p v-if="error" class="amend-error">{{ error }}</p>
     <template #footer>
       <AppButton @click="emit('close')">Cancel</AppButton>
@@ -67,8 +67,6 @@ async function save(): Promise<void> {
 <style scoped>
 .amend-warning {
   margin-top: var(--space-3);
-  color: var(--color-warning);
-  font-size: var(--text-sm);
 }
 
 .amend-error {

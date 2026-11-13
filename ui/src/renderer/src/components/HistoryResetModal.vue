@@ -5,7 +5,7 @@
 import { onMounted, ref } from 'vue'
 import type { ProjectRef } from '../workspace'
 import type { GitCommit, GitResetPreview } from '../../../preload/types'
-import { AppButton, AppModal } from '@sankasten'
+import { AppBanner, AppButton, AppModal } from '@sankasten'
 
 const props = defineProps<{
   project: ProjectRef
@@ -44,10 +44,10 @@ async function reset(): Promise<void> {
         The branch moves back {{ preview.count }} {{ preview.count === 1 ? 'commit' : 'commits' }}.
         Their changes stay staged, and nothing in the working tree is touched.
       </p>
-      <p v-if="preview.pushed > 0" class="reset-warning">
+      <AppBanner v-if="preview.pushed > 0" class="reset-warning">
         {{ preview.pushed }} of them {{ preview.pushed === 1 ? 'is' : 'are' }} already on a remote.
         Pushing the branch afterwards is rejected, and this app never forces a push.
-      </p>
+      </AppBanner>
     </template>
     <p v-if="error" class="reset-error">{{ error }}</p>
     <template #footer>
@@ -75,8 +75,6 @@ async function reset(): Promise<void> {
 
 .reset-warning {
   margin-top: var(--space-3);
-  color: var(--color-warning);
-  font-size: var(--text-sm);
 }
 
 .reset-error {

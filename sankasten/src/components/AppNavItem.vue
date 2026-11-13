@@ -124,12 +124,16 @@ withDefaults(
 }
 
 .app-nav-item.active {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-amber-muted);
   color: var(--color-fg-accent);
 }
 
 .app-nav-item.tone-danger,
 .app-nav-item.tone-danger:hover {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: var(--color-error-muted);
   color: var(--color-error);
 }

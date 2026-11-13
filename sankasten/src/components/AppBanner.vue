@@ -39,6 +39,8 @@ const icon = computed((): AppIconName => (props.tone === 'info' ? 'info' : 'warn
 
 <style scoped>
 .app-banner {
+  /* Muted text drops below its contrast floor on a tint, so muted reads as secondary here. */
+  --color-fg-muted: var(--color-fg-secondary);
   box-sizing: border-box;
   display: flex;
   align-items: flex-start;

@@ -78,7 +78,7 @@
 }
 
 .ssh-pane .ssh-card-ok {
-  color: var(--color-jade);
+  color: var(--color-success);
 }
 
 .ssh-pane .ssh-card-warn {

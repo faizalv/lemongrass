@@ -314,6 +314,8 @@ onBeforeUnmount(() => {
 }
 
 .project-row.is-active {
+  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
+  --color-fg-muted: var(--color-fg-secondary);
   background: color-mix(in srgb, var(--color-amber-muted) 45%, transparent);
 }
 
