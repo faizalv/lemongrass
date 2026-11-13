@@ -3,6 +3,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { AppBanner } from '@sankasten'
 import DepRow from './deps/DepRow.vue'
 import { depsStore } from '../deps'
 import type { GitForecast } from '../../../preload/types'
@@ -66,8 +67,7 @@ const heading = computed(() => {
       <DepRow :dep="needed" :state="depsStore.state" />
     </ul>
   </div>
-  <div v-else-if="conflict" class="forecast-conflict">
-    <p>{{ heading }}</p>
+  <AppBanner v-else-if="conflict" tone="warning" :title="heading">
     <ul class="forecast-paths">
       <li v-for="path in conflict.paths" :key="path" :title="path">
         <span class="file-name">{{ fileName(path) }}</span>
@@ -77,7 +77,7 @@ const heading = computed(() => {
     <p v-if="conflict.stop && conflict.stop.index < conflict.stop.total" class="forecast-later">
       Later commits are checked once this one is resolved.
     </p>
-  </div>
+  </AppBanner>
 </template>
 
 <style scoped>
@@ -92,26 +92,15 @@ const heading = computed(() => {
   font-size: var(--text-sm);
 }
 
-.forecast-conflict {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-left: 3px solid var(--color-error);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-1);
-  color: var(--color-fg-primary);
-  font-size: var(--text-sm);
-  word-break: break-word;
-}
-
+/* The banner body's relaxed leading suits prose; a file list reads as one block under the title. */
 .forecast-paths {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0;
+  margin: var(--space-1) 0 0;
   padding: 0;
   list-style: none;
+  line-height: var(--leading-snug);
   max-height: 10rem;
   overflow-y: auto;
 }
@@ -137,10 +126,11 @@ const heading = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-fg-muted);
+  /* Muted is too dim on the banner's amber tint. */
+  color: var(--color-fg-secondary);
 }
 
 .forecast-later {
-  color: var(--color-fg-secondary);
+  margin: var(--space-1) 0 0;
 }
 </style>
