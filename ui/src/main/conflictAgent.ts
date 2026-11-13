@@ -287,10 +287,13 @@ async function postVerdicts(
 
 // settledInput is the blocks the human resolved before handing over, one batch per file, posted
 // quietly after the thread opens so the model keeps them and the resolver shows them as done.
+// askedInput is the blocks the human asks about with their words, one batch or null, posted quietly
+// too: the typed line is the only thing that wakes the model, so it wakes once and finds both.
 async function start(
   projectPath: string,
   tabId: string,
-  settledInput: unknown
+  settledInput: unknown,
+  askedInput: unknown
 ): Promise<ConflictStartResult> {
   if (typeof projectPath !== 'string' || !projectPath) return { ok: false, reason: 'No project' }
   if (!UUID.test(tabId)) return { ok: false, reason: 'The tab id is not valid' }
@@ -301,6 +304,15 @@ async function start(
     const batch = validBatch(item)
     if (typeof batch === 'string') return { ok: false, reason: batch }
     settled.push(batch)
+  }
+  let asked: ConflictVerdictBatch | null = null
+  if (askedInput !== null && askedInput !== undefined) {
+    const batch = validBatch(askedInput)
+    if (typeof batch === 'string') return { ok: false, reason: batch }
+    if (batch.verdicts.some((verdict) => verdict.verdict !== 'asked')) {
+      return { ok: false, reason: 'A hand-over asks about blocks and nothing else' }
+    }
+    asked = batch
   }
   if (!lgrassPath) return { ok: false, reason: 'lgrass is not installed' }
   const state = (await tabStates(projectPath))[tabId]
@@ -324,10 +336,16 @@ async function start(
       threadId = String(out.threadId ?? '')
       if (!THREAD_ID.test(threadId)) return { ok: false, reason: 'lgrass returned no thread id' }
       for (const batch of settled) await postVerdicts(projectPath, conflict.scope, batch, true)
+      if (asked) await postVerdicts(projectPath, conflict.scope, asked, true)
     } catch (err) {
       return { ok: false, reason: message(err) }
     }
-    const outcome = await pastePrompt(tabId, composeStartLine(conflict))
+    const line = composeStartLine(conflict, threadId, {
+      resolved: settled.reduce((sum, batch) => sum + batch.verdicts.length, 0),
+      files: settled.length,
+      asked: asked?.verdicts.length ?? 0
+    })
+    const outcome = await pastePrompt(tabId, line)
     return outcome === 'typed'
       ? { ok: true, threadId }
       : { ok: false, reason: OUTCOME_REASONS[outcome] }
@@ -526,8 +544,10 @@ export function registerConflictAgentHandlers(
   lgrassPath = lgrass
   windowOf = getWindow
   ipcMain.handle('conflict:status', (_event, projectPath: string) => status(projectPath))
-  ipcMain.handle('conflict:start', (_event, projectPath: string, tabId: string, settled: unknown) =>
-    start(projectPath, tabId, settled)
+  ipcMain.handle(
+    'conflict:start',
+    (_event, projectPath: string, tabId: string, settled: unknown, asked: unknown) =>
+      start(projectPath, tabId, settled, asked)
   )
   ipcMain.handle('conflict:post', (_event, projectPath: string, messages: unknown) =>
     post(projectPath, messages)

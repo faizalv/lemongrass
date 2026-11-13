@@ -66,6 +66,9 @@ const props = withDefaults(
 const emit = defineEmits<{
   select: [id: string]
   add: []
+  // The row the pointer or keyboard focus is on, or null when it leaves the rows or the dropdown
+  // closes, for a caller that shows what a row means while it is pointed at.
+  point: [id: string | null]
 }>()
 
 const open = ref(false)
@@ -110,7 +113,10 @@ function listen(on: boolean): void {
   document[method]('scroll', place, true)
 }
 
-watch(open, (isOpen) => listen(isOpen))
+watch(open, (isOpen) => {
+  listen(isOpen)
+  if (!isOpen) emit('point', null)
+})
 
 const pinnedItems = computed(() => props.items.filter((item) => item.pinned))
 
@@ -229,6 +235,10 @@ onBeforeUnmount(() => {
             :title="item.disabled ?? item.title"
             :disabled="!!item.disabled"
             @click="pick(item.id)"
+            @mouseenter="emit('point', item.id)"
+            @mouseleave="emit('point', null)"
+            @focus="emit('point', item.id)"
+            @blur="emit('point', null)"
           >
             <IconFrame v-if="item.icon" class="item-icon" :size="13">
               <component
@@ -253,6 +263,10 @@ onBeforeUnmount(() => {
               :title="item.disabled ?? item.title"
               :disabled="!!item.disabled"
               @click="pick(item.id)"
+              @mouseenter="emit('point', item.id)"
+              @mouseleave="emit('point', null)"
+              @focus="emit('point', item.id)"
+              @blur="emit('point', null)"
             >
               <IconFrame v-if="item.icon" class="item-icon" :size="13">
                 <component

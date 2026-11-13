@@ -61,13 +61,7 @@ import {
   sideState
 } from '../../conflictEditor'
 import { hasConflictTab, type ProjectRef } from '../../workspace'
-import { handConflictTo } from '../../conflictThread'
-import {
-  askAboutBlocks,
-  focusOf,
-  publishManual,
-  writtenBeforeHandOver
-} from '../../conflictVerdicts'
+import { askAboutBlocks, focusOf, publishManual } from '../../conflictVerdicts'
 import type {
   ConflictPane,
   GitConflictChunk,
@@ -75,16 +69,9 @@ import type {
   GitConflictStage,
   GitLineRange
 } from '../../../../preload/types'
-import {
-  AppButton,
-  AppIconButton,
-  AppMenuButton,
-  AppModal,
-  AppTextarea,
-  type MenuItem
-} from '@sankasten'
+import { AppButton, AppIconButton, AppMenuButton, AppModal, type MenuItem } from '@sankasten'
 import ConflictIcon from './ConflictIcon.vue'
-import ResolveWithMenu from '../ResolveWithMenu.vue'
+import AskModelModal from './AskModelModal.vue'
 import { CONFLICT_ICONS } from '../../conflictIcons'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
@@ -622,51 +609,35 @@ function syncScroll(from: EditorView): void {
   }
 }
 
-// Ask the model about the block under the cursor. Without a model holding the conflict the tab
-// list opens first, and the question follows the hand-over.
+// Ask a model about the block under the cursor: the modal holds the message and the tab, and its
+// Submit is the only step that acts, since handing the conflict over wakes the model.
 const askOpen = ref(false)
-const askText = ref('')
 const asking = ref(false)
 const askError = ref<string | null>(null)
 const asked = ref(false)
-const tabMenu = ref<InstanceType<typeof ResolveWithMenu> | null>(null)
-const handing = ref(false)
 
 const askBlocks = computed(() =>
   current.value === null ? [] : (loaded.value?.blocks[current.value] ?? [])
 )
 
-function startAsk(event: MouseEvent): void {
+function startAsk(): void {
   askError.value = null
   asked.value = false
-  if (props.modelHolds) {
-    askOpen.value = true
-    return
-  }
-  tabMenu.value?.toggle(event.currentTarget as HTMLElement)
-}
-
-async function handOverThenAsk(tabId: string): Promise<void> {
-  handing.value = true
-  const refused = await handConflictTo(props.project, tabId, () =>
-    writtenBeforeHandOver(props.project)
-  )
-  handing.value = false
-  if (refused) {
-    error.value = refused
-    return
-  }
-  tabMenu.value?.hide()
   askOpen.value = true
 }
 
-async function sendAsk(): Promise<void> {
+async function sendAsk(payload: { tabId: string | null; text: string }): Promise<void> {
   asking.value = true
-  askError.value = await askAboutBlocks(props.project, props.path, askBlocks.value, askText.value)
+  askError.value = await askAboutBlocks(
+    props.project,
+    props.path,
+    askBlocks.value,
+    payload.text,
+    payload.tabId
+  )
   asking.value = false
   if (askError.value) return
   askOpen.value = false
-  askText.value = ''
   asked.value = true
 }
 
@@ -815,7 +786,6 @@ onBeforeUnmount(() => {
         Apply
       </AppButton>
     </div>
-    <ResolveWithMenu ref="tabMenu" :project="project" :sending="handing" @pick="handOverThenAsk" />
     <p v-if="asked" class="merge-note">Asked. The answer comes back in Decisions.</p>
     <p v-if="error" class="merge-error">{{ error }}</p>
     <div ref="panesEl" class="panes">
@@ -842,23 +812,16 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <AppModal v-if="askOpen" title="Ask the model about this block" @close="askOpen = false">
-      <AppTextarea
-        v-model="askText"
-        size="sm"
-        rows="3"
-        class="ask-text"
-        placeholder="What should it tell you or change here?"
-        @keydown.enter.exact.prevent="sendAsk"
-      />
-      <p v-if="askError" class="merge-error">{{ askError }}</p>
-      <template #footer>
-        <AppButton @click="askOpen = false">Cancel</AppButton>
-        <AppButton variant="primary" :disabled="asking || !askText.trim()" @click="sendAsk">
-          Ask
-        </AppButton>
-      </template>
-    </AppModal>
+    <AskModelModal
+      v-if="askOpen"
+      :project="project"
+      :held="modelHolds"
+      :blocks="askBlocks.length"
+      :sending="asking"
+      :error="askError"
+      @submit="sendAsk"
+      @close="askOpen = false"
+    />
 
     <AppModal v-if="pendingReload" :title="`${path} changed on disk`" @close="keepEdits">
       <p class="reload-note">
@@ -926,10 +889,6 @@ onBeforeUnmount(() => {
   font-size: var(--text-xs);
   color: var(--color-fg-secondary);
   border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.ask-text {
-  width: 100%;
 }
 
 .toolbar .apply {

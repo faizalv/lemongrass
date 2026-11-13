@@ -384,7 +384,12 @@ export const DOCS: Record<string, ComponentDoc> = {
     ],
     events: [
       { name: 'select', type: 'string', doc: 'The picked id.' },
-      { name: 'add', type: '', doc: 'The add row.' }
+      { name: 'add', type: '', doc: 'The add row.' },
+      {
+        name: 'point',
+        type: 'string | null',
+        doc: 'The id of the row under the pointer or keyboard focus, null when it leaves or the list closes.'
+      }
     ]
   },
   AppMultiPicker: {

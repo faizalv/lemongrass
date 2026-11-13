@@ -233,17 +233,37 @@ test('show says when a side has no commits or git could not tell', () => {
   assert.match(text, /since the merge base:\n {2}unknown, git has no merge base for this merge$/)
 })
 
-test('the start line is one [lg] line naming the operation and the manual', () => {
+test('the start line names the operation, the thread and what to read first', () => {
+  const none = { resolved: 0, files: 0, asked: 0 }
   assert.equal(
-    composeStartLine({ operation: 'merge', leftRef: 'main', rightRef: 'feature' }),
-    '[lg] the human handed you the conflicts in the merge of feature into main. Run lgrass how git resolve.'
+    composeStartLine({ operation: 'merge', leftRef: 'main', rightRef: 'feature' }, 'a1b2c3', none),
+    '[lg] the human handed you the conflicts in the merge of feature into main. Thread a1b2c3 holds what they ask and resolved. Run lgrass thread read a1b2c3 first, then lgrass how git resolve.'
   )
-  assert.equal(
-    composeStartLine({ operation: 'rebase', leftRef: 'feature', rightRef: 'origin/main' }),
-    '[lg] the human handed you the conflicts in the rebase of feature onto origin/main. Run lgrass how git resolve.'
+  assert.match(
+    composeStartLine(
+      { operation: 'rebase', leftRef: 'feature', rightRef: 'origin/main' },
+      'a1b2c3',
+      none
+    ),
+    /^\[lg\] the human handed you the conflicts in the rebase of feature onto origin\/main\. Thread/
   )
-  assert.equal(
-    composeStartLine({ operation: 'stash', leftRef: 'stashed changes', rightRef: 'main' }),
-    '[lg] the human handed you the conflicts in the stashed changes applied onto main. Run lgrass how git resolve.'
+  assert.match(
+    composeStartLine(
+      { operation: 'stash', leftRef: 'stashed changes', rightRef: 'main' },
+      'a1b2c3',
+      none
+    ),
+    /in the stashed changes applied onto main\. Thread/
   )
+})
+
+test('the start line counts the blocks asked about and the blocks already resolved', () => {
+  const line = composeStartLine(
+    { operation: 'merge', leftRef: 'main', rightRef: 'feature' },
+    'a1b2c3',
+    { resolved: 3, files: 2, asked: 1 }
+  )
+  assert.match(line, /They ask about 1 block only, so leave the others alone\./)
+  assert.match(line, /They already resolved 3 blocks in 2 files, which you keep\./)
+  assert.equal(line.split('\n').length, 1)
 })

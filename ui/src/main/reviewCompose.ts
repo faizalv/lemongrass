@@ -147,11 +147,38 @@ export function composeReview(submission: ReviewSubmission, details: ReviewDetai
   return `[lg] ${body.filter(Boolean).join('\n\n')}`
 }
 
-// The line typed into the tab the human hands a conflict to. It names only refs, which pass git's
-// ref format check and so hold no spaces or control characters; everything else the model pulls
-// itself through `lgrass git conflict show`.
-export function composeStartLine(sides: ConflictSides): string {
-  return `[lg] the human handed you the conflicts in ${conflictSubject(sides)}. Run lgrass how git resolve.`
+// What the human did before handing the conflict over, as counts only: the blocks already resolved
+// in files, and the blocks they ask about. The details are in the thread the line names.
+export interface HandOver {
+  resolved: number
+  files: number
+  asked: number
+}
+
+// The line typed into the tab the human hands a conflict to. It names only refs, the thread id and
+// counts: refs pass git's ref format check and the id is six letters or digits, so none holds
+// spaces or control characters, unlike a path. A model that reads only this line is told what is
+// in the thread and to read it first; the details, the blocks and the human's words, are in the
+// thread and in `lgrass git conflict show`.
+export function composeStartLine(
+  sides: ConflictSides,
+  threadId: string,
+  handOver: HandOver
+): string {
+  const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
+  const parts = [`[lg] the human handed you the conflicts in ${conflictSubject(sides)}.`]
+  if (handOver.asked > 0) {
+    parts.push(`They ask about ${plural(handOver.asked, 'block')} only, so leave the others alone.`)
+  }
+  if (handOver.resolved > 0) {
+    parts.push(
+      `They already resolved ${plural(handOver.resolved, 'block')} in ${plural(handOver.files, 'file')}, which you keep.`
+    )
+  }
+  parts.push(
+    `Thread ${threadId} holds what they ask and resolved. Run lgrass thread read ${threadId} first, then lgrass how git resolve.`
+  )
+  return parts.join(' ')
 }
 
 export interface CommitIntent {

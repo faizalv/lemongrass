@@ -120,7 +120,7 @@ const CHEVRONS = {
   left: 'M3 3.5l3.5 3.5L3 10.5M7.5 3.5L11 7l-3.5 3.5',
   right: 'M11 3.5L7.5 7l3.5 3.5M6.5 3.5L3 7l3.5 3.5'
 }
-const CROSS = 'M4 4l6 6M10 4l-6 6'
+const CROSS = 'M3.5 3.5l7 7M10.5 3.5l-7 7'
 
 function iconButton(className: string, path: string, label: string, action: string): HTMLElement {
   const button = document.createElement('button')
@@ -128,7 +128,9 @@ function iconButton(className: string, path: string, label: string, action: stri
   button.title = label
   button.setAttribute('aria-label', label)
   button.dataset.decide = action
-  button.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`
+  // The viewBox crops the 14 unit icon grid to its drawn part, so the glyph fills most of the 16px
+  // box; these two decide every conflict, and at 12px with a thin stroke they read as decoration.
+  button.innerHTML = `<svg width="16" height="16" viewBox="2 2 10 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></svg>`
   return button
 }
 
@@ -472,21 +474,24 @@ const theme = EditorView.theme({
   '.cm-decide': {
     display: 'flex',
     alignItems: 'center',
-    gap: '2px',
-    padding: '0 2px'
+    gap: '3px',
+    padding: '0 3px'
   },
   '.cm-decide-button': {
     display: 'flex',
     padding: '1px',
     border: 'none',
-    borderRadius: 'var(--radius-sm)',
+    borderRadius: 'var(--radius-md)',
     background: 'none',
     cursor: 'pointer'
   },
   // Both controls are drawn in full until a side is decided, then the one not chosen dims.
   '.cm-decide-button.take': { color: 'var(--color-jade)' },
   '.cm-decide-button.reject': { color: 'var(--color-error)' },
-  '.cm-decide-button.on': { backgroundColor: 'var(--color-surface-2)' },
+  '.cm-decide-button.take:hover': { backgroundColor: 'var(--color-jade-muted)' },
+  '.cm-decide-button.reject:hover': { backgroundColor: 'var(--color-error-muted)' },
+  '.cm-decide-button.take.on': { backgroundColor: 'var(--color-jade-muted)' },
+  '.cm-decide-button.reject.on': { backgroundColor: 'var(--color-error-muted)' },
   '.cm-decide-button.off': { color: 'var(--color-fg-disabled)' },
   '.cm-decide-button.take.off:hover': { color: 'var(--color-jade)' },
   '.cm-decide-button.reject.off:hover': { color: 'var(--color-error)' },

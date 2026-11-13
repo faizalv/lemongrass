@@ -369,7 +369,8 @@ interface Api {
     start: (
       projectPath: string,
       tabId: string,
-      settled: ConflictVerdictBatch[]
+      settled: ConflictVerdictBatch[],
+      asked: ConflictVerdictBatch | null
     ) => Promise<ConflictStartResult>
     post: (projectPath: string, messages: ConflictHumanMessage[]) => Promise<ConflictActionResult>
     verdicts: (

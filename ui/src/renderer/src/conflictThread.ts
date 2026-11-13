@@ -132,11 +132,14 @@ export function useConflictThread(project: () => ProjectRef): ComputedRef<Confli
 // Hands the whole conflict to a tab: the resolver's unsaved work goes to disk first, unstaged, so
 // the model reads what the human sees; the thread opens or is reused with that tab as its
 // assignee, the blocks already resolved go along as settled, read by settled once the work is
-// saved, and the one-line start is typed into the tab. Returns the refusal, or null.
+// saved, and the one-line start is typed into the tab. asked is the blocks the human asks about,
+// posted with the hand-over so the model wakes once and finds the question. Returns the refusal,
+// or null.
 export async function handConflictTo(
   project: ProjectRef,
   tabId: string,
-  settled: () => Promise<ConflictVerdictBatch[]>
+  settled: () => Promise<ConflictVerdictBatch[]>,
+  asked: ConflictVerdictBatch | null = null
 ): Promise<string | null> {
   try {
     const saved = await saveConflictWork(project)
@@ -145,7 +148,10 @@ export async function handConflictTo(
       path: batch.path,
       verdicts: batch.verdicts.map((v) => ({ ...v }))
     }))
-    const result = await window.api.conflictAgent.start(project.path, tabId, batches)
+    const question = asked
+      ? { path: asked.path, verdicts: asked.verdicts.map((v) => ({ ...v })) }
+      : null
+    const result = await window.api.conflictAgent.start(project.path, tabId, batches, question)
     if (!result.ok) return result.reason
     await refreshConflictStatus(project)
     return null

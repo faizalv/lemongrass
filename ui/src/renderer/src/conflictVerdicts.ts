@@ -4,7 +4,7 @@
 import { reactive } from 'vue'
 import { gitStateOf, stageConflict } from './git'
 import { buildProposal } from './conflictModel'
-import { conflictThreadOf, refreshConflictMessages } from './conflictThread'
+import { conflictThreadOf, handConflictTo, refreshConflictMessages } from './conflictThread'
 import { saveConflictWork } from './conflictSave'
 import {
   blockDigest,
@@ -211,25 +211,35 @@ export async function writtenBeforeHandOver(project: ProjectRef): Promise<Confli
   return batches
 }
 
-// Asks the model about blocks from the three panes. The human's partial work goes to disk first,
-// so the model reads what the human sees. Returns the refusal, or null.
+// What a block's ask says when the human wrote nothing: the ask itself is the message.
+const ASK_WITHOUT_WORDS = 'Look at this block and tell me what you would do.'
+
+function askedBatch(path: string, blocks: number[], text: string): ConflictVerdictBatch {
+  const words = text.trim() || ASK_WITHOUT_WORDS
+  return { path, verdicts: blocks.map((block) => ({ block, verdict: 'asked', text: words })) }
+}
+
+// Asks a model about blocks from the three panes. The human's partial work goes to disk first, so
+// the model reads what the human sees. With tabId the conflict is handed to that tab in the same
+// step, and the question travels with the hand-over so the model wakes once; without it a model
+// already holds the conflict and the question is posted to its thread. Returns the refusal, or
+// null.
 export async function askAboutBlocks(
   project: ProjectRef,
   path: string,
   blocks: number[],
-  text: string
+  text: string,
+  tabId: string | null
 ): Promise<string | null> {
-  const question = text.trim()
-  if (!question) return 'Write what you want to ask.'
   if (blocks.length === 0) return 'Put the cursor in a conflict block first.'
+  const question = askedBatch(path, blocks, text)
   try {
+    if (tabId) {
+      return await handConflictTo(project, tabId, () => writtenBeforeHandOver(project), question)
+    }
     const saved = await saveConflictWork(project)
     if (!saved.ok) return saved.error
-    const sent = await window.api.conflictAgent.verdicts(
-      project.path,
-      { path, verdicts: blocks.map((block) => ({ block, verdict: 'asked', text: question })) },
-      false
-    )
+    const sent = await window.api.conflictAgent.verdicts(project.path, question, false)
     if (!sent.ok) return sent.reason
     await refreshConflictMessages(project)
     return null

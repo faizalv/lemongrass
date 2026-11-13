@@ -175,16 +175,18 @@ const review = {
 }
 
 // Handing a conflict to an agent tab. settled is the blocks the human resolved before handing over,
-// one verdicts batch per file, which main posts quietly so the model keeps them.
+// one verdicts batch per file, which main posts quietly so the model keeps them. asked is the
+// blocks the human asks about, or null for a plain hand-over.
 const conflictAgent = {
   status: (projectPath: string): Promise<ConflictThreadStatus | null> =>
     ipcRenderer.invoke('conflict:status', projectPath),
   start: (
     projectPath: string,
     tabId: string,
-    settled: ConflictVerdictBatch[]
+    settled: ConflictVerdictBatch[],
+    asked: ConflictVerdictBatch | null
   ): Promise<ConflictStartResult> =>
-    ipcRenderer.invoke('conflict:start', projectPath, tabId, settled),
+    ipcRenderer.invoke('conflict:start', projectPath, tabId, settled, asked),
   post: (projectPath: string, messages: ConflictHumanMessage[]): Promise<ConflictActionResult> =>
     ipcRenderer.invoke('conflict:post', projectPath, messages),
   verdicts: (
