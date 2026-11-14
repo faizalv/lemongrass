@@ -9,7 +9,8 @@ import {
   editCommentDraft,
   removeCommentDraft
 } from './conflictCommentStore'
-import { sentComments } from './conflictComments'
+import { agentBusyOf } from './conflictAgentBusy'
+import { awaitsAnswer, sentComments } from './conflictComments'
 import { conflictThreadOf } from './conflictThread'
 import { agentVendorOf } from './reviewTargets'
 import type { ProjectRef } from './workspace'
@@ -50,7 +51,20 @@ export function commentGutter(spec: CommentPane): Extension {
         body: reply.body,
         vendor: reply.author === 'tab' ? agentVendorOf(project.id, reply.tabId) : null
       }))
-      out.push({ id: `m${sent.id}`, fromLine, toLine, comment: sent.body, sent: true, replies })
+      const waiting = awaitsAnswer(sent)
+        ? agentBusyOf(project.id)
+          ? ('working' as const)
+          : ('idle' as const)
+        : undefined
+      out.push({
+        id: `m${sent.id}`,
+        fromLine,
+        toLine,
+        comment: sent.body,
+        sent: true,
+        replies,
+        waiting
+      })
     }
     for (const draft of commentDraftsOf(project.id)) {
       if (draft.path !== spec.path || draft.pane !== spec.pane || !spec.shows(draft.block)) continue

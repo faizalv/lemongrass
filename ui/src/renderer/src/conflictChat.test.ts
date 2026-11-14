@@ -4,7 +4,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WorkgroupThreadMessage } from '../../preload/types'
-import { chatMessageFor, chatMessages, contextLine, inScope, scopeChip } from './conflictChat.ts'
+import {
+  chatAwaitsAnswer,
+  chatMessageFor,
+  chatMessages,
+  contextLine,
+  newestId,
+  scopeChip,
+  unreadCount
+} from './conflictChat.ts'
 import { commentMessages } from './conflictComments.ts'
 
 let nextId = 1
@@ -43,22 +51,17 @@ test('the chat lists plain messages only, never reports or verdicts', () => {
   )
 })
 
-test('a block scope keeps its block, the file as a whole and general messages', () => {
-  const general = message({})
-  const sameBlock = message({ anchor: at('src/a.js', 2) })
-  const otherBlock = message({ anchor: at('src/a.js', 3) })
-  const wholeFile = message({ anchor: at('src/a.js', 0) })
-  const otherFile = message({ anchor: at('src/b.js', 2) })
-  const scope = { path: 'src/a.js', block: 2 }
-  assert.deepEqual(
-    [general, sameBlock, otherBlock, wholeFile, otherFile].map((m) => inScope(m, scope)),
-    [true, true, false, true, false]
-  )
-  const file = { path: 'src/a.js', block: null }
-  assert.deepEqual(
-    [general, sameBlock, otherBlock, wholeFile, otherFile].map((m) => inScope(m, file)),
-    [true, true, true, true, false]
-  )
+test('the chat waits on the agent after a line of the human, until the agent posts anything', () => {
+  const asked = message({ body: 'why?' })
+  const verdicts = message({ kind: 'verdicts' })
+  const report = message({ author: 'tab', kind: 'decision', tabId: 't1' })
+  const answer = message({ author: 'tab', tabId: 't1' })
+  assert.equal(chatAwaitsAnswer([]), false)
+  assert.equal(chatAwaitsAnswer([verdicts]), false)
+  assert.equal(chatAwaitsAnswer([asked]), true)
+  assert.equal(chatAwaitsAnswer([asked, verdicts]), true)
+  assert.equal(chatAwaitsAnswer([asked, report]), false)
+  assert.equal(chatAwaitsAnswer([asked, answer, message({ body: 'and?' })]), true)
 })
 
 test('the chip and the context line name the file and the block', () => {
@@ -101,4 +104,16 @@ test('a chat line is anchored to its scope with no lines, and a comment keeps it
   assert.equal(messages[0].anchor?.pane, 'left')
   assert.equal(messages[0].replyTo, undefined)
   assert.equal(messages[1].replyTo, 9)
+})
+
+test('the Thread count is the agent messages in the chat after the newest one seen', () => {
+  const asked = message({ id: 10 })
+  const answer = message({ id: 11, author: 'tab', tabId: 't1' })
+  const report = message({ id: 12, author: 'tab', tabId: 't1', kind: 'decision' })
+  const reply = message({ id: 13, author: 'tab', tabId: 't1', replyTo: 10 })
+  const all = [asked, answer, report, reply]
+  assert.equal(unreadCount(all, 0), 2)
+  assert.equal(unreadCount(all, 11), 1)
+  assert.equal(unreadCount(all, newestId(all)), 0)
+  assert.equal(newestId([]), 0)
 })

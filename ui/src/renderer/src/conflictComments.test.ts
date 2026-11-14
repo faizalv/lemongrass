@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { WorkgroupThreadMessage } from '../../preload/types'
-import { blockAtLine, sentComments } from './conflictComments.ts'
+import { awaitsAnswer, blockAtLine, sentComments, type SentComment } from './conflictComments.ts'
 
 let nextId = 1
 function message(fields: Partial<WorkgroupThreadMessage>): WorkgroupThreadMessage {
@@ -69,4 +69,23 @@ test('a line belongs to the block holding it, else the nearest, else none', () =
   assert.equal(blockAtLine(blocks, 18), 2)
   assert.equal(blockAtLine(blocks, 1), 1)
   assert.equal(blockAtLine([], 4), 0)
+})
+
+test('a comment waits on the agent until the agent has the last word', () => {
+  const reply = (author: 'tab' | 'human'): SentComment['replies'][number] => ({
+    id: 1,
+    author,
+    tabId: author === 'tab' ? 't1' : '',
+    label: '',
+    body: 'x'
+  })
+  const comment = (replies: SentComment['replies']): SentComment => ({
+    id: 9,
+    anchor: { path: 'a.js', startLine: 1, endLine: 1, quote: '', pane: 'middle', block: 1 },
+    body: 'why?',
+    replies
+  })
+  assert.equal(awaitsAnswer(comment([])), true)
+  assert.equal(awaitsAnswer(comment([reply('tab')])), false)
+  assert.equal(awaitsAnswer(comment([reply('tab'), reply('human')])), true)
 })

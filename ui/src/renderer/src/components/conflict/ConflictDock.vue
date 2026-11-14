@@ -3,12 +3,14 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { AppButton } from '@sankasten'
+import { AppBadge, AppButton } from '@sankasten'
 import { chatOf, focusChat, setChatOpen } from '../../conflictChatStore'
-import type { ChatScope } from '../../conflictChat'
+import { unreadCount, type ChatScope } from '../../conflictChat'
 import { commentDraftsOf } from '../../conflictCommentStore'
 import type { FileDecisions } from '../../conflictDecisions'
 import { sendQueued } from '../../conflictSend'
+import { useAgentBusy } from '../../conflictAgentBusy'
+import { conflictThreadOf } from '../../conflictThread'
 import { modelHolds } from '../../conflictVerdicts'
 import type { ProjectRef } from '../../workspace'
 import ConflictChat from './ConflictChat.vue'
@@ -32,6 +34,9 @@ const props = defineProps<{
   title?: string
 }>()
 
+// The chat and the comment cards say whether the agent is answering, from this one poll.
+useAgentBusy(() => props.project)
+
 const comments = computed(() => commentDraftsOf(props.project.id).length)
 const total = computed(() => props.queuedBlocks + comments.value)
 const staging = computed(
@@ -45,6 +50,13 @@ const label = computed(() => {
 const nothing = computed(() => total.value === 0 && props.ready.length === 0)
 
 const open = computed(() => chatOf(props.project.id).open && props.scope !== null)
+// What the agent wrote since the human last had the chat open, so a message is noticed without the
+// conversation sitting beside the decisions.
+const unread = computed(() =>
+  open.value
+    ? 0
+    : unreadCount(conflictThreadOf(props.project.id).messages, chatOf(props.project.id).seen)
+)
 const sending = ref(false)
 const error = ref<string | null>(null)
 
@@ -91,6 +103,9 @@ async function send(): Promise<void> {
       >
         <ConflictIcon name="thread" />
         Thread
+        <AppBadge v-if="unread > 0" size="sm" :title="`${unread} new from the agent`">{{
+          unread
+        }}</AppBadge>
       </AppButton>
     </div>
   </div>

@@ -3,8 +3,8 @@
 
 import type { ConflictHumanMessage, WorkgroupThreadMessage } from '../../preload/types'
 
-// The chat box over a conflict: which thread messages it lists, how a message is scoped by where
-// it was sent, and what the box says it is asking about. Pure, with no local value imports, so
+// The chat box over a conflict: which thread messages it lists, the chip naming where each was
+// sent from, whether the agent owes an answer, and what the box says it is asking about. Pure, with no local value imports, so
 // node's test runner loads it.
 
 // What the chat is about right now: a file, and one block of it in Decisions. block null is the
@@ -20,16 +20,27 @@ export function chatMessages(messages: WorkgroupThreadMessage[]): WorkgroupThrea
   return messages.filter((message) => message.kind === 'message')
 }
 
-// Whether a message belongs to a scope. A message sent with no anchor is general and always
-// belongs. Otherwise it must be about the same file, and for a block scope about that block or the
-// file as a whole, which concerns every block in it.
-export function inScope(message: WorkgroupThreadMessage, scope: ChatScope): boolean {
-  const anchor = message.anchor
-  if (!anchor) return true
-  if (anchor.path !== scope.path) return false
-  if (scope.block === null) return true
-  const block = anchor.block ?? 0
-  return block === 0 || block === scope.block
+// The agent's messages in the chat that came after the last one the human saw, for the count on
+// the Thread button. seen is the id of the newest message the human saw, 0 for none.
+export function unreadCount(messages: WorkgroupThreadMessage[], seen: number): number {
+  return chatMessages(messages).filter((message) => message.author === 'tab' && message.id > seen)
+    .length
+}
+
+// The newest message id in a thread, which the human has seen once the chat is open.
+export function newestId(messages: WorkgroupThreadMessage[]): number {
+  return messages.reduce((max, message) => Math.max(max, message.id), 0)
+}
+
+// The chat waits on the agent while the human wrote something after the agent's last message of any
+// kind, since a report or a question also answers what the human said.
+export function chatAwaitsAnswer(messages: WorkgroupThreadMessage[]): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.author === 'tab') return false
+    if (message.kind === 'message') return true
+  }
+  return false
 }
 
 function fileName(path: string): string {

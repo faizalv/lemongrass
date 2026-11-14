@@ -3,25 +3,26 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { AppButton, AppEmptyState, AppIconButton, AppSwitcher, AppTextarea } from '@sankasten'
 import {
-  AppButton,
-  AppEmptyState,
-  AppIconButton,
-  AppSegmented,
-  AppSwitcher,
-  AppTextarea
-} from '@sankasten'
-import { chatOf, setChatOpen, setChatText, setChatWide } from '../../conflictChatStore'
+  chatOf,
+  markChatSeen,
+  setChatOpen,
+  setChatText,
+  setChatWide
+} from '../../conflictChatStore'
 import {
   chatMessageFor,
+  chatAwaitsAnswer,
   chatMessages,
   contextLine,
-  inScope,
+  newestId,
   scopeChip,
   type ChatScope
 } from '../../conflictChat'
 import { clearCommentDrafts, commentDraftsOf } from '../../conflictCommentStore'
-import { commentMessages } from '../../conflictComments'
+import { agentBusyOf } from '../../conflictAgentBusy'
+import { awaitsAnswer, commentMessages, sentComments } from '../../conflictComments'
 import { conflictThreadOf, handConflictTo, postToConflict } from '../../conflictThread'
 import { modelHolds, writtenBeforeHandOver } from '../../conflictVerdicts'
 import { resolveTargetsOf, agentVendorOf } from '../../reviewTargets'
@@ -33,6 +34,7 @@ import type {
   WorkgroupThreadMessage
 } from '../../../../preload/types'
 import AgentIcon from '../AgentIcon.vue'
+import AgentWorking from './AgentWorking.vue'
 import MarkedText from '../MarkedText.vue'
 
 // The thread with the agent, floating over the conflict. It lists the plain messages of the one
@@ -58,16 +60,17 @@ const sendScope = computed((): ChatScope =>
   chat.value.wide ? { path: props.scope.path, block: null } : props.scope
 )
 
-const everything = ref(false)
-const scopeOptions = computed(() => [
-  { value: 'here' as const, label: props.scope.block === null ? 'This file' : 'This block' },
-  { value: 'all' as const, label: 'All' }
-])
+// The whole thread of the resolve, every file and block, so changing file never empties it; each
+// message's chip says where it was sent from.
+const shown = computed((): WorkgroupThreadMessage[] => chatMessages(thread.value.messages))
 
-const shown = computed((): WorkgroupThreadMessage[] => {
-  const all = chatMessages(thread.value.messages)
-  return everything.value ? all : all.filter((message) => inScope(message, props.scope))
-})
+// Something the human wrote, a line here or a comment on a card, still waits on the agent.
+const waiting = computed(
+  () =>
+    held.value &&
+    (chatAwaitsAnswer(thread.value.messages) ||
+      sentComments(thread.value.messages).some(awaitsAnswer))
+)
 
 const queued = computed(() => commentDraftsOf(props.project.id).length)
 const text = computed({
@@ -167,11 +170,18 @@ const list = ref<HTMLElement | null>(null)
 const input = ref<InstanceType<typeof AppTextarea> | null>(null)
 
 watch(
-  () => shown.value.length,
+  () => [shown.value.length, waiting.value],
   async () => {
     await nextTick()
     if (list.value) list.value.scrollTop = list.value.scrollHeight
   }
+)
+
+// The box is open while mounted, so whatever the thread holds now has been seen.
+watch(
+  () => newestId(thread.value.messages),
+  (id) => markChatSeen(props.project.id, id),
+  { immediate: true }
 )
 
 watch(
@@ -213,14 +223,6 @@ function lines(message: WorkgroupThreadMessage): string | null {
   <section class="chat" role="dialog" aria-label="Thread with the agent">
     <header class="head">
       <h3 class="title">Thread</h3>
-      <AppSegmented
-        v-if="held"
-        size="sm"
-        aria-label="Which messages to list"
-        :options="scopeOptions"
-        :model-value="everything ? 'all' : 'here'"
-        @update:model-value="everything = $event === 'all'"
-      />
       <span class="spacer" />
       <AppIconButton size="sm" label="Close the thread" @click="setChatOpen(project.id, false)">
         <svg
@@ -245,9 +247,7 @@ function lines(message: WorkgroupThreadMessage): string | null {
         title="No thread yet."
         detail="Pick an agent below and write to it. Comments you queued on lines go with your first line."
       />
-      <p v-else-if="shown.length === 0" class="empty">
-        Nothing here yet. {{ everything ? '' : 'Switch to All to see the whole thread.' }}
-      </p>
+      <p v-else-if="shown.length === 0" class="empty">Nothing here yet.</p>
       <article
         v-for="message in shown"
         :key="message.id"
@@ -270,6 +270,13 @@ function lines(message: WorkgroupThreadMessage): string | null {
         <pre v-if="message.anchor?.quote" class="quote">{{ message.anchor.quote }}</pre>
         <p class="body">{{ message.body }}</p>
       </article>
+      <AgentWorking
+        v-if="waiting"
+        class="waiting"
+        :working="agentBusyOf(project.id) === true"
+        working-text="Agent is replying"
+        idle-text="Not answered yet"
+      />
     </div>
 
     <footer class="foot">
@@ -371,6 +378,10 @@ function lines(message: WorkgroupThreadMessage): string | null {
   margin: 0;
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
+}
+
+.waiting {
+  padding: var(--space-1) var(--space-2);
 }
 
 .message {

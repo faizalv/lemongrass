@@ -12,7 +12,6 @@ import {
   fileStatusText,
   contextAround,
   countStates,
-  generalLine,
   handOverAsked,
   isQueued,
   listLabel,
@@ -201,11 +200,10 @@ test('drafts become one verdict per block, and only drafts that still fit their 
   assert.equal(fileSettled([first, second], drafts, manual), true)
 })
 
-test('the general line, the end of a round and the file status read the thread', () => {
+test('the end of a round and the file status read the thread', () => {
   const human = message({ author: 'human', body: 'go on' })
   const line = message({ body: 'I also fixed an import.' })
   const submit = message({ kind: 'submit' })
-  assert.equal(generalLine([line, human, submit])?.body, 'I also fixed an import.')
   assert.equal(roundDone([line, human, submit]), true)
   assert.equal(roundDone([submit, message({ author: 'human', body: 'not yet' })]), false)
 

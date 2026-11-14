@@ -80,6 +80,13 @@ export function sentComments(messages: WorkgroupThreadMessage[]): SentComment[] 
   return comments
 }
 
+// A comment waits on the agent while nothing of the agent's comes after the human's last word on it,
+// the comment itself or a reply of the human's.
+export function awaitsAnswer(comment: SentComment): boolean {
+  const last = comment.replies[comment.replies.length - 1]
+  return !last || last.author === 'human'
+}
+
 // The block a line belongs to in a pane that shows a whole file: the one whose lines hold it, or
 // else the nearest by distance, since a comment on a clean line is about the block beside it. 0 when
 // the file has no block.

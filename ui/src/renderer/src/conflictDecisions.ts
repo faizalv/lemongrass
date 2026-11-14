@@ -425,15 +425,6 @@ export function fileSettled(
   })
 }
 
-// The model's latest plain message, shown as the one general line above the decisions.
-export function generalLine(messages: WorkgroupThreadMessage[]): WorkgroupThreadMessage | null {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
-    if (m.author === 'tab' && m.kind === 'message') return m
-  }
-  return null
-}
-
 // The model ended its round with submit after the human last wrote.
 export function roundDone(messages: WorkgroupThreadMessage[]): boolean {
   let submit = 0

@@ -10,16 +10,26 @@ const openDrawers = reactive(new Set<string>())
 </script>
 
 <script setup lang="ts">
-import { AppButton, AppDisclosure, AppEmptyState, AppSplitButton } from '@sankasten'
+import {
+  AppButton,
+  AppConfirmButton,
+  AppDisclosure,
+  AppEmptyState,
+  AppSplitButton
+} from '@sankasten'
 import { computed, ref } from 'vue'
 import { finishOperation, gitStateOf } from '../git'
 import { openConflict, type ProjectRef } from '../workspace'
 import { handConflictTo, useConflictThread } from '../conflictThread'
 import { fileStatusText } from '../conflictDecisions'
 import { useFileDecisions } from '../conflictFiles'
-import { setConflictMode, writtenBeforeHandOver } from '../conflictVerdicts'
+import { agentBusyOf, useAgentBusy } from '../conflictAgentBusy'
+import { modelHolds, setConflictMode, writtenBeforeHandOver } from '../conflictVerdicts'
+import { agentVendorOf } from '../reviewTargets'
 import { shellTitles } from '../shellRegistry'
 import type { GitFile } from '../../../preload/types'
+import AgentIcon from './AgentIcon.vue'
+import AgentWorking from './conflict/AgentWorking.vue'
 import ResolveWithMenu from './ResolveWithMenu.vue'
 
 const props = defineProps<{
@@ -53,6 +63,25 @@ const assignee = computed(() => {
   const tabId = thread.value.status?.assignee
   return tabId ? (shellTitles[tabId] ?? 'a tab that is closed') : null
 })
+
+// While an agent holds the conflict the panel says so, with whether its turn is running, in place of
+// the ways to start resolving.
+const held = computed(() => modelHolds(props.project.id))
+const assigneeVendor = computed(() => {
+  const tabId = thread.value.status?.assignee
+  return tabId ? agentVendorOf(props.project.id, tabId) : null
+})
+useAgentBusy(() => props.project)
+
+const abortPrompt = computed(() =>
+  status.value?.operation === 'merge'
+    ? 'Click again to abort the merge'
+    : 'Click again to abort the rebase'
+)
+
+function openResolver(): void {
+  if (conflicted.value.length > 0) openConflict(props.project, conflicted.value[0].path)
+}
 
 const decisions = useFileDecisions(() => props.project)
 
@@ -135,7 +164,50 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
       </template>
     </p>
     <p v-if="error" class="conflict-error">{{ error }}</p>
-    <div class="conflict-buttons">
+    <div v-if="held" class="conflict-working">
+      <p class="working-who">
+        <AgentIcon v-if="assigneeVendor" :agent-id="assigneeVendor" />
+        <span class="assignee-name">{{ assignee }}</span>
+      </p>
+      <AgentWorking
+        :working="agentBusyOf(project.id) === true"
+        working-text="Resolving the conflict"
+        idle-text="Waiting for you"
+      />
+    </div>
+    <div v-if="held" class="conflict-buttons">
+      <AppButton
+        v-if="conflicted.length > 0"
+        variant="primary"
+        size="sm"
+        class="conflict-action"
+        @click="openResolver"
+      >
+        Open resolver
+      </AppButton>
+      <AppButton
+        v-else
+        variant="primary"
+        size="sm"
+        class="conflict-action"
+        :disabled="state.busy !== null"
+        @click="finish('continue')"
+      >
+        Continue
+      </AppButton>
+      <AppConfirmButton
+        variant="danger"
+        tone="error"
+        size="sm"
+        class="conflict-abort"
+        :disabled="state.busy !== null"
+        :confirm-label="abortPrompt"
+        @confirm="finish('abort')"
+      >
+        Abort
+      </AppConfirmButton>
+    </div>
+    <div v-else class="conflict-buttons">
       <template v-if="conflicted.length > 0">
         <AppSplitButton
           ref="split"
@@ -174,7 +246,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
         Abort
       </AppButton>
     </div>
-    <p v-if="assignee" class="conflict-assignee">
+    <p v-if="assignee && !held" class="conflict-assignee">
       Handed to <span class="assignee-name">{{ assignee }}</span>
     </p>
 
@@ -256,6 +328,26 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 
 .conflict-buttons .conflict-abort {
   flex: 1 0 auto;
+}
+
+.conflict-working {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0 var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid var(--color-violet);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+}
+
+.working-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  min-width: 0;
 }
 
 .conflict-assignee {

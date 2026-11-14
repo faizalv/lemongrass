@@ -5,6 +5,7 @@
 import { nextTick, onMounted, ref } from 'vue'
 import { AppButton, AppTextarea } from '@sankasten'
 import AgentIcon from '../AgentIcon.vue'
+import AgentWorking from '../conflict/AgentWorking.vue'
 import type { CardReply } from '../../annotationGutter'
 
 // A comment card in an editor. A draft has no saved comment yet, so cancelling it discards it
@@ -18,6 +19,8 @@ const props = defineProps<{
   // A saved comment that answers a sent one.
   isReply?: boolean
   replies?: CardReply[]
+  // A sent comment the agent has not answered yet: working while its tab's turn runs.
+  waiting?: 'working' | 'idle' | null
 }>()
 
 const emit = defineEmits<{
@@ -100,6 +103,13 @@ onMounted(() => {
         </span>
         <p class="comment">{{ answer.body }}</p>
       </div>
+      <AgentWorking
+        v-if="sent && waiting"
+        class="waiting"
+        :working="waiting === 'working'"
+        working-text="Agent is replying"
+        idle-text="Not answered yet"
+      />
       <div class="actions">
         <template v-if="sent">
           <AppButton type="button" size="sm" @click="startReply">Reply</AppButton>
@@ -151,6 +161,10 @@ onMounted(() => {
   word-break: break-word;
 }
 
+.waiting {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border-subtle);
+}
 .answer {
   display: flex;
   flex-direction: column;

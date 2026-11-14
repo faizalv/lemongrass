@@ -14,6 +14,7 @@ import {
   locateChunks,
   mapScroll,
   middleRanges,
+  openCounts,
   savedText,
   sideMark
 } from './conflictModel.ts'
@@ -254,4 +255,17 @@ test("an agent's waiting text lights the side it equals, or both sides when it e
   const edited = { ...waiting, proposed: undefined }
   assert.equal(sideMark(edited, 'left', ['right']), 'open')
   assert.equal(sideMark({ ...waiting, right: 'taken' }, 'right', ['right']), 'taken')
+})
+
+test('openCounts keeps the agent proposals apart from the open blocks, since Apply accepts them', () => {
+  const chunk = { index: 0, from: 0, to: 0, resolved: false, left: 'open', right: 'open' } as const
+  assert.deepEqual(
+    openCounts([
+      { ...chunk, taken: [] },
+      { ...chunk, index: 1, taken: [], proposed: true },
+      { ...chunk, index: 2, taken: ['left'], resolved: true, left: 'taken', right: 'rejected' },
+      { ...chunk, index: 3, taken: [], proposed: true }
+    ]),
+    { open: 1, proposed: 2 }
+  )
 })

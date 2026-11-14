@@ -33,6 +33,7 @@ import {
   isCrlf,
   locateChunks,
   mapScroll,
+  openCounts,
   middleRanges,
   savedText,
   sideMark,
@@ -114,7 +115,10 @@ const loaded = shallowRef<Loaded | null>(null)
 const conflictIndexes = computed(() =>
   (loaded.value?.chunks ?? []).flatMap((chunk, index) => (chunk.kind === 'conflict' ? [index] : []))
 )
+// Blocks nobody resolved; Apply waits on these.
 const unresolved = ref(0)
+// Blocks holding the agent's proposal, which Apply accepts as they stand.
+const proposals = ref(0)
 const dirty = ref(false)
 // The middle holds work of the human's: text changed, or a side taken or rejected.
 const touched = ref(false)
@@ -154,6 +158,15 @@ const applyBlocked = computed((): string | null => {
   return `${left}. Settle each one first.`
 })
 
+const applyTitle = computed(() => {
+  if (applyBlocked.value) return applyBlocked.value
+  const base = 'Write the middle to the file and mark it resolved'
+  if (proposals.value === 0) return base
+  const what =
+    proposals.value === 1 ? "the agent's proposal" : `the agent's ${proposals.value} proposals`
+  return `${base}, accepting ${what} as shown`
+})
+
 // The toolbar is status, not controls: a short counter, then what is left as plain text.
 const counterText = computed(() => {
   const total = conflictIndexes.value.length
@@ -163,14 +176,18 @@ const counterText = computed(() => {
 
 const statusText = computed(() => {
   if (conflictIndexes.value.length === 0) return ''
-  return unresolved.value > 0 ? `${unresolved.value} open` : 'all settled'
+  const parts: string[] = []
+  if (unresolved.value > 0) parts.push(`${unresolved.value} open`)
+  if (proposals.value > 0) parts.push(`${proposals.value} by agent`)
+  return parts.length ? parts.join(', ') : 'all settled'
 })
 
 const statusTitle = computed(() => {
   const total = conflictIndexes.value.length
   if (total === 0) return 'No conflicts left in this file'
   const at = position.value ? `Conflict ${position.value} of ${total}. ` : ''
-  return `${at}${unresolved.value} unresolved.`
+  const byAgent = proposals.value > 0 ? ` ${proposals.value} proposed by the agent.` : ''
+  return `${at}${unresolved.value} unresolved.${byAgent}`
 })
 
 // The whole-file actions replace every conflict in this file at once, so they sit behind the
@@ -295,7 +312,9 @@ function onMiddleUpdate(state: EditorState): void {
   const at = chunkAtCursor(state)
   if (at !== null) current.value = at
   const chunks = state.field(middleChunks)
-  unresolved.value = chunks.filter((chunk) => !chunk.resolved).length
+  const counts = openCounts(chunks)
+  unresolved.value = counts.open
+  proposals.value = counts.proposed
   dirty.value = loaded.value !== null && !state.doc.eq(loaded.value.doc)
   touched.value =
     dirty.value ||
@@ -798,7 +817,7 @@ onBeforeUnmount(() => {
         variant="primary"
         size="sm"
         class="apply"
-        :title="applyBlocked ?? 'Write the middle to the file and mark it resolved'"
+        :title="applyTitle"
         :disabled="applyBlocked !== null"
         @click="apply"
       >

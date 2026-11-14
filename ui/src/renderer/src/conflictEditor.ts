@@ -161,11 +161,12 @@ class DecideMarker extends GutterMarker {
     const dom = document.createElement('span')
     dom.className = 'cm-decide'
     // An agent's proposal is lit in the agent's color: the side it equals gets a lit chevron and the
-    // other side a lit cross, and text equal to neither lights both chevrons.
+    // other side a lit cross, and text equal to neither lights both chevrons and dims both crosses,
+    // since the agent kept something of each side.
     const proposed: Record<string, { taken: string; rejected: string }> = {
       proposedTake: { taken: ' on proposed', rejected: ' off' },
       proposedReject: { taken: ' off', rejected: ' on proposed' },
-      proposedOpen: { taken: ' on proposed', rejected: '' }
+      proposedOpen: { taken: ' on proposed', rejected: ' off' }
     }
     const look = (own: 'taken' | 'rejected'): string => {
       if (this.decision === 'open') return ''

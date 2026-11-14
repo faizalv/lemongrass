@@ -21,8 +21,9 @@ export interface MiddleChunk {
   left: SideDecision
   right: SideDecision
   taken: ConflictSide[]
-  // Holds text a model wrote into the working file, not yet settled by the human. Drawn as open:
-  // a side taken or a hand edit replaces it, and Apply waits on it.
+  // Holds text a model wrote into the working file, not yet settled by the human. Drawn in the
+  // agent's color: a side taken or a hand edit replaces it, and Apply accepts it as it stands,
+  // since Manual finishes a conflict on its own without Decisions.
   proposed?: boolean
   // Resolved when loaded, because the human already accepted or resolved it, so it is not work
   // done in this middle. Any decision or edit on it clears the mark.
@@ -83,6 +84,19 @@ function humanChunk(chunk: MiddleChunk): MiddleChunk {
   delete next.proposed
   delete next.settled
   return next
+}
+
+// What keeps a file from being settled in Manual: blocks nobody resolved, and blocks holding an
+// agent's proposal, which Apply accepts as they stand.
+export function openCounts(chunks: MiddleChunk[]): { open: number; proposed: number } {
+  let open = 0
+  let proposed = 0
+  for (const chunk of chunks) {
+    if (chunk.resolved) continue
+    if (chunk.proposed) proposed++
+    else open++
+  }
+  return { open, proposed }
 }
 
 // fit is the sides an agent's waiting text equals, null when it equals neither, and undefined when

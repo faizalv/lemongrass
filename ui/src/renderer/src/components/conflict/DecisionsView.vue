@@ -8,7 +8,6 @@ import type { ConflictThreadState } from '../../conflictThread'
 import { useFileDecisions } from '../../conflictFiles'
 import {
   countStates,
-  generalLine,
   handOverAsked,
   isQueued,
   listLabel,
@@ -44,9 +43,8 @@ import MarkedText from '../MarkedText.vue'
 
 // Decisions: what the human has to decide, across every conflicted file, as a list and a
 // workspace. The list has a row per block with its state, the workspace shows the selected block
-// large with its one primary action, and the top says whose move it is and holds the one button
-// that sends the human's decisions. The conversation itself is never shown: the model's latest
-// plain message is one line under the top, and the human answers it in one line.
+// large with its one primary action, and the top says whose move it is. The conversation is never
+// shown beside the decisions: it is in the chat behind Thread, whose count says when the agent wrote.
 const props = defineProps<{
   project: ProjectRef
   thread: ConflictThreadState
@@ -221,7 +219,6 @@ const statusParts = computed((): NamePart[] => {
     : [{ text: 'Handed to ' }, ...holder.value, { text: `.${step}` }]
 })
 
-const line = computed(() => generalLine(props.thread.messages))
 function byHand(card: BlockCard): void {
   resolveByHand(props.project.id, card)
   emit('manual', card.path)
@@ -300,11 +297,6 @@ const sendTitle = computed(() =>
       <ConflictModeSwitch mode="decisions" @switch="emit('manual', null)" />
       <MarkedText class="status" :parts="statusParts" capitalize />
     </header>
-
-    <p v-if="line" class="general" :title="line.body">
-      <span class="general-author">Agent</span>
-      {{ line.body }}
-    </p>
 
     <div v-if="rows.length === 0 && noBlocks.length === 0" class="idle">
       <AppEmptyState
@@ -477,23 +469,6 @@ const sendTitle = computed(() =>
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-sm);
-  color: var(--color-fg-secondary);
-}
-
-.general {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-bottom: 1px solid var(--color-border-subtle);
-  font-size: var(--text-sm);
-  color: var(--color-fg-primary);
-}
-
-.general-author {
-  margin-right: var(--space-1);
-  font-weight: var(--weight-medium);
   color: var(--color-fg-secondary);
 }
 

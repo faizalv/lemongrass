@@ -47,6 +47,8 @@ export interface AnnotationRange extends LineRange {
   replies?: CardReply[]
   // A draft that answers a sent comment, drawn as a reply.
   reply?: boolean
+  // A sent comment the agent has not answered: working while its tab's turn runs, idle otherwise.
+  waiting?: 'working' | 'idle'
 }
 
 // The annotator kind supplies everything that knows what a comment is anchored to, so this
@@ -122,7 +124,7 @@ class CardWidget extends WidgetType {
       remove: () => void
       reply?: (comment: string) => void
     },
-    readonly extra: Pick<AnnotationRange, 'sent' | 'replies' | 'reply'> = {}
+    readonly extra: Pick<AnnotationRange, 'sent' | 'replies' | 'reply' | 'waiting'> = {}
   ) {
     super()
   }
@@ -134,6 +136,7 @@ class CardWidget extends WidgetType {
       other.draft === this.draft &&
       other.extra.sent === this.extra.sent &&
       other.extra.reply === this.extra.reply &&
+      other.extra.waiting === this.extra.waiting &&
       JSON.stringify(other.extra.replies ?? []) === JSON.stringify(this.extra.replies ?? [])
     )
   }
@@ -148,6 +151,7 @@ class CardWidget extends WidgetType {
       sent: this.extra.sent === true,
       isReply: this.extra.reply === true,
       replies: this.extra.replies ?? [],
+      waiting: this.extra.waiting ?? null,
       onSave: (comment: string) => this.handlers.save(view, comment),
       onCancel: () => this.handlers.cancel(view),
       onRemove: () => this.handlers.remove(),
@@ -285,7 +289,8 @@ export function annotationGutter(config: AnnotationGutterConfig): Extension {
       const card = new CardWidget(range.id, range.comment, false, handlers(range.id), {
         sent: range.sent,
         replies: range.replies,
-        reply: range.reply
+        reply: range.reply,
+        waiting: range.waiting
       })
       decorations.push(
         Decoration.widget({ widget: card, block: true, side: 1 }).range(
