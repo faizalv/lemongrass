@@ -50,12 +50,14 @@ type Thread struct {
 
 func (t Thread) Closed() bool { return t.ClosedAt != "" }
 
-// Anchor ties a message to lines of a working file as it was when the message was posted. Lines are 1-based and inclusive; the quote lets a reader find the spot after the file changed.
+// Anchor ties a message to a place in a conflicted file as it was when the message was posted. Lines are 1-based and inclusive, both 0 for a message about a block or a file with no line picked; the quote lets a reader find the spot after the file changed. Pane is where in the resolver it was made (left, right, result or middle, empty for none) and Block the git block number it is about, 0 for the file as a whole.
 type Anchor struct {
 	Path      string
 	StartLine int
 	EndLine   int
 	Quote     string
+	Pane      string
+	Block     int
 }
 
 type Message struct {
@@ -234,13 +236,15 @@ func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body st
 	if meta.kind == "" {
 		meta.kind = MessagePlain
 	}
-	var path, quote sql.NullString
-	var start, end sql.NullInt64
+	var path, quote, pane sql.NullString
+	var start, end, block sql.NullInt64
 	if a := meta.anchor; a != nil {
 		path = sql.NullString{String: a.Path, Valid: true}
 		quote = sql.NullString{String: a.Quote, Valid: true}
 		start = sql.NullInt64{Int64: int64(a.StartLine), Valid: true}
 		end = sql.NullInt64{Int64: int64(a.EndLine), Valid: true}
+		pane = sql.NullString{String: a.Pane, Valid: a.Pane != ""}
+		block = sql.NullInt64{Int64: int64(a.Block), Valid: a.Block > 0}
 	}
 	var replyTo sql.NullInt64
 	if meta.replyTo > 0 {
@@ -250,8 +254,8 @@ func insertMessage(tx *sql.Tx, projectID string, threadID string, tabID, body st
 	if meta.data != "" {
 		data = sql.NullString{String: meta.data, Valid: true}
 	}
-	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files, reply_to, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		threadID, tabID, body, ts, meta.kind, path, start, end, quote, strings.Join(meta.files, "\n"), replyTo, data)
+	res, err := tx.Exec(`INSERT INTO lg_messages (thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, anchor_pane, anchor_block, files, reply_to, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		threadID, tabID, body, ts, meta.kind, path, start, end, quote, pane, block, strings.Join(meta.files, "\n"), replyTo, data)
 	if err != nil {
 		return Message{}, err
 	}
@@ -383,7 +387,7 @@ func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTa
 	if limit < 1 {
 		limit = 1
 	}
-	query := `SELECT id, thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, files, reply_to, data FROM lg_messages WHERE thread_id = ?`
+	query := `SELECT id, thread_id, tab_id, body, created_at, kind, anchor_path, anchor_start, anchor_end, anchor_quote, anchor_pane, anchor_block, files, reply_to, data FROM lg_messages WHERE thread_id = ?`
 	args := []interface{}{threadID}
 	if beforeID > 0 {
 		query += ` AND id < ?`
@@ -407,16 +411,16 @@ func (s *Store) readMessages(threadID string, beforeID, afterID int64, excludeTa
 	defer rows.Close()
 	for rows.Next() {
 		var m Message
-		var path, quote sql.NullString
-		var start, end sql.NullInt64
+		var path, quote, pane sql.NullString
+		var start, end, block sql.NullInt64
 		var files string
 		var replyTo sql.NullInt64
 		var data sql.NullString
-		if err := rows.Scan(&m.ID, &m.ThreadID, &m.TabID, &m.Body, &m.CreatedAt, &m.Kind, &path, &start, &end, &quote, &files, &replyTo, &data); err != nil {
+		if err := rows.Scan(&m.ID, &m.ThreadID, &m.TabID, &m.Body, &m.CreatedAt, &m.Kind, &path, &start, &end, &quote, &pane, &block, &files, &replyTo, &data); err != nil {
 			return nil, false, err
 		}
 		if path.Valid {
-			m.Anchor = &Anchor{Path: path.String, StartLine: int(start.Int64), EndLine: int(end.Int64), Quote: quote.String}
+			m.Anchor = &Anchor{Path: path.String, StartLine: int(start.Int64), EndLine: int(end.Int64), Quote: quote.String, Pane: pane.String, Block: int(block.Int64)}
 		}
 		if files != "" {
 			m.Files = strings.Split(files, "\n")

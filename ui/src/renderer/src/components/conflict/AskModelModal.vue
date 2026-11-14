@@ -81,7 +81,7 @@ function submit(): void {
 
 <template>
   <AppModal
-    :title="blocks === 1 ? 'Ask a model about this block' : 'Ask a model about these blocks'"
+    :title="blocks === 1 ? 'Ask an agent about this block' : 'Ask an agent about these blocks'"
     @close="emit('close')"
   >
     <div class="ask-body">
@@ -109,7 +109,7 @@ function submit(): void {
           {{ blocks === 1 ? 'this block' : 'these blocks' }} and which blocks you already resolved.
         </p>
       </template>
-      <p v-else class="ask-note">The model holding this conflict gets your question.</p>
+      <p v-else class="ask-note">The agent holding this conflict gets your question.</p>
       <p v-if="error" class="ask-error">{{ error }}</p>
     </div>
     <template #footer>

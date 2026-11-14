@@ -44,7 +44,9 @@ import {
   type MiddleChunk,
   type MiddleProposal
 } from '../../conflictModel'
-import { blockDigest } from '../../conflictDecisions'
+import { blockDigest, matchSides } from '../../conflictDecisions'
+import { commentGutter } from '../../conflictCommentGutter'
+import { blockAtLine } from '../../conflictComments'
 import {
   chunkAtCursor,
   chunkLines,
@@ -54,6 +56,7 @@ import {
   middleState,
   restoreMiddle,
   chunkReplacements,
+  proposedAction,
   setFocusLines,
   showCurrent,
   showDecisions,
@@ -61,7 +64,7 @@ import {
   sideState
 } from '../../conflictEditor'
 import { hasConflictTab, type ProjectRef } from '../../workspace'
-import { askAboutBlocks, focusOf, publishManual } from '../../conflictVerdicts'
+import { focusOf, publishManual, showReasoning } from '../../conflictVerdicts'
 import type {
   ConflictPane,
   GitConflictChunk,
@@ -71,7 +74,7 @@ import type {
 } from '../../../../preload/types'
 import { AppButton, AppIconButton, AppMenuButton, AppModal, type MenuItem } from '@sankasten'
 import ConflictIcon from './ConflictIcon.vue'
-import AskModelModal from './AskModelModal.vue'
+import ConflictDock from './ConflictDock.vue'
 import { CONFLICT_ICONS } from '../../conflictIcons'
 
 type ConflictFile = Extract<GitConflictFile, { status: 'ok' }>
@@ -113,6 +116,8 @@ const conflictIndexes = computed(() =>
 )
 const unresolved = ref(0)
 const dirty = ref(false)
+// The middle holds work of the human's: text changed, or a side taken or rejected.
+const touched = ref(false)
 const current = ref<number | null>(null)
 const applying = ref(false)
 const error = ref<string | null>(null)
@@ -292,6 +297,12 @@ function onMiddleUpdate(state: EditorState): void {
   const chunks = state.field(middleChunks)
   unresolved.value = chunks.filter((chunk) => !chunk.resolved).length
   dirty.value = loaded.value !== null && !state.doc.eq(loaded.value.doc)
+  touched.value =
+    dirty.value ||
+    chunks.some(
+      (chunk) =>
+        chunk.left !== 'open' || chunk.right !== 'open' || (chunk.resolved && !chunk.settled)
+    )
   pushDecisions(chunks)
   publishResolved(state, chunks)
 }
@@ -313,11 +324,19 @@ let shownDecisions = ''
 
 // The side panes draw the middle's decisions on their chevrons, so they hear about every change.
 function pushDecisions(chunks: MiddleChunk[]): void {
-  const marks = chunks.map((chunk) => ({
-    index: chunk.index,
-    left: sideMark(chunk, 'left'),
-    right: sideMark(chunk, 'right')
-  }))
+  const marks = chunks.map((chunk) => {
+    // The sides an agent's waiting text equals, so its proposal lights the gutters.
+    const git = loaded.value?.chunks[chunk.index]
+    const fit =
+      chunk.proposed && chunk.modelLines && git?.kind === 'conflict'
+        ? matchSides(git, chunk.modelLines)
+        : undefined
+    return {
+      index: chunk.index,
+      left: sideMark(chunk, 'left', fit),
+      right: sideMark(chunk, 'right', fit)
+    }
+  })
   const key = JSON.stringify(marks.map(({ index, left, right }) => [index, left, right]))
   if (key === shownDecisions || !left || !right) return
   shownDecisions = key
@@ -327,6 +346,42 @@ function pushDecisions(chunks: MiddleChunk[]): void {
   ] as const) {
     showDecisions(view, Object.fromEntries(marks.map((mark) => [mark.index, mark[side]])))
   }
+}
+
+// The comment gutter of one pane. A side pane shows its whole stage file and the middle its own
+// text, so a document line is the line a comment names; the block a comment is about is the one
+// holding that line, or the nearest.
+function commentPane(pane: 'left' | 'right' | 'middle'): Extension {
+  const view = (): EditorView | null | undefined =>
+    pane === 'left' ? left : pane === 'right' ? right : middle
+  const blocks = (): { block: number; start: number; end: number }[] => {
+    const known = loaded.value
+    if (!known) return []
+    if (pane === 'middle') {
+      if (!middle) return []
+      return middle.state.field(middleChunks).flatMap((chunk) => {
+        const block = known.blocks[chunk.index]?.[0]
+        if (block === undefined) return []
+        const lines = chunkLines(middle!.state.doc, chunk)
+        return [{ block, start: lines.start, end: Math.max(lines.start, lines.end) }]
+      })
+    }
+    return Object.entries(known.blocks).flatMap(([index, numbers]) => {
+      const range = known[pane][Number(index)]
+      return range
+        ? [{ block: numbers[0], start: range.start, end: Math.max(range.start, range.end) }]
+        : []
+    })
+  }
+  return commentGutter({
+    project: props.project,
+    path: props.path,
+    pane,
+    toFile: (line) => line,
+    toDoc: (line) => (line >= 1 && line <= (view()?.state.doc.lines ?? 0) ? line : null),
+    blockOf: (from) => blockAtLine(blocks(), from),
+    shows: () => true
+  })
 }
 
 // A draft restores the middle as it was left, decisions included; otherwise it is built from raw.
@@ -346,7 +401,14 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     chunks.flatMap((chunk, index) =>
       chunk.kind === 'conflict' ? [{ index, range: located[pane][index] }] : []
     )
-  const middleExtras = [focusExtension('middle')]
+  const middleExtras = [
+    focusExtension('middle'),
+    commentPane('middle'),
+    proposedAction.of((chunkIndex) => {
+      const block = loaded.value?.blocks[chunkIndex]?.[0]
+      if (block !== undefined) showReasoning(props.project.id, props.path, block)
+    })
+  ]
   const middleDoc = draft
     ? restoreMiddle(draft.middle, onMiddleUpdate, middleExtras)
     : middleState(built.text, built.chunks, onMiddleUpdate, middleExtras)
@@ -365,7 +427,7 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     'left',
     file.leftRef,
     (index, d) => decideSide(index, 'left', d),
-    [focusExtension('left')]
+    [focusExtension('left'), commentPane('left')]
   )
   const rightDoc = sideState(
     rightText,
@@ -373,7 +435,7 @@ function load(file: ConflictFile, raw: Source, draft: ConflictDraft | null = nul
     'right',
     file.rightRef,
     (index, d) => decideSide(index, 'right', d),
-    [focusExtension('right')]
+    [focusExtension('right'), commentPane('right')]
   )
   if (left && middle && right) {
     left.setState(leftDoc)
@@ -444,7 +506,8 @@ function landFocus(): void {
   if (index === undefined || !chunk) return
   goTo(index)
   const lines = chunkLines(middle.state.doc, chunk)
-  flashLines(middle, lines.start, Math.max(lines.start, lines.end))
+  const proposed = chunk.proposed === true && !chunk.resolved && chunk.taken.length === 0
+  flashLines(middle, lines.start, Math.max(lines.start, lines.end), proposed)
 }
 
 watch(
@@ -609,38 +672,6 @@ function syncScroll(from: EditorView): void {
   }
 }
 
-// Ask a model about the block under the cursor: the modal holds the message and the tab, and its
-// Submit is the only step that acts, since handing the conflict over wakes the model.
-const askOpen = ref(false)
-const asking = ref(false)
-const askError = ref<string | null>(null)
-const asked = ref(false)
-
-const askBlocks = computed(() =>
-  current.value === null ? [] : (loaded.value?.blocks[current.value] ?? [])
-)
-
-function startAsk(): void {
-  askError.value = null
-  asked.value = false
-  askOpen.value = true
-}
-
-async function sendAsk(payload: { tabId: string | null; text: string }): Promise<void> {
-  asking.value = true
-  askError.value = await askAboutBlocks(
-    props.project,
-    props.path,
-    askBlocks.value,
-    payload.text,
-    payload.tabId
-  )
-  asking.value = false
-  if (askError.value) return
-  askOpen.value = false
-  asked.value = true
-}
-
 const refs = {
   operation: props.file.operation,
   leftRef: props.file.leftRef,
@@ -663,12 +694,15 @@ const unregisterWork = registerWork(props.project.id, props.path, () => {
 })
 
 onMounted(() => {
-  const draft = takeDraft(props.project.id, props.path, stagesOf(props.file))
-  if (draft) {
-    workingSeen = draft.workingSeen
-    focus.value = draft.focus
-    sizes.value = draft.sizes
+  const kept = takeDraft(props.project.id, props.path, stagesOf(props.file))
+  // Only the panes' look is taken back from a draft that holds no work of the human's; the middle
+  // is built again from what the file and the thread say now.
+  if (kept) {
+    focus.value = kept.focus
+    sizes.value = kept.sizes
   }
+  const draft = kept?.touched === false ? null : kept
+  if (draft) workingSeen = draft.workingSeen
   load(props.file, draft ?? chunksOf(props.file), draft)
   // A working file that changed while the tab was away reloads or asks, as it would have.
   if (draft && props.file.working !== workingSeen) onFileChange(props.file)
@@ -706,6 +740,7 @@ onBeforeUnmount(() => {
       proposal: source.proposal ?? null,
       plan: source.plan,
       loadedText: loaded.value.doc.toString(),
+      touched: touched.value,
       refs,
       middle: snapshotMiddle(middle.state),
       workingSeen,
@@ -747,22 +782,6 @@ onBeforeUnmount(() => {
       </div>
       <span v-if="statusText" class="status" :title="statusTitle">{{ statusText }}</span>
       <span class="spacer" />
-      <AppButton
-        variant="text"
-        tone="accent"
-        size="sm"
-        class="ask"
-        :disabled="askBlocks.length === 0"
-        :title="
-          askBlocks.length
-            ? 'Ask a model about the block under the cursor'
-            : 'Put the cursor in a conflict block to ask about it'
-        "
-        @click="startAsk"
-      >
-        <ConflictIcon name="ask" />
-        Ask model
-      </AppButton>
       <AppIconButton
         size="sm"
         tone="accent"
@@ -786,7 +805,6 @@ onBeforeUnmount(() => {
         Apply
       </AppButton>
     </div>
-    <p v-if="asked" class="merge-note">Asked. The answer comes back in Decisions.</p>
     <p v-if="error" class="merge-error">{{ error }}</p>
     <div ref="panesEl" class="panes">
       <section class="pane" :style="{ flexGrow: sizes[0] }">
@@ -812,15 +830,11 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <AskModelModal
-      v-if="askOpen"
+    <ConflictDock
       :project="project"
-      :held="modelHolds"
-      :blocks="askBlocks.length"
-      :sending="asking"
-      :error="askError"
-      @submit="sendAsk"
-      @close="askOpen = false"
+      :scope="{ path, block: null }"
+      :ready="[]"
+      :queued-blocks="0"
     />
 
     <AppModal v-if="pendingReload" :title="`${path} changed on disk`" @close="keepEdits">
@@ -877,18 +891,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   font-size: var(--text-xs);
   color: var(--color-fg-muted);
-}
-
-.ask {
-  flex-shrink: 0;
-}
-
-.merge-note {
-  margin: 0;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--color-fg-secondary);
-  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .toolbar .apply {

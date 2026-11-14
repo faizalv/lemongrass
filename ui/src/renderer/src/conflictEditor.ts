@@ -3,6 +3,7 @@
 
 import {
   EditorState,
+  Facet,
   RangeSetBuilder,
   StateEffect,
   StateField,
@@ -159,8 +160,17 @@ class DecideMarker extends GutterMarker {
   toDOM(): Node {
     const dom = document.createElement('span')
     dom.className = 'cm-decide'
+    // An agent's proposal is lit in the agent's color: the side it equals gets a lit chevron and the
+    // other side a lit cross, and text equal to neither lights both chevrons.
+    const proposed: Record<string, { taken: string; rejected: string }> = {
+      proposedTake: { taken: ' on proposed', rejected: ' off' },
+      proposedReject: { taken: ' off', rejected: ' on proposed' },
+      proposedOpen: { taken: ' on proposed', rejected: '' }
+    }
     const look = (own: 'taken' | 'rejected'): string => {
       if (this.decision === 'open') return ''
+      const agent = proposed[this.decision]
+      if (agent) return agent[own]
       return this.decision === own ? ' on' : ' off'
     }
     const take = iconButton(
@@ -275,6 +285,47 @@ class EmptyChunkWidget extends WidgetType {
   }
 }
 
+// What clicking a block's "Proposed by agent" label does, given the block's chunk index.
+export const proposedAction = Facet.define<
+  (index: number) => void,
+  ((index: number) => void) | null
+>({
+  combine: (actions) => actions[0] ?? null
+})
+
+// A solid label at the end of the first line of an agent's proposed block, sticky to the right so it
+// stays in view on a long line. It sits over the text, so it is opaque. Handled on mousedown so the
+// cursor never moves.
+class ProposedLabelWidget extends WidgetType {
+  readonly index: number
+
+  constructor(index: number) {
+    super()
+    this.index = index
+  }
+
+  eq(other: ProposedLabelWidget): boolean {
+    return other.index === this.index
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const label = document.createElement('button')
+    label.type = 'button'
+    label.className = 'cm-proposed-label'
+    label.textContent = 'Proposed by agent'
+    label.title = 'Back to Decisions, at the agent\u2019s reasoning for this block'
+    label.addEventListener('mousedown', (event) => {
+      event.preventDefault()
+      view.state.facet(proposedAction)?.(this.index)
+    })
+    return label
+  }
+
+  ignoreEvent(): boolean {
+    return true
+  }
+}
+
 class HiddenLinesWidget extends WidgetType {
   readonly count: number
 
@@ -351,13 +402,14 @@ function lineClasses(
   return builder.finish()
 }
 
-type ChunkLook = 'open' | 'picked'
+type ChunkLook = 'open' | 'picked' | 'proposed'
 
 // A middle conflict is red until it holds something chosen: a taken side, a hand edit, or both
-// sides decided. Text a model wrote that the human has not settled is still open here, since the
-// model's takes are reviewed in Decisions.
+// sides decided. Text an agent wrote that the human has not settled is violet, the agent's color,
+// and says so with a label, since the agent's takes are reviewed in Decisions.
 function lookOf(chunk: MiddleChunk): ChunkLook {
-  return chunk.resolved || chunk.taken.length > 0 ? 'picked' : 'open'
+  if (chunk.resolved || chunk.taken.length > 0) return 'picked'
+  return chunk.proposed ? 'proposed' : 'open'
 }
 
 function chunkClass(chunk: MiddleChunk, current: number | null): string {
@@ -387,7 +439,15 @@ const middleDecorations = EditorView.decorations.compute(
           side: -1
         }).range(chunk.from)
       )
-    return empty.length ? lines.update({ add: empty, sort: true }) : lines
+    const labels = chunks
+      .filter((chunk) => chunk.from !== chunk.to && lookOf(chunk) === 'proposed')
+      .map((chunk) =>
+        Decoration.widget({ widget: new ProposedLabelWidget(chunk.index), side: 1 }).range(
+          state.doc.lineAt(chunk.from).to
+        )
+      )
+    const added = [...empty, ...labels]
+    return added.length ? lines.update({ add: added, sort: true }) : lines
   }
 )
 
@@ -410,7 +470,9 @@ const sideDecorations = EditorView.decorations.compute(
             from: doc.line(range.start).from,
             to: Math.min(last.to + 1, doc.length),
             className: [
-              (decisions[index] ?? 'open') === 'open' ? 'cm-conflict-side' : 'cm-conflict-used',
+              ['open', 'proposedOpen'].includes(decisions[index] ?? 'open')
+                ? 'cm-conflict-side'
+                : 'cm-conflict-used',
               index === current ? 'cm-conflict-current' : ''
             ]
               .filter(Boolean)
@@ -456,6 +518,24 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--color-jade-muted)',
     '--color-fg-muted': 'var(--color-fg-secondary)'
   },
+  '.cm-conflict-proposed': {
+    backgroundColor: 'var(--color-violet-muted)',
+    '--color-fg-muted': 'var(--color-fg-secondary)'
+  },
+  '.cm-proposed-label': {
+    position: 'sticky',
+    right: 'var(--space-2)',
+    marginLeft: 'var(--space-3)',
+    padding: '0 var(--space-2)',
+    border: 'none',
+    borderRadius: 'var(--radius-pill)',
+    background: 'var(--color-violet)',
+    color: 'var(--color-on-fill)',
+    fontFamily: 'var(--font-body)',
+    fontSize: 'var(--text-xs)',
+    cursor: 'pointer'
+  },
+  '.cm-proposed-label:hover': { filter: 'brightness(1.15)' },
   '.cm-conflict-side': {
     backgroundColor: 'var(--color-sapphire-muted)',
     '--color-fg-muted': 'var(--color-fg-secondary)'
@@ -488,6 +568,13 @@ const theme = EditorView.theme({
   // Both controls are drawn in full until a side is decided, then the one not chosen dims.
   '.cm-decide-button.take': { color: 'var(--color-jade)' },
   '.cm-decide-button.reject': { color: 'var(--color-error)' },
+  '.cm-decide-button.take.proposed, .cm-decide-button.reject.proposed': {
+    color: 'var(--color-violet)'
+  },
+  '.cm-decide-button.take.on.proposed, .cm-decide-button.reject.on.proposed, .cm-decide-button.take.proposed:hover, .cm-decide-button.reject.proposed:hover':
+    {
+      backgroundColor: 'var(--color-violet-muted)'
+    },
   '.cm-decide-button.take:hover': { backgroundColor: 'var(--color-jade-muted)' },
   '.cm-decide-button.reject:hover': { backgroundColor: 'var(--color-error-muted)' },
   '.cm-decide-button.take.on': { backgroundColor: 'var(--color-jade-muted)' },
@@ -511,14 +598,23 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--color-jade-muted)',
     '--color-fg-muted': 'var(--color-fg-secondary)'
   },
-  // Amber is focus, which is what a jump puts on these lines.
+  // Amber is focus, which is what a jump puts on these lines. On an agent's proposal the flash is
+  // the agent's violet. It is a keyframe pulse that swells from the block's own tint to the flash
+  // color and settles back with ease-in-out on both halves, so it fades in and out instead of
+  // snapping; the end state is the line's own look, so removing the class at the end shows no jump.
   '.cm-flash': {
-    backgroundColor: 'var(--color-amber-muted) !important',
-    transition: 'background-color 0.3s'
+    '--flash-color': 'color-mix(in oklab, var(--color-amber) 35%, transparent)',
+    animation: 'cm-flash-pulse 1200ms ease-in-out'
+  },
+  '.cm-flash.cm-flash-proposed': {
+    '--flash-color': 'color-mix(in oklab, var(--color-violet) 40%, transparent)'
+  },
+  '@keyframes cm-flash-pulse': {
+    '50%': { backgroundColor: 'var(--flash-color)' }
   }
 })
 
-const setFlash = StateEffect.define<{ from: number; to: number } | null>()
+const setFlash = StateEffect.define<{ from: number; to: number; proposed: boolean } | null>()
 
 // Lines a jump from Decisions landed on, lit for a moment so the eye finds them.
 const flashField = StateField.define<DecorationSet>({
@@ -535,7 +631,13 @@ const flashField = StateField.define<DecorationSet>({
       const doc = tr.state.doc
       const last = Math.min(effect.value.to, doc.lines)
       for (let n = Math.max(1, effect.value.from); n <= last; n++) {
-        builder.add(doc.line(n).from, doc.line(n).from, Decoration.line({ class: 'cm-flash' }))
+        builder.add(
+          doc.line(n).from,
+          doc.line(n).from,
+          Decoration.line({
+            class: effect.value.proposed ? 'cm-flash cm-flash-proposed' : 'cm-flash'
+          })
+        )
       }
       value = builder.finish()
     }
@@ -547,11 +649,16 @@ const flashField = StateField.define<DecorationSet>({
 const FLASH_MS = 1200
 
 // Scrolls lines into the middle of the pane and lights them for a moment.
-export function flashLines(view: EditorView, fromLine: number, toLine: number): void {
+export function flashLines(
+  view: EditorView,
+  fromLine: number,
+  toLine: number,
+  proposed = false
+): void {
   const line = view.state.doc.line(Math.min(Math.max(1, fromLine), view.state.doc.lines))
   view.dispatch({
     effects: [
-      setFlash.of({ from: fromLine, to: toLine }),
+      setFlash.of({ from: fromLine, to: toLine, proposed }),
       EditorView.scrollIntoView(line.from, { y: 'center' })
     ]
   })
@@ -629,7 +736,7 @@ export function sideState(
       // Read only but still editable as a view, so lines can be selected to comment on them.
       EditorState.readOnly.of(true),
       // Gutters on one side line up in extension order, so the decision gutter comes nearest the
-      // middle and the extras' gutters, such as the comment one, end up on the outer edge.
+      // middle and any gutter an extra brings ends up on the outer edge.
       side === 'left'
         ? [extra, lineNumbersAfter, decisionGutter(side, branch, onDecide)]
         : [decisionGutter(side, branch, onDecide), lineNumbers(), extra]

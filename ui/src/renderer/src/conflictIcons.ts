@@ -22,9 +22,18 @@ export const CONFLICT_ICONS = {
   takeBoth: ['M2.5 3.5L6 7l-3.5 3.5', 'M11.5 3.5L8 7l3.5 3.5'],
   reset: ['M2 7a5 5 0 1 0 1.46-3.54L2 4.9', 'M2 2v2.9h2.9'],
   reject: ['M4 4l6 6M10 4l-6 6'],
+  // Between the side panes and the result: an arrow down from a side that was taken, and only a
+  // cross for one that was not.
+  arrowTaken: ['M7 1.5v11', 'M3.2 8.8L7 12.5l3.8-3.7'],
+  crossRejected: ['M3.5 3.5l7 7M10.5 3.5l-7 7'],
   // A speech bubble: asking the model about the block under the cursor.
   ask: [
     'M3 2.5h8a1.5 1.5 0 0 1 1.5 1.5v4.5a1.5 1.5 0 0 1-1.5 1.5H6.5L4 12V10H3a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 3 2.5z'
+  ],
+  // Two speech bubbles, one behind the other: the thread with the agent, as against asking once.
+  thread: [
+    'M2.5 1.5h6a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1H5L3 8.5V7h-.5a1 1 0 0 1-1-1V2.5a1 1 0 0 1 1-1z',
+    'M11.5 5.5a1 1 0 0 1 1 1V10a1 1 0 0 1-1 1H11v1.5L9 11H6a1 1 0 0 1-1-1V9'
   ],
   // Ticked rows: the decisions to make. Three columns: the three panes resolved by hand.
   decisions: ['M1.5 3.5l1.2 1.2L5 2.5', 'M7 3.5h5.5', 'M1.5 9.5l1.2 1.2L5 8.5', 'M7 9.5h5.5'],

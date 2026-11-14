@@ -25,6 +25,7 @@ var migrations = []func(execer) error{
 	migrateV5,
 	migrateV6,
 	migrateV7,
+	migrateV8,
 }
 
 // Version 1 is the schema as it stood before the store was versioned, applied idempotently so a store from any earlier release lands on the same tables.
@@ -107,6 +108,15 @@ func migrateV6(db execer) error {
 // Version 7 gives a conflict thread message a structured part, such as the block a model's decision is on or the human's verdicts on a file, as JSON.
 func migrateV7(db execer) error {
 	_, err := db.ExecContext(context.Background(), `ALTER TABLE lg_messages ADD COLUMN data TEXT`)
+	return err
+}
+
+// Version 8 tells where in the resolver an anchored message was made: the pane (left, right, result or middle) and the git block number, so the app can place a comment's card and scope the chat without parsing text.
+func migrateV8(db execer) error {
+	_, err := db.ExecContext(context.Background(), `
+ALTER TABLE lg_messages ADD COLUMN anchor_pane TEXT;
+ALTER TABLE lg_messages ADD COLUMN anchor_block INTEGER;
+`)
 	return err
 }
 

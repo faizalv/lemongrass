@@ -234,7 +234,7 @@ test('show says when a side has no commits or git could not tell', () => {
 })
 
 test('the start line names the operation, the thread and what to read first', () => {
-  const none = { resolved: 0, files: 0, asked: 0 }
+  const none = { resolved: 0, files: 0, asked: 0, comments: 0 }
   assert.equal(
     composeStartLine({ operation: 'merge', leftRef: 'main', rightRef: 'feature' }, 'a1b2c3', none),
     '[lg] the human handed you the conflicts in the merge of feature into main. Thread a1b2c3 holds what they ask and resolved. Run lgrass thread read a1b2c3 first, then lgrass how git resolve.'
@@ -261,9 +261,13 @@ test('the start line counts the blocks asked about and the blocks already resolv
   const line = composeStartLine(
     { operation: 'merge', leftRef: 'main', rightRef: 'feature' },
     'a1b2c3',
-    { resolved: 3, files: 2, asked: 1 }
+    { resolved: 3, files: 2, asked: 1, comments: 2 }
   )
   assert.match(line, /They ask about 1 block only, so leave the others alone\./)
   assert.match(line, /They already resolved 3 blocks in 2 files, which you keep\./)
+  assert.match(
+    line,
+    /They also left 2 comments and messages, each to be answered with lgrass git conflict reply\./
+  )
   assert.equal(line.split('\n').length, 1)
 })

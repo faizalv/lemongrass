@@ -57,6 +57,8 @@ type Anchor struct {
 	StartLine int    `json:"startLine"`
 	EndLine   int    `json:"endLine"`
 	Quote     string `json:"quote"`
+	Pane      string `json:"pane,omitempty"`
+	Block     int    `json:"block,omitempty"`
 }
 
 type HumanMessage struct {
@@ -82,7 +84,7 @@ type Grant struct {
 	TabID       string         `json:"tab_id,omitempty"`
 	ThreadID    string         `json:"thread_id,omitempty"`
 	Messages    []HumanMessage `json:"messages,omitempty"`
-	// A verdicts grant: the file, its verdicts, and whether the post wakes the assignee.
+	// A verdicts or post grant: whether it wakes the assignee. A verdicts grant also names the file and its verdicts.
 	Path     string    `json:"path,omitempty"`
 	Verdicts []Verdict `json:"verdicts,omitempty"`
 	Quiet    bool      `json:"quiet,omitempty"`

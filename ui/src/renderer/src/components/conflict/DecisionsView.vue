@@ -2,9 +2,9 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { AppButton, AppEmptyState, AppInput, AppSegmented } from '@sankasten'
-import { postToConflict, type ConflictThreadState } from '../../conflictThread'
+import { computed, watch } from 'vue'
+import { AppBadge, AppEmptyState, AppSegmented } from '@sankasten'
+import type { ConflictThreadState } from '../../conflictThread'
 import { useFileDecisions } from '../../conflictFiles'
 import {
   countStates,
@@ -21,18 +21,23 @@ import {
   type ListState
 } from '../../conflictDecisions'
 import {
-  applyFile,
-  askAboutBlocks,
+  clearReasoningFlash,
   draftsOf,
   focusBlock,
+  listViewOf,
   manualOf,
   pendingFor,
+  reasoningFlashOf,
   resolveByHand,
-  setDraft
+  setDraft,
+  setListView
 } from '../../conflictVerdicts'
+import { focusChat } from '../../conflictChatStore'
+import { commentDraftsOf } from '../../conflictCommentStore'
+import type { ChatScope } from '../../conflictChat'
 import { tabParts, type NamePart } from '../../tabNames'
 import type { ProjectRef } from '../../workspace'
-import AskModelModal from './AskModelModal.vue'
+import ConflictDock from './ConflictDock.vue'
 import ConflictModeSwitch from './ConflictModeSwitch.vue'
 import DecisionWorkspace from './DecisionWorkspace.vue'
 import MarkedText from '../MarkedText.vue'
@@ -77,9 +82,11 @@ const rows = computed((): Row[] =>
 const counts = computed(() => countStates(rows.value.map((row) => row.state)))
 
 // "Needs you" keeps the decisions already made in view until they are sent, so one can be undone.
-const filterChoice = ref<'needs' | 'all' | null>(null)
+// The choice, the selection and the width live in the module's per-project state, not here, since
+// this view is unmounted whenever the human switches project.
+const listView = computed(() => listViewOf(props.project.id))
 const filter = computed(
-  () => filterChoice.value ?? (counts.value.needs + counts.value.queued > 0 ? 'needs' : 'all')
+  () => listView.value.filter ?? (counts.value.needs + counts.value.queued > 0 ? 'needs' : 'all')
 )
 const filterOptions: { value: 'needs' | 'all'; label: string }[] = [
   { value: 'needs', label: 'Needs you' },
@@ -118,15 +125,35 @@ const groups = computed((): Group[] => {
   return out
 })
 
-const selectedKey = ref<string | null>(null)
 // The picked block while it is listed, else the first block that needs the human, else the first.
 const current = computed(
   (): Row | null =>
-    shown.value.find((row) => row.card.key === selectedKey.value) ??
+    shown.value.find((row) => row.card.key === listView.value.selected) ??
     shown.value.find((row) => row.state === 'needs') ??
     shown.value[0] ??
     null
 )
+
+// Coming back from the label on an agent's proposal in Manual: the block must be listed to be
+// selected, so a filter that hides it gives way.
+const reasoningFlash = computed(() => reasoningFlashOf(props.project.id))
+watch(
+  reasoningFlash,
+  (flash) => {
+    if (flash && !shown.value.some((row) => row.card.key === flash.key)) {
+      setListView(props.project.id, { filter: 'all' })
+    }
+  },
+  { immediate: true }
+)
+
+const TONES: Record<ListState, 'accent' | 'info' | 'success' | 'danger' | 'neutral'> = {
+  needs: 'accent',
+  queued: 'success',
+  model: 'info',
+  untouched: 'neutral',
+  done: 'success'
+}
 
 function blocksText(card: BlockCard): string {
   const blocks = card.blocks
@@ -134,7 +161,7 @@ function blocksText(card: BlockCard): string {
 }
 
 function select(key: string): void {
-  selectedKey.value = key
+  setListView(props.project.id, { selected: key })
 }
 
 // Up and Down walk the list, as in any list that has a selection.
@@ -145,7 +172,7 @@ function onListKey(event: KeyboardEvent): void {
   event.preventDefault()
   const at = list.findIndex((row) => row.card.key === current.value?.card.key)
   const next = Math.min(list.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))
-  selectedKey.value = list[next].card.key
+  select(list[next].card.key)
 }
 
 // After a decision the selection moves to the next block that still needs the human, after the
@@ -155,13 +182,37 @@ function advance(): void {
   const at = list.findIndex((row) => row.card.key === current.value?.card.key)
   const after = [...list.slice(at + 1), ...list.slice(0, at)]
   const next = after.find((row) => row.state === 'needs')
-  if (next) selectedKey.value = next.card.key
+  if (next) select(next.card.key)
+}
+
+const MIN_LIST = 200
+const MAX_LIST = 560
+
+// Dragging the handle resizes the list; the pointer is captured so a fast drag over the workspace
+// or a code box still follows.
+function startResize(event: PointerEvent): void {
+  const handle = event.currentTarget as HTMLElement
+  const from = event.clientX
+  const width = listView.value.width
+  handle.setPointerCapture(event.pointerId)
+  const move = (e: PointerEvent): void => {
+    const next = Math.min(MAX_LIST, Math.max(MIN_LIST, width + e.clientX - from))
+    setListView(props.project.id, { width: next })
+  }
+  const stop = (): void => {
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', stop)
+    handle.removeEventListener('pointercancel', stop)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', stop)
+  handle.addEventListener('pointercancel', stop)
 }
 
 // Who holds the conflict, highlighted since its title is the model's own words.
 const holder = computed((): NamePart[] => {
   const tabId = props.thread.status?.assignee
-  return tabId ? tabParts(tabId) : [{ text: 'a model' }]
+  return tabId ? tabParts(tabId) : [{ text: 'an agent' }]
 })
 const statusParts = computed((): NamePart[] => {
   const step = ` ${nextStep(counts.value)}`
@@ -171,23 +222,6 @@ const statusParts = computed((): NamePart[] => {
 })
 
 const line = computed(() => generalLine(props.thread.messages))
-const messaging = ref(false)
-const reply = ref('')
-const replying = ref(false)
-const replyError = ref<string | null>(null)
-
-async function sendReply(): Promise<void> {
-  const body = reply.value.trim()
-  if (!body || replying.value) return
-  replying.value = true
-  replyError.value = await postToConflict(props.project, [{ body, anchor: null }])
-  replying.value = false
-  if (!replyError.value) {
-    reply.value = ''
-    messaging.value = false
-  }
-}
-
 function byHand(card: BlockCard): void {
   resolveByHand(props.project.id, card)
   emit('manual', card.path)
@@ -198,23 +232,20 @@ function showInManual(card: BlockCard): void {
   emit('manual', card.path)
 }
 
-const askCard = ref<BlockCard | null>(null)
-const asking = ref(false)
-const askError = ref<string | null>(null)
+// What the chat box is about: the selected block, or its file when nothing is selected.
+const chatScope = computed((): ChatScope | null => {
+  if (current.value) return { path: current.value.card.path, block: current.value.card.blocks[0] }
+  return props.files[0] ? { path: props.files[0], block: null } : null
+})
 
-function startAsk(card: BlockCard): void {
-  askError.value = null
-  askCard.value = card
-}
-
-async function sendAsk(payload: { tabId: string | null; text: string }): Promise<void> {
-  const card = askCard.value
-  if (!card) return
-  asking.value = true
-  askError.value = await askAboutBlocks(props.project, card.path, card.blocks, payload.text, null)
-  asking.value = false
-  if (!askError.value) askCard.value = null
-}
+// A comment queued on the selected block's lines is the question to the agent, so Send asks it.
+const commented = computed(() => {
+  const card = current.value?.card
+  if (!card) return false
+  return commentDraftsOf(props.project.id).some(
+    (draft) => draft.path === card.path && card.blocks.includes(draft.block)
+  )
+})
 
 // Files with something to send, and what sending would do with each.
 const ready = computed(() =>
@@ -254,13 +285,6 @@ function summary(verdicts: { verdict: string; block: number }[], settled: boolea
   return parts.join(', ')
 }
 
-// Stage when every file waiting holds nothing the model has to read, else Send to model.
-const staging = computed(() => ready.value.length > 0 && ready.value.every((item) => item.settled))
-const sendLabel = computed(() => {
-  if (ready.value.length === 0) return 'Send to model'
-  if (staging.value) return ready.value.length === 1 ? 'Stage' : `Stage (${ready.value.length})`
-  return `Send to model (${counts.value.queued})`
-})
 const sendTitle = computed(() =>
   ready.value.length === 0
     ? 'Nothing is decided yet.'
@@ -268,22 +292,6 @@ const sendTitle = computed(() =>
         .map((item) => `${fileName(item.file.path)}: ${summary(item.verdicts, item.settled)}`)
         .join('\n')
 )
-
-const sending = ref(false)
-const sendError = ref<string | null>(null)
-
-// One batch per file, each posted together and staged when its file is settled.
-async function send(): Promise<void> {
-  if (sending.value || ready.value.length === 0) return
-  sending.value = true
-  const errors: string[] = []
-  for (const item of [...ready.value]) {
-    const refused = await applyFile(props.project, item.file)
-    if (refused) errors.push(`${fileName(item.file.path)}: ${refused}`)
-  }
-  sendError.value = errors.length > 0 ? errors.join(' ') : null
-  sending.value = false
-}
 </script>
 
 <template>
@@ -291,33 +299,33 @@ async function send(): Promise<void> {
     <header class="top">
       <ConflictModeSwitch mode="decisions" @switch="emit('manual', null)" />
       <MarkedText class="status" :parts="statusParts" capitalize />
-      <AppButton
-        variant="primary"
-        size="sm"
-        class="send"
-        :disabled="ready.length === 0 || sending"
-        :title="sendTitle"
-        @click="send"
-      >
-        {{ sending ? 'Sending' : sendLabel }}
-      </AppButton>
     </header>
 
-    <p v-if="sendError" class="error">{{ sendError }}</p>
     <p v-if="line" class="general" :title="line.body">
-      <span class="general-author">Model</span>
+      <span class="general-author">Agent</span>
       {{ line.body }}
     </p>
 
-    <AppEmptyState
-      v-if="rows.length === 0 && noBlocks.length === 0"
-      layout="fill"
-      :loading="decisions.length < files.length"
-      title="Nothing to decide yet."
-      detail="Each block shows here as soon as there is one."
-    />
+    <div v-if="rows.length === 0 && noBlocks.length === 0" class="idle">
+      <AppEmptyState
+        layout="fill"
+        :loading="decisions.length < files.length"
+        title="Nothing to decide yet."
+        detail="Each block shows here as soon as there is one."
+      />
+      <footer class="idle-row">
+        <ConflictDock
+          :project="project"
+          :scope="chatScope"
+          :ready="ready"
+          :queued-blocks="counts.queued"
+          inline
+          :title="sendTitle"
+        />
+      </footer>
+    </div>
     <div v-else class="layout">
-      <aside class="list">
+      <aside class="list" :style="{ width: `${listView.width}px` }">
         <header class="list-head">
           <span class="list-title">Blocks</span>
           <AppSegmented
@@ -325,7 +333,7 @@ async function send(): Promise<void> {
             aria-label="Which blocks to list"
             :options="filterOptions"
             :model-value="filter"
-            @update:model-value="filterChoice = $event"
+            @update:model-value="setListView(project.id, { filter: $event })"
           />
         </header>
 
@@ -350,7 +358,7 @@ async function send(): Promise<void> {
             >
               <span class="dot" />
               <span class="row-name">{{ blocksText(row.card) }}</span>
-              <span class="row-state">{{ row.label }}</span>
+              <AppBadge size="sm" :tone="TONES[row.state]">{{ row.label }}</AppBadge>
             </button>
           </section>
 
@@ -383,65 +391,69 @@ async function send(): Promise<void> {
             </button>
           </section>
         </div>
-
-        <footer class="list-foot">
-          <template v-if="messaging">
-            <AppInput
-              v-model="reply"
-              size="sm"
-              class="reply"
-              placeholder="A line for the model, then Enter"
-              :disabled="replying"
-              @keydown.enter.prevent="sendReply"
-              @keydown.escape="messaging = false"
-            />
-            <p v-if="replyError" class="error">{{ replyError }}</p>
-          </template>
-          <AppButton v-else variant="text" size="sm" @click="messaging = true">
-            Message the model
-          </AppButton>
-        </footer>
       </aside>
 
+      <div
+        class="resize"
+        role="separator"
+        aria-orientation="vertical"
+        title="Drag to resize the list"
+        @pointerdown="startResize"
+      />
       <DecisionWorkspace
         v-if="current"
         :key="current.card.key"
+        :project="project"
         :card="current.card"
         :list-state="current.state"
-        :label="current.label"
         :left-ref="current.file.leftRef"
         :right-ref="current.file.rightRef"
         :draft="drafts[current.card.key]"
         :manual-digest="manualDigest(current.card, manualOf(project.id, current.card.path))"
+        :flash="reasoningFlash?.key === current.card.key ? reasoningFlash.nonce : 0"
+        :commented="commented"
+        @flashed="clearReasoningFlash(project.id)"
         @draft="setDraft(project.id, current.card.key, $event)"
         @by-hand="byHand(current.card)"
         @manual="showInManual(current.card)"
-        @ask="startAsk(current.card)"
+        @ask="focusChat(project.id)"
         @decided="advance"
-      />
-      <AppEmptyState
-        v-else
-        layout="fill"
-        title="Pick a block."
-        detail="The blocks that need you are listed on the left."
-      />
+      >
+        <template #end>
+          <ConflictDock
+            :project="project"
+            :scope="chatScope"
+            :ready="ready"
+            :queued-blocks="counts.queued"
+            inline
+            :title="sendTitle"
+          />
+        </template>
+      </DecisionWorkspace>
+      <div v-else class="idle">
+        <AppEmptyState
+          layout="fill"
+          title="Pick a block."
+          detail="The blocks that need you are listed on the left."
+        />
+        <footer class="idle-row">
+          <ConflictDock
+            :project="project"
+            :scope="chatScope"
+            :ready="ready"
+            :queued-blocks="counts.queued"
+            inline
+            :title="sendTitle"
+          />
+        </footer>
+      </div>
     </div>
-
-    <AskModelModal
-      v-if="askCard"
-      :project="project"
-      held
-      :blocks="askCard.blocks.length"
-      :sending="asking"
-      :error="askError"
-      @submit="sendAsk"
-      @close="askCard = null"
-    />
   </div>
 </template>
 
 <style scoped>
 .decisions {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -468,10 +480,6 @@ async function send(): Promise<void> {
   color: var(--color-fg-secondary);
 }
 
-.send {
-  flex-shrink: 0;
-}
-
 .general {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -495,14 +503,43 @@ async function send(): Promise<void> {
   min-height: 0;
 }
 
+/* With no block to work on, Send and Thread still hold the bottom right, as in the action row. */
+.idle {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.idle-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+}
+
 .list {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  width: 280px;
   min-height: 0;
-  border-right: 1px solid var(--color-border-subtle);
   background: var(--color-surface-1);
+}
+
+.resize {
+  flex-shrink: 0;
+  width: 5px;
+  margin: 0 -2px;
+  z-index: 1;
+  border-left: 1px solid var(--color-border-subtle);
+  cursor: col-resize;
+}
+
+.resize:hover {
+  border-left-color: var(--color-fg-accent);
+  box-shadow: inset 1px 0 0 var(--color-fg-accent);
 }
 
 .list-head {
@@ -633,16 +670,6 @@ async function send(): Promise<void> {
   white-space: nowrap;
 }
 
-.row-state {
-  flex-shrink: 0;
-  font-size: var(--text-xs);
-  color: var(--color-fg-muted);
-}
-
-.row.needs .row-state {
-  color: var(--color-fg-accent);
-}
-
 .other {
   justify-content: space-between;
   font-size: var(--text-xs);
@@ -651,18 +678,6 @@ async function send(): Promise<void> {
 .other-text {
   flex-shrink: 0;
   color: var(--color-fg-muted);
-}
-
-.list-foot {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--color-border-subtle);
-}
-
-.reply {
-  width: 100%;
 }
 
 .error {

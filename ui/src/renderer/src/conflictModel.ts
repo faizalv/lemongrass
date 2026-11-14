@@ -33,8 +33,11 @@ export interface MiddleChunk {
 }
 
 // How a side pane draws one side of a conflict: decided by the human, or settled some other way (a
-// hand edit, or a block loaded settled), so it no longer reads as open.
-export type SideMark = SideDecision | 'settled'
+// hand edit, or a block loaded settled), so it no longer reads as open. The proposed marks are an
+// agent's unsettled text, drawn in the agent's color and never recorded as the human's decision:
+// proposedTake is a side the text equals, proposedReject one it does not, and proposedOpen is both
+// sides when the text equals neither, such as a block the agent merged by hand.
+export type SideMark = SideDecision | 'settled' | 'proposedTake' | 'proposedReject' | 'proposedOpen'
 
 function lineText(lines: string[]): string {
   return lines.map((line) => `${line}\n`).join('')
@@ -82,9 +85,20 @@ function humanChunk(chunk: MiddleChunk): MiddleChunk {
   return next
 }
 
-export function sideMark(chunk: MiddleChunk, side: ConflictSide): SideMark {
+// fit is the sides an agent's waiting text equals, null when it equals neither, and undefined when
+// it is not known or does not apply.
+export function sideMark(
+  chunk: MiddleChunk,
+  side: ConflictSide,
+  fit?: ConflictSide[] | null
+): SideMark {
   if (chunk[side] !== 'open') return chunk[side]
-  return chunk.resolved ? 'settled' : 'open'
+  if (chunk.resolved) return 'settled'
+  if (chunk.proposed && fit !== undefined) {
+    if (fit === null) return 'proposedOpen'
+    return fit.includes(side) ? 'proposedTake' : 'proposedReject'
+  }
+  return 'open'
 }
 
 function decidedText(conflict: ConflictChunk, taken: ConflictSide[]): string {

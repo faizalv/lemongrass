@@ -42,6 +42,7 @@ const MAX_QUOTE = 8000
 const MAX_SUBMITTED_FILES = 1000
 const MAX_VERDICTS = 1000
 const MAX_DIGEST = 64
+const ANCHOR_PANES = new Set(['', 'left', 'right', 'result', 'middle'])
 const VERDICT_KINDS = new Set(['accepted', 'rejected', 'resolved', 'answered', 'asked'])
 
 const OUTCOME_REASONS: Record<Exclude<PasteOutcome, 'typed'>, string> = {
@@ -217,20 +218,24 @@ function validMessages(value: unknown): ConflictHumanMessage[] | string {
       messages.push({ body, anchor: null, ...reply })
       continue
     }
+    const noLines = anchor.startLine === 0 && anchor.endLine === 0
     if (
       typeof anchor.path !== 'string' ||
       !anchor.path ||
       !Number.isInteger(anchor.startLine) ||
       !Number.isInteger(anchor.endLine) ||
-      anchor.startLine < 1 ||
-      anchor.endLine < anchor.startLine ||
+      (!noLines && (anchor.startLine < 1 || anchor.endLine < anchor.startLine)) ||
       typeof anchor.quote !== 'string' ||
       anchor.quote.length > MAX_QUOTE
     ) {
-      return 'A line comment does not say where it sits'
+      return 'A comment does not say where it sits'
     }
+    const pane = anchor.pane ?? ''
+    if (!ANCHOR_PANES.has(pane)) return 'A comment names a pane that does not exist'
+    const block = anchor.block ?? 0
+    if (!Number.isInteger(block) || block < 0) return 'A comment names no real block'
     const { path, startLine, endLine, quote } = anchor
-    messages.push({ body, anchor: { path, startLine, endLine, quote }, ...reply })
+    messages.push({ body, anchor: { path, startLine, endLine, quote, pane, block }, ...reply })
   }
   return messages
 }
@@ -289,11 +294,14 @@ async function postVerdicts(
 // quietly after the thread opens so the model keeps them and the resolver shows them as done.
 // askedInput is the blocks the human asks about with their words, one batch or null, posted quietly
 // too: the typed line is the only thing that wakes the model, so it wakes once and finds both.
+// messagesInput is the human's comments and message sent with the hand-over, or null, posted
+// quietly for the same reason.
 async function start(
   projectPath: string,
   tabId: string,
   settledInput: unknown,
-  askedInput: unknown
+  askedInput: unknown,
+  messagesInput: unknown
 ): Promise<ConflictStartResult> {
   if (typeof projectPath !== 'string' || !projectPath) return { ok: false, reason: 'No project' }
   if (!UUID.test(tabId)) return { ok: false, reason: 'The tab id is not valid' }
@@ -313,6 +321,12 @@ async function start(
       return { ok: false, reason: 'A hand-over asks about blocks and nothing else' }
     }
     asked = batch
+  }
+  let messages: ConflictHumanMessage[] = []
+  if (messagesInput !== null && messagesInput !== undefined) {
+    const valid = validMessages(messagesInput)
+    if (typeof valid === 'string') return { ok: false, reason: valid }
+    messages = valid
   }
   if (!lgrassPath) return { ok: false, reason: 'lgrass is not installed' }
   const state = (await tabStates(projectPath))[tabId]
@@ -337,13 +351,23 @@ async function start(
       if (!THREAD_ID.test(threadId)) return { ok: false, reason: 'lgrass returned no thread id' }
       for (const batch of settled) await postVerdicts(projectPath, conflict.scope, batch, true)
       if (asked) await postVerdicts(projectPath, conflict.scope, asked, true)
+      if (messages.length > 0) {
+        await runApp(projectPath, {
+          action: 'post',
+          projectPath,
+          scope: conflict.scope,
+          messages,
+          quiet: true
+        })
+      }
     } catch (err) {
       return { ok: false, reason: message(err) }
     }
     const line = composeStartLine(conflict, threadId, {
       resolved: settled.reduce((sum, batch) => sum + batch.verdicts.length, 0),
       files: settled.length,
-      asked: asked?.verdicts.length ?? 0
+      asked: asked?.verdicts.length ?? 0,
+      comments: messages.length
     })
     const outcome = await pastePrompt(tabId, line)
     return outcome === 'typed'
@@ -546,8 +570,14 @@ export function registerConflictAgentHandlers(
   ipcMain.handle('conflict:status', (_event, projectPath: string) => status(projectPath))
   ipcMain.handle(
     'conflict:start',
-    (_event, projectPath: string, tabId: string, settled: unknown, asked: unknown) =>
-      start(projectPath, tabId, settled, asked)
+    (
+      _event,
+      projectPath: string,
+      tabId: string,
+      settled: unknown,
+      asked: unknown,
+      messages: unknown
+    ) => start(projectPath, tabId, settled, asked, messages)
   )
   ipcMain.handle('conflict:post', (_event, projectPath: string, messages: unknown) =>
     post(projectPath, messages)

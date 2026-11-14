@@ -69,7 +69,7 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool) string {
 			b.WriteString(suffix)
 		}
 		if a := m.Anchor; a != nil {
-			fmt.Fprintf(&b, " on %s %s", a.Path, lineSpan(a.StartLine, a.EndLine))
+			fmt.Fprintf(&b, " on %s", anchorWords(a))
 		}
 		if m.ReplyTo > 0 {
 			fmt.Fprintf(&b, " (replying to #%d)", m.ReplyTo)
@@ -89,6 +89,21 @@ func FormatThreadRead(t Thread, msgs []Message, more, unread bool) string {
 		fmt.Fprintf(&b, "\nolder messages: lgrass thread read %s --before %d\n", t.ID, msgs[len(msgs)-1].ID)
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// Where an anchored message was made: the file, the block and pane when it names them, and the lines when it picked some.
+func anchorWords(a *Anchor) string {
+	words := a.Path
+	if a.Block > 0 {
+		words += fmt.Sprintf(" block %d", a.Block)
+	}
+	if a.Pane != "" {
+		words += fmt.Sprintf(" (%s pane)", a.Pane)
+	}
+	if a.StartLine > 0 {
+		words += " " + lineSpan(a.StartLine, a.EndLine)
+	}
+	return words
 }
 
 func lineSpan(start, end int) string {

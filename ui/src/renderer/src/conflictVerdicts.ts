@@ -4,7 +4,7 @@
 import { reactive } from 'vue'
 import { gitStateOf, stageConflict } from './git'
 import { buildProposal } from './conflictModel'
-import { conflictThreadOf, handConflictTo, refreshConflictMessages } from './conflictThread'
+import { conflictThreadOf, refreshConflictMessages } from './conflictThread'
 import { saveConflictWork } from './conflictSave'
 import {
   blockDigest,
@@ -31,7 +31,26 @@ export interface ConflictFocus {
   nonce: number
 }
 
+// How the Decisions list looks, kept here so it survives the view being unmounted when the human
+// switches project: which blocks are listed (null picks by what needs the human), the selected
+// block, and the list's width.
+export interface ListView {
+  filter: 'needs' | 'all' | null
+  selected: string | null
+  width: number
+}
+
+const DEFAULT_LIST: ListView = { filter: null, selected: null, width: 280 }
+
+// The block whose reasoning the workspace flashes once, with a nonce so asking again flashes again.
+export interface ReasoningFlash {
+  key: string
+  nonce: number
+}
+
 interface ProjectVerdicts {
+  list: ListView | null
+  flash: ReasoningFlash | null
   // By conflict thread id, so a draft from an earlier thread never applies to a new one.
   drafts: Record<string, Record<string, Draft>>
   // By path, then block number, the digest of the lines the human resolved it to.
@@ -43,7 +62,14 @@ interface ProjectVerdicts {
 const projects = reactive<Record<string, ProjectVerdicts>>({})
 let nonce = 0
 
-const EMPTY: ProjectVerdicts = { drafts: {}, manual: {}, mode: null, focus: null }
+const EMPTY: ProjectVerdicts = {
+  list: null,
+  flash: null,
+  drafts: {},
+  manual: {},
+  mode: null,
+  focus: null
+}
 
 // For reads, which a render or a computed may run: never creates state.
 function readOf(projectId: string): ProjectVerdicts {
@@ -53,7 +79,14 @@ function readOf(projectId: string): ProjectVerdicts {
 // For writes.
 function stateOf(projectId: string): ProjectVerdicts {
   if (!projects[projectId])
-    projects[projectId] = { drafts: {}, manual: {}, mode: null, focus: null }
+    projects[projectId] = {
+      list: null,
+      flash: null,
+      drafts: {},
+      manual: {},
+      mode: null,
+      focus: null
+    }
   return projects[projectId]
 }
 
@@ -84,6 +117,47 @@ export function conflictMode(projectId: string): ConflictMode {
 
 export function setConflictMode(projectId: string, mode: ConflictMode): void {
   stateOf(projectId).mode = mode
+  if (mode === 'decisions') dropIdleByHand(projectId)
+}
+
+// "Resolve myself" marks a block to be resolved by hand so the three panes load it open, but the
+// mark means nothing until the human resolves it there. Coming back to Decisions without having
+// done so drops it, so the block does not claim a resolution that never happened.
+function dropIdleByHand(projectId: string): void {
+  const state = stateOf(projectId)
+  const drafts = draftsFor(projectId)
+  for (const [key, draft] of Object.entries(drafts)) {
+    if (draft.kind !== 'manual') continue
+    const at = key.lastIndexOf('#')
+    const block = Number(key.slice(at + 1))
+    if (!state.manual[key.slice(0, at)]?.has(block)) delete drafts[key]
+  }
+}
+
+// The label on an agent's proposed block in Manual: back to Decisions on that block, where its
+// reasoning flashes once.
+export function showReasoning(projectId: string, path: string, block: number): void {
+  const key = `${path}#${block}`
+  setListView(projectId, { selected: key })
+  stateOf(projectId).flash = { key, nonce: ++nonce }
+  setConflictMode(projectId, 'decisions')
+}
+
+export function reasoningFlashOf(projectId: string): ReasoningFlash | null {
+  return readOf(projectId).flash
+}
+
+export function clearReasoningFlash(projectId: string): void {
+  stateOf(projectId).flash = null
+}
+
+export function listViewOf(projectId: string): ListView {
+  return readOf(projectId).list ?? DEFAULT_LIST
+}
+
+export function setListView(projectId: string, patch: Partial<ListView>): void {
+  const state = stateOf(projectId)
+  state.list = { ...(state.list ?? DEFAULT_LIST), ...patch }
 }
 
 const NO_DRAFTS: Record<string, Draft> = {}
@@ -122,10 +196,11 @@ export function focusBlock(projectId: string, path: string, block: number): void
   stateOf(projectId).focus = { path, block, nonce: ++nonce }
 }
 
-// "Resolve myself": the card's file opens in Manual on its first block, with the block reopened.
+// "Resolve myself": the card's file opens in Manual on its first block. The agent's proposal stays
+// there, marked as the agent's, for the human to take over, change or pick a side against; nothing
+// is recorded until the human does something to the block.
 export function resolveByHand(projectId: string, card: BlockCard): void {
   const state = stateOf(projectId)
-  draftsFor(projectId)[card.key] = { kind: 'manual' }
   state.focus = { path: card.path, block: card.blocks[0], nonce: ++nonce }
   state.mode = 'manual'
 }
@@ -152,8 +227,13 @@ export function pendingFor(
 
 // Apply on one file: the hand-resolved blocks go to disk first, then the verdicts to the model
 // together, and a file whose every block is settled is staged as it stands. Verdicts on a settled
-// file wake nobody, since the model has nothing left to do in it. Returns the refusal, or null.
-export async function applyFile(project: ProjectRef, file: FileDecisions): Promise<string | null> {
+// file wake nobody, since the model has nothing left to do in it, and quiet makes any file's wake
+// nobody, for a send whose last post is the one that wakes. Returns the refusal, or null.
+export async function applyFile(
+  project: ProjectRef,
+  file: FileDecisions,
+  quiet = false
+): Promise<string | null> {
   if (!file.cards) return 'This file has no blocks to decide.'
   const { verdicts, settled } = pendingFor(project.id, file)
   if (verdicts.length === 0 && !settled) return 'Nothing to send for this file yet.'
@@ -166,7 +246,7 @@ export async function applyFile(project: ProjectRef, file: FileDecisions): Promi
       const sent = await window.api.conflictAgent.verdicts(
         project.path,
         { path: file.path, verdicts },
-        settled
+        settled || quiet
       )
       if (!sent.ok) return sent.reason
     }
@@ -209,41 +289,4 @@ export async function writtenBeforeHandOver(project: ProjectRef): Promise<Confli
     if (verdicts.length > 0) batches.push({ path, verdicts })
   }
   return batches
-}
-
-// What a block's ask says when the human wrote nothing: the ask itself is the message.
-const ASK_WITHOUT_WORDS = 'Look at this block and tell me what you would do.'
-
-function askedBatch(path: string, blocks: number[], text: string): ConflictVerdictBatch {
-  const words = text.trim() || ASK_WITHOUT_WORDS
-  return { path, verdicts: blocks.map((block) => ({ block, verdict: 'asked', text: words })) }
-}
-
-// Asks a model about blocks from the three panes. The human's partial work goes to disk first, so
-// the model reads what the human sees. With tabId the conflict is handed to that tab in the same
-// step, and the question travels with the hand-over so the model wakes once; without it a model
-// already holds the conflict and the question is posted to its thread. Returns the refusal, or
-// null.
-export async function askAboutBlocks(
-  project: ProjectRef,
-  path: string,
-  blocks: number[],
-  text: string,
-  tabId: string | null
-): Promise<string | null> {
-  if (blocks.length === 0) return 'Put the cursor in a conflict block first.'
-  const question = askedBatch(path, blocks, text)
-  try {
-    if (tabId) {
-      return await handConflictTo(project, tabId, () => writtenBeforeHandOver(project), question)
-    }
-    const saved = await saveConflictWork(project)
-    if (!saved.ok) return saved.error
-    const sent = await window.api.conflictAgent.verdicts(project.path, question, false)
-    if (!sent.ok) return sent.reason
-    await refreshConflictMessages(project)
-    return null
-  } catch (err) {
-    return err instanceof Error ? err.message : String(err)
-  }
 }

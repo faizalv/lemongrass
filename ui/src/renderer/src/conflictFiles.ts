@@ -12,8 +12,8 @@ import {
 } from 'vue'
 import { gitStateOf } from './git'
 import { conflictThreadOf } from './conflictThread'
-import { buildProposal } from './conflictModel'
-import { fileDecisions, type FileDecisions } from './conflictDecisions'
+import { buildProposal, locateChunks } from './conflictModel'
+import { fileDecisions, type FileDecisions, type Located } from './conflictDecisions'
 import type { ProjectRef } from './workspace'
 import type { GitConflictFile } from '../../preload/types'
 
@@ -104,6 +104,14 @@ export function useConflictFiles(project: () => ProjectRef): ComputedRef<Record<
   return computed(() => files[project().id] ?? {})
 }
 
+// Where git's chunks sit in each side's own file, so the workspace can number the lines it shows.
+function locatedOf(file: OkFile): Located | null {
+  if (!file.chunks || file.left.state !== 'text' || file.right.state !== 'text') return null
+  const left = locateChunks(file.chunks, 'left', file.left.text)
+  const right = locateChunks(file.chunks, 'right', file.right.text)
+  return left && right ? { left, right } : null
+}
+
 // Every conflicted file's blocks and where they stand, in git status order.
 export function useFileDecisions(project: () => ProjectRef): ComputedRef<FileDecisions[]> {
   const loaded = useConflictFiles(project)
@@ -116,7 +124,7 @@ export function useFileDecisions(project: () => ProjectRef): ComputedRef<FileDec
         file.chunks && file.working !== null
           ? buildProposal(file.chunks, file.working, file.workingChunks)
           : null
-      return [fileDecisions(file, mapped, messages)]
+      return [fileDecisions(file, mapped, messages, locatedOf(file))]
     })
   })
 }

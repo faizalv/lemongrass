@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/faizalv/lemongrass/internal/ipc"
 	"os"
 	"os/exec"
@@ -405,5 +406,34 @@ func TestAppPostCarriesAReplyAndDataThroughToTheJSON(t *testing.T) {
 	reply := got.Messages[len(got.Messages)-1]
 	if reply.Author != "human" || reply.ReplyTo == nil || *reply.ReplyTo != decision.ID || string(reply.Data) != "null" {
 		t.Errorf("reply = %+v, want replyTo %d and null data", reply, decision.ID)
+	}
+}
+
+func TestReplyAnswersAComment(t *testing.T) {
+	e, out, _ := gitEnv(t, "", gitTabA)
+	id := startConflict(t, e)
+	comment, err := e.store.PostHumanMessages(gitScope, []session.HumanMessage{{Body: "why theirs?", Anchor: &session.Anchor{Path: "a.txt", Block: 1, Pane: "right"}}})
+	if err != nil {
+		t.Fatalf("PostHumanMessages: %v", err)
+	}
+	out.Reset()
+	if err := conflictReply(e, []string{fmt.Sprint(comment[0].ID), "it renamed the tax constant"}); err != nil {
+		t.Fatalf("reply: %v", err)
+	}
+	if !strings.Contains(out.String(), fmt.Sprintf("to #%d", comment[0].ID)) {
+		t.Errorf("output = %q, want the answered message named", out.String())
+	}
+	msgs, _, _ := e.store.ReadThread(id, 0, 10)
+	if last := msgs[0]; last.ReplyTo != comment[0].ID || last.Anchor == nil || last.Anchor.Block != 1 || last.Anchor.Pane != "right" {
+		t.Errorf("reply = %+v, want it to answer the comment and keep its block and pane", last)
+	}
+	for _, args := range [][]string{{}, {"x", "text"}, {fmt.Sprint(comment[0].ID)}, {"0", "text"}} {
+		if err := conflictReply(e, args); err == nil {
+			t.Errorf("reply %v was accepted", args)
+		}
+	}
+	e.tab = gitTabB
+	if err := conflictReply(e, []string{fmt.Sprint(comment[0].ID), "x"}); err == nil {
+		t.Error("a reply from an unpicked tab was accepted")
 	}
 }

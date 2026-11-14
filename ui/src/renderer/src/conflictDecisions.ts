@@ -6,6 +6,8 @@ import type {
   ConflictVerdictKind,
   GitConflictChunk,
   GitConflictFile,
+  GitConflictStage,
+  GitLineRange,
   WorkgroupThreadMessage
 } from '../../preload/types'
 import type { ConflictSide, Proposal } from './conflictModel'
@@ -48,6 +50,28 @@ export interface SentVerdict {
   digest: string
 }
 
+// Clean lines next to a block, nearest first away from it: before ends at the block, after starts
+// where it ends. A neighbour that is itself a conflict gives none.
+export interface BlockContext {
+  before: string[]
+  after: string[]
+  // The line number of the first line a box shows, context included, in the file it was read
+  // from: a stage file for a side, the working file for the result. Null when it is not known.
+  start: number | null
+}
+
+// Where each chunk of git's merge sits in a side's own stage file, from conflictModel's
+// locateChunks, which the caller runs since this module takes no local value imports.
+export interface Located {
+  left: GitLineRange[]
+  right: GitLineRange[]
+}
+
+// How many clean lines each side of a block the workspace shows: a little around each side, since
+// the sides are compared, and more around the result, which is judged in its place.
+export const SIDE_CONTEXT_LINES = 3
+export const RESULT_CONTEXT_LINES = 10
+
 export interface BlockCard {
   // Stable while the file's blocks stay grouped the same way.
   key: string
@@ -56,6 +80,11 @@ export interface BlockCard {
   blocks: number[]
   sides: ConflictChunk
   hold: BlockHold
+  // The clean lines around the block in each side's own file, and around it in the working file for
+  // the result.
+  leftContext: BlockContext
+  rightContext: BlockContext
+  resultContext: BlockContext
   // Of the written lines, empty while the block holds markers.
   digest: string
   state: CardState
@@ -72,6 +101,65 @@ export interface FileDecisions {
   cards: BlockCard[] | null
   // Lines written outside every block, which no block report covers.
   editsOutside: number
+}
+
+export function contextAround(
+  chunks: GitConflictChunk[],
+  index: number,
+  count: number
+): BlockContext {
+  const before = chunks[index - 1]
+  const after = chunks[index + 1]
+  return {
+    before: before?.kind === 'clean' ? before.lines.slice(-count) : [],
+    after: after?.kind === 'clean' ? after.lines.slice(0, count) : [],
+    start: null
+  }
+}
+
+function stageLines(stage: GitConflictStage): string[] | null {
+  if (stage.state !== 'text') return null
+  const lines = stage.text.split('\n')
+  if (lines[lines.length - 1] === '') lines.pop()
+  return lines
+}
+
+// A side's context read from its own stage file, so its line numbers are the file's: the clean
+// lines next to the block, never reaching into a neighbouring conflict. Without the stage, or when
+// it could not be located, the clean lines of git's merge stand in and carry no line numbers.
+function sideContext(
+  chunks: GitConflictChunk[],
+  first: number,
+  last: number,
+  ranges: GitLineRange[] | undefined,
+  stage: GitConflictStage
+): BlockContext {
+  const lines = stageLines(stage)
+  if (!ranges || !lines || first === -1 || last === -1 || !ranges[first] || !ranges[last]) {
+    return {
+      before: first === -1 ? [] : contextAround(chunks, first, SIDE_CONTEXT_LINES).before,
+      after: last === -1 ? [] : contextAround(chunks, last, SIDE_CONTEXT_LINES).after,
+      start: null
+    }
+  }
+  const startAt = ranges[first].start
+  const endAt = ranges[last].end
+  const previous = chunks[first - 1]
+  const next = chunks[last + 1]
+  const reach = previous?.kind === 'clean' ? ranges[first - 1].start : startAt
+  const limit = next?.kind === 'clean' ? ranges[last + 1].end : endAt
+  const before = lines.slice(Math.max(reach - 1, startAt - 1 - SIDE_CONTEXT_LINES), startAt - 1)
+  const after = lines.slice(endAt, Math.min(limit, endAt + SIDE_CONTEXT_LINES))
+  return { before, after, start: startAt - before.length }
+}
+
+// The chunk index of git's nth conflict, counting from 1, which is block n.
+function gitConflictIndex(chunks: GitConflictChunk[], block: number): number {
+  let seen = 0
+  for (let i = 0; i < chunks.length; i++) {
+    if (chunks[i].kind === 'conflict' && ++seen === block) return i
+  }
+  return -1
 }
 
 function stripCr(lines: string[]): string[] {
@@ -219,7 +307,8 @@ function stateOf(
 export function fileDecisions(
   file: OkFile,
   mapped: Proposal | null,
-  messages: WorkgroupThreadMessage[]
+  messages: WorkgroupThreadMessage[],
+  located: Located | null = null
 ): FileDecisions {
   const base = { path: file.path, leftRef: file.leftRef, rightRef: file.rightRef, editsOutside: 0 }
   if (!file.chunks || file.working === null || !mapped) return { ...base, cards: null }
@@ -234,6 +323,10 @@ export function fileDecisions(
       ? { kind: 'written', lines, sides: matchSides(chunk, lines) }
       : { kind: 'markers' }
     const digest = lines ? blockDigest(lines) : ''
+    const first = gitConflictIndex(file.chunks!, blocks[0])
+    const last = gitConflictIndex(file.chunks!, blocks[blocks.length - 1])
+    const result = contextAround(mapped.chunks, index, RESULT_CONTEXT_LINES)
+    if (chunk.disk) result.start = chunk.disk.start - result.before.length
     const report = latest(blocks.map((n) => reports.get(n)))
     const verdict = latest(blocks.map((n) => verdicts.get(n)))
     cards.push({
@@ -242,6 +335,9 @@ export function fileDecisions(
       blocks,
       sides: chunk,
       hold,
+      leftContext: sideContext(file.chunks!, first, last, located?.left, file.left),
+      rightContext: sideContext(file.chunks!, first, last, located?.right, file.right),
+      resultContext: result,
       digest,
       ...stateOf(hold, digest, report, verdict),
       report,
@@ -436,7 +532,7 @@ export function listLabel(state: ListState, card: BlockCard): string {
     case 'queued':
       return 'Queued'
     case 'model':
-      return 'With model'
+      return 'With agent'
     case 'untouched':
       return 'Untouched'
     case 'done':
@@ -467,8 +563,8 @@ export function nextStep(counts: ListCounts): string {
   }
   if (counts.queued > 0) return `${counts.queued} decided and waiting for Send.`
   if (counts.untouched > 0) {
-    return `Nothing needs you. ${counts.untouched} untouched: ask a model or resolve them yourself.`
+    return `Nothing needs you. ${counts.untouched} untouched: ask an agent or resolve them yourself.`
   }
-  if (counts.model > 0) return 'Nothing needs you while the model works.'
+  if (counts.model > 0) return 'Nothing needs you while the agent works.'
   return 'Everything is settled.'
 }

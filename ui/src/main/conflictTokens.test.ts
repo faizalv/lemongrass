@@ -79,8 +79,19 @@ test('the claim reply carries each action in the shape lgrass reads', () => {
       messages: [
         { body: 'Keep both.', anchor },
         { body: 'Thanks.', anchor: null }
-      ]
+      ],
+      quiet: false
     }
+  )
+  assert.equal(
+    claimReply({
+      action: 'post',
+      projectPath: '/p',
+      scope: SCOPE,
+      messages: [{ body: 'Hi.', anchor: null }],
+      quiet: true
+    }).quiet,
+    true
   )
   assert.deepEqual(
     claimReply({ action: 'close', projectPath: '/p', scope: SCOPE, threadId: 'abc123' }),

@@ -2,9 +2,10 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { AppButton, AppInput, AppTextarea } from '@sankasten'
 import { draftFits, type BlockCard, type Draft, type ListState } from '../../conflictDecisions'
+import type { ProjectRef } from '../../workspace'
 import BlockSides from './BlockSides.vue'
 import ConflictIcon from './ConflictIcon.vue'
 
@@ -12,16 +13,20 @@ import ConflictIcon from './ConflictIcon.vue'
 // offers Accept as the one primary action and Reject; Reject asks for a sentence to the model, or
 // to resolve the block by hand. A question offers the model's options and an answer in the human's
 // own words. An untouched block offers asking a model about it. Nothing is sent from here: drafts
-// wait for the Send button at the top of Decisions.
+// wait for the one Send, which the parent places at the right end of the action row.
 const props = defineProps<{
+  project: ProjectRef
   card: BlockCard
   listState: ListState
-  label: string
   leftRef: string
   rightRef: string
   draft?: Draft
   // The digest of the lines the human resolved this block to in Manual, not sent yet.
   manualDigest: string | null
+  // Set to a new number to flash the agent's reasoning once, as the label in Manual does.
+  flash?: number
+  // A comment on this block's lines is queued, so Send carries the question and Ask agent steps aside.
+  commented?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -31,7 +36,30 @@ const emit = defineEmits<{
   ask: []
   // The human made the decision this block waited for, so the list moves on to the next one.
   decided: []
+  flashed: []
 }>()
+
+const flashing = ref(false)
+let flashTimer: ReturnType<typeof setTimeout> | undefined
+
+watch(
+  () => props.flash,
+  async (nonce) => {
+    if (!nonce) return
+    flashing.value = false
+    emit('flashed')
+    await nextTick()
+    flashing.value = true
+    clearTimeout(flashTimer)
+    flashTimer = setTimeout(() => (flashing.value = false), 1200)
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => clearTimeout(flashTimer))
+
+// The agent speaks on this block when it reported on it.
+const fromAgent = computed(() => !!props.card.report && props.card.state !== 'waiting')
 
 const blocksLabel = computed(() => {
   const blocks = props.card.blocks
@@ -55,7 +83,7 @@ const takeText = computed(() => {
   if (hold.lines.length === 0) return 'Removes the block'
   const ref = (side: 'left' | 'right'): string => (side === 'left' ? props.leftRef : props.rightRef)
   const sides = hold.sides
-  if (!sides) return 'Edited by the model'
+  if (!sides) return 'Edited by the agent'
   if (sides.length === 1) return `Takes ${ref(sides[0])}`
   return `Takes both, ${ref(sides[0])} first`
 })
@@ -76,7 +104,7 @@ const headline = computed(() => {
         ? 'Reported, but its markers are still there'
         : 'Changed with no report on it'
     case 'waiting':
-      return 'With the model'
+      return 'With the agent'
     case 'open':
       return props.listState === 'untouched' ? 'Nobody worked on this block' : 'Not reported yet'
     case 'accepted':
@@ -86,6 +114,15 @@ const headline = computed(() => {
   }
   return ''
 })
+
+// The headline split around the word "you", which is drawn in the accent yellow so the human sees
+// at once which decisions are theirs.
+const headlineParts = computed(() =>
+  headline.value
+    .split(/\b(you)\b/)
+    .filter((part) => part !== '')
+    .map((text) => ({ text, you: text === 'you' }))
+)
 
 const tone = computed(() => {
   if (props.card.state === 'mismatch' || props.card.state === 'changed') return 'warn'
@@ -172,132 +209,153 @@ watch(ownAnswer, (text) => {
     <header class="head">
       <span class="file" :title="card.path">{{ card.path }}</span>
       <span class="blocks">{{ blocksLabel }}</span>
-      <span class="state" :class="listState">{{ label }}</span>
-      <span class="spacer" />
-      <AppButton
-        variant="text"
-        size="sm"
-        title="Show this block in the three panes"
-        @click="emit('manual')"
-      >
-        <ConflictIcon name="manual" />
-        Open in Manual
-      </AppButton>
+      <span v-if="fromAgent" class="from-label">
+        <span class="from-word">From</span> <span class="from-who">Agent</span>
+      </span>
     </header>
 
     <div class="scroll">
-      <h3 class="headline" :class="tone">{{ headline }}</h3>
-      <p v-if="card.report && card.state !== 'waiting'" class="words">{{ card.report.text }}</p>
-      <p v-if="sentText" class="sent">{{ sentText }}</p>
-      <p v-if="listState === 'untouched' && card.state === 'open'" class="note">
-        No model was asked to work on this block. Ask a model about it, or resolve it yourself.
-      </p>
-      <p v-else-if="card.state === 'open'" class="note">
-        The model has not reported this block yet.
-      </p>
+      <div class="reasoning" :class="{ flashing }">
+        <h3 class="headline" :class="tone">
+          <template v-for="(part, index) in headlineParts" :key="index">
+            <span v-if="part.you" class="you">{{ part.text }}</span>
+            <template v-else>{{ part.text }}</template>
+          </template>
+        </h3>
+        <p v-if="fromAgent" class="words">{{ card.report?.text }}</p>
+        <p v-if="sentText" class="sent">{{ sentText }}</p>
+        <p v-if="listState === 'untouched' && card.state === 'open'" class="note">
+          No agent was asked to work on this block. Ask an agent about it, or resolve it yourself.
+        </p>
+        <p v-else-if="card.state === 'open'" class="note">
+          The agent has not reported this block yet.
+        </p>
+      </div>
 
       <BlockSides
+        :path="card.path"
+        :project="project"
+        :block="card.blocks[0]"
         :sides="card.sides"
         :hold="card.hold"
         :left-ref="leftRef"
         :right-ref="rightRef"
-        expanded
+        :left-context="card.leftContext"
+        :right-context="card.rightContext"
+        :result-context="card.resultContext"
         :no-result="byHandDone"
       />
     </div>
 
     <footer class="actions">
-      <template v-if="byHandDone">
-        <span class="note">You resolved this block in Manual. It is sent when you press Send.</span>
-        <span class="spacer" />
-        <AppButton variant="ghost" size="sm" @click="emit('byHand')">Open in Manual</AppButton>
-      </template>
-
-      <template v-else-if="draftKind === 'accept'">
-        <ConflictIcon name="accept" class="accepted-mark" />
-        <span class="note">Accepted. It is sent when you press Send.</span>
-        <span class="spacer" />
-        <AppButton variant="ghost" size="sm" @click="emit('draft', null)">Undo</AppButton>
-      </template>
-
-      <template v-else-if="draftKind === 'manual'">
-        <span class="note">You resolve this block by hand.</span>
-        <span class="spacer" />
-        <AppButton variant="primary" size="sm" @click="emit('byHand')">Open in Manual</AppButton>
-        <AppButton variant="text" size="sm" @click="emit('draft', null)">Cancel</AppButton>
-      </template>
-
-      <!-- A question: the model's options as buttons, or the human's own words. -->
-      <div v-else-if="card.state === 'question'" class="answer">
-        <div v-if="card.report?.options.length" class="options">
-          <AppButton
-            v-for="option in card.report.options"
-            :key="option"
-            variant="primary"
-            size="sm"
-            :pressed="answered === option"
-            @click="pickOption(option)"
+      <div class="main">
+        <template v-if="byHandDone">
+          <span class="note"
+            >You resolved this block in Manual. It is sent when you press Send.</span
           >
-            {{ option }}
-          </AppButton>
-        </div>
-        <div class="own">
-          <AppInput
-            v-model="ownAnswer"
-            size="sm"
-            class="own-answer"
-            placeholder="Or answer in your own words"
-          />
-          <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
-        </div>
-      </div>
-
-      <!-- Reject: a sentence for the model, or resolving the block by hand. -->
-      <div v-else-if="rejecting && canReject" class="answer">
-        <AppTextarea
-          v-model="rejectText"
-          size="sm"
-          rows="2"
-          class="reject-text"
-          placeholder="Tell the model what to change"
-        />
-        <div class="row">
-          <AppButton variant="ghost" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
           <span class="spacer" />
-          <AppButton variant="text" size="sm" @click="cancel">Cancel</AppButton>
+          <AppButton variant="ghost" size="sm" @click="emit('byHand')">Open in Manual</AppButton>
+        </template>
+
+        <template v-else-if="draftKind === 'accept'">
+          <ConflictIcon name="accept" class="accepted-mark" />
+          <span class="note">Accepted. It is sent when you press Send.</span>
+          <span class="spacer" />
+          <AppButton variant="ghost" size="sm" @click="emit('draft', null)">Undo</AppButton>
+        </template>
+
+        <template v-else-if="draftKind === 'manual'">
+          <span class="note">You resolve this block by hand.</span>
+          <span class="spacer" />
+          <AppButton variant="primary" size="sm" @click="emit('byHand')">Open in Manual</AppButton>
+          <AppButton variant="text" size="sm" @click="emit('draft', null)">Cancel</AppButton>
+        </template>
+
+        <!-- A question: the model's options as buttons, or the human's own words. -->
+        <div v-else-if="card.state === 'question'" class="answer">
+          <div v-if="card.report?.options.length" class="options">
+            <AppButton
+              v-for="option in card.report.options"
+              :key="option"
+              variant="primary"
+              size="sm"
+              :pressed="answered === option"
+              @click="pickOption(option)"
+            >
+              {{ option }}
+            </AppButton>
+          </div>
+          <div class="own">
+            <AppInput
+              v-model="ownAnswer"
+              size="sm"
+              class="own-answer"
+              placeholder="Or answer in your own words"
+            />
+            <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
+          </div>
         </div>
+
+        <!-- Reject: a sentence for the model, or resolving the block by hand. -->
+        <div v-else-if="rejecting && canReject" class="answer">
+          <AppTextarea
+            v-model="rejectText"
+            size="sm"
+            rows="2"
+            class="reject-text"
+            placeholder="Tell the agent what to change"
+          />
+          <div class="row">
+            <AppButton variant="ghost" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
+            <span class="spacer" />
+            <AppButton variant="text" size="sm" @click="cancel">Cancel</AppButton>
+          </div>
+        </div>
+
+        <template v-else-if="canReject">
+          <AppButton v-if="canJudge" variant="primary" size="sm" @click="accept">
+            <ConflictIcon name="accept" />
+            Accept
+          </AppButton>
+          <AppButton variant="ghost" tone="danger" size="sm" @click="startReject">
+            <ConflictIcon name="reject" />
+            Reject
+          </AppButton>
+          <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
+          <span v-if="card.state === 'mismatch'" class="note">
+            Only Reject, since the file does not hold what the agent reported.
+          </span>
+        </template>
+
+        <template v-else-if="listState === 'untouched'">
+          <AppButton v-if="!commented" variant="primary" size="sm" @click="emit('ask')">
+            <ConflictIcon name="ask" />
+            Ask agent
+          </AppButton>
+          <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
+        </template>
+
+        <template v-else-if="card.state === 'open' || card.state === 'waiting'">
+          <span class="note">Nothing for you to do here while the agent works.</span>
+          <span class="spacer" />
+          <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
+        </template>
+
+        <template v-else>
+          <span class="note">{{ headline }}.</span>
+          <span class="spacer" />
+          <AppButton
+            variant="text"
+            size="sm"
+            title="Show this block in the three panes"
+            @click="emit('manual')"
+          >
+            <ConflictIcon name="manual" />
+            Open in Manual
+          </AppButton>
+        </template>
       </div>
-
-      <template v-else-if="canReject">
-        <AppButton v-if="canJudge" variant="primary" size="sm" @click="accept">
-          <ConflictIcon name="accept" />
-          Accept
-        </AppButton>
-        <AppButton variant="ghost" tone="danger" size="sm" @click="startReject">
-          <ConflictIcon name="reject" />
-          Reject
-        </AppButton>
-        <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
-        <span v-if="card.state === 'mismatch'" class="note">
-          Only Reject, since the file does not hold what the model reported.
-        </span>
-      </template>
-
-      <template v-else-if="listState === 'untouched'">
-        <AppButton variant="primary" size="sm" @click="emit('ask')">
-          <ConflictIcon name="ask" />
-          Ask model
-        </AppButton>
-        <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
-      </template>
-
-      <template v-else-if="card.state === 'open' || card.state === 'waiting'">
-        <span class="note">Nothing for you to do here while the model works.</span>
-        <span class="spacer" />
-        <AppButton variant="text" size="sm" @click="emit('byHand')">Resolve myself</AppButton>
-      </template>
-
-      <span v-else class="note">{{ headline }}.</span>
+      <slot name="end" />
     </footer>
   </section>
 </template>
@@ -335,26 +393,6 @@ watch(ownAnswer, (text) => {
   color: var(--color-fg-muted);
 }
 
-.state {
-  flex-shrink: 0;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  color: var(--color-fg-muted);
-}
-
-.state.needs {
-  color: var(--color-fg-accent);
-}
-
-.state.queued,
-.state.done {
-  color: var(--color-jade);
-}
-
-.state.model {
-  color: var(--color-violet);
-}
-
 .spacer {
   flex: 1;
 }
@@ -376,12 +414,55 @@ watch(ownAnswer, (text) => {
   color: var(--color-fg-primary);
 }
 
+.headline .you {
+  color: var(--color-fg-accent);
+}
+
 .headline.warn {
   color: var(--color-warning);
 }
 
 .headline.ask {
   color: var(--color-info);
+}
+
+.from-label {
+  flex-shrink: 0;
+  font-size: var(--text-md);
+}
+
+.from-word {
+  color: var(--color-fg-primary);
+}
+
+.from-who {
+  font-weight: var(--weight-bold);
+  color: var(--color-fg-accent);
+}
+
+/* The agent's reasoning flashes once when the label on its proposal in Manual brings the human here. */
+.reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: calc(-1 * var(--space-2));
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.reasoning.flashing {
+  animation: reasoning-flash 1200ms ease-in-out;
+}
+
+/* Swells to the agent's violet and settles back, ease-in-out on both halves. */
+@keyframes reasoning-flash {
+  0%,
+  100% {
+    background: transparent;
+  }
+  50% {
+    background: color-mix(in oklab, var(--color-violet) 30%, transparent);
+  }
 }
 
 .words {
@@ -414,6 +495,15 @@ watch(ownAnswer, (text) => {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-border-subtle);
   background: var(--color-surface-1);
+}
+
+/* The block's own actions; the parent's end slot, Send and Thread, holds the row's right end. */
+.main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .accepted-mark {

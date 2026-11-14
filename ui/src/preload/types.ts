@@ -849,13 +849,21 @@ export interface ConflictThreadStatus {
   assignee: string
 }
 
-// Where a conflict thread message sits: lines 1-based and inclusive in the working file as it was
-// when posted, and quote those lines, so the spot is found again after edits.
+// Where in the resolver a comment was made: a side pane or the middle of the three panes, or the
+// result a Decisions box shows.
+export type ConflictCommentPane = 'left' | 'right' | 'result' | 'middle'
+
+// Where a conflict thread message sits: lines 1-based and inclusive, in the file the pane showed
+// when it was posted, and quote those lines, so the spot is found again after edits. Both lines 0
+// for a message about a block or a file with no line picked. block is git's block number, absent
+// or 0 for the file as a whole, and pane where it was made, empty or absent for none.
 export interface ConflictMessageAnchor {
   path: string
   startLine: number
   endLine: number
   quote: string
+  pane?: ConflictCommentPane | ''
+  block?: number
 }
 
 // One message the human posts into the conflict thread, a line comment when anchored. replyTo is

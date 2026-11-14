@@ -153,6 +153,8 @@ export interface HandOver {
   resolved: number
   files: number
   asked: number
+  // Comments and messages sent with the hand-over, which the thread holds.
+  comments: number
 }
 
 // The line typed into the tab the human hands a conflict to. It names only refs, the thread id and
@@ -173,6 +175,11 @@ export function composeStartLine(
   if (handOver.resolved > 0) {
     parts.push(
       `They already resolved ${plural(handOver.resolved, 'block')} in ${plural(handOver.files, 'file')}, which you keep.`
+    )
+  }
+  if (handOver.comments > 0) {
+    parts.push(
+      `They also left ${plural(handOver.comments, 'comment')} and messages, each to be answered with lgrass git conflict reply.`
     )
   }
   parts.push(

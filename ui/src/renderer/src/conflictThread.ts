@@ -133,13 +133,14 @@ export function useConflictThread(project: () => ProjectRef): ComputedRef<Confli
 // the model reads what the human sees; the thread opens or is reused with that tab as its
 // assignee, the blocks already resolved go along as settled, read by settled once the work is
 // saved, and the one-line start is typed into the tab. asked is the blocks the human asks about,
-// posted with the hand-over so the model wakes once and finds the question. Returns the refusal,
-// or null.
+// and messages the comments and words sent with it, both posted with the hand-over so the model
+// wakes once and finds them. Returns the refusal, or null.
 export async function handConflictTo(
   project: ProjectRef,
   tabId: string,
   settled: () => Promise<ConflictVerdictBatch[]>,
-  asked: ConflictVerdictBatch | null = null
+  asked: ConflictVerdictBatch | null = null,
+  messages: ConflictHumanMessage[] | null = null
 ): Promise<string | null> {
   try {
     const saved = await saveConflictWork(project)
@@ -151,13 +152,29 @@ export async function handConflictTo(
     const question = asked
       ? { path: asked.path, verdicts: asked.verdicts.map((v) => ({ ...v })) }
       : null
-    const result = await window.api.conflictAgent.start(project.path, tabId, batches, question)
+    const sent = messages ? plainMessages(messages) : null
+    const result = await window.api.conflictAgent.start(
+      project.path,
+      tabId,
+      batches,
+      question,
+      sent
+    )
     if (!result.ok) return result.reason
     await refreshConflictStatus(project)
     return null
   } catch (err) {
     return err instanceof Error ? err.message : String(err)
   }
+}
+
+// Messages as plain data, since a reactive proxy cannot cross IPC.
+function plainMessages(messages: ConflictHumanMessage[]): ConflictHumanMessage[] {
+  return messages.map((message) => ({
+    body: message.body,
+    anchor: message.anchor ? { ...message.anchor } : null,
+    ...(message.replyTo ? { replyTo: message.replyTo } : {})
+  }))
 }
 
 // Posts the human's plain messages into the open conflict thread, which nudges the assignee.
@@ -167,12 +184,7 @@ export async function postToConflict(
   messages: ConflictHumanMessage[]
 ): Promise<string | null> {
   try {
-    const plain = messages.map((message) => ({
-      body: message.body,
-      anchor: message.anchor ? { ...message.anchor } : null,
-      ...(message.replyTo ? { replyTo: message.replyTo } : {})
-    }))
-    const result = await window.api.conflictAgent.post(project.path, plain)
+    const result = await window.api.conflictAgent.post(project.path, plainMessages(messages))
     if (!result.ok) return result.reason
     await refreshConflictMessages(project)
     return null

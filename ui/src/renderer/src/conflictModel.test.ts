@@ -241,3 +241,17 @@ test("saving keeps text a model wrote and reports only the human's own resolutio
   const settled = buildMiddle(chunks, proposal, { 1: 'settled' })
   assert.deepEqual(savedText(settled.text, settled.chunks, chunks, refs, true, false).resolved, [])
 })
+
+test("an agent's waiting text lights the side it equals, or both sides when it equals neither", () => {
+  const waiting = buildMiddle(chunks, { lines: { 1: ['R1', 'R2'] }, edits: [] }).chunks[0]
+  assert.equal(sideMark(waiting, 'right', ['right']), 'proposedTake')
+  assert.equal(sideMark(waiting, 'left', ['right']), 'proposedReject')
+  assert.equal(sideMark(waiting, 'left', ['left', 'right']), 'proposedTake')
+  assert.equal(sideMark(waiting, 'left', null), 'proposedOpen')
+  assert.equal(sideMark(waiting, 'right', null), 'proposedOpen')
+  // Without a fit, or once the human edited the block, nothing is lit.
+  assert.equal(sideMark(waiting, 'left'), 'open')
+  const edited = { ...waiting, proposed: undefined }
+  assert.equal(sideMark(edited, 'left', ['right']), 'open')
+  assert.equal(sideMark({ ...waiting, right: 'taken' }, 'right', ['right']), 'taken')
+})

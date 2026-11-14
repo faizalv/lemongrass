@@ -369,3 +369,98 @@ func TestVerdictsAreCheckedAndStandingsFollowTheLatestWord(t *testing.T) {
 		t.Errorf("round = %d, %v", decisions, files)
 	}
 }
+
+func TestAnchorCarriesPaneAndBlockAndAllowsNoLines(t *testing.T) {
+	store := conflictStore(t)
+	th, _ := store.OpenConflict(conflictScope, tabA, "")
+	msgs, err := store.PostHumanMessages(conflictScope, []HumanMessage{
+		{Body: "why this line?", Anchor: &Anchor{Path: "a.go", StartLine: 3, EndLine: 4, Quote: "x\ny", Pane: "right", Block: 2}},
+		{Body: "about the block", Anchor: &Anchor{Path: "a.go", Block: 2}},
+		{Body: "about the file", Anchor: &Anchor{Path: "a.go"}},
+	})
+	if err != nil || len(msgs) != 3 {
+		t.Fatalf("PostHumanMessages: %v, %v", msgs, err)
+	}
+	read, _, _ := store.ReadThread(th.ID, 0, 10)
+	want := []Anchor{{Path: "a.go"}, {Path: "a.go", Block: 2}, {Path: "a.go", StartLine: 3, EndLine: 4, Quote: "x\ny", Pane: "right", Block: 2}}
+	for i, m := range read {
+		if m.Anchor == nil || *m.Anchor != want[i] {
+			t.Errorf("message %d anchor = %+v, want %+v", i, m.Anchor, want[i])
+		}
+	}
+	text := FormatThreadRead(th, read, false, false)
+	for _, line := range []string{" on a.go block 2 (right pane) lines 3-4", " on a.go block 2 (mentions", " on a.go (mentions"} {
+		if !strings.Contains(text, line) {
+			t.Errorf("thread read = %q, want %q", text, line)
+		}
+	}
+	for _, bad := range []Anchor{
+		{Path: "a.go", Pane: "bottom"},
+		{Path: "a.go", Block: -1},
+		{Path: "a.go", StartLine: 0, EndLine: 3},
+		{Path: " "},
+	} {
+		if _, err := store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "x", Anchor: &bad}}); err == nil {
+			t.Errorf("anchor %+v was accepted", bad)
+		}
+	}
+}
+
+func TestReplyKeepsTheAnchorAndAnswersOnlyAHumanComment(t *testing.T) {
+	store := conflictStore(t)
+	th, _ := store.OpenConflict(conflictScope, tabA, "")
+	anchor := Anchor{Path: "a.go", StartLine: 3, EndLine: 4, Quote: "x\ny", Pane: "left", Block: 2}
+	comment, err := store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "why?", Anchor: &anchor}})
+	if err != nil {
+		t.Fatalf("PostHumanMessages: %v", err)
+	}
+	reply, err := store.PostConflictReply(tabA, comment[0].ID, "because the other side renamed it")
+	if err != nil {
+		t.Fatalf("PostConflictReply: %v", err)
+	}
+	if reply.ReplyTo != comment[0].ID || reply.Anchor == nil || *reply.Anchor != anchor || len(reply.Mentions) != 0 {
+		t.Errorf("reply = %+v, want it answering #%d with the same anchor and no mention", reply, comment[0].ID)
+	}
+	if !ownedRows(t, store, tabB).Empty() {
+		t.Error("a reply woke another tab")
+	}
+
+	var notAssignee NotAssigneeError
+	if _, err := store.PostConflictReply(tabB, comment[0].ID, "me too"); !errors.As(err, &notAssignee) {
+		t.Errorf("a reply from another tab = %v, want NotAssigneeError", err)
+	}
+	decision, _ := store.PostDecision(tabA, "a.go", 1, "took theirs")
+	for name, id := range map[string]int64{"its own message": decision.ID, "an unknown message": 99999} {
+		if _, err := store.PostConflictReply(tabA, id, "x"); err == nil {
+			t.Errorf("a reply to %s was accepted", name)
+		}
+	}
+	if _, err := store.PostConflictReply(tabA, comment[0].ID, " "); err == nil {
+		t.Error("an empty reply was accepted")
+	}
+	msgs, _, _ := store.ReadThread(th.ID, 0, 10)
+	if text := FormatThreadRead(th, msgs, false, false); !strings.Contains(text, "(replying to #") {
+		t.Errorf("thread read = %q, want the reply marked", text)
+	}
+}
+
+func TestQuietHumanMessagesWakeNobody(t *testing.T) {
+	store := conflictStore(t)
+	th, _ := store.OpenConflict(conflictScope, tabA, "")
+	if _, err := store.PostHumanMessagesQuiet(conflictScope, []HumanMessage{{Body: "a comment", Anchor: &Anchor{Path: "a.go", Block: 1}}}); err != nil {
+		t.Fatalf("PostHumanMessagesQuiet: %v", err)
+	}
+	if !ownedRows(t, store, tabA).Empty() {
+		t.Error("a quiet post woke the assignee")
+	}
+	msgs, _, _ := store.ReadThread(th.ID, 0, 10)
+	if len(msgs) != 1 || len(msgs[0].Mentions) != 0 {
+		t.Errorf("messages = %+v, want the comment stored with no mention", msgs)
+	}
+	if _, err := store.PostHumanMessages(conflictScope, []HumanMessage{{Body: "now wake"}}); err != nil {
+		t.Fatalf("PostHumanMessages: %v", err)
+	}
+	if ownedRows(t, store, tabA).Empty() {
+		t.Error("a normal post did not wake the assignee")
+	}
+}

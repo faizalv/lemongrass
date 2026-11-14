@@ -39,12 +39,25 @@ func validateScope(scope string) error {
 	return nil
 }
 
+// The panes a message can be made in: both side panes, the result a Decisions box shows, and the middle pane of Manual.
+var anchorPanes = map[string]bool{"": true, "left": true, "right": true, "result": true, "middle": true}
+
 func validateAnchor(a *Anchor) error {
 	if a == nil {
 		return nil
 	}
-	if strings.TrimSpace(a.Path) == "" || a.StartLine < 1 || a.EndLine < a.StartLine {
-		return fmt.Errorf("session: anchor %s %d-%d is not a path with lines N-M, N at least 1", a.Path, a.StartLine, a.EndLine)
+	if strings.TrimSpace(a.Path) == "" {
+		return errors.New("session: an anchor names a file")
+	}
+	// Both lines 0 is a message about a block or a file, with no line picked.
+	if !(a.StartLine == 0 && a.EndLine == 0) && (a.StartLine < 1 || a.EndLine < a.StartLine) {
+		return fmt.Errorf("session: anchor %s %d-%d is not a path with lines N-M, N at least 1, or with no lines", a.Path, a.StartLine, a.EndLine)
+	}
+	if !anchorPanes[a.Pane] {
+		return fmt.Errorf("session: %q is not a pane (left, right, result or middle)", a.Pane)
+	}
+	if a.Block < 0 {
+		return fmt.Errorf("session: block %d is not a block number", a.Block)
 	}
 	return nil
 }
@@ -164,6 +177,15 @@ func (s *Store) CloseConflict(scope, threadID string) (bool, error) {
 
 // PostHumanMessages posts the human's messages into the open conflict thread for scope, in order. Each one mentions the assignee, so the nudge wakes it.
 func (s *Store) PostHumanMessages(scope string, msgs []HumanMessage) ([]Message, error) {
+	return s.postHumanMessages(scope, msgs, true)
+}
+
+// PostHumanMessagesQuiet posts the same messages with no mention, for a hand-over, where the typed line is what wakes the agent and a nudge for the thread as well would wake it twice.
+func (s *Store) PostHumanMessagesQuiet(scope string, msgs []HumanMessage) ([]Message, error) {
+	return s.postHumanMessages(scope, msgs, false)
+}
+
+func (s *Store) postHumanMessages(scope string, msgs []HumanMessage, wake bool) ([]Message, error) {
 	if len(msgs) == 0 {
 		return nil, errors.New("session: no messages to post")
 	}
@@ -188,7 +210,10 @@ func (s *Store) PostHumanMessages(scope string, msgs []HumanMessage) ([]Message,
 		return nil, err
 	}
 	defer tx.Rollback()
-	assignee := []string{thread.Assignee}
+	var assignee []string
+	if wake {
+		assignee = []string{thread.Assignee}
+	}
 	out := make([]Message, 0, len(msgs))
 	for _, m := range msgs {
 		if m.ReplyTo != 0 {
@@ -223,6 +248,36 @@ func (s *Store) PostSubmit(tabID string, body string, files []string) (Message, 
 		return Message{}, errors.New("session: a submission names at least one file")
 	}
 	return s.postConflictMeta(tabID, body, messageMeta{kind: MessageSubmit, files: files})
+}
+
+// PostConflictReply posts the assignee's answer to one human message of its open conflict thread. The reply keeps the answered message's anchor, so a comment's answer lands in the same card and scope, and mentions nobody: the human reads it in the resolver.
+func (s *Store) PostConflictReply(tabID string, parentID int64, body string) (Message, error) {
+	if err := validateMessage(body); err != nil {
+		return Message{}, err
+	}
+	thread, err := s.ConflictThreadFor(tabID)
+	if err != nil {
+		return Message{}, err
+	}
+	var author string
+	var path, quote, pane sql.NullString
+	var start, end, block sql.NullInt64
+	err = s.db.QueryRow(`SELECT tab_id, anchor_path, anchor_start, anchor_end, anchor_quote, anchor_pane, anchor_block FROM lg_messages WHERE id = ? AND thread_id = ?`, parentID, thread.ID).
+		Scan(&author, &path, &start, &end, &quote, &pane, &block)
+	if err == sql.ErrNoRows {
+		return Message{}, fmt.Errorf("session: message #%d is not in conflict thread %s, so a reply cannot answer it", parentID, thread.ID)
+	}
+	if err != nil {
+		return Message{}, err
+	}
+	if author != HumanAuthor {
+		return Message{}, fmt.Errorf("session: message #%d is not the human's, and a reply answers a comment of theirs", parentID)
+	}
+	meta := messageMeta{replyTo: parentID}
+	if path.Valid {
+		meta.anchor = &Anchor{Path: path.String, StartLine: int(start.Int64), EndLine: int(end.Int64), Quote: quote.String, Pane: pane.String, Block: int(block.Int64)}
+	}
+	return s.insertConflictMessage(tabID, thread.ID, body, meta)
 }
 
 func (s *Store) postConflictMeta(tabID, body string, meta messageMeta) (Message, error) {

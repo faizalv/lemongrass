@@ -150,7 +150,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
           @menu="menu?.hide()"
           @select="onManual"
         >
-          Resolve with model
+          Resolve with agent
         </AppSplitButton>
         <ResolveWithMenu ref="menu" :project="project" :sending="handing" @pick="handOver" />
       </template>

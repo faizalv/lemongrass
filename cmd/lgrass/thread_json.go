@@ -15,6 +15,9 @@ type jsonAnchor struct {
 	StartLine int    `json:"startLine"`
 	EndLine   int    `json:"endLine"`
 	Quote     string `json:"quote"`
+	// Where in the resolver the message was made, and the git block it is about; empty and 0 for none.
+	Pane  string `json:"pane"`
+	Block int    `json:"block"`
 }
 
 type jsonMessage struct {
@@ -61,7 +64,7 @@ func toJSONMessage(m session.Message, label string) jsonMessage {
 		out.Data = json.RawMessage(m.Data)
 	}
 	if a := m.Anchor; a != nil {
-		out.Anchor = &jsonAnchor{Path: a.Path, StartLine: a.StartLine, EndLine: a.EndLine, Quote: a.Quote}
+		out.Anchor = &jsonAnchor{Path: a.Path, StartLine: a.StartLine, EndLine: a.EndLine, Quote: a.Quote, Pane: a.Pane, Block: a.Block}
 	}
 	return out
 }

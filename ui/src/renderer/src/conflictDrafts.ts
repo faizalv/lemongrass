@@ -22,6 +22,10 @@ export interface ConflictDraft {
   proposal?: MiddleProposal | null
   plan?: Record<number, LoadPlan>
   loadedText: string
+  // The human changed the middle: its text, or a side taken or rejected. An untouched middle is
+  // not kept, since it would freeze the plan it loaded with and hide what changed meanwhile, such
+  // as an agent's proposal the human has since accepted or the agent has rewritten.
+  touched?: boolean
   refs: ConflictRefs
   middle: unknown
   workingSeen: string | null

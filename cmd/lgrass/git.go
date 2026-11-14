@@ -17,10 +17,11 @@ import (
 	"github.com/faizalv/lemongrass/internal/workgroup"
 )
 
-const gitConflictUsage = `usage: lgrass git conflict <show|decide|ask|submit|status|app> ...
+const gitConflictUsage = `usage: lgrass git conflict <show|decide|ask|reply|submit|status|app> ...
   show                                        What the human handed you: operation, refs, every file's numbered blocks with both sides, the human's verdicts so far, both sides' intent
   decide <path> <N> "<why>"                   Reports block N of a file, after you wrote its resolution into the working file
   ask <path> <N> "<question>" --option "<a>"  Asks the human about block N, left with its markers; repeat --option for each choice
+  reply <message-id> "<text>"                Answers one of the human's comments in the thread; the answer lands in the same card
   submit                                      Ends your round: the human reviews your decisions and answers your questions
   status [--json]                             The open conflict thread of this project and the tab it is handed to
   app --token <token> --json                  Run by the lemongrass app only, with a token from the human's action
@@ -59,6 +60,8 @@ func cmdGit(args []string) {
 		err = conflictDecide(env, rest)
 	case "ask":
 		err = conflictAsk(env, rest)
+	case "reply":
+		err = conflictReply(env, rest)
 	case "submit":
 		err = conflictSubmit(env)
 	case "status":
@@ -208,6 +211,22 @@ func conflictAsk(e conflictEnv, args []string) error {
 	return nil
 }
 
+func conflictReply(e conflictEnv, args []string) error {
+	if len(args) != 2 {
+		return errors.New(`lgrass git: usage: lgrass git conflict reply <message-id> "<text>"`)
+	}
+	id, err := strconv.ParseInt(strings.TrimPrefix(args[0], "#"), 10, 64)
+	if err != nil || id < 1 {
+		return fmt.Errorf("lgrass git: %q is not a message id; read the thread to see the ids", args[0])
+	}
+	msg, err := e.store.PostConflictReply(e.tab, id, strings.TrimSpace(args[1]))
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(e.out, "reply %d to #%d.\n", msg.ID, id)
+	return nil
+}
+
 // Ends the model's round. It needs a decision or a question since the human last wrote, so a round with nothing in it never reaches the human as done.
 func conflictSubmit(e conflictEnv) error {
 	t, err := e.assigned()
@@ -282,13 +301,20 @@ func conflictApp(e conflictEnv, args []string) error {
 		for i, m := range grant.Messages {
 			msgs[i] = session.HumanMessage{Body: strings.TrimSpace(m.Body), ReplyTo: m.ReplyTo}
 			if a := m.Anchor; a != nil {
-				msgs[i].Anchor = &session.Anchor{Path: a.Path, StartLine: a.StartLine, EndLine: a.EndLine, Quote: a.Quote}
+				msgs[i].Anchor = &session.Anchor{Path: a.Path, StartLine: a.StartLine, EndLine: a.EndLine, Quote: a.Quote, Pane: a.Pane, Block: a.Block}
 			}
 		}
-		if _, err := e.store.PostHumanMessages(grant.Scope, msgs); err != nil {
-			return err
+		if grant.Quiet {
+			// A hand-over: the typed line wakes the agent, so the messages wake nobody.
+			if _, err := e.store.PostHumanMessagesQuiet(grant.Scope, msgs); err != nil {
+				return err
+			}
+		} else {
+			if _, err := e.store.PostHumanMessages(grant.Scope, msgs); err != nil {
+				return err
+			}
+			e.notify()
 		}
-		e.notify()
 	case gitconflict.ActionVerdicts:
 		batch := session.Verdicts{Path: grant.Path, Verdicts: make([]session.Verdict, len(grant.Verdicts))}
 		for i, v := range grant.Verdicts {

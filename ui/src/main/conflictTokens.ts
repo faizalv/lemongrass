@@ -11,7 +11,14 @@ import type { ConflictHumanMessage, ConflictVerdict } from '../preload/types'
 // model can post as the human or hand a conflict to a tab.
 export type ConflictGrant =
   | { action: 'start'; projectPath: string; scope: string; tabId: string }
-  | { action: 'post'; projectPath: string; scope: string; messages: ConflictHumanMessage[] }
+  | {
+      action: 'post'
+      projectPath: string
+      scope: string
+      messages: ConflictHumanMessage[]
+      // A hand-over's messages wake nobody: the typed line does.
+      quiet?: boolean
+    }
   | { action: 'close'; projectPath: string; scope: string; threadId: string }
   | {
       action: 'verdicts'
@@ -44,7 +51,9 @@ export function claimConflictToken(token: string, now = Date.now()): ConflictGra
 export function claimReply(grant: ConflictGrant): Record<string, unknown> {
   const base = { action: grant.action, project_path: grant.projectPath, scope: grant.scope }
   if (grant.action === 'start') return { ...base, tab_id: grant.tabId }
-  if (grant.action === 'post') return { ...base, messages: grant.messages }
+  if (grant.action === 'post') {
+    return { ...base, messages: grant.messages, quiet: grant.quiet === true }
+  }
   if (grant.action === 'verdicts') {
     return { ...base, path: grant.path, verdicts: grant.verdicts, quiet: grant.quiet }
   }

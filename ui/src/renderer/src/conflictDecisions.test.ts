@@ -10,6 +10,7 @@ import {
   fileDecisions,
   fileSettled,
   fileStatusText,
+  contextAround,
   countStates,
   generalLine,
   handOverAsked,
@@ -270,8 +271,54 @@ test('the next step says whose move it is from the counts', () => {
   assert.equal(nextStep(counts(['queued', 'done'])), '1 decided and waiting for Send.')
   assert.equal(
     nextStep(counts(['untouched', 'done'])),
-    'Nothing needs you. 1 untouched: ask a model or resolve them yourself.'
+    'Nothing needs you. 1 untouched: ask an agent or resolve them yourself.'
   )
-  assert.equal(nextStep(counts(['model'])), 'Nothing needs you while the model works.')
+  assert.equal(nextStep(counts(['model'])), 'Nothing needs you while the agent works.')
   assert.equal(nextStep(counts(['done', 'done'])), 'Everything is settled.')
+})
+
+test('a card carries the clean lines around its block, for each side and for the result', () => {
+  const [first, second] = cardsOf([])
+  assert.deepEqual(first.leftContext, { before: ['a'], after: ['b'], start: null })
+  assert.deepEqual(second.rightContext, { before: ['b'], after: ['c'], start: null })
+  assert.deepEqual(second.resultContext.after, ['c'])
+  assert.ok(first.resultContext.before.length > 0)
+})
+
+test('with the stage files located, each side numbers its lines and stops at a neighbour conflict', () => {
+  const stage = (text: string): OkFile['left'] => ({ state: 'text', text })
+  const withStages: OkFile = {
+    ...file,
+    left: stage('a\nL1\nb\nL2\nc\n'),
+    right: stage('a\nR1\nb\nR2\nc\n')
+  }
+  const range = (start: number, end = start): { start: number; end: number } => ({ start, end })
+  const located = {
+    left: [range(1), range(2), range(3), range(4), range(5)],
+    right: [range(1), range(2), range(3), range(4), range(5)]
+  }
+  const mapped = buildProposal(file.chunks!, file.working!, file.workingChunks)
+  const cards = fileDecisions(withStages, mapped, [], located).cards!
+  assert.deepEqual(cards[0].leftContext, { before: ['a'], after: ['b'], start: 1 })
+  // Block 2 sits after clean b, so its context is b alone and numbering starts there.
+  assert.deepEqual(cards[1].leftContext, { before: ['b'], after: ['c'], start: 3 })
+  assert.equal(cards[1].rightContext.start, 3)
+})
+
+test('context is cut to the nearest lines and is empty beside another conflict', () => {
+  const lines = Array.from({ length: 12 }, (_, i) => `l${i + 1}`)
+  const chunks: GitConflictChunk[] = [
+    { kind: 'clean', lines, disk: null },
+    conflict(['L'], ['B'], ['R']),
+    { kind: 'clean', lines, disk: null },
+    conflict(['L'], ['B'], ['R'])
+  ]
+  assert.deepEqual(contextAround(chunks, 1, 3), {
+    before: ['l10', 'l11', 'l12'],
+    after: ['l1', 'l2', 'l3'],
+    start: null
+  })
+  assert.equal(contextAround(chunks, 1, 10).before.length, 10)
+  assert.deepEqual(contextAround(chunks, 3, 3).after, [])
+  assert.deepEqual(contextAround([conflict([], [], []), chunks[1]], 1, 3).before, [])
 })

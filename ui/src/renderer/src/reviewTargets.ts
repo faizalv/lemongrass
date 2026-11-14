@@ -29,3 +29,12 @@ export function reviewTargetsOf(projectId: string): ReviewTarget[] {
 export function resolveTargetsOf(projectId: string): ResolveTarget[] {
   return orderTargets(allLeaves(workspaceOf(projectId)?.layout.root ?? null), shellTitles)
 }
+
+// The agent vendor of a shell tab in the project, which names its icon ('claude', 'codex' or
+// 'agy'), or null when the tab is not an agent or is no longer open.
+export function agentVendorOf(projectId: string, tabId: string): string | null {
+  const tab = allLeaves(workspaceOf(projectId)?.layout.root ?? null)
+    .flatMap((leaf) => leaf.tabs)
+    .find((candidate) => candidate.id === tabId)
+  return tab?.kind === 'shell' && REVIEW_COMMANDS.has(tab.command) ? tab.command : null
+}

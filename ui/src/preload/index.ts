@@ -184,9 +184,10 @@ const conflictAgent = {
     projectPath: string,
     tabId: string,
     settled: ConflictVerdictBatch[],
-    asked: ConflictVerdictBatch | null
+    asked: ConflictVerdictBatch | null,
+    messages: ConflictHumanMessage[] | null
   ): Promise<ConflictStartResult> =>
-    ipcRenderer.invoke('conflict:start', projectPath, tabId, settled, asked),
+    ipcRenderer.invoke('conflict:start', projectPath, tabId, settled, asked, messages),
   post: (projectPath: string, messages: ConflictHumanMessage[]): Promise<ConflictActionResult> =>
     ipcRenderer.invoke('conflict:post', projectPath, messages),
   verdicts: (
