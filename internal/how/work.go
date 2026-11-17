@@ -99,6 +99,30 @@ func workTask(root string, args []string) (string, error) {
 	return b.String(), nil
 }
 
+// workHotfix keeps a short prd.md like any task, so the keeper sweep and the close read it unchanged, but skips the
+// books sweep and the phased planning that make a narrow change grow.
+func workHotfix(root string, args []string) (string, error) {
+	slug, err := parseSlug(args, "lgrass how work hotfix <slug>")
+	if err != nil {
+		return "", err
+	}
+	f := inspectWork(root, slug)
+	if f.archived {
+		return archivedNotice(slug), nil
+	}
+	var b strings.Builder
+	start := "**Record the request.** Write `biblio/scratchpad/" + slug + "/prd.md`: the Problem quotes the human's request word for word, the Expectation and the Objective name the one element to change, the Objective puts everything else out of scope, and Plans holds one `- [ ]` item. Start `activities.md` beside it."
+	if f.has("prd.md") {
+		fmt.Fprintf(&b, "Continue hotfix %s.\n\n", slug)
+		start = handoverLead(f) + "**Read the request.** Read `biblio/scratchpad/" + slug + "/prd.md` and `activities.md`. The Problem holds the request word for word and is the scope."
+	} else {
+		fmt.Fprintf(&b, "New hotfix %s.\n\n", slug)
+	}
+	vars := map[string]string{"slug": slug, "start": start}
+	b.WriteString("## Steps\n\n" + fragment("work/hotfix.md", vars) + "\n\n" + fragment("work/shared.md", vars) + "\n")
+	return b.String(), nil
+}
+
 // workDiscussion is a manual, but its books step is the shared fragment so the rule for reading books lives in one file.
 func workDiscussion(_ string, args []string) (string, error) {
 	if len(args) > 0 {

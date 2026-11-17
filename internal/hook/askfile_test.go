@@ -39,7 +39,7 @@ func TestAskModeRefusalFilesOneAsk(t *testing.T) {
 	}
 
 	msg := dangerMessageWith(client.SocketPath, payload, verdict)
-	if !strings.Contains(msg, "sent the user a request") || !strings.Contains(msg, "lgrass how ask request") {
+	if !strings.Contains(msg, "sent the user a request") || !strings.Contains(msg, "lgrass how ask request") || !strings.Contains(msg, askUnknown) {
 		t.Fatalf("message = %q", msg)
 	}
 	asks, err := client.ListAsks("pw")
@@ -90,7 +90,7 @@ func TestCompoundAskModeCallIsNotFiled(t *testing.T) {
 		t.Fatalf("expected an ask-mode verdict, got %+v", verdict)
 	}
 	msg := dangerMessageWith(client.SocketPath, payload, verdict)
-	if !strings.Contains(msg, "no request was sent") || !strings.Contains(msg, "Run the guarded command alone") || !strings.Contains(msg, "several commands chained") {
+	if !strings.Contains(msg, "no request was sent") || !strings.Contains(msg, "Run the guarded command alone") || !strings.Contains(msg, "several commands chained") || !strings.Contains(msg, "never drop it and carry on") || !strings.Contains(msg, askUnknown) {
 		t.Fatalf("message = %q", msg)
 	}
 	if asks, err := client.ListAsks("pw"); err != nil || len(asks) != 0 {
@@ -102,7 +102,7 @@ func TestAskFilingFailureTellsTheModelToAsk(t *testing.T) {
 	payload := bashEvent(t, "tab-1", "git commit -m wip")
 	verdict := verdictFor(t, payload, "git commit -m wip")
 	msg := dangerMessageWith(filepath.Join(t.TempDir(), "absent.sock"), payload, verdict)
-	if !strings.Contains(msg, "sending the request failed") || !strings.Contains(msg, "lgrass ask") {
+	if !strings.Contains(msg, "sending the request failed") || !strings.Contains(msg, "lgrass ask") || !strings.Contains(msg, askUnknown) {
 		t.Fatalf("message = %q", msg)
 	}
 }

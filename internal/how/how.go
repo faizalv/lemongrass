@@ -73,6 +73,7 @@ var domains = map[string]map[string]action{
 	"work": {
 		"debug":      {summary: "Chase a fault to its root cause: `lgrass how work debug <slug>`", run: workDebug},
 		"discussion": {summary: "An idea, a question or a design talk with no task file yet: `lgrass how work discussion`", run: workDiscussion},
+		"hotfix":     {summary: "A change needed urgently or limited to a named element: `lgrass how work hotfix <slug>`", run: workHotfix},
 		"research":   {summary: "Investigate with no build: `lgrass how work research <slug>`", run: workResearch},
 		"task":       {summary: "Build something, new or resumed: `lgrass how work task <slug>`", run: workTask},
 	},

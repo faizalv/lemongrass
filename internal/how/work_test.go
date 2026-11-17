@@ -54,7 +54,7 @@ func TestWorkTaskBuildsOnNotes(t *testing.T) {
 func TestWorkRefusesArchivedSlug(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "biblio/scratchpad/archive/old/prd.md", "x")
-	for _, kind := range []string{"task", "research", "debug"} {
+	for _, kind := range []string{"task", "research", "debug", "hotfix"} {
 		wantAll(t, render(t, root, "work", kind, "old"), "is an archived task")
 	}
 }
@@ -78,5 +78,23 @@ func TestWorkDiscussionIsAManual(t *testing.T) {
 	wantAll(t, render(t, root, "work", "discussion"), "1. **Books first.** Read `biblio/books/toc.md`", "needs none of this", "notes.md", "lgrass how work task <slug>")
 	if _, err := Render(root, []string{"work", "discussion", "x"}); err == nil {
 		t.Error("discussion accepted an argument")
+	}
+}
+
+func TestWorkHotfixBranch(t *testing.T) {
+	root := t.TempDir()
+	out := render(t, root, "work", "hotfix", "fix")
+	wantAll(t, out, "New hotfix fix.", "biblio/scratchpad/fix/prd.md", "word for word", "ask one short question", "Undo whole", "never commit while it fails", "lgrass how task close fix")
+	if strings.Contains(out, "**Books first.**") || strings.Contains(out, "Plan first") {
+		t.Error("hotfix carries the books sweep or the phased plan")
+	}
+	writeFile(t, root, "biblio/scratchpad/fix/prd.md", "x")
+	out = render(t, root, "work", "hotfix", "fix")
+	wantAll(t, out, "Continue hotfix fix.", "Read the request.")
+	if strings.Contains(out, "Record the request.") {
+		t.Error("continue carries the start step")
+	}
+	if _, err := Render(root, []string{"work", "hotfix"}); err == nil {
+		t.Error("hotfix accepted no slug")
 	}
 }

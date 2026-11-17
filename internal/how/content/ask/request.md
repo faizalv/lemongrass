@@ -47,14 +47,17 @@ Say what you need, why now, and what it touches. The human decides from this alo
 - Answered with a channel: it prints the channel's short id and what it grants. Use it with `lgrass db <id>` or `lgrass rester <id> info`, and only for what was granted.
 - Removed tables: a db answer or decline may list tables the human left out, each with why. "does not exist in connection" means that database has no such table, for example a migration that has not run yet. Do not use those tables on that channel; tell the human if the task needs them.
 - A command the human executed: it prints the exit code and the last 50 lines of output. The command ran once, as the human approved it. Do not run it again yourself.
-- Declined: it prints the human's note. Do not ask again with a variation of the same request. Change course, or ask the human in chat what they want instead.
+- Declined: it prints the human's note. Do not ask again with a variation of the same request. What the request would have shown stays unknown: say so, never state it from another source, and change course or ask the human in chat what they want instead.
 - No answer yet, or the command is still running: the ask stays open. Do not file it again. The answer arrives later as a `[lg] ask <id> has its answer` notification; read it then with `lgrass ask show <id>`.
 
 The exit code tells the outcomes apart: 0 answered, 2 declined or expired, 3 no answer yet.
 
 ## When the guard refuses a call
 
+When the guard denies or holds a call your work depends on, its result is unknown until the human answers. Never drop the call and carry on, and never answer from another source in its place.
+
 - A refusal that says lemongrass sent the user a request has already filed the ask for you. Do not file another and do not retry the call. Wait for the notification, then `lgrass ask show <id>`.
-- A refusal that only says the call is blocked is a deny rule. File a command ask yourself only when the command is truly needed, and say why in the reason.
+- A refusal that says no request was sent denied a call that held more than one command. No request exists yet. Run the guarded command alone, as its own call, and the request is filed then; run the rest as separate calls.
+- A refusal that only says the call is blocked is a deny rule. File a command ask yourself when your work depends on the command, and say why in the reason.
 
 Some commands lemongrass never executes, whoever approves them, such as removing `/` or the home directory, writing to a disk device, or a container that gains root on the host. Do not ask for those.

@@ -75,8 +75,12 @@ func ruleLabel(verdict guard.Verdict) string {
 	return "rule " + verdict.RuleID + " (" + verdict.Description + ")"
 }
 
+// askUnknown closes every ask-mode denial: a model that drops the held command tends to answer from a stale stand-in
+// source instead, so the denial itself says the result is unknown until the human answers, and after a decline.
+const askUnknown = " Until the user answers, what this command would show is unknown, and it stays unknown if they decline: say so, and never state it from another source."
+
 func askFiledMessage(verdict guard.Verdict, askID string) string {
-	msg := "lgrass: " + ruleLabel(verdict) + " needs the user's decision, so lemongrass sent the user a request to run this exact command, ask " + askID + ". Do not retry the call and do not file another ask for it. The user executes it or declines, and the answer arrives as a notification; read it then with lgrass ask show " + askID + "."
+	msg := "lgrass: " + ruleLabel(verdict) + " needs the user's decision, so lemongrass sent the user a request to run this exact command, ask " + askID + ". Do not retry the call and do not file another ask for it. The user executes it or declines, and the answer arrives as a notification; read it then with lgrass ask show " + askID + "." + askUnknown
 	if verdict.Detail != "" {
 		msg += " " + verdict.Detail
 	}
@@ -84,7 +88,7 @@ func askFiledMessage(verdict guard.Verdict, askID string) string {
 }
 
 func askNotFiledMessage(verdict guard.Verdict, holds string) string {
-	msg := "lgrass: " + ruleLabel(verdict) + " needs the user's decision. lemongrass sends the user a request only for one simple command on its own, and this call holds " + holds + ", so no request was sent. Run the guarded command alone, as its own call with nothing chained around it, and the request is filed then; run the rest of the work as separate calls."
+	msg := "lgrass: " + ruleLabel(verdict) + " needs the user's decision. lemongrass sends the user a request only for one simple command on its own, and this call holds " + holds + ", so no request was sent. Run the guarded command alone, as its own call with nothing chained around it: no request exists until you do, and it is filed then. Run the rest of the work as separate calls. When your work depends on the guarded command, never drop it and carry on." + askUnknown
 	if verdict.Detail != "" {
 		msg += " " + verdict.Detail
 	}
@@ -92,5 +96,5 @@ func askNotFiledMessage(verdict guard.Verdict, holds string) string {
 }
 
 func askFailedMessage(verdict guard.Verdict, err error) string {
-	return "lgrass: " + ruleLabel(verdict) + " needs the user's decision, and sending the request failed (" + err.Error() + "). File it yourself with lgrass ask; run lgrass how ask request for how."
+	return "lgrass: " + ruleLabel(verdict) + " needs the user's decision, and sending the request failed (" + err.Error() + "). File it yourself with lgrass ask; run lgrass how ask request for how." + askUnknown
 }
