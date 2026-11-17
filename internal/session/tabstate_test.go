@@ -78,3 +78,21 @@ func TestOnlyActiveStateChangesRecordActivity(t *testing.T) {
 		t.Error("a cleared state kept its activity")
 	}
 }
+
+func TestInterruptEndsOnlyABusyTurn(t *testing.T) {
+	store := openTestStore(t)
+
+	for state, want := range map[string]bool{StateIdle: false, StateWorking: true, StatePrompting: true} {
+		store.SetTabState(tabA, state)
+		changed, err := store.InterruptTab(tabA)
+		if err != nil || changed != want {
+			t.Errorf("interrupt from %s = %v, %v, want %v", state, changed, err, want)
+		}
+		if got, _ := store.TabState(tabA); got != StateIdle {
+			t.Errorf("after interrupt from %s state = %q, want idle", state, got)
+		}
+	}
+	if changed, _ := store.InterruptTab("no-state-tab"); changed {
+		t.Error("a tab with no state should not change")
+	}
+}

@@ -15,14 +15,17 @@ import (
 )
 
 const (
-	opPropose = "propose"
-	opSpawn   = "spawn"
-	opNudge   = "nudge"
-	opClaim   = "claim"
+	opPropose  = "propose"
+	opSpawn    = "spawn"
+	opNudge    = "nudge"
+	opClaim    = "claim"
+	opTabState = "tab_state"
 
-	dialTimeout    = time.Second
-	proposeTimeout = 10 * time.Minute
-	spawnTimeout   = 30 * time.Second
+	dialTimeout = time.Second
+	// A hook sends the tab state inside the agent's own hook call, so a slow app never holds up a turn by more than this.
+	tabStateTimeout = 300 * time.Millisecond
+	proposeTimeout  = 10 * time.Minute
+	spawnTimeout    = 30 * time.Second
 )
 
 type SpawnMember struct {
@@ -48,6 +51,8 @@ type Request struct {
 	Members         []SpawnMember `json:"members,omitempty"`
 	Token           string        `json:"token,omitempty"`
 	TabID           string        `json:"tab_id,omitempty"`
+	// State is the tab's new hook state for a tab_state op, empty once its session ended.
+	State string `json:"state,omitempty"`
 }
 
 type Response struct {
@@ -120,8 +125,18 @@ func Claim(socketPath, token string) (JoinGrant, error) {
 	return *resp.Join, nil
 }
 
+// Tells the app a tab's hook state changed, so its working indicator follows the turn. An app that is not running misses nothing: it reads every state when it loads a project.
+func TabState(socketPath, tabID, state string) error {
+	_, err := callWithin(socketPath, Request{Op: opTabState, TabID: tabID, State: state}, tabStateTimeout, tabStateTimeout)
+	return err
+}
+
 func call(socketPath string, req Request, deadline time.Duration) (Response, error) {
-	conn, err := ipc.Dial(socketPath, dialTimeout)
+	return callWithin(socketPath, req, dialTimeout, deadline)
+}
+
+func callWithin(socketPath string, req Request, dial, deadline time.Duration) (Response, error) {
+	conn, err := ipc.Dial(socketPath, dial)
 	if err != nil {
 		return Response{}, fmt.Errorf("workgroup: the lemongrass app is not reachable at %s, is it running: %w", socketPath, err)
 	}

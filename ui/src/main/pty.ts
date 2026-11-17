@@ -6,7 +6,7 @@ import { homedir } from 'os'
 import { join } from 'path'
 import * as pty from 'node-pty'
 import { randomUUID } from 'crypto'
-import { registerTab } from './tabSessions'
+import { interruptTab, isInterruptKey, registerTab } from './tabSessions'
 import { ACCOUNT_NAME } from './accountNames'
 import { isTrustedProject } from './projects'
 import { writeTrust } from './projectTrust'
@@ -203,6 +203,7 @@ export function registerPtyHandlers(
     if (kind === 'typing') shell.lastInputAt = Date.now()
     else if (kind === 'enter') shell.lastInputAt = 0
     shell.process.write(data)
+    if (shell.tabId && isInterruptKey(data)) void interruptTab(shell.cwd, shell.tabId)
   })
 
   ipcMain.on(

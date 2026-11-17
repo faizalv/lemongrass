@@ -3,11 +3,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { AppBanner, AppButton, AppEmptyState, AppModal } from '@sankasten'
+import { AppActivity, AppBanner, AppButton, AppEmptyState, AppModal } from '@sankasten'
 import { bodyParts, type BodyPart } from '../mentions'
 import { disbandWorkgroup, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import { GROUP_COLORS, groupColorVar } from '../groupColors'
 import { shellTitles } from '../shellRegistry'
+import { tabActivity } from '../tabStates'
 import {
   focusTab,
   groupColorOf,
@@ -65,6 +66,14 @@ watch(
 
 function online(member: WorkgroupMemberInfo): boolean {
   return isTabOpen(props.project.id, member.tabId)
+}
+
+function memberState(member: WorkgroupMemberInfo): string {
+  if (!online(member)) return 'Offline'
+  const activity = tabActivity(member.tabId)
+  if (activity === 'working') return 'Working'
+  if (activity === 'waiting') return 'Waiting for you'
+  return 'Online'
 }
 
 function onMember(member: WorkgroupMemberInfo): void {
@@ -239,7 +248,12 @@ onBeforeUnmount(() => clearInterval(timer))
             <span class="member-name">{{ displayName(member.tabId, member.label) }}</span>
             <span class="member-vendor">{{ member.vendor }}</span>
             <span class="member-state" :class="{ online: online(member) }">
-              {{ online(member) ? 'Online' : 'Offline' }}
+              <AppActivity
+                v-if="online(member) && tabActivity(member.tabId)"
+                :state="tabActivity(member.tabId)!"
+                :size="11"
+              />
+              {{ memberState(member) }}
             </span>
           </button>
         </li>
@@ -444,6 +458,12 @@ onBeforeUnmount(() => clearInterval(timer))
   flex: 1;
   min-width: 0;
   color: var(--color-fg-muted);
+}
+
+.member-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .member-state.online {

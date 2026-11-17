@@ -81,6 +81,7 @@ COMMANDS
   tabs title <tab-id> <title>       Records the shell title a tab currently shows
   tabs clear                        Drops every registered tab of the project, keeping their saved sessions
   tabs forget <tab-id>              Drops a closed tab's records
+  tabs interrupted <tab-id>         Marks a busy tab idle after the human interrupted its turn
   project purge <project-id>        Deletes a deleted project's session store rows and biblio history;
                                      refuses a project not marked deleted
   accounts list                     The Claude accounts beside the primary, as JSON

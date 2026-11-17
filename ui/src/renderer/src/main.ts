@@ -16,8 +16,10 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { applyInitialTheme, loadAppearance } from './appearance'
 import { installSelectAll } from './selectAll'
+import { startTabStates } from './tabStates'
 
 applyInitialTheme()
 installSelectAll()
+startTabStates()
 void loadAppearance()
 createApp(App).mount('#app')

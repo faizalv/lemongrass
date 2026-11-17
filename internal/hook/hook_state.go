@@ -8,6 +8,7 @@ import (
 
 	"github.com/faizalv/lemongrass/internal/session"
 	"github.com/faizalv/lemongrass/internal/threadsvc"
+	"github.com/faizalv/lemongrass/internal/workgroup"
 )
 
 // Records which of the agent's own hook events fired last for the tab, so a typed nudge never lands on an open permission prompt or question picker.
@@ -19,6 +20,13 @@ func recordTabState(store *session.Store, event string, payload hookEvent) {
 	if tab == "" {
 		return
 	}
+	before, _ := store.TabState(tab)
+	defer func() {
+		// Only a change is sent, so the tool calls of a running turn cost no socket call.
+		if after, err := store.TabState(tab); err == nil && after != before {
+			workgroup.TabState(workgroup.AppSocketPath(), tab, after)
+		}
+	}()
 	switch event {
 	case "SessionStart":
 		store.SetTabState(tab, session.StateIdle)

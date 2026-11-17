@@ -3,6 +3,7 @@
 
 <script setup lang="ts">
 import {
+  AppActivity,
   AppConfirmButton,
   AppIcon,
   AppIconButton,
@@ -44,6 +45,7 @@ import { joinVendor, liveGroupsOf, openJoin } from '../workgroups'
 import type { UsageWindow, WorkgroupInfo } from '../../../preload/types'
 import type { DropZone, EdgeZone } from '../layoutTree'
 import { currentTabDrag, startTabDrag } from '../tabDrag'
+import { tabActivity } from '../tabStates'
 import type { WorkspaceLayoutNode, WorkspaceTab } from '../../../preload/types'
 
 type Leaf = Extract<WorkspaceLayoutNode, { type: 'leaf' }>
@@ -450,8 +452,13 @@ onBeforeUnmount(() => {
               :style="{ background: tabBand(project.id, tab)?.color }"
             />
           </template>
+          <!-- Only shell tabs run an agent, so only they have a hook state. -->
+          <AppActivity
+            v-if="tab.kind === 'shell' && tabActivity(tab.id)"
+            :state="tabActivity(tab.id)!"
+          />
           <TabIcon
-            v-if="tabKindOf(tab).icon.length"
+            v-else-if="tabKindOf(tab).icon.length"
             :shapes="tabKindOf(tab).icon"
             :mark="tabKindOf(tab).mark?.(tab)"
           />

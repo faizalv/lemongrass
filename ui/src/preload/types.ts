@@ -839,6 +839,15 @@ export type ReviewSubmitResult = { ok: true } | { ok: false; reason: string }
 export interface TabBusy {
   busy: boolean
   reason: string | null
+  state: TabHookState
+}
+
+// Which of the agent's own hook events fired last for a tab; idle also stands for no recorded state.
+export type TabHookState = 'working' | 'prompting' | 'idle'
+
+export interface TabStateChange {
+  tabId: string
+  state: TabHookState
 }
 
 // The project's open conflict thread as `lgrass git conflict status --json` prints it. scope is the

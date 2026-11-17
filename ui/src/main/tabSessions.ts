@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { execFile } from 'child_process'
-import type { TabBusy } from '../preload/types'
+import type { TabBusy, TabHookState, TabStateChange } from '../preload/types'
 
 const LGRASS_TIMEOUT_MS = 5_000
 
@@ -39,6 +39,10 @@ const BUSY_REASONS: Record<string, string> = {
 }
 let statesFailureLogged = false
 
+export function hookState(state: unknown): TabHookState {
+  return state === 'working' || state === 'prompting' ? state : 'idle'
+}
+
 // Tabs with no recorded state are left out and count as not busy. An lgrassd built before
 // `tabs states` existed fails here, which also reads as nobody busy.
 export async function tabStates(projectPath: string): Promise<Record<string, TabBusy>> {
@@ -55,9 +59,45 @@ export async function tabStates(projectPath: string): Promise<Record<string, Tab
   const out: Record<string, TabBusy> = {}
   for (const [tabId, state] of Object.entries(states ?? {})) {
     const reason = BUSY_REASONS[state] ?? null
-    out[tabId] = { busy: reason !== null, reason }
+    out[tabId] = { busy: reason !== null, reason, state: hookState(state) }
   }
   return out
+}
+
+// Tabs a hook last reported busy, kept from the tab_state pushes passing through main, so a
+// keystroke is checked against it without asking lgrassd.
+const busyTabs = new Set<string>()
+let stateWindow: () => BrowserWindow | undefined = () => undefined
+
+export function setTabStateWindow(getWindow: () => BrowserWindow | undefined): void {
+  stateWindow = getWindow
+}
+
+export function publishTabState(change: TabStateChange): void {
+  if (change.state === 'idle') busyTabs.delete(change.tabId)
+  else busyTabs.add(change.tabId)
+  const window = stateWindow()
+  if (window && !window.isDestroyed()) window.webContents.send('tabSessions:state-changed', change)
+}
+
+// The keys that interrupt an agent's turn, typed alone. An arrow key or a paste also starts with
+// ESC but arrives longer, so it never matches.
+export function isInterruptKey(data: string): boolean {
+  return data === '\x03' || data === '\x1b'
+}
+
+// Claude Code runs no hook when the human interrupts a turn, so its tab would stay busy until its
+// idle notification a minute later. The human's own interrupt key into a busy tab ends the turn in
+// the store, which also makes the next turn's first hook a change that is pushed again.
+export async function interruptTab(projectPath: string, tabId: string): Promise<void> {
+  if (!registeredLgrassdPath || !busyTabs.has(tabId)) return
+  try {
+    const out = await runLgrassd(registeredLgrassdPath, projectPath, ['interrupted', tabId])
+    if ((JSON.parse(out) as { changed?: boolean }).changed)
+      publishTabState({ tabId, state: 'idle' })
+  } catch (err) {
+    console.error('lgrassd tabs interrupted failed:', err)
+  }
 }
 
 export function registerTabSessionHandlers(lgrassdPath: string | null): void {

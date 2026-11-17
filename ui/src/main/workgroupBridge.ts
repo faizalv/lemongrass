@@ -12,6 +12,7 @@ import { handleAskHint, startAsks, stopAsks } from './asks'
 import { ipcAddress } from './ipcAddress'
 import { handleConflictOp, isConflictOp, type ConflictOpRequest } from './conflictAgent'
 import { handleNudge } from './tabNudge'
+import { hookState, publishTabState, setTabStateWindow } from './tabSessions'
 import { handleWebOp, registerWebHandlers } from './web'
 import {
   registerApprovalHandlers,
@@ -56,6 +57,8 @@ interface Proposal {
   }[]
   token?: string
   tab_id?: string
+  // The `tab_state` op's new state, empty once the tab's session ended.
+  state?: string
   // The `web` op's fields.
   channel_id?: string
   command?: string
@@ -368,12 +371,20 @@ async function respond(
       return await handleNudge(nudgeLgrassdPath, String(request.tab_id ?? ''))
     if (request.op === 'web') return await handleWebOp(request)
     if (request.op === 'ask_hint') return await handleAskHint()
+    if (request.op === 'tab_state') return handleTabState(request)
     if (isConflictOp(request.op))
       return await handleConflictOp(request as unknown as ConflictOpRequest)
     return { ok: false, error: `unknown op ${String(request.op)}` }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+// Only the state word crosses to the renderer; the tab id is matched against open tabs there.
+function handleTabState(request: Proposal): Reply {
+  const tabId = String(request.tab_id ?? '')
+  if (tabId) publishTabState({ tabId, state: hookState(request.state) })
+  return { ok: true }
 }
 
 let server: net.Server | undefined
@@ -384,6 +395,7 @@ export function startWorkgroupBridge(
   lgrassdPath: string | null
 ): void {
   nudgeLgrassdPath = lgrassdPath
+  setTabStateWindow(getWindow)
   registerApprovalHandlers(getWindow)
   registerWebHandlers()
   startAsks(getWindow)

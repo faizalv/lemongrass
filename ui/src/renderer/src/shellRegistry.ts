@@ -18,6 +18,15 @@ export { terminalFontReady }
 // Raw bytes only in both directions. PTY is display-only, never a control-signal source.
 
 const TITLE_PUSH_DELAY_MS = 500
+
+// Agents animate their title with a spinner glyph in front, each vendor its own way, several times
+// a second. Dropping the leading symbols keeps the title still, and the tab's activity indicator
+// shows the turn instead. Only symbol characters go, so a path such as ~/src keeps its tilde.
+const LEADING_SPINNER = /^[\p{So}\u00B7\u2022\s]+/u
+
+export function cleanTitle(title: string): string {
+  return title.replace(LEADING_SPINNER, '').trim()
+}
 const titlePushTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 function pushTitle(spec: ShellSpec, title: string): void {
@@ -206,8 +215,10 @@ function createSession(spec: ShellSpec): ShellSession {
     hidden: false
   }
 
-  term.onTitleChange((title) => {
-    if (!title) return
+  term.onTitleChange((raw) => {
+    const title = cleanTitle(raw)
+    // A spinner frame leaves the cleaned title as it was, so the tab does not re-render for it.
+    if (!title || shellTitles[spec.id] === title) return
     shellTitles[spec.id] = title
     pushTitle(spec, title)
   })

@@ -2,8 +2,9 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppBadge, AppEmptyState } from '@sankasten'
+import { AppActivity, AppBadge, AppEmptyState } from '@sankasten'
 import { computed } from 'vue'
+import { tabActivity } from '../tabStates'
 import { openApprovals, pendingFor, workgroupStateOf } from '../workgroups'
 import { focusedWorkgroupId, isTabOpen, openWorkgroup, type ProjectRef } from '../workspace'
 import type { WorkgroupInfo } from '../../../preload/types'
@@ -19,6 +20,17 @@ const focusedId = computed(() => focusedWorkgroupId(props.project.id))
 
 function orphaned(group: WorkgroupInfo): boolean {
   return !isTabOpen(props.project.id, group.leaderTabId)
+}
+
+// A member held up on a prompt outranks the ones working, since only the human can move it on.
+function groupActivity(
+  group: WorkgroupInfo
+): { state: 'working' | 'waiting'; count: number } | null {
+  const open = group.members.filter((member) => isTabOpen(props.project.id, member.tabId))
+  const waiting = open.filter((member) => tabActivity(member.tabId) === 'waiting').length
+  if (waiting > 0) return { state: 'waiting', count: waiting }
+  const working = open.filter((member) => tabActivity(member.tabId) === 'working').length
+  return working > 0 ? { state: 'working', count: working } : null
 }
 </script>
 
@@ -38,6 +50,18 @@ function orphaned(group: WorkgroupInfo): boolean {
         @click="openWorkgroup(project, group.id)"
       >
         <span class="wg-row-name">{{ group.name }}</span>
+        <span
+          v-if="groupActivity(group)"
+          class="wg-activity"
+          :title="
+            groupActivity(group)!.state === 'waiting'
+              ? `${groupActivity(group)!.count} waiting for you`
+              : `${groupActivity(group)!.count} working`
+          "
+        >
+          <AppActivity :state="groupActivity(group)!.state" :size="11" />
+          {{ groupActivity(group)!.count }}
+        </span>
         <span v-if="orphaned(group)" class="wg-orphaned" title="The leader's tab is not open">
           Orphaned
         </span>
@@ -107,6 +131,16 @@ function orphaned(group: WorkgroupInfo): boolean {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.wg-activity {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .wg-orphaned {

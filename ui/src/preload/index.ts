@@ -88,6 +88,7 @@ import type {
   ReviewSubmission,
   ReviewSubmitResult,
   TabBusy,
+  TabStateChange,
   NodeIssued,
   ResterClientCall,
   ResterClientPickedFile,
@@ -162,7 +163,13 @@ const tabSessions = {
   forget: (projectPath: string, tabId: string): Promise<void> =>
     ipcRenderer.invoke('tabSessions:forget', { projectPath, tabId }),
   states: (projectPath: string): Promise<Record<string, TabBusy>> =>
-    ipcRenderer.invoke('tabSessions:states', projectPath)
+    ipcRenderer.invoke('tabSessions:states', projectPath),
+  onStateChanged: (callback: (change: TabStateChange) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, change: TabStateChange): void =>
+      callback(change)
+    ipcRenderer.on('tabSessions:state-changed', listener)
+    return () => ipcRenderer.removeListener('tabSessions:state-changed', listener)
+  }
 }
 
 const review = {

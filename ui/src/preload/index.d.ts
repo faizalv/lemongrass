@@ -87,6 +87,7 @@ import type {
   ReviewSubmission,
   ReviewSubmitResult,
   TabBusy,
+  TabStateChange,
   NodeIssued,
   NodeIssueRequest,
   ResterClientCall,
@@ -238,6 +239,7 @@ interface Api {
     title: (projectPath: string, tabId: string, title: string) => Promise<void>
     forget: (projectPath: string, tabId: string) => Promise<void>
     states: (projectPath: string) => Promise<Record<string, TabBusy>>
+    onStateChanged: (callback: (change: TabStateChange) => void) => () => void
   }
   workspaceLayouts: {
     load: (projectId: string) => Promise<WorkspaceLayoutState | null>

@@ -31,7 +31,7 @@ func openStore() *session.Store {
 
 func cmdTabs(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrassd tabs <list|states|register|title|clear|forget> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd tabs <list|states|register|title|clear|forget|interrupted> ...")
 		os.Exit(1)
 	}
 	store := openStore()
@@ -70,6 +70,16 @@ func cmdTabs(args []string) {
 		if err := store.ClearTabs(); err != nil {
 			fail(err)
 		}
+	case "interrupted":
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, "usage: lgrassd tabs interrupted <tab-id>")
+			os.Exit(1)
+		}
+		changed, err := store.InterruptTab(args[1])
+		if err != nil {
+			fail(err)
+		}
+		json.NewEncoder(os.Stdout).Encode(map[string]bool{"changed": changed})
 	case "forget":
 		if len(args) != 2 {
 			fmt.Fprintln(os.Stderr, "usage: lgrassd tabs forget <tab-id>")

@@ -47,6 +47,19 @@ func (s *Store) TabLastActive(tabID string) (time.Time, bool, error) {
 	return t, err == nil, err
 }
 
+// Marks a busy tab idle because the human interrupted its turn, which some agents report through no hook. False when the tab was not busy, so an interrupt key pressed between turns changes nothing.
+func (s *Store) InterruptTab(tabID string) (bool, error) {
+	res, err := s.db.Exec(`
+		UPDATE lg_tab_state SET state = ?, updated_at = ?
+		WHERE tab_id = ? AND state IN (?, ?)
+	`, StateIdle, now(), tabID, StateWorking, StatePrompting)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 func (s *Store) ClearTabState(tabID string) error {
 	_, err := s.db.Exec(`DELETE FROM lg_tab_state WHERE tab_id = ?`, tabID)
 	return err
