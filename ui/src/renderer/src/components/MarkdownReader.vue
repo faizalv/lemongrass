@@ -41,7 +41,7 @@ function onClick(event: MouseEvent): void {
 </script>
 
 <template>
-  <div ref="reader" class="reader" @click="onClick" @auxclick="onClick">
+  <div ref="reader" class="reader sk-selectable" @click="onClick" @auxclick="onClick">
     <!-- eslint-disable-next-line vue/no-v-html -->
     <div class="markdown-body" v-html="html" />
   </div>

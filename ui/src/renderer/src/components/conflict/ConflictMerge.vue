@@ -830,7 +830,7 @@ onBeforeUnmount(() => {
         <header class="pane-head" :title="file.leftRef">
           <span class="side ref">{{ file.leftRef }}</span>
         </header>
-        <div ref="leftHost" class="pane-body" />
+        <div ref="leftHost" class="pane-body sk-selectable" />
       </section>
       <div class="gutter" @pointerdown="startResize(0, $event)" />
       <section class="pane middle" :style="{ flexGrow: sizes[1] }">
@@ -838,14 +838,14 @@ onBeforeUnmount(() => {
           <span class="side">Result</span>
           <span v-if="dirty" class="ref">Unsaved</span>
         </header>
-        <div ref="middleHost" class="pane-body" />
+        <div ref="middleHost" class="pane-body sk-selectable" />
       </section>
       <div class="gutter" @pointerdown="startResize(1, $event)" />
       <section class="pane" :style="{ flexGrow: sizes[2] }">
         <header class="pane-head" :title="file.rightRef">
           <span class="side ref">{{ file.rightRef }}</span>
         </header>
-        <div ref="rightHost" class="pane-body" />
+        <div ref="rightHost" class="pane-body sk-selectable" />
       </section>
     </div>
 

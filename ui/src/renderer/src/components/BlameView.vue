@@ -37,7 +37,7 @@ function startsRun(index: number): boolean {
   <p v-else-if="blame.status === 'too-large'" class="notice">This file is too large to blame.</p>
   <p v-else-if="blame.status === 'binary'" class="notice">Binary file, no blame.</p>
   <p v-else-if="blame.status === 'error'" class="notice error">{{ blame.message }}</p>
-  <div v-else class="blame-scroll">
+  <div v-else class="blame-scroll sk-selectable">
     <div
       v-for="(line, index) in blame.lines"
       :key="line.number"

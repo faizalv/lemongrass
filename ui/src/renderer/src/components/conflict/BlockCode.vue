@@ -122,7 +122,7 @@ onBeforeUnmount(() => view?.destroy())
 </script>
 
 <template>
-  <div ref="host" class="block-code" />
+  <div ref="host" class="block-code sk-selectable" />
 </template>
 
 <style scoped>

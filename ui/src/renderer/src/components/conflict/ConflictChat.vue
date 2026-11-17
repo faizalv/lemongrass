@@ -268,7 +268,7 @@ function lines(message: WorkgroupThreadMessage): string | null {
         </header>
         <p v-if="lines(message)" class="where">On {{ lines(message) }}</p>
         <pre v-if="message.anchor?.quote" class="quote">{{ message.anchor.quote }}</pre>
-        <p class="body">{{ message.body }}</p>
+        <p class="body sk-selectable">{{ message.body }}</p>
       </article>
       <AgentWorking
         v-if="waiting"

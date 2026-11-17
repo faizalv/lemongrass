@@ -119,7 +119,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="host" class="code-reader" />
+  <div ref="host" class="code-reader sk-selectable" />
 </template>
 
 <style scoped>

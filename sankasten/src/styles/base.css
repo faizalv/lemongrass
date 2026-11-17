@@ -8,6 +8,17 @@ body {
   color: var(--color-fg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* An app's chrome is never text to copy, so selection is opt-in: fields, editors, preformatted
+     blocks and any region marked sk-selectable. Select-all is scoped by the app to one region. */
+  user-select: none;
+}
+
+input,
+textarea,
+[contenteditable],
+pre,
+.sk-selectable {
+  user-select: text;
 }
 
 /* Yellow scrollbars are part of the Sankasten identity, so every scroll area gets them with no class. */

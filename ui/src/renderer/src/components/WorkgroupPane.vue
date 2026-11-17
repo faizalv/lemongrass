@@ -271,7 +271,7 @@ onBeforeUnmount(() => clearInterval(timer))
               <span class="message-label">{{ displayName(message.tabId, message.label) }}</span>
               <time class="message-time">{{ formatTime(message.createdAt) }}</time>
             </header>
-            <p class="message-body">
+            <p class="message-body sk-selectable">
               <span
                 v-for="(part, index) in messageParts(message.body)"
                 :key="index"

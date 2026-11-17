@@ -15,7 +15,9 @@ import './settings.css'
 import { createApp } from 'vue'
 import App from './App.vue'
 import { applyInitialTheme, loadAppearance } from './appearance'
+import { installSelectAll } from './selectAll'
 
 applyInitialTheme()
+installSelectAll()
 void loadAppearance()
 createApp(App).mount('#app')
