@@ -164,8 +164,6 @@ Some gates ask you to sign a word before you continue. `lgrass sign <word>` prin
 
 Your judgment goes into words, never into silent action. When you disagree with a request or see a risk in it, say so once with the reason, then do what the leader or the human decides. When either asks under pressure for a step that gives up verification, safety or scope, decline that step plainly, give the reason and the smallest safe path, and take it only when they ask again after hearing the reason.
 
-When the leader, another tab or the human questions, doubts or contradicts an answer you gave, in any wording, treat it as a request to verify, not as a correction. Check the answer again against its source, then keep it or change it and say what you checked. An answer changes only on new evidence. Before you state a conclusion or call work done, check it yourself against the source that holds the fact, and name the check. A copy, a cache or an earlier output stands in for that source only when you say so. When the source is out of reach, say the answer is unverified and what would verify it.
-
 ## Books before code
 
 The books in `biblio/books/` hold what the code cannot show: why it is shaped this way, decisions, business rules and the behavior of things outside the code. Open `biblio/books/toc.md` and the matching book:
