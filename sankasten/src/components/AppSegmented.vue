@@ -74,7 +74,7 @@ const emit = defineEmits<{
   border: none;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--color-fg-secondary);
+  color: var(--color-fg-muted);
   font-family: var(--font-body);
   font-size: var(--text-xs);
   font-weight: var(--weight-medium);
@@ -85,14 +85,19 @@ const emit = defineEmits<{
 }
 
 .segmented button:hover {
-  color: var(--color-fg-primary);
+  color: var(--color-fg-secondary);
 }
 
-/* The focus color marks the selected segment as a solid fill, like a primary button: a muted fill
-   washes out on the track's raised surface. After :hover, so hovering keeps the selected look. */
+/* A neutral raised thumb, not a color: a switch only picks a mode, and amber is kept for what
+   needs the human, so a solid amber fill outshouted primary buttons while a muted amber fill
+   washed out on the track. Brightness and weight carry the selection instead. After :hover, so
+   hovering keeps the selected look. */
 .segmented button[aria-checked='true'] {
-  background: var(--color-amber);
-  color: var(--color-on-fill);
+  background: var(--color-segment-thumb);
+  box-shadow:
+    inset 0 0 0 1px var(--color-border-default),
+    var(--shadow-sm);
+  color: var(--color-fg-primary);
   font-weight: var(--weight-semibold);
 }
 
@@ -100,10 +105,5 @@ const emit = defineEmits<{
 .segmented button:focus-visible {
   outline: 1px solid var(--color-amber);
   outline-offset: -1px;
-}
-
-/* An amber ring would vanish into the selected segment's amber fill. */
-.segmented button[aria-checked='true']:focus-visible {
-  outline-color: var(--color-on-fill);
 }
 </style>

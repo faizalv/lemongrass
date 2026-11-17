@@ -70,6 +70,9 @@
   --layer-input:        var(--color-surface-0);
   --layer-float:        var(--color-surface-2);
   --layer-float-hover:  var(--color-surface-3);
+  /* The selected segment of a segmented switch: a neutral step lighter than its surface-3 track,
+     so a mode reads as chosen without the attention amber carries. */
+  --color-segment-thumb: var(--color-gray-600);
 
   /* Neutrals */
   --color-gray-900:     #111111;
@@ -208,6 +211,7 @@
   --color-surface-3:    #EDEDEA;
   --layer-float:        var(--color-surface-1);
   --layer-float-hover:  var(--color-surface-3);
+  --color-segment-thumb: #FFFFFF;
 
   --color-border-subtle:  rgba(0, 0, 0, 0.06);
   --color-border-default: rgba(0, 0, 0, 0.10);
