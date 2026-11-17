@@ -20,6 +20,7 @@ import {
 } from 'fs'
 import { dirname, extname, join, posix, relative, resolve, sep } from 'path'
 import { PROJECT_FILE_SCHEME } from './projectFiles'
+import { byLatestActivity } from './biblioActivity'
 
 const IMAGES_DIR = 'images'
 const IMAGE_SCHEME = 'biblio-image'
@@ -94,11 +95,6 @@ function ipcSegments(relativePath: string): string[] | null {
   return relativePath.split('/')
 }
 
-function createdMs(path: string): number {
-  const stats = statSync(path)
-  return stats.birthtimeMs > 0 ? stats.birthtimeMs : stats.mtimeMs
-}
-
 function times(path: string): Pick<BiblioNode, 'createdMs' | 'modifiedMs'> {
   const stats = statSync(path)
   return {
@@ -113,17 +109,23 @@ function walk(dir: string, relativeTo: string): BiblioNode[] {
   const newestFirst = parent === 'scratchpad' || parent === join('scratchpad', ARCHIVE_DIR)
   // A task folder holds whatever files the work needs; the other tiers are markdown-only by convention.
   const anyFile = parent.split(sep)[0] === 'scratchpad'
-  const entries = readdirSync(dir, { withFileTypes: true })
-    .filter((e) => (e.isDirectory() ? e.name !== IMAGES_DIR : anyFile || e.name.endsWith('.md')))
-    .sort((a, b) => {
-      if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
-      if (a.isDirectory() && newestFirst) {
-        if (a.name === ARCHIVE_DIR) return -1
-        if (b.name === ARCHIVE_DIR) return 1
-        return createdMs(join(dir, b.name)) - createdMs(join(dir, a.name))
-      }
-      return a.name.localeCompare(b.name)
-    })
+  const kept = readdirSync(dir, { withFileTypes: true }).filter((e) =>
+    e.isDirectory() ? e.name !== IMAGES_DIR : anyFile || e.name.endsWith('.md')
+  )
+  const taskRank = new Map(
+    newestFirst
+      ? byLatestActivity(
+          dir,
+          kept.filter((e) => e.isDirectory()).map((e) => e.name),
+          ARCHIVE_DIR
+        ).map((name, index) => [name, index])
+      : []
+  )
+  const entries = kept.sort((a, b) => {
+    if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1
+    if (a.isDirectory() && newestFirst) return taskRank.get(a.name)! - taskRank.get(b.name)!
+    return a.name.localeCompare(b.name)
+  })
 
   return entries.map((entry) => {
     const fullPath = join(dir, entry.name)
