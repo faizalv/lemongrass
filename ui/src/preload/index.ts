@@ -216,6 +216,8 @@ const conflictAgent = {
 const projects = {
   list: (): Promise<Project[]> => ipcRenderer.invoke('projects:list'),
   add: (): Promise<Project | null> => ipcRenderer.invoke('projects:add'),
+  setHues: (hues: Record<string, string>): Promise<Project[]> =>
+    ipcRenderer.invoke('projects:setHues', hues),
   setTrust: (id: string, trusted: boolean): Promise<Project | null> =>
     ipcRenderer.invoke('projects:setTrust', id, trusted),
   home: (): Promise<string> => ipcRenderer.invoke('projects:home'),

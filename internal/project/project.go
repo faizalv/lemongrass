@@ -23,6 +23,10 @@ type Project struct {
 	// DeletedAt marks a project the human deleted. It stays registered, with its data, until the
 	// app purges it 30 days later, so a CLI rewrite of the registry must carry it through.
 	DeletedAt string `json:"deletedAt,omitempty"`
+	// Trusted is the human's answer to the app's trust question, absent until answered, so a pointer keeps "not asked" apart from "no".
+	Trusted *bool `json:"trusted,omitempty"`
+	// Hue is the color the app assigned the project, kept so a CLI rewrite of the registry does not reset it.
+	Hue string `json:"hue,omitempty"`
 }
 
 func registryPath() string {

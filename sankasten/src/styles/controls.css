@@ -77,9 +77,11 @@
   font-size: var(--text-xs);
 }
 
+/* --plain-trigger-fill lets a trigger on a tinted surface, such as a header in a project's hue,
+   take a fill of that hue; a neutral fill reads as a grey patch on the tint. */
 .sk-plain-trigger:hover:not(:disabled),
 .sk-plain-trigger[aria-expanded='true'] {
-  background: var(--color-surface-2);
+  background: var(--plain-trigger-fill, var(--color-surface-2));
   color: var(--color-fg-primary);
 }
 

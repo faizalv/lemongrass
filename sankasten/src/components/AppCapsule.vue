@@ -46,7 +46,11 @@ function onKey(event: KeyboardEvent): void {
       :title="label"
       @click="mosaic?.toggle(label)"
     >
-      <span class="capsule-dot" :class="`hue-${hue}`" aria-hidden="true" />
+      <span
+        class="capsule-dot"
+        :style="{ '--capsule-hue': `var(--color-${hue})` }"
+        aria-hidden="true"
+      />
       <span class="capsule-label">{{ label }}</span>
       <AppBadge v-if="count" tone="neutral" size="sm" :title="countTitle">{{ count }}</AppBadge>
     </button>
@@ -124,33 +128,5 @@ function onKey(event: KeyboardEvent): void {
   flex-direction: column;
   gap: var(--space-2);
   padding: 0 var(--space-3) var(--space-2);
-}
-
-.hue-amber {
-  --capsule-hue: var(--color-amber);
-}
-
-.hue-coral {
-  --capsule-hue: var(--color-coral);
-}
-
-.hue-fuchsia {
-  --capsule-hue: var(--color-fuchsia);
-}
-
-.hue-jade {
-  --capsule-hue: var(--color-jade);
-}
-
-.hue-sapphire {
-  --capsule-hue: var(--color-sapphire);
-}
-
-.hue-teal {
-  --capsule-hue: var(--color-teal);
-}
-
-.hue-violet {
-  --capsule-hue: var(--color-violet);
 }
 </style>

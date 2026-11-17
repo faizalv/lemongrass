@@ -224,3 +224,25 @@ func TestRegisterKeepsOtherProjectsDeletedMark(t *testing.T) {
 		}
 	}
 }
+
+func TestRegisterKeepsAppFieldsOfOtherProjects(t *testing.T) {
+	testenv.Home(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Dir(registryPath()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	seed := `[{"id":"a","name":"a","path":"` + filepath.ToSlash(dir) + `","trusted":false,"hue":"rose"}]`
+	if err := os.WriteFile(registryPath(), []byte(seed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Register(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	all, err := ListAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all[0].Trusted == nil || *all[0].Trusted || all[0].Hue != "rose" {
+		t.Errorf("after a CLI registration the first project is trusted=%v hue=%q, want false and rose", all[0].Trusted, all[0].Hue)
+	}
+}

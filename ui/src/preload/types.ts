@@ -33,6 +33,8 @@ export interface Project {
   name: string
   path: string
   trusted?: boolean
+  // Assigned once by the renderer from the design-system palette, so the project keeps its color.
+  hue?: string
 }
 
 // A refused delete names how many shells still run for the project.

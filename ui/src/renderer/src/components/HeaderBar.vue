@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppIconButton, capsuleHue } from '@sankasten'
+import { AppIconButton, type CapsuleHue } from '@sankasten'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NotificationBell from './NotificationBell.vue'
 import { isMac, loadWindowControls, windowControls } from '../windowControls'
@@ -14,14 +14,12 @@ import { updatePending } from '../updateState'
 const controls = window.api.windowControls
 
 const props = defineProps<{
-  // The open project's name; the header's gradient takes its hue, as its monogram does, so the
-  // windows of different projects tell apart. Amber when none is open.
-  projectName?: string
+  // The open project's hue; the header's gradient takes it, as its monogram does, so the windows
+  // of different projects tell apart. Amber when none is open.
+  projectHue?: CapsuleHue
 }>()
 
-const headerHue = computed(() =>
-  props.projectName ? `var(--color-${capsuleHue(props.projectName)})` : 'var(--color-amber)'
-)
+const headerHue = computed(() => `var(--color-${props.projectHue ?? 'amber'})`)
 
 const emit = defineEmits<{
   'open-settings': []

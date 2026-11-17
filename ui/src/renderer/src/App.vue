@@ -24,6 +24,7 @@ import { startContextFeed, startUsagePolling } from './usage'
 import { startDepsFeed } from './deps'
 import { registerCenterHost, type SettingsSection } from './notifications'
 import { restoreZoom, setZoom, stepZoom } from './zoom'
+import { projectHue, withAssignedHues } from './projectHues'
 import {
   cancelShellPicker,
   ensureLoaded,
@@ -62,7 +63,7 @@ const biblioTree = computed((): BiblioTree | null =>
 async function restoreUiState(): Promise<void> {
   const saved = await window.api.uiState.load()
   void restoreZoom(saved.zoomFactor)
-  projects.value = await window.api.projects.list()
+  projects.value = await withAssignedHues(await window.api.projects.list())
   if (saved.startup === 'projectSelector' || projects.value.length === 0) return
   const last = projects.value.find((p) => p.id === saved.lastProjectId)
   await selectProject((last ?? projects.value[0]).id)
@@ -136,6 +137,7 @@ async function addProject(): Promise<void> {
   const project = await window.api.projects.add()
   if (!project) return
   if (!projects.value.find((p) => p.id === project.id)) projects.value.push(project)
+  projects.value = await withAssignedHues(projects.value)
   await selectProject(project.id)
 }
 
@@ -182,7 +184,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="shell">
     <HeaderBar
-      :project-name="activeProject?.name"
+      :project-hue="activeProject && projectHue(activeProject)"
       @open-settings="settingsOpen = true"
       @open-guide="guideOpen = true"
     >

@@ -228,6 +228,7 @@ interface Api {
   projects: {
     list: () => Promise<Project[]>
     add: () => Promise<Project | null>
+    setHues: (hues: Record<string, string>) => Promise<Project[]>
     setTrust: (id: string, trusted: boolean) => Promise<Project | null>
     home: () => Promise<string>
     liveShells: () => Promise<Record<string, number>>

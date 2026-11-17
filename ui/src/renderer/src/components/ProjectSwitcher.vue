@@ -15,6 +15,7 @@ import {
   placementStyle
 } from '@sankasten'
 import { useProjectDelete } from '../projectDelete'
+import { projectHue } from '../projectHues'
 import type { Project } from '../../../preload/types'
 
 const props = defineProps<{
@@ -162,10 +163,15 @@ onBeforeUnmount(() => {
       ref="triggerRef"
       type="button"
       class="sk-plain-trigger trigger"
+      :style="activeProject && { '--trigger-hue': `var(--color-${projectHue(activeProject)})` }"
       :aria-expanded="open"
       @click="toggleOpen"
     >
-      <AppMonogram v-if="activeProject" :name="activeProject.name" />
+      <AppMonogram
+        v-if="activeProject"
+        :name="activeProject.name"
+        :hue="projectHue(activeProject)"
+      />
       <span class="trigger-label">{{ activeLabel }}</span>
       <AppIcon class="sk-trigger-caret" name="chevronDown" :size="9" />
     </button>
@@ -211,7 +217,7 @@ onBeforeUnmount(() => {
               @click="pick(project.id)"
             >
               <span class="active-dot" aria-hidden="true" />
-              <AppMonogram :name="project.name" />
+              <AppMonogram :name="project.name" :hue="projectHue(project)" />
               <span class="project-text">
                 <span class="project-name">{{ project.name }}</span>
                 <span class="project-path">{{ parentLabel(project.path) }}</span>
@@ -259,6 +265,13 @@ onBeforeUnmount(() => {
 /* The project in the header carries more weight than a plain trigger: the full text color and
    semibold, so it holds its own beside the wordmark. */
 .trigger {
+  /* Over the header's gradient in the project's hue, so hovering or opening it deepens that hue
+     rather than laying a grey patch on it. Opaque, mixed into the surface like the gradient. */
+  --plain-trigger-fill: color-mix(
+    in oklch,
+    var(--trigger-hue, var(--color-amber)) 24%,
+    var(--color-surface-1)
+  );
   color: var(--color-fg-primary);
   font-weight: var(--weight-semibold);
 }
@@ -313,12 +326,9 @@ onBeforeUnmount(() => {
   transition: background var(--duration-fast) var(--ease-out);
 }
 
-.project-row.is-active {
-  /* Muted text reads as secondary on this tint, keeping it above its contrast floor. */
-  --color-fg-muted: var(--color-fg-secondary);
-  background: color-mix(in srgb, var(--color-amber-muted) 45%, transparent);
-}
-
+/* The list stays neutral; the dot marks the open project, and the project's hue lives on the
+   trigger and the header. */
+.project-row.is-active,
 .project-row.is-highlighted {
   background: var(--layer-float-hover);
 }
@@ -374,7 +384,7 @@ onBeforeUnmount(() => {
 }
 
 .project-row.is-active .active-dot {
-  background: var(--color-amber);
+  background: var(--color-fg-primary);
 }
 
 /* Shown only on the row under the pointer or keyboard; hidden keeps its space, so the path's width

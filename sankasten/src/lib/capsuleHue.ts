@@ -6,11 +6,16 @@
 export const CAPSULE_HUES = [
   'amber',
   'coral',
-  'fuchsia',
+  'orange',
+  'lime',
   'jade',
-  'sapphire',
   'teal',
-  'violet'
+  'sky',
+  'sapphire',
+  'indigo',
+  'violet',
+  'fuchsia',
+  'rose'
 ] as const
 
 export type CapsuleHue = (typeof CAPSULE_HUES)[number]
@@ -24,4 +29,20 @@ export function capsuleHue(content: string): CapsuleHue {
     hash = Math.imul(hash, 0x01000193)
   }
   return CAPSULE_HUES[(hash >>> 0) % CAPSULE_HUES.length]
+}
+
+export function isCapsuleHue(value: unknown): value is CapsuleHue {
+  return typeof value === 'string' && (CAPSULE_HUES as readonly string[]).includes(value)
+}
+
+// For an item whose hue is assigned once and kept, such as a project: a hue none or the fewest of
+// the others hold, so items look apart until the palette runs out. The content's own hash wins
+// among those, then palette order, so the pick is stable for the same inputs.
+export function leastUsedHue(content: string, used: readonly CapsuleHue[]): CapsuleHue {
+  const counts = new Map<CapsuleHue, number>(CAPSULE_HUES.map((hue) => [hue, 0]))
+  for (const hue of used) counts.set(hue, (counts.get(hue) ?? 0) + 1)
+  const fewest = Math.min(...counts.values())
+  const own = capsuleHue(content)
+  if (counts.get(own) === fewest) return own
+  return CAPSULE_HUES.find((hue) => counts.get(hue) === fewest) ?? own
 }

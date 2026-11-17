@@ -43,7 +43,7 @@ export { default as IconFrame } from './components/IconFrame.vue'
 export { APP_ICONS } from './icons/appIcons'
 export type { AppGlyph, AppIconName, IconShape } from './icons/appIcons'
 
-export { CAPSULE_HUES, capsuleHue } from './lib/capsuleHue'
+export { CAPSULE_HUES, capsuleHue, isCapsuleHue, leastUsedHue } from './lib/capsuleHue'
 export type { CapsuleHue } from './lib/capsuleHue'
 export { monogram } from './lib/monogram'
 export { CONFIRM_DELAY_MS, createClickConfirm } from './lib/clickConfirm'

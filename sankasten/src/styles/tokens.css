@@ -27,16 +27,33 @@
 
   /* Orange -- between amber and coral, for a level past a warning but short of an error */
   --color-orange:       oklch(0.76 0.16 55);
+  --color-orange-dim:   oklch(0.69 0.16 55);
+  --color-orange-muted: oklch(0.76 0.16 55 / 0.14);
+
+  /* Lime */
+  --color-lime:         oklch(0.82 0.17 128);
+  --color-lime-dim:     oklch(0.75 0.17 128);
+  --color-lime-muted:   oklch(0.82 0.17 128 / 0.14);
 
   /* Jade */
   --color-jade:         oklch(0.78 0.155 155);
   --color-jade-dim:     oklch(0.71 0.155 155);
   --color-jade-muted:   oklch(0.78 0.155 155 / 0.14);
 
+  /* Sky */
+  --color-sky:          oklch(0.78 0.12 218);
+  --color-sky-dim:      oklch(0.71 0.12 218);
+  --color-sky-muted:    oklch(0.78 0.12 218 / 0.14);
+
   /* Sapphire */
   --color-sapphire:     oklch(0.70 0.155 240);
   --color-sapphire-dim: oklch(0.63 0.155 240);
   --color-sapphire-muted: oklch(0.70 0.155 240 / 0.14);
+
+  /* Indigo */
+  --color-indigo:       oklch(0.68 0.16 272);
+  --color-indigo-dim:   oklch(0.61 0.16 272);
+  --color-indigo-muted: oklch(0.68 0.16 272 / 0.14);
 
   /* Violet */
   --color-violet:       oklch(0.72 0.185 295);
@@ -52,6 +69,11 @@
   --color-teal:         oklch(0.76 0.13 192);
   --color-teal-dim:     oklch(0.69 0.13 192);
   --color-teal-muted:   oklch(0.76 0.13 192 / 0.14);
+
+  /* Rose */
+  --color-rose:         oklch(0.72 0.18 5);
+  --color-rose-dim:     oklch(0.65 0.18 5);
+  --color-rose-muted:   oklch(0.72 0.18 5 / 0.14);
 
   /* Surfaces */
   --color-surface-0:    #0A0A0A;   /* page background */
@@ -189,6 +211,20 @@
   --color-coral-dim:    oklch(0.50 0.18 28);
   --color-coral-muted:  oklch(0.56 0.19 28 / 0.12);
   --color-orange:       oklch(0.58 0.16 55);
+  --color-orange-dim:   oklch(0.52 0.15 55);
+  --color-orange-muted: oklch(0.58 0.16 55 / 0.12);
+  --color-lime:         oklch(0.56 0.14 128);
+  --color-lime-dim:     oklch(0.50 0.13 128);
+  --color-lime-muted:   oklch(0.56 0.14 128 / 0.12);
+  --color-sky:          oklch(0.55 0.11 218);
+  --color-sky-dim:      oklch(0.49 0.10 218);
+  --color-sky-muted:    oklch(0.55 0.11 218 / 0.12);
+  --color-indigo:       oklch(0.50 0.17 272);
+  --color-indigo-dim:   oklch(0.44 0.16 272);
+  --color-indigo-muted: oklch(0.50 0.17 272 / 0.12);
+  --color-rose:         oklch(0.55 0.19 5);
+  --color-rose-dim:     oklch(0.49 0.18 5);
+  --color-rose-muted:   oklch(0.55 0.19 5 / 0.12);
   --color-jade:         oklch(0.55 0.14 155);
   --color-jade-dim:     oklch(0.49 0.13 155);
   --color-jade-muted:   oklch(0.55 0.14 155 / 0.12);

@@ -19,6 +19,9 @@ export interface Project {
   // Set when the human deletes the project. The entry and lemongrass's data for it stay until projectPurge removes
   // them, so adding the folder again before then restores it under the same id.
   deletedAt?: string
+  // The design-system hue the app assigned, kept so the project keeps its color. The renderer picks
+  // it, since the palette lives there; main only checks it is a plain hue name.
+  hue?: string
 }
 
 // Centralized under ~/.lemongrass/, not Electron's userData folder, so the CLI and UI share one registry.
@@ -116,6 +119,17 @@ export function registerProjectHandlers(getWindow: () => BrowserWindow | undefin
     projects.push(project)
     saveProjects(projects)
     return project
+  })
+
+  ipcMain.handle('projects:setHues', (_event, hues: Record<string, string>) => {
+    if (!hues || typeof hues !== 'object') return listedProjects()
+    const projects = loadProjects()
+    for (const project of projects) {
+      const hue = hues[project.id]
+      if (typeof hue === 'string' && /^[a-z]{1,16}$/.test(hue)) project.hue = hue
+    }
+    saveProjects(projects)
+    return projects.filter((p) => !p.deletedAt)
   })
 
   ipcMain.handle('projects:setTrust', async (_event, id: string, trusted: boolean) => {
