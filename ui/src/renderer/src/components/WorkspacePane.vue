@@ -470,14 +470,10 @@ onBeforeUnmount(() => {
           </span>
           <!-- Unsaved edits: a dot until hovered, and a second click to close without saving. -->
           <AppTabClose
-            v-if="tabKindOf(tab).label(tab, tabContext(tab)).dirty"
             :label="`Close ${tabKindOf(tab).label(tab, tabContext(tab)).text}`"
-            dirty
+            :dirty="tabKindOf(tab).label(tab, tabContext(tab)).dirty"
             @close="closeTab(project, leaf.id, tab.id)"
           />
-          <span v-else class="tab-close" @click.stop="closeTab(project, leaf.id, tab.id)"
-            >&times;</span
-          >
         </div>
       </div>
 
@@ -904,27 +900,6 @@ onBeforeUnmount(() => {
 
 .tab-parent {
   color: var(--color-fg-muted);
-}
-
-.tab-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  font-size: var(--text-lg);
-  line-height: 1;
-  color: var(--color-fg-muted);
-  border-radius: var(--radius-pill);
-  transition:
-    background var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
-}
-
-.tab-close:hover {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
 }
 
 .pane-body {

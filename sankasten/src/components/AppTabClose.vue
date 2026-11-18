@@ -34,7 +34,9 @@ const emit = defineEmits<{ close: [] }>()
     @confirm="emit('close')"
   >
     <span class="dot" aria-hidden="true" />
-    <span class="mark" aria-hidden="true">×</span>
+    <svg class="mark" viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M2 2L8 8M8 2L2 8" />
+    </svg>
   </AppConfirmButton>
   <button
     v-else
@@ -45,7 +47,9 @@ const emit = defineEmits<{ close: [] }>()
     :aria-label="label"
     @click.stop="emit('close')"
   >
-    <span class="mark" aria-hidden="true">×</span>
+    <svg class="mark" viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M2 2L8 8M8 2L2 8" />
+    </svg>
   </button>
 </template>
 
@@ -72,18 +76,36 @@ const emit = defineEmits<{ close: [] }>()
 .size-sm {
   width: 18px;
   height: 18px;
-  font-size: var(--text-md);
 }
 
 .size-md {
   width: 22px;
   height: 22px;
-  font-size: var(--text-lg);
+}
+
+/* A drawn cross, not a text glyph: a glyph is snapped to whole pixels by the font's metrics and
+   lands off-centre on a dense display, while a symmetric path in an even box centres exactly. */
+.mark {
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.size-sm .mark {
+  width: 8px;
+  height: 8px;
+}
+
+.size-md .mark {
+  width: 10px;
+  height: 10px;
 }
 
 .app-tab-close:hover {
-  background: var(--color-surface-2);
-  color: var(--color-fg-primary);
+  background: var(--color-error-muted);
+  color: var(--color-error);
 }
 
 .app-tab-close:focus-visible {
