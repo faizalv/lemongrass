@@ -231,7 +231,7 @@ func FormatPrefixNote() string {
 
 // The start-of-session reminder that procedures live in lgrass how, repeated after every compaction.
 func FormatHowReminder() string {
-	return Prefix + " reminder: for anything about tasks, handovers, laws, books or workgroups, check `lgrass how` first and follow what it prints."
+	return Prefix + " reminder: before your first reply to any prompt, run the `lgrass how work` action that fits it, and check `lgrass how` before anything with tasks, handovers, laws, books or workgroups."
 }
 
 // What the caller is in its group, with its assignment and required skills, so a resumed thinker gets its role back.
