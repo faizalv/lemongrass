@@ -10,6 +10,7 @@ import '@fontsource-variable/dm-sans/opsz-italic.css'
 import '@fontsource-variable/jetbrains-mono/wght.css'
 import '@fontsource-variable/jetbrains-mono/wght-italic.css'
 import './custom.css'
+import HomePage from './components/HomePage.vue'
 
 // Keeps Sankasten's data-theme in step with VitePress's toggle after load; the head script in config.ts covers
 // the first paint.
@@ -25,4 +26,10 @@ const Layout = defineComponent({
   }
 })
 
-export default { extends: DefaultTheme, Layout }
+export default {
+  extends: DefaultTheme,
+  Layout,
+  enhanceApp({ app }) {
+    app.component('HomePage', HomePage)
+  }
+}

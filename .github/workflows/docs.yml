@@ -7,10 +7,11 @@ name: Docs
 on:
   push:
     branches: [main]
-    # The site's theme imports Sankasten's tokens, so a token change restyles it.
+    # The site's theme imports Sankasten's tokens and the app's vendor marks, so a change to either changes the site.
     paths:
       - 'docs/**'
       - 'sankasten/src/styles/tokens.css'
+      - 'ui/src/renderer/src/vendorMarks.ts'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 

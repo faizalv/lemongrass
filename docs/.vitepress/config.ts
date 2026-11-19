@@ -18,7 +18,7 @@ const features = [
   { text: 'The guard', link: '/features/guard' },
   { text: 'Asking the human', link: '/features/ask' },
   { text: 'Notification center', link: '/features/notifications' },
-  { text: 'Project rules', link: '/features/project-rules' },
+  { text: 'Orientation', link: '/features/orientation' },
   { text: 'Claude accounts', link: '/features/accounts' },
   { text: 'Sharing with other agents', link: '/features/node' },
   { text: 'Terminals', link: '/features/terminals' }
@@ -26,7 +26,6 @@ const features = [
 
 const development = [
   { text: 'How it fits together', link: '/development/architecture' },
-  { text: 'Procedures', link: '/development/procedures' },
   { text: 'Build', link: '/development/build' },
   { text: 'Develop', link: '/development/develop' }
 ]
@@ -34,7 +33,7 @@ const development = [
 export default defineConfig({
   title: 'Lemongrass',
   description:
-    'Coding agents in real terminals, with credentials they never see, teammates they can message, and a guard that holds with permission prompts off.',
+    'The agent centered IDE for Claude Code, Codex and Antigravity. Agents that know your project, quality work out of the box, and full capability with a safety check on every step.',
   lang: 'en-US',
   cleanUrls: true,
   appearance: 'dark',
@@ -47,13 +46,13 @@ export default defineConfig({
     nav: [
       { text: 'Install', link: '/install' },
       { text: 'Features', link: '/features/connectors' },
-      { text: 'Status', link: '/status' },
+      { text: 'Roadmap', link: '/roadmap' },
       { text: 'Development', link: '/development/architecture' }
     ],
     sidebar: [
       { text: 'Get started', items: [{ text: 'Install and uninstall', link: '/install' }] },
       { text: 'Features', items: features },
-      { text: 'Status and limits', link: '/status' },
+      { text: 'Roadmap', link: '/roadmap' },
       { text: 'Development', items: development }
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/faizalv/lemongrass' }],

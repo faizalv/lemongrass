@@ -68,15 +68,6 @@
   background: var(--color-selection);
 }
 
-.home-shot {
-  display: block;
-  max-width: 100%;
-  margin: 0 auto;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-}
-
 /* JetBrains Mono's ligatures turn text such as -<version>- into arrows, which misquotes a command or a file name. */
 code,
 pre {
