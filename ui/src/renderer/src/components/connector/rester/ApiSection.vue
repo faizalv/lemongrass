@@ -2,9 +2,10 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
+import AuthSideHead from './AuthSideHead.vue'
 import { ref } from 'vue'
 import type { VaultResterAPI, VaultRester, VaultTokenPlacement } from '../../../../../preload/types'
-import { AppButton, AppDisclosure, AppIconButton, AppInput, AppSegmented } from '@sankasten'
+import { AppButton, AppIconButton, AppInput, AppSegmented, AppConfirmButton } from '@sankasten'
 import {
   defaultResterAPI,
   headerDrafts,
@@ -114,15 +115,21 @@ async function turnOff(): Promise<void> {
 
 <template>
   <div class="inline-section">
-    <div class="settings-toggle">
-      <AppDisclosure :open="open" label="API side" @update:open="toggle" />
-      <span class="status-capsule" :class="{ 'status-open': rester.API }">
-        {{ rester.API ? 'On' : 'Off' }}
-      </span>
-      <span v-if="rester.API && !open" class="settings-summary">
-        {{ rester.API.LoginEndpoint || 'Tokens only, no login endpoint' }}
-      </span>
-    </div>
+    <AuthSideHead
+      :open="open"
+      label="API"
+      purpose="Signs a user in for HTTP calls with a token."
+      :on="!!rester.API"
+      :summary="
+        rester.API ? rester.API.LoginEndpoint || 'Tokens only, no login endpoint' : undefined
+      "
+      @update:open="toggle"
+    >
+      Lets models call this system's HTTP API as a user. Set the login endpoint and where the token
+      comes back in the response, and how it is sent. Users who bring their own token, such as an
+      API key, need no login endpoint. Each environment needs a base URL. Used by API channels and
+      the Rester Client.
+    </AuthSideHead>
 
     <div v-if="open" class="settings-body">
       <p v-if="!rester.API" class="hint">Saving turns the API side on for this rester.</p>
@@ -209,9 +216,9 @@ async function turnOff(): Promise<void> {
 
       <div class="create-actions">
         <p v-if="error" class="error-text">{{ error }}</p>
-        <AppButton v-if="rester.API" variant="danger" :disabled="saving" @click="turnOff">
+        <AppConfirmButton v-if="rester.API" variant="danger" :disabled="saving" @confirm="turnOff">
           Turn off
-        </AppButton>
+        </AppConfirmButton>
         <AppButton @click="open = false">Cancel</AppButton>
         <AppButton variant="primary" :disabled="saving" @click="save">
           {{ saving ? 'Saving...' : 'Save' }}

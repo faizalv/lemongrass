@@ -4,7 +4,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
-import { AppButton, AppCheckbox, AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
+import {
+  AppButton,
+  AppCheckbox,
+  AppEmptyState,
+  AppInput,
+  AppSwitcher,
+  AppConfirmButton
+} from '@sankasten'
 import type { ConnectionTestNotice, ResolvedSSHHost } from '../../../../preload/types'
 import ConnectionNoticeBanner from './ConnectionNoticeBanner.vue'
 import {
@@ -588,14 +595,14 @@ watch(
           >
             {{ loadingConnectionName === name ? 'Loading...' : 'Edit' }}
           </AppButton>
-          <AppButton
+          <AppConfirmButton
             size="sm"
             variant="danger"
             :disabled="deletingConnectionName === name"
-            @click="deleteConnection(name)"
+            @confirm="deleteConnection(name)"
           >
             {{ deletingConnectionName === name ? 'Deleting...' : 'Delete' }}
-          </AppButton>
+          </AppConfirmButton>
         </div>
         <ConnectionNoticeBanner
           v-if="rowStatus[name] === 'ok' && rowNotice[name]"

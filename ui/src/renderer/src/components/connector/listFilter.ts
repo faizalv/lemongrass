@@ -22,3 +22,8 @@ export function resterDomains(
   )
   return envs.flatMap((e) => [e.BaseURL, e.Origin]).filter(Boolean)
 }
+
+// An address as a card previews it: the host and path without the scheme or a trailing slash.
+export function previewAddress(address: string): string {
+  return address.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/\/+$/, '')
+}

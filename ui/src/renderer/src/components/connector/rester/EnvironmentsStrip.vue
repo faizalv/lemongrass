@@ -4,7 +4,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { VaultEnvironment, VaultRester } from '../../../../../preload/types'
-import { AppButton } from '@sankasten'
+import { AppButton, AppConfirmButton } from '@sankasten'
+import { environmentHueStyle } from '../../../environmentHue'
 import EnvironmentModal from './EnvironmentModal.vue'
 import type { CommitRester } from './resterDraft'
 
@@ -98,8 +99,8 @@ async function remove(name: string): Promise<void> {
     </div>
 
     <div class="env-grid">
-      <div v-for="env in rester.Environments" :key="env.Name" class="env-card">
-        <span class="channel-db">{{ env.Name }}</span>
+      <div v-for="(env, index) in rester.Environments" :key="env.Name" class="env-card">
+        <span class="env-name" :style="environmentHueStyle(index)">{{ env.Name }}</span>
         <span class="env-line" :class="{ missing: !env.BaseURL }">
           API: {{ env.BaseURL || 'no base URL' }}
         </span>
@@ -114,15 +115,15 @@ async function remove(name: string): Promise<void> {
           <AppButton size="sm" @click="open({ kind: 'duplicate', source: env.Name })"
             >Duplicate</AppButton
           >
-          <AppButton
+          <AppConfirmButton
             size="sm"
             variant="danger"
             :disabled="rester.Environments.length < 2 || deleting === env.Name"
             :title="rester.Environments.length < 2 ? 'A rester keeps at least one environment' : ''"
-            @click="remove(env.Name)"
+            @confirm="remove(env.Name)"
           >
             {{ deleting === env.Name ? 'Deleting...' : 'Delete' }}
-          </AppButton>
+          </AppConfirmButton>
         </div>
       </div>
     </div>

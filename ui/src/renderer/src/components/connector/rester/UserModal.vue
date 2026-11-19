@@ -13,7 +13,8 @@ import {
   AppIconButton,
   AppInput,
   AppModal,
-  AppSegmented
+  AppSegmented,
+  AppConfirmButton
 } from '@sankasten'
 import FieldRows from './FieldRows.vue'
 import {
@@ -368,9 +369,9 @@ async function removeUser(): Promise<void> {
     </div>
 
     <template #footer>
-      <AppButton v-if="original" variant="danger" :disabled="saving" @click="removeUser">
+      <AppConfirmButton v-if="original" variant="danger" :disabled="saving" @confirm="removeUser">
         Remove user
-      </AppButton>
+      </AppConfirmButton>
       <span class="footer-fill"></span>
       <AppButton @click="emit('close')">Cancel</AppButton>
       <AppButton

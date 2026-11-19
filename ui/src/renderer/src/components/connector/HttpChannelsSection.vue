@@ -9,7 +9,7 @@ import type {
   VaultHTTPChannelWithShortId,
   VaultResterSummary
 } from '../../../../preload/types'
-import { AppButton, AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
+import { AppButton, AppEmptyState, AppInput, AppSwitcher, AppConfirmButton } from '@sankasten'
 import HttpChannelForm from './HttpChannelForm.vue'
 import ChannelTypeIcon from './ChannelTypeIcon.vue'
 import { matchesQuery, resterDomains } from './listFilter'
@@ -377,14 +377,14 @@ onUnmounted(() => {
             <AppButton size="sm" @click="openHTTPActivate(channel.ID)">
               {{ statusForHTTP(channel) === 'expired' ? 'Activate' : 'Rotate' }}
             </AppButton>
-            <AppButton
+            <AppConfirmButton
               size="sm"
               variant="danger"
               :disabled="revokingHTTPId === channel.ID"
-              @click="revokeHTTP(channel.ID)"
+              @confirm="revokeHTTP(channel.ID)"
             >
               {{ revokingHTTPId === channel.ID ? 'Removing...' : 'Remove' }}
-            </AppButton>
+            </AppConfirmButton>
           </div>
         </div>
 

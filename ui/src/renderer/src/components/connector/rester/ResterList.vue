@@ -5,8 +5,9 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { describeError, noteResterChange, vaultSession } from '../../../vaultSession'
 import type { VaultResterSummary } from '../../../../../preload/types'
-import { matchesQuery, resterDomains } from '../listFilter'
-import { AppButton, AppEmptyState, AppInput } from '@sankasten'
+import { environmentHueStyle } from '../../../environmentHue'
+import { matchesQuery, previewAddress, resterDomains } from '../listFilter'
+import { AppButton, AppChip, AppConfirmButton, AppEmptyState, AppInput } from '@sankasten'
 import ResterCreateForm from './ResterCreateForm.vue'
 import ResterDetail from './ResterDetail.vue'
 
@@ -52,6 +53,13 @@ async function refresh(): Promise<void> {
     loading.value = false
   }
   refreshSummaries()
+}
+
+// A card previews at most this many environments; the rest are counted, not listed.
+const PREVIEW_ENVIRONMENTS = 3
+
+function environmentsOf(name: string): { Name: string; BaseURL: string; Origin: string }[] {
+  return summaries.value[name]?.Environments ?? []
 }
 
 async function deleteRester(name: string): Promise<void> {
@@ -134,21 +142,59 @@ watch(
         <p v-if="summaryError" class="error-text">{{ summaryError }}</p>
         <AppEmptyState v-if="shownResters.length === 0" title="No rester matches." />
 
-        <div v-else class="channel-list">
-          <div v-for="name in shownResters" :key="name" class="channel-row">
-            <div class="channel-info">
-              <span class="channel-db">{{ name }}</span>
+        <div v-else class="rester-grid">
+          <div
+            v-for="name in shownResters"
+            :key="name"
+            class="rester-card"
+            @click="openName = name"
+          >
+            <div class="rester-card-head">
+              <span class="rester-card-name">{{ name }}</span>
+              <AppChip v-if="summaries[name]" tone="quiet">
+                {{ environmentsOf(name).length }}
+                {{ environmentsOf(name).length === 1 ? 'environment' : 'environments' }}
+              </AppChip>
             </div>
-            <div class="channel-actions">
-              <AppButton size="sm" @click="openName = name">Open</AppButton>
-              <AppButton
-                size="sm"
+
+            <div v-if="environmentsOf(name).length > 0" class="rester-card-envs">
+              <div
+                v-for="(env, index) in environmentsOf(name).slice(0, PREVIEW_ENVIRONMENTS)"
+                :key="env.Name"
+                class="rester-card-env"
+              >
+                <span class="env-name" :style="environmentHueStyle(index)">{{ env.Name }}</span>
+                <span class="rester-card-env-domains">
+                  <span v-if="env.BaseURL" :title="env.BaseURL">
+                    <span class="rester-card-env-kind">API</span>
+                    {{ previewAddress(env.BaseURL) }}
+                  </span>
+                  <span v-if="env.Origin" :title="env.Origin">
+                    <span class="rester-card-env-kind">Web</span>
+                    {{ previewAddress(env.Origin) }}
+                  </span>
+                  <span v-if="!env.BaseURL && !env.Origin" class="rester-card-env-kind">
+                    No domain
+                  </span>
+                </span>
+              </div>
+              <span v-if="environmentsOf(name).length > PREVIEW_ENVIRONMENTS" class="hint">
+                +{{ environmentsOf(name).length - PREVIEW_ENVIRONMENTS }} more
+              </span>
+            </div>
+            <p v-else-if="summaries[name]" class="hint">No environments yet.</p>
+
+            <div class="rester-card-actions">
+              <AppButton size="sm" @click.stop="openName = name">Open</AppButton>
+              <AppConfirmButton
                 variant="danger"
+                size="sm"
                 :disabled="deletingName === name"
-                @click="deleteRester(name)"
+                @click.stop
+                @confirm="deleteRester(name)"
               >
                 {{ deletingName === name ? 'Deleting...' : 'Delete' }}
-              </AppButton>
+              </AppConfirmButton>
             </div>
           </div>
         </div>

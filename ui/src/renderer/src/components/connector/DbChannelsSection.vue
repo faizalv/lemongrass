@@ -5,7 +5,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 import { vaultSession, describeError } from '../../vaultSession'
 import type { VaultChannel, VaultChannelWithShortId } from '../../../../preload/types'
-import { AppButton, AppEmptyState, AppInput, AppSwitcher } from '@sankasten'
+import { AppButton, AppEmptyState, AppInput, AppSwitcher, AppConfirmButton } from '@sankasten'
 import DbChannelForm, { type DbChannelSeed } from './DbChannelForm.vue'
 import { matchesQuery } from './listFilter'
 
@@ -324,14 +324,14 @@ onUnmounted(() => {
             <AppButton size="sm" @click="openActivate(channel.ID)">
               {{ statusFor(channel) === 'expired' ? 'Activate' : 'Rotate' }}
             </AppButton>
-            <AppButton
+            <AppConfirmButton
               size="sm"
               variant="danger"
               :disabled="revokingId === channel.ID"
-              @click="revoke(channel.ID)"
+              @confirm="revoke(channel.ID)"
             >
               {{ revokingId === channel.ID ? 'Removing...' : 'Remove' }}
-            </AppButton>
+            </AppConfirmButton>
           </div>
         </div>
 

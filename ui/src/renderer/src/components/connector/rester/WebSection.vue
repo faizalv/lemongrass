@@ -2,14 +2,15 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
+import AuthSideHead from './AuthSideHead.vue'
 import {
   AppButton,
-  AppDisclosure,
   AppIcon,
   AppIconButton,
   AppInput,
   AppSegmented,
-  AppSwitcher
+  AppSwitcher,
+  AppConfirmButton
 } from '@sankasten'
 import { computed, ref } from 'vue'
 import type { VaultRester } from '../../../../../preload/types'
@@ -121,15 +122,18 @@ async function turnOff(): Promise<void> {
 
 <template>
   <div class="inline-section">
-    <div class="settings-toggle">
-      <AppDisclosure :open="open" label="Web side" @update:open="toggle" />
-      <span class="status-capsule" :class="{ 'status-open': rester.Web }">
-        {{ rester.Web ? 'On' : 'Off' }}
-      </span>
-      <span v-if="rester.Web && !open" class="settings-summary">
-        {{ (rester.Web.Login ?? []).length }} login steps
-      </span>
-    </div>
+    <AuthSideHead
+      :open="open"
+      label="Web browser"
+      purpose="Signs a user in to the website in the app's browser."
+      :on="!!rester.Web"
+      :summary="rester.Web ? `${(rester.Web.Login ?? []).length} login steps` : undefined"
+      @update:open="toggle"
+    >
+      Lets models use this system's website in the app's browser as a user. Add the steps the
+      browser runs to log in: go to a page, fill a field from the user's login fields, click and
+      wait. Each environment needs a web origin. Used by web channels.
+    </AuthSideHead>
 
     <div v-if="open" class="settings-body">
       <p v-if="!rester.Web" class="hint">Saving turns the web side on for this rester.</p>
@@ -215,9 +219,9 @@ async function turnOff(): Promise<void> {
 
       <div class="create-actions">
         <p v-if="error" class="error-text">{{ error }}</p>
-        <AppButton v-if="rester.Web" variant="danger" :disabled="saving" @click="turnOff">
+        <AppConfirmButton v-if="rester.Web" variant="danger" :disabled="saving" @confirm="turnOff">
           Turn off
-        </AppButton>
+        </AppConfirmButton>
         <AppButton @click="open = false">Cancel</AppButton>
         <AppButton variant="primary" :disabled="saving" @click="save">
           {{ saving ? 'Saving...' : 'Save' }}

@@ -30,6 +30,7 @@ export const APP_ICONS = {
     shapes: [path('M2.5 4h9'), path('M5.5 4V2.5h3V4'), path('M3.5 4l.5 7.5h6L10.5 4')]
   },
   chevronRight: { box: 10, stroke: 1.2, shapes: [path('M3 2l3 3-3 3')] },
+  chevronLeft: { box: 10, stroke: 1.2, shapes: [path('M7 2L4 5l3 3')] },
   chevronDown: { box: 10, stroke: 1.4, shapes: [path('M2 3.5L5 6.5L8 3.5')] },
   close: { box: 14, stroke: 1.2, shapes: [path('M3.5 3.5l7 7M10.5 3.5l-7 7')] },
   plus: { box: 14, stroke: 1.2, shapes: [path('M7 2.5v9M2.5 7h9')] },
@@ -60,6 +61,22 @@ export const APP_ICONS = {
       path('M8 2.2L14.3 13.2H1.7Z'),
       path('M8 6.4V9.4'),
       { tag: 'circle', attrs: { cx: 8, cy: 11.4, r: 0.4, fill: 'currentColor' } }
+    ]
+  },
+  lock: {
+    box: 14,
+    stroke: 1.2,
+    shapes: [
+      { tag: 'rect', attrs: { x: 2.5, y: 6.5, width: 9, height: 6, rx: 1.2 } },
+      path('M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2')
+    ]
+  },
+  lockOpen: {
+    box: 14,
+    stroke: 1.2,
+    shapes: [
+      { tag: 'rect', attrs: { x: 2.5, y: 6.5, width: 9, height: 6, rx: 1.2 } },
+      path('M4.5 6.5V4.5a2.5 2.5 0 0 1 4.8-.9')
     ]
   },
   spinner: { box: 14, stroke: 1.6, shapes: [path('M7 2a5 5 0 1 1-5 5')] },

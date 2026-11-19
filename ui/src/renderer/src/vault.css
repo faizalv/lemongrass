@@ -131,35 +131,6 @@
   min-width: 0;
 }
 
-.vault-tab .tab-row {
-  display: flex;
-  gap: var(--space-1);
-  border-bottom: 1px solid var(--color-border-default);
-}
-
-.vault-tab .tab {
-  padding: var(--space-2) var(--space-3);
-  background: transparent;
-  border: none;
-  color: var(--color-fg-secondary);
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition:
-    color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out);
-}
-
-.vault-tab .tab:hover {
-  color: var(--color-fg-primary);
-}
-
-.vault-tab .tab.active {
-  color: var(--color-fg-accent);
-  border-bottom-color: var(--color-amber);
-}
-
 .vault-tab .channel-code {
   flex-shrink: 0;
   cursor: pointer;
@@ -542,11 +513,6 @@
   flex: 1;
 }
 
-.vault-tab .unlock-status {
-  color: var(--color-success);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-}
 
 .vault-tab .reset-link {
   align-self: flex-start;
@@ -734,4 +700,132 @@
   flex: 1;
   min-width: 0;
   margin: 0;
+}
+
+/* A rester as a card: the name, a preview of its environments and their addresses, then the
+   actions. The whole card opens the rester; the buttons stop the click. */
+.vault-tab .rester-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.vault-tab .rester-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--layer-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.vault-tab .rester-card:hover {
+  border-color: var(--color-border-strong);
+}
+
+.vault-tab .rester-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.vault-tab .rester-card-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-fg-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-tab .rester-card-envs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.vault-tab .rester-card-env {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--text-xs);
+}
+
+/* The hue is set per environment from its place in the rester (`environmentHue.ts`), cool ones only
+   so it never reads as the amber accent or a status. Sky is the fallback. */
+.vault-tab .env-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--env-hue, var(--color-sky));
+  font-weight: var(--weight-medium);
+}
+
+.vault-tab .env-name::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.vault-tab .rester-card-env-domains {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--color-fg-muted);
+}
+
+.vault-tab .rester-card-env-domains > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vault-tab .rester-card-env-kind {
+  color: var(--color-fg-muted);
+  font-weight: var(--weight-medium);
+}
+
+.vault-tab .rester-card-env-domains > span > .rester-card-env-kind {
+  display: inline-block;
+  min-width: 28px;
+}
+
+.vault-tab .rester-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Authentication is one card; its login setups are rows divided by a line, not cards in a card. */
+.vault-tab .auth-section-head {
+  margin-bottom: 0;
+}
+
+.vault-tab .auth-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.vault-tab .auth-rows > .inline-section {
+  padding: var(--space-3) 0;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-border-default);
+  border-radius: 0;
+}
+
+.vault-tab .auth-rows > .inline-section:last-child {
+  padding-bottom: 0;
 }

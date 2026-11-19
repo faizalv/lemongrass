@@ -5,11 +5,9 @@
 import { onMounted, ref, toRef } from 'vue'
 import { vaultSession, describeError, noteResterChange } from '../../../vaultSession'
 import type { VaultRester } from '../../../../../preload/types'
-import { AppButton, AppEmptyState } from '@sankasten'
+import { AppButton, AppChip, AppEmptyState, AppIcon } from '@sankasten'
 import EnvironmentsStrip from './EnvironmentsStrip.vue'
-import ApiSection from './ApiSection.vue'
-import WebSection from './WebSection.vue'
-import AppSection from './AppSection.vue'
+import AuthenticationSection from './AuthenticationSection.vue'
 import UserCenter from './UserCenter.vue'
 import { plainCopy } from './resterDraft'
 
@@ -64,27 +62,58 @@ onMounted(load)
 
 <template>
   <div class="section rester-detail">
-    <div class="section-toolbar">
-      <AppButton size="sm" @click="emit('close')">All resters</AppButton>
-      <h4 class="inline-section-title rester-title">{{ name }}</h4>
-    </div>
+    <header class="rester-header">
+      <AppButton variant="text" size="sm" class="rester-back" @click="emit('close')">
+        <AppIcon name="chevronLeft" :size="10" />
+        Resters
+      </AppButton>
+      <div class="rester-heading">
+        <h3 class="rester-title">{{ name }}</h3>
+        <AppChip v-if="rester" tone="quiet">
+          {{ rester.Environments.length }}
+          {{ rester.Environments.length === 1 ? 'environment' : 'environments' }}
+        </AppChip>
+      </div>
+    </header>
 
     <p v-if="loadError" class="error-text">{{ loadError }}</p>
     <AppEmptyState v-else-if="loading" layout="fill" loading title="Loading..." />
 
     <template v-else-if="rester">
       <EnvironmentsStrip :rester="rester" :commit="commit" />
-      <ApiSection :rester="rester" :commit="commit" />
-      <WebSection :rester="rester" :commit="commit" />
-      <AppSection :rester="rester" :commit="commit" />
+      <AuthenticationSection :rester="rester" :commit="commit" />
       <UserCenter :rester="rester" :commit="commit" />
     </template>
   </div>
 </template>
 
 <style scoped>
+.rester-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* The back link hangs left so its text lines up with the title below it. */
+.rester-back {
+  margin-left: calc(-1 * var(--space-3));
+}
+
+.rester-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .rester-title {
-  flex: 1;
-  font-size: var(--text-md);
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

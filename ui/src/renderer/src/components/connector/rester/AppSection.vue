@@ -2,14 +2,15 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
+import AuthSideHead from './AuthSideHead.vue'
 import {
   AppButton,
-  AppDisclosure,
   AppIcon,
   AppIconButton,
   AppInput,
   AppSegmented,
-  AppSwitcher
+  AppSwitcher,
+  AppConfirmButton
 } from '@sankasten'
 import { computed, ref } from 'vue'
 import type { VaultRester } from '../../../../../preload/types'
@@ -123,15 +124,18 @@ async function turnOff(): Promise<void> {
 
 <template>
   <div class="inline-section">
-    <div class="settings-toggle">
-      <AppDisclosure :open="open" label="App side" @update:open="toggle" />
-      <span class="status-capsule" :class="{ 'status-open': rester.App }">
-        {{ rester.App ? 'On' : 'Off' }}
-      </span>
-      <span v-if="rester.App && !open" class="settings-summary">
-        {{ (rester.App.Login ?? []).length }} login steps
-      </span>
-    </div>
+    <AuthSideHead
+      :open="open"
+      label="Android app"
+      purpose="Signs a user in to the app on a connected phone."
+      :on="!!rester.App"
+      :summary="rester.App ? `${(rester.App.Login ?? []).length} login steps` : undefined"
+      @update:open="toggle"
+    >
+      Lets models use this system's Android app on a connected phone as a user. Give the package
+      name and the steps the phone runs to log in: tap, fill a field from the user's login fields
+      and wait. Values are typed over adb, so they must be ASCII. Used by app channels.
+    </AuthSideHead>
 
     <div v-if="open" class="settings-body">
       <p v-if="!rester.App" class="hint">Saving turns the app side on for this rester.</p>
@@ -229,9 +233,9 @@ async function turnOff(): Promise<void> {
 
       <div class="create-actions">
         <p v-if="error" class="error-text">{{ error }}</p>
-        <AppButton v-if="rester.App" variant="danger" :disabled="saving" @click="turnOff">
+        <AppConfirmButton v-if="rester.App" variant="danger" :disabled="saving" @confirm="turnOff">
           Turn off
-        </AppButton>
+        </AppConfirmButton>
         <AppButton @click="open = false">Cancel</AppButton>
         <AppButton variant="primary" :disabled="saving" @click="save">
           {{ saving ? 'Saving...' : 'Save' }}

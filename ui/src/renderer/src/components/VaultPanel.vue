@@ -9,7 +9,7 @@ import ConnectionsSection from './connector/ConnectionsSection.vue'
 import DbChannelsSection from './connector/DbChannelsSection.vue'
 import ResterList from './connector/rester/ResterList.vue'
 import HttpChannelsSection from './connector/HttpChannelsSection.vue'
-import { AppButton, AppNavItem } from '@sankasten'
+import { AppButton, AppIcon, AppNavItem, AppSegmented } from '@sankasten'
 import VaultUnlockGate from './VaultUnlockGate.vue'
 import DecisionsSection from './decisions/DecisionsSection.vue'
 import { askState } from '../asks'
@@ -24,6 +24,16 @@ const activeDbTab = ref<'connections' | 'channels'>('connections')
 const activeHttpTab = ref<'resters' | 'httpChannels'>('resters')
 
 const vaultUnlocked = toRef(vaultSession, 'unlocked')
+
+const dbTabs = [
+  { value: 'connections', label: 'Connections' },
+  { value: 'channels', label: 'Channels' }
+] as const
+
+const httpTabs = [
+  { value: 'resters', label: 'Resters' },
+  { value: 'httpChannels', label: 'Channels' }
+] as const
 
 function shown(kind: 'database' | 'http', tab: string): boolean {
   if (!props.active || activeKind.value !== kind) return false
@@ -116,8 +126,10 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
             </template>
           </AppNavItem>
           <div class="nav-lock">
-            <span class="unlock-status">Vault unlocked</span>
-            <AppButton size="sm" @click="lockVaultSession">Lock</AppButton>
+            <AppButton size="sm" tone="accent" @click="lockVaultSession">
+              <AppIcon name="lock" :size="12" />
+              Lock
+            </AppButton>
           </div>
         </nav>
 
@@ -128,22 +140,12 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
             </div>
 
             <div v-show="activeKind === 'database'" class="kind-pane">
-              <div class="tab-row">
-                <button
-                  class="tab"
-                  :class="{ active: activeDbTab === 'connections' }"
-                  @click="activeDbTab = 'connections'"
-                >
-                  Connections
-                </button>
-                <button
-                  class="tab"
-                  :class="{ active: activeDbTab === 'channels' }"
-                  @click="activeDbTab = 'channels'"
-                >
-                  Channels
-                </button>
-              </div>
+              <AppSegmented
+                v-model="activeDbTab"
+                size="sm"
+                aria-label="Database"
+                :options="[...dbTabs]"
+              />
               <ConnectionsSection
                 v-show="activeDbTab === 'connections'"
                 :visible="shown('database', 'connections')"
@@ -155,22 +157,12 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
             </div>
 
             <div v-show="activeKind === 'http'" class="kind-pane">
-              <div class="tab-row">
-                <button
-                  class="tab"
-                  :class="{ active: activeHttpTab === 'resters' }"
-                  @click="activeHttpTab = 'resters'"
-                >
-                  Resters
-                </button>
-                <button
-                  class="tab"
-                  :class="{ active: activeHttpTab === 'httpChannels' }"
-                  @click="activeHttpTab = 'httpChannels'"
-                >
-                  Channels
-                </button>
-              </div>
+              <AppSegmented
+                v-model="activeHttpTab"
+                size="sm"
+                aria-label="Rester"
+                :options="[...httpTabs]"
+              />
               <ResterList
                 v-show="activeHttpTab === 'resters'"
                 :visible="shown('http', 'resters')"
