@@ -53,4 +53,4 @@ Run `lgrass workgroup thread` to see the thinkers and what is new, and note the 
 
 ### Finish
 
-When the work is done, close its task with `lgrass how task close <slug>`, or pause it with `lgrass how task handover <slug>` when work is left, then run `lgrass workgroup disband <id>`.
+When the work is done, close its task with `lgrass how task close <slug>`, after the user has accepted any result no one in the group could observe from a build, test or run, such as how a screen looks or behaves. When work is left, pause it with `lgrass how task handover <slug>` instead. Either way, then run `lgrass workgroup disband <id>`.

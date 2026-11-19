@@ -1,6 +1,6 @@
 Git is read-only while closing: `status`, `diff`, `log` and `show` only.
 
-Closing means every in-scope objective is finished with full confidence, and the close carries no hedges: no "not verified", "should work" or caveat section. What the Objective excludes or was decided to leave for later is not mentioned unless a step asks for it. A passing idea or a drift is ignored.
+Closing means every in-scope objective is finished with full confidence, a result you could not observe yourself, such as how a screen looks or behaves, has been accepted by the user, and the close carries no hedges: no "not verified", "should work" or caveat section. What the Objective excludes or was decided to leave for later is not mentioned unless a step asks for it. A passing idea or a drift is ignored.
 
 If the task is not closable, stop and say "I can't close this because <the objective and the concrete evidence>", and change nothing. Refusing beats closing with doubt.
 
