@@ -9,7 +9,7 @@ import HistoryPopover from './HistoryPopover.vue'
 import { wheelSideways } from './headScroll'
 import { statusClass } from '../../resterClientCall'
 import { pathId, runSearch } from '../../responseSearch'
-import { treeSearchKey, type TreeSearch } from './searchContext'
+import { treeRequestKey, treeSearchKey, type TreeSearch } from './searchContext'
 import type {
   ResterClientDownload,
   ResterClientResult,
@@ -27,6 +27,8 @@ const props = defineProps<{
   at: string | null
   runs: ResterClientRun[]
   runId: string | null
+  // The request this response belongs to, the key of its saved tree state.
+  requestId: string
 }>()
 
 const emit = defineEmits<{
@@ -96,6 +98,7 @@ const tree = reactive<TreeSearch>({
   version: 0
 })
 provide(treeSearchKey, tree)
+provide(treeRequestKey, () => props.requestId)
 
 const searchOutcome = computed(() =>
   parsed.value.ok ? runSearch(parsed.value.value, appliedQuery.value) : null
@@ -261,12 +264,12 @@ function formatSize(bytes: number): string {
           the whole body.
         </p>
         <p v-if="bodyCut" class="hint">This saved response was cut when it went into history.</p>
-        <template v-if="activeView === 'headers'">
+        <div v-if="activeView === 'headers'" class="sk-selectable">
           <div v-for="(row, i) in headerRows" :key="i" class="header-row">
             <span class="header-name">{{ row.name }}</span>
             <span class="header-value">{{ row.value }}</span>
           </div>
-        </template>
+        </div>
         <AppEmptyState
           v-else-if="result.binary"
           layout="fill"
@@ -274,7 +277,7 @@ function formatSize(bytes: number): string {
           detail="Use Send and download to save it."
         />
         <AppEmptyState v-else-if="!result.body" layout="fill" title="The response has no body." />
-        <div v-else-if="activeView === 'tree'" class="tree">
+        <div v-else-if="activeView === 'tree'" class="tree sk-selectable">
           <JsonNode :value="parsed.value" :depth="0" :last="true" :path="[]" />
         </div>
         <pre v-else class="raw">{{ rawText }}</pre>

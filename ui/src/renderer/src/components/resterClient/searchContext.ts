@@ -18,3 +18,7 @@ export interface TreeSearch {
 }
 
 export const treeSearchKey: InjectionKey<TreeSearch> = Symbol('treeSearch')
+
+// The request whose response a tree shows, so its nodes keep their opened and closed state
+// in resterTreeState across a project switch.
+export const treeRequestKey: InjectionKey<() => string> = Symbol('treeRequest')

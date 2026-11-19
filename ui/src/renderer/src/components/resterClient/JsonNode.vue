@@ -4,7 +4,8 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, ref, watch } from 'vue'
 import { pathId, type PathSegment } from '../../responseSearch'
-import { treeSearchKey } from './searchContext'
+import { setTreeToggle, treeToggleOf } from '../../resterTreeState'
+import { treeRequestKey, treeSearchKey } from './searchContext'
 
 defineOptions({ name: 'JsonNode' })
 
@@ -24,13 +25,15 @@ const PAGE = 200
 const isArray = computed(() => Array.isArray(props.value))
 const isBranch = computed(() => props.value !== null && typeof props.value === 'object')
 const search = inject(treeSearchKey, null)
+const requestId = inject(treeRequestKey, () => '')
 const id = computed(() => pathId(props.path))
 const match = computed(() => (search?.active ? search.byPath.get(id.value) : undefined))
 const current = computed(() => !!search?.active && search.currentId === id.value)
 const onMatchPath = computed(() => !!search?.active && search.ancestors.has(id.value))
 const record = computed(() => !!search?.active && search.records.has(id.value))
 
-const userOpen = ref(props.depth < 2)
+// The human's own choice outlives the tab, so a project switch does not collapse the tree.
+const userOpen = computed(() => treeToggleOf(requestId(), id.value) ?? props.depth < 2)
 // A click during a search wins over the search's own opening until the next search.
 const override = ref<boolean | null>(null)
 const open = computed(() => override.value ?? (onMatchPath.value || userOpen.value))
@@ -55,7 +58,19 @@ watch(
 
 function toggle(): void {
   if (search?.active) override.value = !open.value
-  else userOpen.value = !userOpen.value
+  else setTreeToggle(requestId(), id.value, !userOpen.value)
+}
+
+// Ending a drag-selection on a row also clicks it, which must not fold the row being copied.
+function onRowClick(): void {
+  if (window.getSelection()?.toString()) return
+  toggle()
+}
+
+function onRowKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  toggle()
 }
 
 interface Child {
@@ -121,7 +136,16 @@ const comma = computed(() => (props.last ? '' : ','))
 <template>
   <div class="json-node">
     <template v-if="isBranch">
-      <button ref="row" type="button" class="branch" :class="{ current, record }" @click="toggle">
+      <div
+        ref="row"
+        role="button"
+        tabindex="0"
+        class="branch"
+        :class="{ current, record }"
+        :aria-expanded="open"
+        @click="onRowClick"
+        @keydown="onRowKeydown"
+      >
         <svg
           class="caret"
           :class="{ open }"
@@ -156,7 +180,7 @@ const comma = computed(() => (props.last ? '' : ','))
           </span>
           <span class="punct">{{ closer }}{{ comma }}</span>
         </template>
-      </button>
+      </div>
       <template v-if="open">
         <div class="children">
           <JsonNode
@@ -194,22 +218,19 @@ const comma = computed(() => (props.last ? '' : ','))
   line-height: 1.6;
 }
 
+/* A block with an inline caret, not a flex row: copying a flex row puts each item on its own line. */
 .branch {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: inherit;
-  font: inherit;
+  display: block;
+  width: fit-content;
   cursor: pointer;
-  text-align: left;
 }
 
 .caret {
-  flex-shrink: 0;
+  display: inline-block;
   margin-left: -12px;
+  margin-right: 4px;
+  vertical-align: middle;
+  user-select: none;
   color: var(--color-fg-muted);
   transition: transform var(--duration-fast) var(--ease-out);
 }
@@ -237,6 +258,7 @@ const comma = computed(() => (props.last ? '' : ','))
 }
 
 .summary {
+  user-select: none;
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
   background: var(--color-surface-3);

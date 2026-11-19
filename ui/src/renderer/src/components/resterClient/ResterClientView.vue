@@ -11,6 +11,7 @@ import RequestEditor from './RequestEditor.vue'
 import ResponsePanel from './ResponsePanel.vue'
 import { describeError, noteVaultActivity, vaultSession } from '../../vaultSession'
 import { plainCopy } from '../connector/rester/resterDraft'
+import { dropTreeToggles } from '../../resterTreeState'
 import { looksLikeCurl, matchBaseURL, parseCurl, type BaseURLTarget } from '../../curlRequest'
 import { apiUsers, buildCall } from '../../resterClientCall'
 import {
@@ -458,6 +459,7 @@ function removeRequest(id: string): void {
   if (index < 0) return
   removeStoredRequest(id)
   delete outcomes[id]
+  dropTreeToggles(id)
   if (selectedId.value === id) {
     const group = groupRequests.value
     selectedId.value = group[Math.min(index, group.length - 1)]?.id ?? null
@@ -788,6 +790,7 @@ function onUrlKeydown(event: KeyboardEvent): void {
             :at="outcome.at"
             :runs="runs"
             :run-id="outcome.runId"
+            :request-id="selected?.id ?? ''"
             @pick-run="pickRun"
             @remove-run="removeRun"
             @clear-history="clearRuns"
