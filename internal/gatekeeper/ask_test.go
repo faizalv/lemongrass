@@ -259,8 +259,10 @@ func TestIPCAskDBChannelGrant(t *testing.T) {
 	}
 
 	scope := vault.Scope{Tables: []string{"orders", "customers"}, Operations: []string{"select"}}
-	if _, err := client.CreateChannelForAsk(testRootSecret, a.ID, "c", "shop", scope, time.Hour); err != nil {
+	if c, err := client.CreateChannelForAsk(testRootSecret, a.ID, "c", "shop", scope, time.Hour); err != nil {
 		t.Fatalf("CreateChannelForAsk: %v", err)
+	} else if stored, err := client.ChannelScope(c.ID); err != nil || !stored.FromAsk {
+		t.Fatalf("stored ask channel = %+v, %v, want FromAsk", stored, err)
 	}
 	if err := client.AnswerAsk(testRootSecret, a.ID, "abc123"); err != nil {
 		t.Fatal(err)
@@ -319,8 +321,10 @@ func TestIPCAskResterChannelGrant(t *testing.T) {
 	if _, err := client.CreateHTTPChannelForAsk(testRootSecret, rester.ID, "c", "api", vault.DefaultEnvironment, vault.TypeAPI, vault.HTTPScope{Methods: []string{"GET", "DELETE"}}, nil, time.Hour); err == nil || !strings.Contains(err.Error(), "did not declare method DELETE") {
 		t.Fatalf("added method = %v", err)
 	}
-	if _, err := client.CreateHTTPChannelForAsk(testRootSecret, rester.ID, "c", "api", vault.DefaultEnvironment, vault.TypeAPI, vault.HTTPScope{Methods: []string{"get"}}, nil, time.Hour); err != nil {
+	if c, err := client.CreateHTTPChannelForAsk(testRootSecret, rester.ID, "c", "api", vault.DefaultEnvironment, vault.TypeAPI, vault.HTTPScope{Methods: []string{"get"}}, nil, time.Hour); err != nil {
 		t.Fatalf("CreateHTTPChannelForAsk: %v", err)
+	} else if stored, err := client.HTTPChannelScope(c.ID); err != nil || !stored.FromAsk {
+		t.Fatalf("stored ask HTTP channel = %+v, %v, want FromAsk", stored, err)
 	}
 	if err := client.AnswerAsk(testRootSecret, rester.ID, "abc123"); err != nil {
 		t.Fatalf("AnswerAsk: %v", err)

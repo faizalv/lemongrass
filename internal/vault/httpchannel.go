@@ -85,6 +85,8 @@ type HTTPChannel struct {
 	Salt        []byte
 	CreatedAt   time.Time
 	ExpiresAt   time.Time
+	// FromAsk marks a channel created to answer a model's ask. It is deleted when it expires, where a channel the human made stays expired and can be activated again. Channels stored before the field existed read as human-made.
+	FromAsk bool
 }
 
 // UnmarshalJSON reads a channel stored before resters existed: its rester sat under the key

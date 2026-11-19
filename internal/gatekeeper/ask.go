@@ -184,6 +184,10 @@ func (b *Backend) CreateChannelForAsk(askID, rootSecret, name, dbName string, sc
 	if err != nil {
 		return vault.Channel{}, err
 	}
+	if err := b.Service.MarkFromAsk(c.ID); err != nil {
+		return c, err
+	}
+	c.FromAsk = true
 	grant := vault.AskGrant{Tables: append([]string(nil), scope.Tables...), Operations: append([]string(nil), scope.Operations...)}
 	if err := b.Asks.LinkChannel(askID, vault.AskDB, c.ID, grant, removed); err != nil {
 		return c, err
@@ -208,6 +212,10 @@ func (b *Backend) CreateHTTPChannelForAsk(askID, rootSecret, name, rester, envir
 	if err != nil {
 		return vault.HTTPChannel{}, err
 	}
+	if err := b.Service.MarkHTTPFromAsk(c.ID); err != nil {
+		return c, err
+	}
+	c.FromAsk = true
 	if err := b.Asks.LinkChannel(askID, vault.AskRester, c.ID, vault.AskGrant{Methods: methods}, nil); err != nil {
 		return c, err
 	}

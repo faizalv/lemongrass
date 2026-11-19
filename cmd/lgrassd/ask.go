@@ -99,8 +99,8 @@ func deliverAskAnswer(a vault.Ask) {
 	threadsvc.NewDeliverer(store).DeliverPending()
 }
 
-// wireAsks connects the ask store to the app and the ledger and starts the expiry sweep.
-func wireAsks(asks *vault.AskStore) {
+// wireAsks connects the ask store to the app and the ledger and starts the expiry sweep, which also deletes expired channels that came from an ask.
+func wireAsks(asks *vault.AskStore, svc *vault.Service) {
 	hinter := newAskHinter()
 	asks.OnChange = hinter.Notify
 	asks.OnUndelivered = func(a vault.Ask) { go deliverAskAnswer(a) }
@@ -109,6 +109,8 @@ func wireAsks(asks *vault.AskStore) {
 		defer ticker.Stop()
 		for range ticker.C {
 			asks.Sweep()
+			// A failed sweep is retried on the next tick, and open already refuses an expired channel.
+			_ = svc.SweepAskChannels(time.Now())
 		}
 	}()
 }

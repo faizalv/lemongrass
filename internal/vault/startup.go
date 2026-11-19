@@ -8,12 +8,19 @@ import "time"
 // ExpireKeylessChannels sets ExpiresAt to now on every unexpired db and HTTP channel that has no
 // cached key. A freshly started vault holds no key, so its channels are already unusable, and
 // storing them as expired keeps the UI and every error from reporting a channel as open.
+// A channel that came from an ask is deleted instead, since nobody activates it again.
 func (s *Service) ExpireKeylessChannels(now time.Time) error {
 	channels, err := s.ListChannels()
 	if err != nil {
 		return err
 	}
 	for _, c := range channels {
+		if c.FromAsk && !s.hasKey(c.ID) {
+			if err := s.Revoke(c.ID); err != nil {
+				return err
+			}
+			continue
+		}
 		if c.Expired(now) || s.hasKey(c.ID) {
 			continue
 		}
@@ -28,6 +35,12 @@ func (s *Service) ExpireKeylessChannels(now time.Time) error {
 		return err
 	}
 	for _, c := range httpChannels {
+		if c.FromAsk && !s.hasKey(c.ID) {
+			if err := s.RevokeHTTP(c.ID); err != nil {
+				return err
+			}
+			continue
+		}
 		if c.Expired(now) || s.hasKey(c.ID) {
 			continue
 		}

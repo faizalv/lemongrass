@@ -22,6 +22,9 @@ func (s *Service) OpenChannel(id ChannelID) (Channel, []byte, error) {
 	}
 	if c.Expired(time.Now()) {
 		s.forgetKey(id)
+		if c.FromAsk {
+			_ = s.Revoke(id)
+		}
 		return Channel{}, nil, ErrChannelExpired
 	}
 	secret, err := s.channelSecret(id)
@@ -39,6 +42,9 @@ func (s *Service) OpenHTTPChannel(id ChannelID) (HTTPChannel, ResolvedRester, er
 	}
 	if c.Expired(time.Now()) {
 		s.forgetKey(id)
+		if c.FromAsk {
+			_ = s.RevokeHTTP(id)
+		}
 		return HTTPChannel{}, ResolvedRester{}, ErrChannelExpired
 	}
 	resolved, err := s.ChannelResolved(id)

@@ -38,6 +38,8 @@ type Channel struct {
 	Port      int
 	CreatedAt time.Time
 	ExpiresAt time.Time
+	// FromAsk marks a channel created to answer a model's ask. It is deleted when it expires, where a channel the human made stays expired and can be activated again. Channels stored before the field existed read as human-made.
+	FromAsk bool
 }
 
 func (c Channel) Expired(now time.Time) bool {
