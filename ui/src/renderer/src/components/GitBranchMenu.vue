@@ -442,6 +442,7 @@ onBeforeUnmount(removeListeners)
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 /* GitCounts sits after the hint, so the label alone pushes the rest to the right. */

@@ -28,6 +28,7 @@
   align-items: flex-start;
   padding: var(--space-8) var(--space-6);
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 .vault-gate .unlock-panel {
@@ -73,6 +74,7 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-6);
 }
 
@@ -359,6 +361,7 @@
   gap: var(--space-3);
   max-height: 160px;
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 .vault-tab .checkbox-option {
@@ -512,7 +515,6 @@
 .vault-tab .unlock-row .app-input {
   flex: 1;
 }
-
 
 .vault-tab .reset-link {
   align-self: flex-start;

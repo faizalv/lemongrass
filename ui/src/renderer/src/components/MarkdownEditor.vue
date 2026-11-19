@@ -590,6 +590,7 @@ watch(
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-4);
   color: var(--color-fg-primary);
   font-family: var(--font-body);

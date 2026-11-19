@@ -539,6 +539,7 @@ const sendTitle = computed(() =>
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-2);
   outline: none;
 }

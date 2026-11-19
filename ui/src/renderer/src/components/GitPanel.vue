@@ -359,6 +359,7 @@ const pushTitle = computed(() => {
   flex-direction: column;
   gap: var(--space-2);
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-2) var(--space-3);
 }
 
@@ -428,6 +429,7 @@ const pushTitle = computed(() => {
   flex-shrink: 0;
   max-height: 180px;
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 .group-files {

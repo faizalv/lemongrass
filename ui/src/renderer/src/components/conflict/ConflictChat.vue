@@ -371,6 +371,7 @@ function lines(message: WorkgroupThreadMessage): string | null {
   flex: 1;
   min-height: 160px;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-3);
 }
 

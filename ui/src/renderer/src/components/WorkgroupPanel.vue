@@ -91,6 +91,7 @@ function groupActivity(
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-2) var(--space-3);
 }
 

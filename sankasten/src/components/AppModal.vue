@@ -170,6 +170,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   margin: calc(var(--space-1) * -1);
   padding: var(--space-1);
   overflow-y: auto;
+  will-change: scroll-position;
   color: var(--color-fg-secondary);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);

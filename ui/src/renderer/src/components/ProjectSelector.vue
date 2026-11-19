@@ -77,6 +77,7 @@ async function remove(id: string): Promise<void> {
   justify-content: center;
   padding: var(--space-6);
   overflow: auto;
+  will-change: scroll-position;
 }
 
 .selector-card {
@@ -104,6 +105,7 @@ async function remove(id: string): Promise<void> {
   padding: 0;
   list-style: none;
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 .selector-row {

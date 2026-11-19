@@ -234,6 +234,7 @@ function openChapter(path: string): void {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-6);
   display: flex;
   flex-direction: column;

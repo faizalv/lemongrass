@@ -362,6 +362,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
 .conflict-files {
   max-height: 240px;
   overflow-y: auto;
+  will-change: scroll-position;
   list-style: none;
   margin: 0;
   padding: 0;

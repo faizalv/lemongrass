@@ -248,6 +248,7 @@ watch(
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   list-style: none;
   margin: 0;
   padding: 0 var(--space-2) var(--space-3);
@@ -371,6 +372,7 @@ watch(
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

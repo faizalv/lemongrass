@@ -301,6 +301,7 @@ async function submitCreate(): Promise<void> {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-3) var(--space-2) var(--space-4);
 }
 

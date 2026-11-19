@@ -310,6 +310,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   max-height: 360px;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-2);
   display: flex;
   flex-direction: column;

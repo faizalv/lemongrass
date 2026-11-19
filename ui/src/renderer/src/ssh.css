@@ -19,6 +19,7 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  will-change: scroll-position;
   /* The same inset as the Biblio | Files switch, so the two views' switches line up. */
   padding: var(--space-3) var(--space-2);
 }

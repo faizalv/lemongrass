@@ -185,6 +185,7 @@ async function save(): Promise<void> {
 .stash-list {
   max-height: 160px;
   overflow-y: auto;
+  will-change: scroll-position;
   list-style: none;
 }
 

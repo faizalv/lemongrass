@@ -35,6 +35,7 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -173,6 +174,7 @@
   flex-direction: column;
   max-height: 240px;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: 0 var(--space-3) var(--space-2);
 }
 
@@ -181,6 +183,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

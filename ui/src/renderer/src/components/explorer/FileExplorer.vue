@@ -811,6 +811,7 @@ function rowKey(row: Row): string {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   display: flex;
   flex-direction: column;
   gap: 1px;

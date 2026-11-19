@@ -343,6 +343,7 @@ const folderName = computed(() => {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 .empty {

@@ -51,6 +51,7 @@ function cellClass(line: GitDiffLine | null): string {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.5;

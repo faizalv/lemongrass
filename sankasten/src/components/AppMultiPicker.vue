@@ -155,6 +155,7 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick, true))
   flex-direction: column;
   max-height: 220px;
   overflow-y: auto;
+  will-change: scroll-position;
 }
 
 .picker-list .sk-menu-heading {

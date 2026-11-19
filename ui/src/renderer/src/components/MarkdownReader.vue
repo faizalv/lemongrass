@@ -52,6 +52,7 @@ function onClick(event: MouseEvent): void {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-4) var(--space-6);
 }
 

@@ -130,6 +130,7 @@ watch(selected, loadDiff)
   flex-shrink: 0;
   width: 240px;
   overflow-y: auto;
+  will-change: scroll-position;
   list-style: none;
   padding: var(--space-2);
   border-right: 1px solid var(--color-border-subtle);

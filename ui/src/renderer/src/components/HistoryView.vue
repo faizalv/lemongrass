@@ -443,6 +443,7 @@ function laneX(lane: number): number {
   flex: 0 0 55%;
   min-width: 0;
   overflow-y: auto;
+  will-change: scroll-position;
   border-right: 1px solid var(--color-border-subtle);
   container-type: inline-size;
 }

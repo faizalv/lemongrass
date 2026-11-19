@@ -141,6 +141,7 @@ watch(
 
 .center-body {
   overflow-y: auto;
+  will-change: scroll-position;
   padding: var(--space-2);
 }
 
