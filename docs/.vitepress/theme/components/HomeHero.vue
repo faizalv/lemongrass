@@ -4,7 +4,7 @@
 <script setup lang="ts">
 import { VPButton } from 'vitepress/theme'
 import MarkIcon from './MarkIcon.vue'
-import { VENDOR_MARKS } from '../../../../ui/src/renderer/src/vendorMarks'
+import { VENDOR_MARKS } from './vendorMarks'
 
 const vendors = [
   { id: 'claude', label: 'Claude Code' },
