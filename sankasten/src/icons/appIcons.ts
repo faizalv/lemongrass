@@ -63,6 +63,11 @@ export const APP_ICONS = {
       { tag: 'circle', attrs: { cx: 8, cy: 11.4, r: 0.4, fill: 'currentColor' } }
     ]
   },
+  edit: {
+    box: 14,
+    stroke: 1.2,
+    shapes: [path('M2.5 11.5l.6-2.7 6.4-6.4 2.1 2.1-6.4 6.4z'), path('M8.2 3.7l2.1 2.1')]
+  },
   lock: {
     box: 14,
     stroke: 1.2,

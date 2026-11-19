@@ -2,7 +2,10 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AuthSideHead from './AuthSideHead.vue'
+import AuthCard from './AuthCard.vue'
+import { appFacts, appSteps } from '../../../authFacts'
+import AuthFacts from './AuthFacts.vue'
+import AuthSteps from './AuthSteps.vue'
 import {
   AppButton,
   AppIcon,
@@ -12,7 +15,7 @@ import {
   AppSwitcher,
   AppConfirmButton
 } from '@sankasten'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { VaultRester } from '../../../../../preload/types'
 import { fieldKeys, type CommitRester } from './resterDraft'
 import { moveStep, removeStep } from './loginSteps'
@@ -27,7 +30,10 @@ import {
 const props = defineProps<{
   rester: VaultRester
   commit: CommitRester
+  editing: boolean
 }>()
+
+const emit = defineEmits<{ toggle: []; close: [] }>()
 
 const actionOptions: { value: AppStepAction; label: string }[] = [
   { value: 'launch', label: 'Launch' },
@@ -37,7 +43,6 @@ const actionOptions: { value: AppStepAction; label: string }[] = [
   { value: 'wait', label: 'Wait' }
 ]
 
-const open = ref(false)
 const saving = ref(false)
 const error = ref('')
 const packageName = ref('')
@@ -45,17 +50,17 @@ const steps = ref<AppStepDraft[]>([])
 
 const fieldItems = computed(() => fieldKeys(props.rester).map((k) => ({ id: k, label: k })))
 
-function toggle(): void {
-  if (open.value) {
-    open.value = false
-    return
+// Opening the editor fills its draft from what is stored, or from defaults while the setup is off.
+watch(
+  () => props.editing,
+  (editing) => {
+    if (!editing) return
+    packageName.value = props.rester.App?.Package ?? ''
+    steps.value = appStepDrafts(props.rester.App?.Login ?? null)
+    if (steps.value.length === 0) steps.value = [newAppStep('launch')]
+    error.value = ''
   }
-  packageName.value = props.rester.App?.Package ?? ''
-  steps.value = appStepDrafts(props.rester.App?.Login ?? null)
-  if (steps.value.length === 0) steps.value = [newAppStep('launch')]
-  error.value = ''
-  open.value = true
-}
+)
 
 // Only the handle starts a drag, so text in a row's inputs can still be selected with the mouse.
 const STEP_MIME = 'application/x-lemongrass-login-step'
@@ -109,7 +114,7 @@ async function save(): Promise<void> {
     r.App = { Package: packageName.value.trim(), Login: login.length > 0 ? login : null }
   })
   saving.value = false
-  if (error.value === '') open.value = false
+  if (error.value === '') emit('close')
 }
 
 async function turnOff(): Promise<void> {
@@ -118,131 +123,140 @@ async function turnOff(): Promise<void> {
     r.App = null
   })
   saving.value = false
-  if (error.value === '') open.value = false
+  if (error.value === '') emit('close')
 }
 </script>
 
 <template>
-  <div class="inline-section">
-    <AuthSideHead
-      :open="open"
-      label="Android app"
-      purpose="Signs a user in to the app on a connected phone."
-      :on="!!rester.App"
-      :summary="rester.App ? `${(rester.App.Login ?? []).length} login steps` : undefined"
-      @update:open="toggle"
-    >
-      Lets models use this system's Android app on a connected phone as a user. Give the package
+  <AuthCard
+    kind="app"
+    label="Android app"
+    purpose="Signs a user in to the app on a connected phone."
+    :on="!!rester.App"
+    :editing="editing"
+    off-hint="Turn on to let models use this system's Android app on a connected phone."
+    @edit="emit('toggle')"
+  >
+    <template #info
+      >Lets models use this system's Android app on a connected phone as a user. Give the package
       name and the steps the phone runs to log in: tap, fill a field from the user's login fields
-      and wait. Values are typed over adb, so they must be ASCII. Used by app channels.
-    </AuthSideHead>
+      and wait. Values are typed over adb, so they must be ASCII. Used by app channels.</template
+    >
+    <AuthFacts :facts="appFacts(rester.App!)" />
+    <AuthSteps :steps="appSteps(rester.App!.Login)" />
+    <template #editor>
+      <div class="settings-body">
+        <p v-if="!rester.App" class="hint">Saving turns the app side on for this rester.</p>
+        <div class="field-block">
+          <label class="field-label" for="app-package">Package name</label>
+          <AppInput
+            id="app-package"
+            v-model="packageName"
+            type="text"
+            placeholder="com.example.app"
+          />
+        </div>
+        <p class="hint">
+          The phone runs these steps in order to log a user in. Fill takes a value from the user's
+          login fields, so the same steps work for every user and every environment. Values are
+          typed over adb, so they must be ASCII.
+        </p>
 
-    <div v-if="open" class="settings-body">
-      <p v-if="!rester.App" class="hint">Saving turns the app side on for this rester.</p>
-      <div class="field-block">
-        <label class="field-label" for="app-package">Package name</label>
-        <AppInput
-          id="app-package"
-          v-model="packageName"
-          type="text"
-          placeholder="com.example.app"
-        />
-      </div>
-      <p class="hint">
-        The phone runs these steps in order to log a user in. Fill takes a value from the user's
-        login fields, so the same steps work for every user and every environment. Values are typed
-        over adb, so they must be ASCII.
-      </p>
+        <div
+          v-for="(step, index) in steps"
+          :key="step.id"
+          class="user-draft step-row"
+          :class="{
+            dragging: dragFrom === index,
+            'drop-before': showsDropLine(index),
+            'drop-after': index === steps.length - 1 && showsDropLine(steps.length)
+          }"
+          @dragover="onRowDragOver($event, index)"
+          @drop="onRowDrop"
+        >
+          <div class="step-head">
+            <span
+              class="drag-handle"
+              draggable="true"
+              title="Drag to reorder"
+              aria-label="Drag to reorder"
+              @dragstart="onHandleDragStart($event, index)"
+              @dragend="endDrag"
+            >
+              <AppIcon name="dragHandle" :size="14" />
+            </span>
+            <span class="step-number">{{ index + 1 }}</span>
+            <AppSegmented
+              v-model="step.Action"
+              :options="actionOptions"
+              :aria-label="`Action of step ${index + 1}`"
+            />
+            <span class="toolbar-fill"></span>
+            <AppIconButton icon="close" label="Remove step" @click="removeStep(steps, index)" />
+          </div>
 
-      <div
-        v-for="(step, index) in steps"
-        :key="step.id"
-        class="user-draft step-row"
-        :class="{
-          dragging: dragFrom === index,
-          'drop-before': showsDropLine(index),
-          'drop-after': index === steps.length - 1 && showsDropLine(steps.length)
-        }"
-        @dragover="onRowDragOver($event, index)"
-        @drop="onRowDrop"
-      >
-        <div class="step-head">
-          <span
-            class="drag-handle"
-            draggable="true"
-            title="Drag to reorder"
-            aria-label="Drag to reorder"
-            @dragstart="onHandleDragStart($event, index)"
-            @dragend="endDrag"
+          <div class="field-grid">
+            <AppInput
+              v-if="step.Action !== 'launch' && step.Action !== 'key'"
+              v-model="step.Text"
+              type="text"
+              placeholder="Text on screen"
+            />
+            <AppInput
+              v-if="step.Action !== 'launch' && step.Action !== 'key'"
+              v-model="step.ID"
+              type="text"
+              placeholder="Resource id, wins over text"
+            />
+          </div>
+          <AppInput
+            v-if="step.Action === 'key'"
+            v-model="step.Key"
+            type="text"
+            placeholder="back, home, enter, tab, del, or a key code"
+          />
+          <AppSwitcher
+            v-if="step.Action === 'fill'"
+            :items="fieldItems"
+            :active-id="step.Field || null"
+            :label="step.Field || undefined"
+            placeholder="Pick the user field to type"
+            empty-text="No user has login fields yet."
+            framed
+            @select="(id) => (step.Field = id)"
+          />
+          <AppInput
+            v-if="step.Action !== 'launch' && step.Action !== 'key'"
+            v-model.number="step.TimeoutSeconds"
+            type="number"
+            min="0"
+            title="Timeout in seconds, 0 for the default of 10"
+            placeholder="Timeout seconds, 10 by default"
+          />
+        </div>
+
+        <AppButton class="new-channel-button" @click="steps.push(newAppStep('tap'))"
+          >+ Step</AppButton
+        >
+
+        <div class="create-actions">
+          <p v-if="error" class="error-text">{{ error }}</p>
+          <AppConfirmButton
+            v-if="rester.App"
+            variant="danger"
+            :disabled="saving"
+            @confirm="turnOff"
           >
-            <AppIcon name="dragHandle" :size="14" />
-          </span>
-          <span class="step-number">{{ index + 1 }}</span>
-          <AppSegmented
-            v-model="step.Action"
-            :options="actionOptions"
-            :aria-label="`Action of step ${index + 1}`"
-          />
-          <span class="toolbar-fill"></span>
-          <AppIconButton icon="close" label="Remove step" @click="removeStep(steps, index)" />
+            Turn off
+          </AppConfirmButton>
+          <AppButton @click="emit('close')">Cancel</AppButton>
+          <AppButton variant="primary" :disabled="saving" @click="save">
+            {{ saving ? 'Saving...' : 'Save' }}
+          </AppButton>
         </div>
-
-        <div class="field-grid">
-          <AppInput
-            v-if="step.Action !== 'launch' && step.Action !== 'key'"
-            v-model="step.Text"
-            type="text"
-            placeholder="Text on screen"
-          />
-          <AppInput
-            v-if="step.Action !== 'launch' && step.Action !== 'key'"
-            v-model="step.ID"
-            type="text"
-            placeholder="Resource id, wins over text"
-          />
-        </div>
-        <AppInput
-          v-if="step.Action === 'key'"
-          v-model="step.Key"
-          type="text"
-          placeholder="back, home, enter, tab, del, or a key code"
-        />
-        <AppSwitcher
-          v-if="step.Action === 'fill'"
-          :items="fieldItems"
-          :active-id="step.Field || null"
-          :label="step.Field || undefined"
-          placeholder="Pick the user field to type"
-          empty-text="No user has login fields yet."
-          framed
-          @select="(id) => (step.Field = id)"
-        />
-        <AppInput
-          v-if="step.Action !== 'launch' && step.Action !== 'key'"
-          v-model.number="step.TimeoutSeconds"
-          type="number"
-          min="0"
-          title="Timeout in seconds, 0 for the default of 10"
-          placeholder="Timeout seconds, 10 by default"
-        />
       </div>
-
-      <AppButton class="new-channel-button" @click="steps.push(newAppStep('tap'))"
-        >+ Step</AppButton
-      >
-
-      <div class="create-actions">
-        <p v-if="error" class="error-text">{{ error }}</p>
-        <AppConfirmButton v-if="rester.App" variant="danger" :disabled="saving" @confirm="turnOff">
-          Turn off
-        </AppConfirmButton>
-        <AppButton @click="open = false">Cancel</AppButton>
-        <AppButton variant="primary" :disabled="saving" @click="save">
-          {{ saving ? 'Saving...' : 'Save' }}
-        </AppButton>
-      </div>
-    </div>
-  </div>
+    </template>
+  </AuthCard>
 </template>
 
 <style scoped>

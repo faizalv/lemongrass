@@ -80,28 +80,30 @@ async function toggleAssignment(user: VaultResterUser, env: string): Promise<voi
     <AppEmptyState v-if="rester.Users.length === 0" title="No users yet." />
     <AppEmptyState v-else-if="visibleUsers.length === 0" title="No user matches." />
 
-    <div v-for="user in visibleUsers" :key="user.Name" class="user-draft user-row">
-      <button type="button" class="user-summary" @click="openUser(user)">
-        <span class="user-summary-name">{{ user.Name }}</span>
-        <span class="capsule-row">
-          <span v-for="tag in user.Tags ?? []" :key="tag" class="value-capsule">{{ tag }}</span>
-        </span>
-        <span class="user-summary-kind">{{ user.Token !== '' ? 'Token' : 'Login' }}</span>
-      </button>
-      <div class="env-checks">
-        <span v-if="(user.Environments ?? []).length === 0" class="status-capsule status-expired">
-          Unassigned
-        </span>
-        <AppCheckbox
-          v-for="env in rester.Environments"
-          :key="env.Name"
-          size="sm"
-          :checked="assigned(user, env.Name)"
-          :disabled="busyUser !== null"
-          @click="toggleAssignment(user, env.Name)"
-        >
-          {{ env.Name }}
-        </AppCheckbox>
+    <div class="user-grid">
+      <div v-for="user in visibleUsers" :key="user.Name" class="user-draft user-row">
+        <button type="button" class="user-summary" @click="openUser(user)">
+          <span class="user-summary-name">{{ user.Name }}</span>
+          <span class="capsule-row">
+            <span v-for="tag in user.Tags ?? []" :key="tag" class="value-capsule">{{ tag }}</span>
+          </span>
+          <span class="user-summary-kind">{{ user.Token !== '' ? 'Token' : 'Login' }}</span>
+        </button>
+        <div class="env-checks">
+          <span v-if="(user.Environments ?? []).length === 0" class="status-capsule status-expired">
+            Unassigned
+          </span>
+          <AppCheckbox
+            v-for="env in rester.Environments"
+            :key="env.Name"
+            size="sm"
+            :checked="assigned(user, env.Name)"
+            :disabled="busyUser !== null"
+            @click="toggleAssignment(user, env.Name)"
+          >
+            {{ env.Name }}
+          </AppCheckbox>
+        </div>
       </div>
     </div>
 
@@ -117,6 +119,30 @@ async function toggleAssignment(user: VaultResterUser, env: string): Promise<voi
 </template>
 
 <style scoped>
+/* One column, two when the content is wide enough: with dozens of users a single column is mostly
+   empty width. */
+.user-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+/* A column is too narrow for the name, tags and checkboxes on one line, and a name is an email that
+   must not be cut where two of them differ only after the cut, so the checkboxes take a line below. */
+@container (min-width: 960px) {
+  .user-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .user-grid .user-row .user-summary {
+    flex-basis: 100%;
+  }
+
+  .user-grid .user-summary-name {
+    max-width: none;
+  }
+}
+
 .user-row {
   flex-direction: row;
   align-items: center;

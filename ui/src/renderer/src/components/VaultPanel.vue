@@ -2,14 +2,22 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { ref, toRef } from 'vue'
+import { ref, toRef, watch } from 'vue'
 import '../vault.css'
 import { vaultSession, lockVaultSession, noteVaultActivity } from '../vaultSession'
 import ConnectionsSection from './connector/ConnectionsSection.vue'
 import DbChannelsSection from './connector/DbChannelsSection.vue'
 import ResterList from './connector/rester/ResterList.vue'
 import HttpChannelsSection from './connector/HttpChannelsSection.vue'
-import { AppButton, AppIcon, AppNavItem, AppSegmented } from '@sankasten'
+import {
+  AppButton,
+  AppIcon,
+  AppIconButton,
+  AppNavItem,
+  AppSegmented,
+  type IconShape
+} from '@sankasten'
+import VaultNavIcon from './VaultNavIcon.vue'
 import VaultUnlockGate from './VaultUnlockGate.vue'
 import DecisionsSection from './decisions/DecisionsSection.vue'
 import { askState } from '../asks'
@@ -24,6 +32,34 @@ const activeDbTab = ref<'connections' | 'channels'>('connections')
 const activeHttpTab = ref<'resters' | 'httpChannels'>('resters')
 
 const vaultUnlocked = toRef(vaultSession, 'unlocked')
+
+// The sidebar folds to an icon rail, and the choice is kept across restarts.
+const NAV_KEY = 'vault.navCollapsed'
+const navCollapsed = ref(localStorage.getItem(NAV_KEY) === '1')
+watch(navCollapsed, (collapsed) => localStorage.setItem(NAV_KEY, collapsed ? '1' : '0'))
+
+const databaseIcon: IconShape[] = [
+  { tag: 'path', attrs: { d: 'M2.5 3.5a4.5 1.8 0 1 0 9 0a4.5 1.8 0 1 0-9 0' } },
+  { tag: 'path', attrs: { d: 'M2.5 3.5v7c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8v-7' } },
+  { tag: 'path', attrs: { d: 'M2.5 7c0 1 2 1.8 4.5 1.8S11.5 8 11.5 7' } }
+]
+
+const resterIcon: IconShape[] = [
+  { tag: 'circle', attrs: { cx: 7, cy: 7, r: 5.5 } },
+  { tag: 'path', attrs: { d: 'M1.5 7h11' } },
+  {
+    tag: 'path',
+    attrs: {
+      d: 'M7 1.5c1.7 1.6 2.5 3.4 2.5 5.5S8.7 10.9 7 12.5C5.3 10.9 4.5 9.1 4.5 7S5.3 3.1 7 1.5z'
+    }
+  }
+]
+
+const entries = [
+  { kind: 'decisions', label: 'Decisions', icon: decisionsIcon },
+  { kind: 'database', label: 'Database', icon: databaseIcon },
+  { kind: 'http', label: 'Rester', icon: resterIcon }
+] as const
 
 const dbTabs = [
   { value: 'connections', label: 'Connections' },
@@ -47,86 +83,56 @@ function shown(kind: 'database' | 'http', tab: string): boolean {
       <VaultUnlockGate v-if="!vaultUnlocked" />
 
       <template v-else>
-        <nav class="vault-nav">
-          <AppNavItem
-            size="sm"
-            label="Decisions"
-            :active="activeKind === 'decisions'"
-            :count="askState.count.waiting"
-            count-title="Decisions waiting"
-            @click="activeKind = 'decisions'"
-          >
-            <template #icon>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+        <nav class="vault-nav" :class="{ collapsed: navCollapsed }">
+          <div class="nav-top">
+            <AppIconButton
+              size="sm"
+              :icon="navCollapsed ? 'chevronRight' : 'chevronLeft'"
+              :label="navCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+              @click="navCollapsed = !navCollapsed"
+            />
+          </div>
+
+          <template v-if="navCollapsed">
+            <AppIconButton
+              v-for="entry in entries"
+              :key="entry.kind"
+              :label="entry.label"
+              :pressed="activeKind === entry.kind"
+              :dot="entry.kind === 'decisions' && askState.count.waiting > 0 ? 'accent' : undefined"
+              @click="activeKind = entry.kind"
+            >
+              <VaultNavIcon :shapes="entry.icon" />
+            </AppIconButton>
+          </template>
+
+          <template v-else>
+            <template v-for="entry in entries" :key="entry.kind">
+              <span v-if="entry.kind === 'database'" class="nav-group-label">Connector</span>
+              <AppNavItem
+                size="sm"
+                :label="entry.label"
+                :active="activeKind === entry.kind"
+                :count="entry.kind === 'decisions' ? askState.count.waiting : undefined"
+                :count-title="entry.kind === 'decisions' ? 'Decisions waiting' : undefined"
+                @click="activeKind = entry.kind"
               >
-                <component
-                  :is="shape.tag"
-                  v-for="(shape, i) in decisionsIcon"
-                  :key="i"
-                  v-bind="shape.attrs"
-                />
-              </svg>
+                <template #icon><VaultNavIcon :shapes="entry.icon" /></template>
+              </AppNavItem>
             </template>
-          </AppNavItem>
-          <span class="nav-group-label">Connector</span>
-          <AppNavItem
-            size="sm"
-            label="Database"
-            :active="activeKind === 'database'"
-            @click="activeKind = 'database'"
-          >
-            <template #icon>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <ellipse cx="7" cy="3.5" rx="4.5" ry="1.8" />
-                <path d="M2.5 3.5v7c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8v-7" />
-                <path d="M2.5 7c0 1 2 1.8 4.5 1.8S11.5 8 11.5 7" />
-              </svg>
-            </template>
-          </AppNavItem>
-          <AppNavItem
-            size="sm"
-            label="Rester"
-            :active="activeKind === 'http'"
-            @click="activeKind = 'http'"
-          >
-            <template #icon>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 14 14"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <circle cx="7" cy="7" r="5.5" />
-                <path d="M1.5 7h11" />
-                <path
-                  d="M7 1.5c1.7 1.6 2.5 3.4 2.5 5.5S8.7 10.9 7 12.5C5.3 10.9 4.5 9.1 4.5 7S5.3 3.1 7 1.5z"
-                />
-              </svg>
-            </template>
-          </AppNavItem>
+          </template>
+
           <div class="nav-lock">
-            <AppButton size="sm" tone="accent" @click="lockVaultSession">
+            <AppIconButton
+              v-if="navCollapsed"
+              icon="lock"
+              variant="ghost"
+              tone="accent"
+              size="sm"
+              label="Lock vault"
+              @click="lockVaultSession"
+            />
+            <AppButton v-else size="sm" tone="accent" @click="lockVaultSession">
               <AppIcon name="lock" :size="12" />
               Lock
             </AppButton>

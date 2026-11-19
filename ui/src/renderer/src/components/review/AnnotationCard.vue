@@ -73,7 +73,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="annotation-card" :class="{ sent, reply: isReply }">
+  <div class="annotation-card sk-ribbon sk-ribbon--left" :class="{ sent, reply: isReply }">
     <template v-if="editing || replying">
       <AppTextarea
         ref="inputRef"
@@ -134,13 +134,13 @@ onMounted(() => {
   padding: var(--space-2) var(--space-3);
   background: var(--color-surface-1);
   border: 1px solid var(--color-border-default);
-  border-left: 3px solid var(--color-amber);
+  --ribbon-color: var(--color-amber);
   border-radius: var(--radius-md);
   font-family: var(--font-body);
 }
 
 .annotation-card.sent {
-  border-left-color: var(--color-jade);
+  --ribbon-color: var(--color-jade);
 }
 
 .annotation-card.reply {

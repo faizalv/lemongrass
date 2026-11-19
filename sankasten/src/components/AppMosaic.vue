@@ -10,6 +10,11 @@ import { MOSAIC_KEY } from './mosaic'
 // its own and pushes the rest down.
 const expanded = defineModel<string | null>('expanded', { default: null })
 
+// fill is the default: every capsule grows to fill its row. Without it a capsule keeps the width
+// of its content, for a short row where a lone capsule stretched across the page reads as a bar;
+// an expanded capsule still takes a row of its own.
+withDefaults(defineProps<{ fill?: boolean }>(), { fill: true })
+
 function toggle(value: string): void {
   expanded.value = expanded.value === value ? null : value
 }
@@ -18,7 +23,7 @@ provide(MOSAIC_KEY, { expanded, toggle })
 </script>
 
 <template>
-  <div class="app-mosaic">
+  <div class="app-mosaic" :class="{ natural: !fill }">
     <slot />
   </div>
 </template>
@@ -28,5 +33,8 @@ provide(MOSAIC_KEY, { expanded, toggle })
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
+}
+.app-mosaic.natural :deep(.app-capsule:not(.expanded)) {
+  flex: 0 1 auto;
 }
 </style>

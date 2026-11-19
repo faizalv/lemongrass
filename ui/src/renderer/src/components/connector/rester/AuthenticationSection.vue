@@ -15,6 +15,15 @@ defineProps<{
   commit: CommitRester
 }>()
 
+type Side = 'api' | 'web' | 'app'
+
+// One editor is open at a time, under the cards.
+const editing = ref<Side | null>(null)
+
+function toggle(side: Side): void {
+  editing.value = editing.value === side ? null : side
+}
+
 const infoId = useId()
 const anchor = ref<HTMLElement | null>(null)
 
@@ -28,13 +37,14 @@ function hide(): void {
 </script>
 
 <template>
-  <div class="inline-section auth-section">
+  <section class="auth-section">
     <div class="users-toolbar auth-section-head">
       <span class="field-label">Authentication</span>
       <AppIconButton
         icon="info"
         size="sm"
         label="About Authentication"
+        title=""
         :aria-describedby="anchor ? infoId : undefined"
         @mouseenter="show"
         @mouseleave="hide"
@@ -48,14 +58,32 @@ function hide(): void {
     <AppInfoPopover :id="infoId" :anchor="anchor">
       Each setup tells a channel how to log a user in: the API one for HTTP calls, the web one for
       the app's browser and the Android one for a connected phone. They are shared by every
-      environment and every user, so you set each up once. Open a row to edit it. Saving turns it on
-      and Turn off removes it.
+      environment and every user, so you set each up once. Edit opens the form under the cards, so
+      the other values stay in view while you type. Saving turns a setup on and Turn off removes it.
     </AppInfoPopover>
 
-    <div class="auth-rows">
-      <ApiSection :rester="rester" :commit="commit" />
-      <WebSection :rester="rester" :commit="commit" />
-      <AppSection :rester="rester" :commit="commit" />
+    <div class="auth-grid">
+      <ApiSection
+        :rester="rester"
+        :commit="commit"
+        :editing="editing === 'api'"
+        @toggle="toggle('api')"
+        @close="editing = null"
+      />
+      <WebSection
+        :rester="rester"
+        :commit="commit"
+        :editing="editing === 'web'"
+        @toggle="toggle('web')"
+        @close="editing = null"
+      />
+      <AppSection
+        :rester="rester"
+        :commit="commit"
+        :editing="editing === 'app'"
+        @toggle="toggle('app')"
+        @close="editing = null"
+      />
     </div>
-  </div>
+  </section>
 </template>

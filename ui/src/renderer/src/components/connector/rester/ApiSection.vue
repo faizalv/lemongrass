@@ -2,8 +2,10 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AuthSideHead from './AuthSideHead.vue'
-import { ref } from 'vue'
+import AuthCard from './AuthCard.vue'
+import { apiFacts } from '../../../authFacts'
+import AuthFacts from './AuthFacts.vue'
+import { ref, watch } from 'vue'
 import type { VaultResterAPI, VaultRester, VaultTokenPlacement } from '../../../../../preload/types'
 import { AppButton, AppIconButton, AppInput, AppSegmented, AppConfirmButton } from '@sankasten'
 import {
@@ -17,7 +19,10 @@ import {
 const props = defineProps<{
   rester: VaultRester
   commit: CommitRester
+  editing: boolean
 }>()
+
+const emit = defineEmits<{ toggle: []; close: [] }>()
 
 type TtlMode = 'fixed' | 'field' | 'jwt'
 
@@ -33,7 +38,6 @@ const placementOptions: { value: VaultTokenPlacement['Kind']; label: string }[] 
   { value: 'query', label: 'Query param' }
 ]
 
-const open = ref(false)
 const saving = ref(false)
 const error = ref('')
 
@@ -83,15 +87,15 @@ function build(): VaultResterAPI {
   }
 }
 
-function toggle(): void {
-  if (open.value) {
-    open.value = false
-    return
+// Opening the editor fills its draft from what is stored, or from defaults while the setup is off.
+watch(
+  () => props.editing,
+  (editing) => {
+    if (!editing) return
+    fill(props.rester.API ?? defaultResterAPI())
+    error.value = ''
   }
-  fill(props.rester.API ?? defaultResterAPI())
-  error.value = ''
-  open.value = true
-}
+)
 
 async function save(): Promise<void> {
   saving.value = true
@@ -100,7 +104,7 @@ async function save(): Promise<void> {
     r.API = api
   })
   saving.value = false
-  if (error.value === '') open.value = false
+  if (error.value === '') emit('close')
 }
 
 async function turnOff(): Promise<void> {
@@ -109,121 +113,127 @@ async function turnOff(): Promise<void> {
     r.API = null
   })
   saving.value = false
-  if (error.value === '') open.value = false
+  if (error.value === '') emit('close')
 }
 </script>
 
 <template>
-  <div class="inline-section">
-    <AuthSideHead
-      :open="open"
-      label="API"
-      purpose="Signs a user in for HTTP calls with a token."
-      :on="!!rester.API"
-      :summary="
-        rester.API ? rester.API.LoginEndpoint || 'Tokens only, no login endpoint' : undefined
-      "
-      @update:open="toggle"
-    >
-      Lets models call this system's HTTP API as a user. Set the login endpoint and where the token
+  <AuthCard
+    kind="api"
+    label="API"
+    purpose="Signs a user in for HTTP calls with a token."
+    :on="!!rester.API"
+    :editing="editing"
+    off-hint="Turn on to let models call this system's HTTP API as a user. Each environment needs a base URL."
+    @edit="emit('toggle')"
+  >
+    <template #info
+      >Lets models call this system's HTTP API as a user. Set the login endpoint and where the token
       comes back in the response, and how it is sent. Users who bring their own token, such as an
       API key, need no login endpoint. Each environment needs a base URL. Used by API channels and
-      the Rester Client.
-    </AuthSideHead>
+      the Rester Client.</template
+    >
+    <AuthFacts :facts="apiFacts(rester.API!)" />
+    <template #editor>
+      <div class="settings-body">
+        <p v-if="!rester.API" class="hint">Saving turns the API side on for this rester.</p>
 
-    <div v-if="open" class="settings-body">
-      <p v-if="!rester.API" class="hint">Saving turns the API side on for this rester.</p>
-
-      <div class="field-block">
-        <label class="field-label" for="api-login-endpoint">Login endpoint</label>
-        <AppInput
-          id="api-login-endpoint"
-          v-model="loginEndpoint"
-          type="text"
-          placeholder="/auth/login (leave blank if every user brings a token)"
-        />
-      </div>
-
-      <div class="field-block">
-        <label class="field-label" for="api-token-path">Token path</label>
-        <AppInput
-          id="api-token-path"
-          v-model="tokenPath"
-          type="text"
-          placeholder="e.g. access_token or data.token"
-        />
-        <p class="hint">
-          Where the access token lives in the login response, as a dotted JSON path.
-        </p>
-      </div>
-
-      <div class="field-block">
-        <span id="api-ttl" class="field-label">Token lifetime</span>
-        <AppSegmented v-model="ttlMode" :options="ttlOptions" aria-labelledby="api-ttl" />
-        <AppInput
-          v-if="ttlMode === 'fixed'"
-          v-model.number="fixedTtlMinutes"
-          type="number"
-          min="1"
-          title="Fixed lifetime in minutes"
-        />
-        <AppInput
-          v-if="ttlMode === 'field'"
-          v-model="ttlField"
-          type="text"
-          placeholder="e.g. expires_in"
-        />
-      </div>
-
-      <div class="field-block">
-        <span id="api-placement" class="field-label">Token placement</span>
-        <AppSegmented
-          v-model="placementKind"
-          :options="placementOptions"
-          aria-labelledby="api-placement"
-        />
-        <div class="field-grid">
-          <AppInput v-model="placementName" type="text" placeholder="Name, e.g. Authorization" />
+        <div class="field-block">
+          <label class="field-label" for="api-login-endpoint">Login endpoint</label>
           <AppInput
-            v-if="placementKind === 'header'"
-            v-model="placementPrefix"
+            id="api-login-endpoint"
+            v-model="loginEndpoint"
             type="text"
-            placeholder="Prefix, e.g. Bearer"
+            placeholder="/auth/login (leave blank if every user brings a token)"
           />
         </div>
-      </div>
 
-      <div class="field-block">
-        <span class="field-label">Headers</span>
-        <p class="hint">
-          Sent on the login and on every call in every environment. Models never see them.
-        </p>
-        <div class="kv-list">
-          <div v-for="(header, i) in headers" :key="i" class="kv-row">
-            <AppInput v-model="header.name" type="text" placeholder="e.g. api-version" />
-            <AppInput v-model="header.value" type="text" placeholder="value" />
-            <AppIconButton icon="close" label="Remove header" @click="headers.splice(i, 1)" />
+        <div class="field-block">
+          <label class="field-label" for="api-token-path">Token path</label>
+          <AppInput
+            id="api-token-path"
+            v-model="tokenPath"
+            type="text"
+            placeholder="e.g. access_token or data.token"
+          />
+          <p class="hint">
+            Where the access token lives in the login response, as a dotted JSON path.
+          </p>
+        </div>
+
+        <div class="field-block">
+          <span id="api-ttl" class="field-label">Token lifetime</span>
+          <AppSegmented v-model="ttlMode" :options="ttlOptions" aria-labelledby="api-ttl" />
+          <AppInput
+            v-if="ttlMode === 'fixed'"
+            v-model.number="fixedTtlMinutes"
+            type="number"
+            min="1"
+            title="Fixed lifetime in minutes"
+          />
+          <AppInput
+            v-if="ttlMode === 'field'"
+            v-model="ttlField"
+            type="text"
+            placeholder="e.g. expires_in"
+          />
+        </div>
+
+        <div class="field-block">
+          <span id="api-placement" class="field-label">Token placement</span>
+          <AppSegmented
+            v-model="placementKind"
+            :options="placementOptions"
+            aria-labelledby="api-placement"
+          />
+          <div class="field-grid">
+            <AppInput v-model="placementName" type="text" placeholder="Name, e.g. Authorization" />
+            <AppInput
+              v-if="placementKind === 'header'"
+              v-model="placementPrefix"
+              type="text"
+              placeholder="Prefix, e.g. Bearer"
+            />
           </div>
-          <AppButton
-            type="button"
-            class="new-channel-button"
-            @click="headers.push({ name: '', value: '' })"
+        </div>
+
+        <div class="field-block">
+          <span class="field-label">Headers</span>
+          <p class="hint">
+            Sent on the login and on every call in every environment. Models never see them.
+          </p>
+          <div class="kv-list">
+            <div v-for="(header, i) in headers" :key="i" class="kv-row">
+              <AppInput v-model="header.name" type="text" placeholder="e.g. api-version" />
+              <AppInput v-model="header.value" type="text" placeholder="value" />
+              <AppIconButton icon="close" label="Remove header" @click="headers.splice(i, 1)" />
+            </div>
+            <AppButton
+              type="button"
+              class="new-channel-button"
+              @click="headers.push({ name: '', value: '' })"
+            >
+              + Header
+            </AppButton>
+          </div>
+        </div>
+
+        <div class="create-actions">
+          <p v-if="error" class="error-text">{{ error }}</p>
+          <AppConfirmButton
+            v-if="rester.API"
+            variant="danger"
+            :disabled="saving"
+            @confirm="turnOff"
           >
-            + Header
+            Turn off
+          </AppConfirmButton>
+          <AppButton @click="emit('close')">Cancel</AppButton>
+          <AppButton variant="primary" :disabled="saving" @click="save">
+            {{ saving ? 'Saving...' : 'Save' }}
           </AppButton>
         </div>
       </div>
-
-      <div class="create-actions">
-        <p v-if="error" class="error-text">{{ error }}</p>
-        <AppConfirmButton v-if="rester.API" variant="danger" :disabled="saving" @confirm="turnOff">
-          Turn off
-        </AppConfirmButton>
-        <AppButton @click="open = false">Cancel</AppButton>
-        <AppButton variant="primary" :disabled="saving" @click="save">
-          {{ saving ? 'Saving...' : 'Save' }}
-        </AppButton>
-      </div>
-    </div>
-  </div>
+    </template>
+  </AuthCard>
 </template>

@@ -164,7 +164,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
       </template>
     </p>
     <p v-if="error" class="conflict-error">{{ error }}</p>
-    <div v-if="held" class="conflict-working">
+    <div v-if="held" class="conflict-working sk-ribbon sk-ribbon--left">
       <p class="working-who">
         <AgentIcon v-if="assigneeVendor" :agent-id="assigneeVendor" />
         <span class="assignee-name">{{ assignee }}</span>
@@ -337,7 +337,7 @@ async function finish(action: 'continue' | 'abort'): Promise<void> {
   margin: 0 var(--space-2);
   padding: var(--space-2);
   border: 1px solid var(--color-border-subtle);
-  border-left: 3px solid var(--color-violet);
+  --ribbon-color: var(--color-violet);
   border-radius: var(--radius-md);
   background: var(--color-surface-1);
 }

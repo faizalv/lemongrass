@@ -3,7 +3,7 @@
 
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { capsuleHue } from '../lib/capsuleHue'
+import { capsuleHue, type CapsuleHue } from '../lib/capsuleHue'
 import AppBadge from './AppBadge.vue'
 import { MOSAIC_KEY } from './mosaic'
 
@@ -17,17 +17,20 @@ const props = withDefaults(
     label: string
     // What the dot's hue is computed from, when it should differ from the label.
     hueKey?: string
+    // The dot's hue itself, for an item whose siblings must differ from one another, which a hash
+    // of the name does not guarantee; wins over hueKey.
+    hue?: CapsuleHue
     // A neutral count pill after the label, such as how many of the item are open; hidden at 0
     // or when absent.
     count?: number
     countTitle?: string
   }>(),
-  { hueKey: undefined, count: undefined, countTitle: undefined }
+  { hueKey: undefined, hue: undefined, count: undefined, countTitle: undefined }
 )
 
 const mosaic = inject(MOSAIC_KEY, null)
 
-const hue = computed(() => capsuleHue(props.hueKey ?? props.label))
+const dotHue = computed(() => props.hue ?? capsuleHue(props.hueKey ?? props.label))
 const expanded = computed(() => mosaic?.expanded.value === props.label)
 
 function onKey(event: KeyboardEvent): void {
@@ -48,7 +51,7 @@ function onKey(event: KeyboardEvent): void {
     >
       <span
         class="capsule-dot"
-        :style="{ '--capsule-hue': `var(--color-${hue})` }"
+        :style="{ '--capsule-hue': `var(--color-${dotHue})` }"
         aria-hidden="true"
       />
       <span class="capsule-label">{{ label }}</span>
@@ -69,7 +72,8 @@ function onKey(event: KeyboardEvent): void {
   flex-direction: column;
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-pill);
-  background: var(--color-surface-2);
+  /* A surface that sits among cards of another layer sets --capsule-bg to match them. */
+  background: var(--capsule-bg, var(--color-surface-2));
   color: var(--color-fg-primary);
   font-family: var(--font-body);
   font-size: var(--text-xs);

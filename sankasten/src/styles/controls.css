@@ -216,6 +216,33 @@
   border-width: 1px;
 }
 
+/* A ribbon is a straight strip of a state's color along one edge of a card, such as a top edge for a
+   card that is on or a left edge for a warning. It sits inside the border and is clipped to the card's
+   corners, so it reads as a band across the card, not as a border that turns the corner. The color
+   is --ribbon-color. */
+.sk-ribbon {
+  position: relative;
+  overflow: clip;
+}
+
+.sk-ribbon::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  background: var(--ribbon-color, var(--color-fg-accent));
+  pointer-events: none;
+}
+
+.sk-ribbon--top::before {
+  inset: 0 0 auto 0;
+  height: 3px;
+}
+
+.sk-ribbon--left::before {
+  inset: 0 auto 0 0;
+  width: 3px;
+}
+
 /* The block whose work is running, such as a command or its output, breathes in the running tone so
    the state reads from across the room. Pair it with AppProgressLine and a counter, since a glow alone
    says nothing about progress. The border color sits in the keyframes because animated values outrank

@@ -4,8 +4,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { VaultEnvironment, VaultRester } from '../../../../../preload/types'
-import { AppButton, AppConfirmButton } from '@sankasten'
-import { environmentHueStyle } from '../../../environmentHue'
+import { AppButton, AppCapsule, AppConfirmButton, AppIcon, AppMosaic } from '@sankasten'
+import { environmentHue } from '../../../environmentHue'
 import EnvironmentModal from './EnvironmentModal.vue'
 import type { CommitRester } from './resterDraft'
 
@@ -22,6 +22,7 @@ const saving = ref(false)
 const modalError = ref('')
 const stripError = ref('')
 const deleting = ref<string | null>(null)
+const expanded = ref<string | null>(null)
 
 const names = computed(() => props.rester.Environments.map((e) => e.Name))
 
@@ -91,42 +92,55 @@ async function remove(name: string): Promise<void> {
 </script>
 
 <template>
-  <div class="inline-section">
+  <div class="env-strip">
     <div class="users-toolbar">
-      <span class="field-label">Environments ({{ rester.Environments.length }})</span>
+      <span class="field-label">Environments</span>
       <span class="toolbar-fill"></span>
       <AppButton size="sm" @click="open({ kind: 'add' })">+ Environment</AppButton>
     </div>
 
-    <div class="env-grid">
-      <div v-for="(env, index) in rester.Environments" :key="env.Name" class="env-card">
-        <span class="env-name" :style="environmentHueStyle(index)">{{ env.Name }}</span>
-        <span class="env-line" :class="{ missing: !env.BaseURL }">
-          API: {{ env.BaseURL || 'no base URL' }}
-        </span>
-        <span class="env-line" :class="{ missing: !env.Origin }">
-          Web: {{ env.Origin || 'no origin' }}
-        </span>
-        <span class="env-line">
-          {{ assignedCount(env.Name) }} users, {{ (env.Headers ?? []).length }} extra headers
-        </span>
-        <div class="channel-actions">
-          <AppButton size="sm" @click="open({ kind: 'edit', source: env.Name })">Edit</AppButton>
-          <AppButton size="sm" @click="open({ kind: 'duplicate', source: env.Name })"
-            >Duplicate</AppButton
-          >
+    <AppMosaic v-model:expanded="expanded" :fill="false">
+      <AppCapsule
+        v-for="(env, index) in rester.Environments"
+        :key="env.Name"
+        :label="env.Name"
+        :hue="environmentHue(index)"
+        :count="assignedCount(env.Name)"
+        :count-title="`${assignedCount(env.Name)} users assigned`"
+      >
+        <dl class="vault-facts">
+          <dt>API</dt>
+          <dd :class="{ missing: !env.BaseURL }">{{ env.BaseURL || 'no base URL' }}</dd>
+          <dt>Web</dt>
+          <dd :class="{ missing: !env.Origin }">{{ env.Origin || 'no origin' }}</dd>
+          <dt>Users</dt>
+          <dd>{{ assignedCount(env.Name) }} assigned</dd>
+          <dt>Headers</dt>
+          <dd>{{ (env.Headers ?? []).length }} extra</dd>
+        </dl>
+        <div class="env-capsule-actions">
           <AppConfirmButton
-            size="sm"
             variant="danger"
+            size="sm"
             :disabled="rester.Environments.length < 2 || deleting === env.Name"
             :title="rester.Environments.length < 2 ? 'A rester keeps at least one environment' : ''"
             @confirm="remove(env.Name)"
           >
+            <AppIcon name="trash" :size="12" />
             {{ deleting === env.Name ? 'Deleting...' : 'Delete' }}
           </AppConfirmButton>
+          <span class="toolbar-fill"></span>
+          <AppButton size="sm" @click="open({ kind: 'duplicate', source: env.Name })">
+            <AppIcon name="copy" :size="12" />
+            Duplicate
+          </AppButton>
+          <AppButton size="sm" variant="primary" @click="open({ kind: 'edit', source: env.Name })">
+            <AppIcon name="edit" :size="12" />
+            Edit
+          </AppButton>
         </div>
-      </div>
-    </div>
+      </AppCapsule>
+    </AppMosaic>
 
     <p v-if="stripError" class="error-text">{{ stripError }}</p>
 
@@ -146,42 +160,17 @@ async function remove(name: string): Promise<void> {
 </template>
 
 <style scoped>
+.env-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .toolbar-fill {
   flex: 1;
 }
 
-.env-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-3);
-}
-
-.env-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-  padding: var(--space-3);
-  background: var(--layer-raised);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-}
-
-.env-line {
-  overflow: hidden;
-  color: var(--color-fg-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.env-line.missing {
-  color: var(--color-fg-muted);
-}
-
-.env-card .channel-actions {
-  justify-content: flex-end;
-  margin-top: var(--space-2);
+.env-strip .users-toolbar {
+  margin-bottom: 0;
 }
 </style>

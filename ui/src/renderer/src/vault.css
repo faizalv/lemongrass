@@ -48,6 +48,28 @@
 
 /* Same pill as the sidebar's Workgroup and Vault counts. */
 
+.vault-nav .nav-top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* The folded rail: icons only, centered. */
+.vault-nav.collapsed {
+  width: 52px;
+  align-items: center;
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+.vault-nav.collapsed .nav-top {
+  justify-content: center;
+}
+
+.vault-nav.collapsed .nav-lock {
+  align-items: center;
+  padding: var(--space-2) 0;
+}
+
 .vault-nav .nav-group-label {
   padding: var(--space-1) var(--space-3);
   color: var(--color-fg-muted);
@@ -810,24 +832,182 @@
   gap: var(--space-2);
 }
 
-/* Authentication is one card; its login setups are rows divided by a line, not cards in a card. */
+/* Authentication: three cards side by side and, under them, the editor of the one being edited. */
+.vault-tab .auth-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .vault-tab .auth-section-head {
   margin-bottom: 0;
 }
 
-.vault-tab .auth-rows {
+.vault-tab .auth-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-3);
+}
+
+.vault-tab .auth-card {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--layer-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-fast) var(--ease-out);
 }
 
-.vault-tab .auth-rows > .inline-section {
-  padding: var(--space-3) 0;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--color-border-default);
-  border-radius: 0;
+/* On is a green ribbon along the top, so the state reads from across the room. */
+.vault-tab .auth-card.on {
+  --ribbon-color: var(--color-success);
 }
 
-.vault-tab .auth-rows > .inline-section:last-child {
-  padding-bottom: 0;
+/* The card being edited spans the row and goes first, so the others fall below it, and the one
+   edited next takes its place. */
+.vault-tab .auth-card.editing {
+  grid-column: 1 / -1;
+  order: -1;
+}
+
+.vault-tab .auth-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.vault-tab .auth-card-icon {
+  color: var(--color-fg-secondary);
+}
+
+.vault-tab .auth-card-name {
+  color: var(--color-fg-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+}
+
+.vault-tab .auth-card-fill {
+  flex: 1;
+}
+
+.vault-tab .auth-card-body {
+  flex: 1;
+  min-width: 0;
+  padding-top: var(--space-1);
+  font-size: var(--text-xs);
+}
+
+.vault-tab .auth-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A step is its number, the action chip and the target. A thin line runs down the numbers to show
+   the order. */
+.vault-tab .auth-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding: var(--space-1) 0;
+}
+
+.vault-tab .auth-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 28px;
+  bottom: calc(-1 * var(--space-1));
+  left: 10px;
+  width: 1px;
+  background: var(--color-border-default);
+}
+
+.vault-tab .auth-step-num {
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--color-surface-3);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+}
+
+.vault-tab .auth-step-action svg {
+  margin-right: var(--space-1);
+  vertical-align: -2px;
+  color: var(--color-fg-accent);
+}
+
+.vault-tab .auth-step-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  min-width: 0;
+  min-height: 21px;
+}
+
+.vault-tab .vault-fact-prefix {
+  flex: none;
+}
+
+.vault-tab .vault-facts + .auth-steps {
+  margin-top: var(--space-2);
+}
+
+.vault-tab .auth-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Label and value facts, in an expanded environment capsule and on an authentication card. */
+.vault-tab .vault-facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  margin: 0;
+}
+
+.vault-tab .vault-facts dt {
+  color: var(--color-fg-muted);
+}
+
+.vault-tab .vault-facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  color: var(--color-fg-primary);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.vault-tab .vault-facts dd.missing {
+  color: var(--color-fg-muted);
+}
+
+.vault-tab .env-capsule-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+/* The environment capsules sit among cards on the card layer, so they take it too. */
+.vault-tab .env-strip {
+  --capsule-bg: var(--layer-card);
 }

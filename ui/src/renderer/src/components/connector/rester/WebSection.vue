@@ -2,7 +2,9 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import AuthSideHead from './AuthSideHead.vue'
+import AuthCard from './AuthCard.vue'
+import { loginSteps } from '../../../authFacts'
+import AuthSteps from './AuthSteps.vue'
 import {
   AppButton,
   AppIcon,
@@ -12,7 +14,7 @@ import {
   AppSwitcher,
   AppConfirmButton
 } from '@sankasten'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { VaultRester } from '../../../../../preload/types'
 import { fieldKeys, type CommitRester } from './resterDraft'
 import {
@@ -28,7 +30,10 @@ import {
 const props = defineProps<{
   rester: VaultRester
   commit: CommitRester
+  editing: boolean
 }>()
+
+const emit = defineEmits<{ toggle: []; close: [] }>()
 
 const actionOptions: { value: StepAction; label: string }[] = [
   { value: 'goto', label: 'Go to' },
@@ -37,23 +42,22 @@ const actionOptions: { value: StepAction; label: string }[] = [
   { value: 'wait', label: 'Wait' }
 ]
 
-const open = ref(false)
 const saving = ref(false)
 const error = ref('')
 const steps = ref<StepDraft[]>([])
 
 const fieldItems = computed(() => fieldKeys(props.rester).map((k) => ({ id: k, label: k })))
 
-function toggle(): void {
-  if (open.value) {
-    open.value = false
-    return
+// Opening the editor fills its draft from what is stored, or from defaults while the setup is off.
+watch(
+  () => props.editing,
+  (editing) => {
+    if (!editing) return
+    steps.value = stepDrafts(props.rester.Web?.Login ?? null)
+    if (steps.value.length === 0) steps.value = [newStep('goto')]
+    error.value = ''
   }
-  steps.value = stepDrafts(props.rester.Web?.Login ?? null)
-  if (steps.value.length === 0) steps.value = [newStep('goto')]
-  error.value = ''
-  open.value = true
-}
+)
 
 // Only the handle starts a drag, so text in a row's inputs can still be selected with the mouse.
 const STEP_MIME = 'application/x-lemongrass-login-step'
@@ -107,7 +111,7 @@ async function save(): Promise<void> {
     r.Web = { Login: login.length > 0 ? login : null }
   })
   saving.value = false
-  if (error.value === '') open.value = false
+  if (error.value === '') emit('close')
 }
 
 async function turnOff(): Promise<void> {
@@ -116,119 +120,129 @@ async function turnOff(): Promise<void> {
     r.Web = null
   })
   saving.value = false
-  if (error.value === '') open.value = false
+  if (error.value === '') emit('close')
 }
 </script>
 
 <template>
-  <div class="inline-section">
-    <AuthSideHead
-      :open="open"
-      label="Web browser"
-      purpose="Signs a user in to the website in the app's browser."
-      :on="!!rester.Web"
-      :summary="rester.Web ? `${(rester.Web.Login ?? []).length} login steps` : undefined"
-      @update:open="toggle"
-    >
-      Lets models use this system's website in the app's browser as a user. Add the steps the
+  <AuthCard
+    kind="web"
+    label="Web browser"
+    purpose="Signs a user in to the website in the app's browser."
+    :on="!!rester.Web"
+    :editing="editing"
+    off-hint="Turn on to let models use this system's website in the app's browser. Each environment needs a web origin."
+    @edit="emit('toggle')"
+  >
+    <template #info
+      >Lets models use this system's website in the app's browser as a user. Add the steps the
       browser runs to log in: go to a page, fill a field from the user's login fields, click and
-      wait. Each environment needs a web origin. Used by web channels.
-    </AuthSideHead>
+      wait. Each environment needs a web origin. Used by web channels.</template
+    >
+    <AuthSteps :steps="loginSteps(rester.Web!.Login)" />
+    <template #editor>
+      <div class="settings-body">
+        <p v-if="!rester.Web" class="hint">Saving turns the web side on for this rester.</p>
+        <p class="hint">
+          The browser runs these steps in order to log a user in. Fill takes a value from the user's
+          login fields, so the same steps work for every user and every environment.
+        </p>
 
-    <div v-if="open" class="settings-body">
-      <p v-if="!rester.Web" class="hint">Saving turns the web side on for this rester.</p>
-      <p class="hint">
-        The browser runs these steps in order to log a user in. Fill takes a value from the user's
-        login fields, so the same steps work for every user and every environment.
-      </p>
+        <div
+          v-for="(step, index) in steps"
+          :key="step.id"
+          class="user-draft step-row"
+          :class="{
+            dragging: dragFrom === index,
+            'drop-before': showsDropLine(index),
+            'drop-after': index === steps.length - 1 && showsDropLine(steps.length)
+          }"
+          @dragover="onRowDragOver($event, index)"
+          @drop="onRowDrop"
+        >
+          <div class="step-head">
+            <span
+              class="drag-handle"
+              draggable="true"
+              title="Drag to reorder"
+              aria-label="Drag to reorder"
+              @dragstart="onHandleDragStart($event, index)"
+              @dragend="endDrag"
+            >
+              <AppIcon name="dragHandle" :size="14" />
+            </span>
+            <span class="step-number">{{ index + 1 }}</span>
+            <AppSegmented
+              v-model="step.Action"
+              :options="actionOptions"
+              :aria-label="`Action of step ${index + 1}`"
+            />
+            <span class="toolbar-fill"></span>
+            <AppIconButton icon="close" label="Remove step" @click="removeStep(steps, index)" />
+          </div>
 
-      <div
-        v-for="(step, index) in steps"
-        :key="step.id"
-        class="user-draft step-row"
-        :class="{
-          dragging: dragFrom === index,
-          'drop-before': showsDropLine(index),
-          'drop-after': index === steps.length - 1 && showsDropLine(steps.length)
-        }"
-        @dragover="onRowDragOver($event, index)"
-        @drop="onRowDrop"
-      >
-        <div class="step-head">
-          <span
-            class="drag-handle"
-            draggable="true"
-            title="Drag to reorder"
-            aria-label="Drag to reorder"
-            @dragstart="onHandleDragStart($event, index)"
-            @dragend="endDrag"
-          >
-            <AppIcon name="dragHandle" :size="14" />
-          </span>
-          <span class="step-number">{{ index + 1 }}</span>
-          <AppSegmented
-            v-model="step.Action"
-            :options="actionOptions"
-            :aria-label="`Action of step ${index + 1}`"
-          />
-          <span class="toolbar-fill"></span>
-          <AppIconButton icon="close" label="Remove step" @click="removeStep(steps, index)" />
-        </div>
-
-        <AppInput
-          v-if="step.Action === 'goto'"
-          v-model="step.URL"
-          type="text"
-          placeholder="URL or path, e.g. /login"
-        />
-        <AppInput
-          v-if="step.Action !== 'goto'"
-          v-model="step.Selector"
-          type="text"
-          :placeholder="
-            step.Action === 'wait' ? 'Selector to wait for (optional)' : 'Selector, e.g. #email'
-          "
-        />
-        <AppSwitcher
-          v-if="step.Action === 'fill'"
-          :items="fieldItems"
-          :active-id="step.Field || null"
-          :label="step.Field || undefined"
-          placeholder="Pick the user field to type"
-          empty-text="No user has login fields yet."
-          framed
-          @select="(id) => (step.Field = id)"
-        />
-        <div v-if="step.Action === 'wait'" class="field-grid">
           <AppInput
+            v-if="step.Action === 'goto'"
             v-model="step.URL"
             type="text"
-            placeholder="URL pattern (optional), e.g. /home*"
+            placeholder="URL or path, e.g. /login"
           />
           <AppInput
-            v-model.number="step.TimeoutSeconds"
-            type="number"
-            min="0"
-            title="Timeout in seconds, 0 for the default"
-            placeholder="Timeout seconds"
+            v-if="step.Action !== 'goto'"
+            v-model="step.Selector"
+            type="text"
+            :placeholder="
+              step.Action === 'wait' ? 'Selector to wait for (optional)' : 'Selector, e.g. #email'
+            "
           />
+          <AppSwitcher
+            v-if="step.Action === 'fill'"
+            :items="fieldItems"
+            :active-id="step.Field || null"
+            :label="step.Field || undefined"
+            placeholder="Pick the user field to type"
+            empty-text="No user has login fields yet."
+            framed
+            @select="(id) => (step.Field = id)"
+          />
+          <div v-if="step.Action === 'wait'" class="field-grid">
+            <AppInput
+              v-model="step.URL"
+              type="text"
+              placeholder="URL pattern (optional), e.g. /home*"
+            />
+            <AppInput
+              v-model.number="step.TimeoutSeconds"
+              type="number"
+              min="0"
+              title="Timeout in seconds, 0 for the default"
+              placeholder="Timeout seconds"
+            />
+          </div>
+        </div>
+
+        <AppButton class="new-channel-button" @click="steps.push(newStep('fill'))"
+          >+ Step</AppButton
+        >
+
+        <div class="create-actions">
+          <p v-if="error" class="error-text">{{ error }}</p>
+          <AppConfirmButton
+            v-if="rester.Web"
+            variant="danger"
+            :disabled="saving"
+            @confirm="turnOff"
+          >
+            Turn off
+          </AppConfirmButton>
+          <AppButton @click="emit('close')">Cancel</AppButton>
+          <AppButton variant="primary" :disabled="saving" @click="save">
+            {{ saving ? 'Saving...' : 'Save' }}
+          </AppButton>
         </div>
       </div>
-
-      <AppButton class="new-channel-button" @click="steps.push(newStep('fill'))">+ Step</AppButton>
-
-      <div class="create-actions">
-        <p v-if="error" class="error-text">{{ error }}</p>
-        <AppConfirmButton v-if="rester.Web" variant="danger" :disabled="saving" @confirm="turnOff">
-          Turn off
-        </AppConfirmButton>
-        <AppButton @click="open = false">Cancel</AppButton>
-        <AppButton variant="primary" :disabled="saving" @click="save">
-          {{ saving ? 'Saving...' : 'Save' }}
-        </AppButton>
-      </div>
-    </div>
-  </div>
+    </template>
+  </AuthCard>
 </template>
 
 <style scoped>
