@@ -5,6 +5,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { AppSegmented, AppSwitcher } from '@sankasten'
 import { refreshZoomPresets, setZoom, zoom, zoomLabel } from '../../zoom'
+import { AUTO_LOCK_CHOICES, loadVaultAutoLock, setVaultAutoLock } from '../../vaultSession'
 
 type Startup = 'lastProject' | 'projectSelector'
 
@@ -13,6 +14,17 @@ const startupOptions: { value: Startup; label: string }[] = [
   { value: 'projectSelector', label: 'Project selector' }
 ]
 const startup = ref<Startup>('lastProject')
+
+const autoLockOptions = AUTO_LOCK_CHOICES.map((minutes) => ({
+  value: String(minutes),
+  label: `${minutes} min`
+}))
+const autoLock = ref('5')
+
+function changeAutoLock(value: string): void {
+  autoLock.value = value
+  setVaultAutoLock(Number(value))
+}
 
 const items = computed(() =>
   zoom.presets.map((factor) => ({ id: String(factor), label: zoomLabel(factor) }))
@@ -26,6 +38,7 @@ function setStartup(value: Startup): void {
 onMounted(async () => {
   void refreshZoomPresets()
   startup.value = (await window.api.uiState.load()).startup ?? 'lastProject'
+  autoLock.value = String(await loadVaultAutoLock())
 })
 </script>
 
@@ -42,6 +55,20 @@ onMounted(async () => {
     </div>
     <p class="settings-text">
       Project selector opens no project at start, so no tab or agent starts until you pick one.
+    </p>
+
+    <div class="settings-field">
+      <span id="general-vault-lock">Vault auto-lock</span>
+      <AppSegmented
+        :model-value="autoLock"
+        :options="autoLockOptions"
+        aria-labelledby="general-vault-lock"
+        @update:model-value="changeAutoLock"
+      />
+    </div>
+    <p class="settings-text">
+      The vault locks after this long without a click or keypress in a Vault tab, the Rester Client
+      or a decision.
     </p>
 
     <div class="settings-field settings-field--zoom">

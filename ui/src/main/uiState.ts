@@ -23,6 +23,8 @@ export interface UiState {
   lastProjectId?: string
   zoomFactor?: number
   startup?: 'lastProject' | 'projectSelector'
+  // Minutes the vault may sit idle before it locks. 5 when unset.
+  vaultAutoLockMinutes?: number
   // Where the header draws minimize, maximize and close on Linux and Windows. macOS ignores it and shows its own traffic lights.
   windowControls?: 'right' | 'left'
   // The app theme; system follows the OS. Dark when unset.

@@ -46,6 +46,7 @@ export interface UiState {
   lastProjectId?: string
   zoomFactor?: number
   startup?: 'lastProject' | 'projectSelector'
+  vaultAutoLockMinutes?: number
   windowControls?: 'right' | 'left'
   theme?: ThemeSetting
   terminalTheme?: 'dark' | 'app'
