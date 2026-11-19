@@ -39,10 +39,15 @@ withDefaults(
   justify-content: center;
 }
 
+/* The turn sits on this HTML box, not on the svg: Chromium runs an SVG element's animation on the
+   main thread every frame, while an HTML box's transform animation runs on the compositor. */
+.activity[data-state='working'] {
+  animation: spin 0.9s linear infinite;
+}
+
 .activity svg {
   width: 100%;
   height: 100%;
-  animation: spin 0.9s linear infinite;
 }
 
 .activity circle {
@@ -74,7 +79,7 @@ withDefaults(
 
 /* Still, but plainly on: the arc stays drawn where it stopped. */
 @media (prefers-reduced-motion: reduce) {
-  .activity svg {
+  .activity[data-state='working'] {
     animation: none;
   }
 }

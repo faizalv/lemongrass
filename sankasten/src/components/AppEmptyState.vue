@@ -5,7 +5,7 @@
 // The one empty, loading and no-match state. fill is for a view or pane whose whole content is
 // missing and centers itself in the space it is given, so its parent must let it grow (a flex
 // column, or a box with a height). inline stands in a list's place as a dashed ghost card.
-import AppIcon from './AppIcon.vue'
+import AppSpinner from './AppSpinner.vue'
 import type { IconShape } from '../icons/appIcons'
 
 withDefaults(
@@ -51,7 +51,7 @@ withDefaults(
       <component :is="shape.tag" v-for="(shape, i) in icon" :key="i" v-bind="shape.attrs" />
     </svg>
     <p class="empty-title">
-      <AppIcon v-if="loading" class="empty-spinner" name="spinner" :size="12" />
+      <AppSpinner v-if="loading" class="empty-spinner" :size="12" />
       <slot>{{ title }}</slot>
     </p>
     <p v-if="detail || $slots.detail" class="empty-detail">
@@ -128,6 +128,5 @@ withDefaults(
 .empty-spinner {
   flex-shrink: 0;
   color: var(--color-fg-muted);
-  animation: spin 0.9s linear infinite;
 }
 </style>

@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { AppIcon } from '@sankasten'
+import { AppSpinner } from '@sankasten'
 
 // What the agent is doing with something the human is waiting on: a spinner while its tab's turn
 // runs, a plain line when it is idle, so the human never stares at a still screen guessing.
@@ -15,7 +15,7 @@ defineProps<{
 
 <template>
   <p class="agent-working" :class="{ working }" role="status">
-    <AppIcon v-if="working" class="spinner" name="spinner" :size="12" />
+    <AppSpinner v-if="working" class="spinner" :size="12" />
     <span>{{ working ? workingText : idleText }}</span>
   </p>
 </template>
@@ -37,6 +37,5 @@ defineProps<{
 .spinner {
   flex-shrink: 0;
   color: var(--color-violet);
-  animation: spin 0.9s linear infinite;
 }
 </style>

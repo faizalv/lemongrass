@@ -5,6 +5,7 @@
 import { ref } from 'vue'
 import AppConfirmButton from './AppConfirmButton.vue'
 import AppIcon from './AppIcon.vue'
+import AppSpinner from './AppSpinner.vue'
 import type { AppIconName } from '../icons/appIcons'
 
 // A square button holding only a glyph, for navigation, toggles and row actions. The label is
@@ -90,7 +91,7 @@ defineExpose({
     @confirm="onConfirm"
   >
     <span class="glyph">
-      <AppIcon v-if="busy" class="busy-glyph" name="spinner" />
+      <AppSpinner v-if="busy" class="busy-glyph" />
       <AppIcon v-else-if="icon" :name="icon" />
       <slot v-else />
       <span v-if="dot" class="dot" :class="`dot-${dot}`" aria-hidden="true" />
@@ -236,7 +237,6 @@ defineExpose({
 /* Full opacity on purpose, so a running action reads as alive, not as disabled. */
 .busy-glyph {
   color: var(--tone);
-  animation: spin 0.9s linear infinite;
 }
 
 .tone-neutral .busy-glyph {

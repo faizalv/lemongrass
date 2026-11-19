@@ -5,7 +5,7 @@
 // The layer's occasional status at the bottom left: a spinner with what a slow operation is doing
 // and one line per running transfer, Cancel showing on hover. Nothing renders otherwise, and a
 // failed transfer reports in the banner instead.
-import { AppIcon, AppIconButton } from '@sankasten'
+import { AppIconButton, AppSpinner } from '@sankasten'
 import { formatSize } from '../../../explorerOps'
 import type { FileTransfer } from './filesStore'
 
@@ -24,11 +24,11 @@ function transferText(t: FileTransfer): string {
 <template>
   <div v-if="slow || transfers.length" class="files-status" role="status">
     <div v-if="slow" class="line">
-      <AppIcon name="spinner" class="spin" />
+      <AppSpinner class="spin" />
       <span class="text">{{ slow }}</span>
     </div>
     <div v-for="t in transfers" :key="t.id" class="line transfer">
-      <AppIcon name="spinner" class="spin" />
+      <AppSpinner class="spin" />
       <span class="text">{{ transferText(t) }}</span>
       <AppIconButton
         class="cancel"
@@ -75,7 +75,6 @@ function transferText(t: FileTransfer): string {
 .spin {
   flex-shrink: 0;
   color: var(--color-jade);
-  animation: spin 1s linear infinite;
 }
 
 .text {
