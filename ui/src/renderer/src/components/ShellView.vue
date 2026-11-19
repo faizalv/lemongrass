@@ -2,7 +2,7 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   attachShell,
   closeFailedShell,
@@ -19,7 +19,8 @@ import {
   terminalFontReady,
   type ShellSpec
 } from '../shellRegistry'
-import { AppButton, AppContextMenu, type MenuItem } from '@sankasten'
+import { AppButton, AppContextMenu, AppEmptyState, type MenuItem } from '@sankasten'
+import { heldThinkers } from '../thinkerHold'
 import { terminalScheme } from '../appearance'
 
 const props = defineProps<{
@@ -51,20 +52,38 @@ function onMenuSelect(key: string): void {
 }
 
 let unmounted = false
+let attached = false
+// A held thinker has no process yet, and attaching would start one, so the terminal waits for the release.
+const held = computed(() => heldThinkers[props.spec.id] === true)
 
-onMounted(async () => {
+async function attach(): Promise<void> {
   await terminalFontReady()
-  if (unmounted || !containerEl.value) return
+  if (unmounted || attached || !containerEl.value) return
+  attached = true
   attachShell(props.spec, containerEl.value)
   setShellActive(props.spec.id, props.active)
   resizeObserver = new ResizeObserver(() => fitShell(props.spec.id))
   resizeObserver.observe(containerEl.value)
+}
+
+onMounted(() => {
+  if (!held.value) void attach()
 })
+
+watch(
+  held,
+  (isHeld) => {
+    if (!isHeld) void attach()
+  },
+  { flush: 'post' }
+)
 
 // Post flush, so the tab is already displayed when the fit reads its size.
 watch(
   () => props.active,
-  (active) => setShellActive(props.spec.id, active),
+  (active) => {
+    if (attached) setShellActive(props.spec.id, active)
+  },
   { flush: 'post' }
 )
 
@@ -75,7 +94,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="terminal-card fade-in" :data-theme="terminalScheme">
+  <AppEmptyState
+    v-if="held"
+    layout="fill"
+    loading
+    title="Thinker is preparing"
+    detail="Another thinker in this group starts first. This one starts right after, so it can reuse the prompt the first one cached."
+  />
+  <div v-else class="terminal-card fade-in" :data-theme="terminalScheme">
     <div ref="containerEl" class="terminal-pane" @contextmenu.prevent="openMenu"></div>
     <div v-if="shellAccountGone[spec.id]" class="restore-failure">
       <span class="restore-message">

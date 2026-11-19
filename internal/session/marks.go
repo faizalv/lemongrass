@@ -20,6 +20,9 @@ func CommandMark(command string) string { return "cmd:" + command }
 // A mark that a Claude thinker has read its role with ThinkerStartCommand.
 var ThinkerStartMark = CommandMark(ThinkerStartCommand)
 
+// A mark that a thinker has made its first tool call of the session.
+const FirstToolMark = "tool:first"
+
 // A mark that a tab has read the close instructions for a scratchpad task.
 func TaskCloseMark(slug string) string { return "task-close:" + slug }
 

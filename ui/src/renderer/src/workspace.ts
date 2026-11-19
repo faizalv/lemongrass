@@ -12,14 +12,20 @@ import {
   onShellAccountChange,
   onShellExit,
   setShellArgs,
-  setShellResume,
-  startShellDetached
+  setShellResume
 } from './shellRegistry'
 import { accountIsDeleted, preferredAccount, setPreferredAccount } from './accounts'
 import { depsStore } from './deps'
 import { agentMissing } from './depsView'
 import { defaultGroupColor, groupColorVar, isGroupColor, type GroupColor } from './groupColors'
 import { isWorkgroupMember, tabGroup, workgroupStateOf } from './workgroups'
+import {
+  noteThinkerGone,
+  noteThinkerStarted,
+  startThinkers,
+  takeHeldArgs,
+  type ThinkerToStart
+} from './thinkerHold'
 import { stopFiles } from './components/ssh/files/filesStore'
 import { forgetServerEditor } from './components/ssh/editor/remoteFiles'
 import { isTabKind } from './tabKindNames'
@@ -490,6 +496,8 @@ async function restoreShellSessions(
     const sessionId = sessions[tab.id]
     const args = sessionId ? resumeArgs(tab.command, sessionId) : null
     if (args) setShellResume(tab.id, args)
+    const held = takeHeldArgs(tab.id)
+    if (!args && held) setShellArgs(tab.id, held)
   }
 }
 
@@ -1091,6 +1099,7 @@ function discardTerminal(project: ProjectRef, tab: WorkspaceTab): void {
 }
 
 function discardShell(project: ProjectRef, tabId: string): void {
+  noteThinkerGone(tabId)
   disposeShell(tabId)
   if (!isWorkgroupMember(project.id, tabId)) void window.api.tabSessions.forget(project.path, tabId)
 }
@@ -1290,7 +1299,8 @@ function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
   const leaderTab = leaderLeaf.tabs.find((tab) => tab.id === request.leaderTabId)
   const leaderAccount = leaderTab?.kind === 'shell' ? leaderTab.account : undefined
   const remembered: Record<string, string> = {}
-  const thinkerTabs: ShellTab[] = []
+  const thinkers: ThinkerToStart[] = []
+  const argsByTab = new Map<string, string[]>()
   let next = root
   for (const member of request.members) {
     const account = request.accountsChosen ? member.account : leaderAccount
@@ -1304,23 +1314,25 @@ function spawnWorkgroup(request: WorkgroupSpawnRequest): WorkgroupSpawnResult {
       thinker: true,
       ...(member.vendor === 'claude' && account ? { account } : {})
     }
-    setShellArgs(tab.id, workgroupArgs(member))
-    thinkerTabs.push(tab)
+    const args = workgroupArgs(member)
+    setShellArgs(tab.id, args)
+    argsByTab.set(tab.id, args)
+    thinkers.push({
+      spec: { id: tab.id, command: tab.command, cwd: tab.cwd, account: tab.account, thinker: true },
+      vendor: member.vendor,
+      account: tab.account,
+      model: member.model
+    })
     next = tree.addTab(next, leaderLeaf.id, tab)
   }
   rememberThinkerAccounts(remembered)
+  // Held tabs are marked before the commit, so a held tab shown at once draws its preparing state instead of starting its shell.
+  startThinkers(project.path, thinkers, (tabId) => argsByTab.get(tabId) ?? [])
   commit(project, tree.setActiveTab(next, leaderLeaf.id, request.leaderTabId))
-  for (const member of thinkerTabs) {
-    startShellDetached({
-      id: member.id,
-      command: member.command,
-      cwd: member.cwd,
-      account: member.account,
-      thinker: true
-    })
-  }
   return { ok: true }
 }
+
+window.api.workgroup.onThinkerStarted(noteThinkerStarted)
 
 window.api.workgroup.onSpawn((request) => {
   let result: WorkgroupSpawnResult

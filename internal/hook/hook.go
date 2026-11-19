@@ -14,6 +14,7 @@ import (
 
 	"github.com/faizalv/lemongrass/internal/project"
 	"github.com/faizalv/lemongrass/internal/session"
+	"github.com/faizalv/lemongrass/internal/workgroup"
 )
 
 const (
@@ -259,6 +260,11 @@ func liveThinker(store *session.Store, tab string) (session.Member, session.Grou
 	return member, group, true
 }
 
+// Any tool call, allowed or denied, comes after the model answered the first request, so the app can start the thinkers it held back to read the same cached system prompt. A var so tests can see the call.
+var announceThinkerStarted = func(tab string) {
+	workgroup.ThinkerStarted(workgroup.AppSocketPath(), tab)
+}
+
 // Applies the thinker gates and records a skill load. Returns the tab's member row, whether it is a thinker, and a deny message or "".
 func thinkerGateDecision(store *session.Store, payload hookEvent) (session.Member, bool, string) {
 	member, _, ok := liveThinker(store, payload.TabID)
@@ -268,6 +274,11 @@ func thinkerGateDecision(store *session.Store, payload hookEvent) (session.Membe
 	marks, err := store.Marks(payload.TabID)
 	if err != nil {
 		return member, true, ""
+	}
+	if !marks[session.FirstToolMark] {
+		store.MarkReady(payload.TabID, session.FirstToolMark)
+		marks[session.FirstToolMark] = true
+		announceThinkerStarted(payload.TabID)
 	}
 	commands := member.RequiredCommands()
 	if ran := requiredCommandRun(payload.ToolName, payload.ToolInput, commands); ran != "" {

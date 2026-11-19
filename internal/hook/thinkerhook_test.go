@@ -263,3 +263,27 @@ func TestCodexThinkerRunsTheThinkerStartAndItsListedCommands(t *testing.T) {
 		t.Errorf("still denied: %s", result.PermissionDecisionReason)
 	}
 }
+
+func TestThinkerStartedIsAnnouncedOnceOnTheFirstToolCall(t *testing.T) {
+	store, _ := storeWithGroup(t, nil)
+	dir := t.TempDir()
+	var announced []string
+	restore := announceThinkerStarted
+	announceThinkerStarted = func(tab string) { announced = append(announced, tab) }
+	t.Cleanup(func() { announceThinkerStarted = restore })
+
+	// The first call is denied by the gate and still counts, since the model answered by then.
+	hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
+	hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "lgrass how thinker start"}), dir)
+	hookPreToolUse(store, preTool(gateTabLeader, "Bash", map[string]string{"command": "ls"}), dir)
+	if len(announced) != 1 || announced[0] != gateTabClaude {
+		t.Fatalf("announced %v, want only the thinker once", announced)
+	}
+
+	// A new session clears the marks, so a restarted thinker announces again.
+	store.ClearMarks(gateTabClaude)
+	hookPreToolUse(store, preTool(gateTabClaude, "Bash", map[string]string{"command": "ls"}), dir)
+	if len(announced) != 2 {
+		t.Fatalf("announced %v after the marks cleared, want a second announcement", announced)
+	}
+}

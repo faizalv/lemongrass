@@ -4,6 +4,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AppActivity, AppBanner, AppButton, AppEmptyState, AppModal } from '@sankasten'
+import { heldThinkers } from '../thinkerHold'
 import { bodyParts, type BodyPart } from '../mentions'
 import { disbandWorkgroup, refreshWorkgroups, workgroupStateOf } from '../workgroups'
 import { GROUP_COLORS, groupColorVar } from '../groupColors'
@@ -70,6 +71,7 @@ function online(member: WorkgroupMemberInfo): boolean {
 
 function memberState(member: WorkgroupMemberInfo): string {
   if (!online(member)) return 'Offline'
+  if (heldThinkers[member.tabId]) return 'Preparing'
   const activity = tabActivity(member.tabId)
   if (activity === 'working') return 'Working'
   if (activity === 'waiting') return 'Waiting for you'

@@ -20,6 +20,7 @@ const (
 	opNudge    = "nudge"
 	opClaim    = "claim"
 	opTabState = "tab_state"
+	opStarted  = "thinker_started"
 
 	dialTimeout = time.Second
 	// A hook sends the tab state inside the agent's own hook call, so a slow app never holds up a turn by more than this.
@@ -128,6 +129,12 @@ func Claim(socketPath, token string) (JoinGrant, error) {
 // Tells the app a tab's hook state changed, so its working indicator follows the turn. An app that is not running misses nothing: it reads every state when it loads a project.
 func TabState(socketPath, tabID, state string) error {
 	_, err := callWithin(socketPath, Request{Op: opTabState, TabID: tabID, State: state}, tabStateTimeout, tabStateTimeout)
+	return err
+}
+
+// Tells the app a thinker made its first tool call of a session. Its first request has been answered by then, so the prompt cache entry it wrote is readable, and the app starts the thinkers it held back to share that entry.
+func ThinkerStarted(socketPath, tabID string) error {
+	_, err := callWithin(socketPath, Request{Op: opStarted, TabID: tabID}, tabStateTimeout, tabStateTimeout)
 	return err
 }
 

@@ -160,6 +160,7 @@ interface Api {
   workgroup: {
     onSpawn: (callback: (request: WorkgroupSpawnRequest) => void) => () => void
     reportSpawn: (requestId: string, result: WorkgroupSpawnResult) => void
+    onThinkerStarted: (callback: (tabId: string) => void) => () => void
     pending: () => Promise<WorkgroupPending[]>
     decide: (
       requestId: string,

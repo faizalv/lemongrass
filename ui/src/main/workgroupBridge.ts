@@ -372,6 +372,7 @@ async function respond(
     if (request.op === 'web') return await handleWebOp(request)
     if (request.op === 'ask_hint') return await handleAskHint()
     if (request.op === 'tab_state') return handleTabState(request)
+    if (request.op === 'thinker_started') return handleThinkerStarted(request, getWindow)
     if (isConflictOp(request.op))
       return await handleConflictOp(request as unknown as ConflictOpRequest)
     return { ok: false, error: `unknown op ${String(request.op)}` }
@@ -384,6 +385,18 @@ async function respond(
 function handleTabState(request: Proposal): Reply {
   const tabId = String(request.tab_id ?? '')
   if (tabId) publishTabState({ tabId, state: hookState(request.state) })
+  return { ok: true }
+}
+
+// The renderer holds back the thinkers waiting on this tab's prompt cache, and ignores a tab it holds nothing for.
+function handleThinkerStarted(
+  request: Proposal,
+  getWindow: () => BrowserWindow | undefined
+): Reply {
+  const tabId = String(request.tab_id ?? '')
+  const window = getWindow()
+  if (tabId && window && !window.isDestroyed())
+    window.webContents.send('workgroup:thinker-started', tabId)
   return { ok: true }
 }
 

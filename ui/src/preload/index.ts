@@ -681,6 +681,11 @@ const workgroup = {
   },
   reportSpawn: (requestId: string, result: WorkgroupSpawnResult): void =>
     ipcRenderer.send('workgroup:spawn-result', { requestId, ...result }),
+  onThinkerStarted: (callback: (tabId: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, tabId: string): void => callback(tabId)
+    ipcRenderer.on('workgroup:thinker-started', listener)
+    return () => ipcRenderer.removeListener('workgroup:thinker-started', listener)
+  },
   pending: (): Promise<WorkgroupPending[]> => ipcRenderer.invoke('workgroup:pending'),
   decide: (
     requestId: string,
