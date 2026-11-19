@@ -9,6 +9,7 @@ import HistoryPopover from './HistoryPopover.vue'
 import { wheelSideways } from './headScroll'
 import { statusClass } from '../../resterClientCall'
 import { pathId, runSearch } from '../../responseSearch'
+import { responseViewOf, setResponseView } from '../../resterTreeState'
 import { treeRequestKey, treeSearchKey, type TreeSearch } from './searchContext'
 import type {
   ResterClientDownload,
@@ -38,7 +39,12 @@ const emit = defineEmits<{
   collapse: []
 }>()
 
-const view = ref<'tree' | 'raw' | 'headers'>('tree')
+// The view, search text and filter are kept per request, so a project switch does not reset them.
+const saved = computed(() => responseViewOf(props.requestId))
+const view = computed({
+  get: () => saved.value.view,
+  set: (value) => setResponseView(props.requestId, { view: value })
+})
 
 const parsed = computed<{ ok: boolean; value: unknown }>(() => {
   const body = props.result?.body ?? ''
@@ -78,8 +84,8 @@ const headerRows = computed(() =>
 // A large body takes a moment to walk, so the search waits for typing to pause.
 const SEARCH_DELAY_MS = 150
 
-const query = ref('')
-const appliedQuery = ref('')
+const query = computed(() => saved.value.query)
+const appliedQuery = ref(saved.value.query)
 const currentIndex = ref(0)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -94,7 +100,7 @@ const tree = reactive<TreeSearch>({
   ancestors: new Set(),
   records: new Set(),
   currentId: null,
-  filter: false,
+  filter: saved.value.filter,
   version: 0
 })
 provide(treeSearchKey, tree)
@@ -121,11 +127,27 @@ const countText = computed(() => {
   return `${currentIndex.value + 1} of ${stepCount.value}${noun}`
 })
 
-watch(query, (text) => {
+function onQueryInput(text: string): void {
+  setResponseView(props.requestId, { query: text })
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => (appliedQuery.value = text), SEARCH_DELAY_MS)
   if (text.trim() && parsed.value.ok) view.value = 'tree'
-})
+}
+
+// Another request brings its own search, applied at once since nobody is typing.
+watch(
+  () => props.requestId,
+  () => {
+    if (searchTimer) clearTimeout(searchTimer)
+    appliedQuery.value = saved.value.query
+    tree.filter = saved.value.filter
+  }
+)
+
+watch(
+  () => tree.filter,
+  (filter) => setResponseView(props.requestId, { filter })
+)
 
 watch(searchResult, (result) => {
   currentIndex.value = 0
@@ -153,7 +175,7 @@ function onSearchKeydown(event: KeyboardEvent): void {
     event.preventDefault()
     step(event.shiftKey ? -1 : 1)
   } else if (event.key === 'Escape') {
-    query.value = ''
+    setResponseView(props.requestId, { query: '' })
     appliedQuery.value = ''
   }
 }
@@ -206,7 +228,7 @@ function formatSize(bytes: number): string {
     </header>
     <div v-if="!sending && !error && result && parsed.ok" class="search-row">
       <AppInput
-        v-model="query"
+        :model-value="query"
         size="sm"
         mono
         class="search-input"
@@ -214,6 +236,7 @@ function formatSize(bytes: number): string {
         spellcheck="false"
         placeholder="Search, key:value, a.b.*.c, price>100, AND OR NOT"
         title="Plain text matches keys and values. key:value matches under a key. A dotted path picks fields, * for any key or index. Compare with > >= < <= = !=. Quotes force plain text. Chain terms with AND, OR, NOT and parentheses to find records, objects in a list, where all of it holds."
+        @update:model-value="onQueryInput"
         @keydown="onSearchKeydown"
       />
       <span v-if="countText" class="count" :class="{ invalid: searchError }">
