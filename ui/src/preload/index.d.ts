@@ -241,6 +241,9 @@ interface Api {
     title: (projectPath: string, tabId: string, title: string) => Promise<void>
     forget: (projectPath: string, tabId: string) => Promise<void>
     states: (projectPath: string) => Promise<Record<string, TabBusy>>
+    owners: (projectPath: string) => Promise<Record<string, string>>
+    closeTask: (tabId: string, slug: string) => Promise<string>
+    onNudgeHeld: (callback: (held: { tabId: string }) => void) => () => void
     onStateChanged: (callback: (change: TabStateChange) => void) => () => void
   }
   workspaceLayouts: {

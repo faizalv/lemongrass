@@ -13,8 +13,11 @@ const props = withDefaults(
   defineProps<{
     tone?: 'warning' | 'info' | 'danger'
     title?: string
+    // Drawn over other content, such as a terminal, rather than in the flow: the tint gets a solid
+    // surface under it so the text below never shows through, and a shadow lifts it off.
+    floating?: boolean
   }>(),
-  { tone: 'warning', title: '' }
+  { tone: 'warning', title: '', floating: false }
 )
 
 const icon = computed((): AppIconName => (props.tone === 'info' ? 'info' : 'warning'))
@@ -23,7 +26,7 @@ const icon = computed((): AppIconName => (props.tone === 'info' ? 'info' : 'warn
 <template>
   <div
     class="app-banner"
-    :class="[`tone-${tone}`, { 'has-title': title || $slots.title }]"
+    :class="[`tone-${tone}`, { 'has-title': title || $slots.title, floating }]"
     :role="tone === 'danger' ? 'alert' : 'note'"
   >
     <AppIcon class="banner-icon" :name="icon" :size="14" />
@@ -53,21 +56,27 @@ const icon = computed((): AppIconName => (props.tone === 'info' ? 'info' : 'warn
   font-family: var(--font-body);
   font-size: var(--text-sm);
   line-height: var(--leading-snug);
+  background: var(--banner-tint);
+}
+
+.app-banner.floating {
+  background: linear-gradient(var(--banner-tint), var(--banner-tint)), var(--color-surface-1);
+  box-shadow: var(--shadow-md);
 }
 
 .tone-warning {
+  --banner-tint: var(--color-amber-muted);
   border-color: var(--color-amber-dim);
-  background: var(--color-amber-muted);
 }
 
 .tone-info {
+  --banner-tint: color-mix(in srgb, var(--color-info) 12%, transparent);
   border-color: color-mix(in srgb, var(--color-info) 45%, transparent);
-  background: color-mix(in srgb, var(--color-info) 12%, transparent);
 }
 
 .tone-danger {
+  --banner-tint: var(--color-error-muted);
   border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
-  background: var(--color-error-muted);
 }
 
 /* Nudged to sit on the first line of text, title or not. */

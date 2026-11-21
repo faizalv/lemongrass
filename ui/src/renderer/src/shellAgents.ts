@@ -102,6 +102,10 @@ export function setPreferredShellAgentId(id: string): void {
   }
 }
 
+export function shellAgentByCommand(command: string): ShellAgent | undefined {
+  return SHELL_AGENTS.find((agent) => agent.command === command)
+}
+
 export function shellAgentById(id: string): ShellAgent {
   return SHELL_AGENTS.find((agent) => agent.id === id) ?? SHELL_AGENTS[0]
 }

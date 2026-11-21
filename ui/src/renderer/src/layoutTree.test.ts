@@ -3,7 +3,14 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createLeaf, findLeaf, placeTab, type LayoutLeaf, type LayoutNode } from './layoutTree.ts'
+import {
+  createLeaf,
+  findLeaf,
+  placeTab,
+  setTabOrder,
+  type LayoutLeaf,
+  type LayoutNode
+} from './layoutTree.ts'
 
 type Tab = { id: string }
 
@@ -72,4 +79,22 @@ test('duplicating within a pane inserts a copy at the index', () => {
   assert.equal(ids.length, 3)
   assert.equal(ids[0], result?.placed.id)
   assert.deepEqual(ids.slice(1), ['a', 'b'])
+})
+
+test('setTabOrder reorders a pane and keeps its active tab', () => {
+  const leaf = leafOf(['a', 'b', 'c'], 'b')
+  const root = setTabOrder(split(leaf, leafOf(['x'])), leaf.id, ['c', 'a', 'b'])
+  assert.deepEqual(idsOf(root, leaf.id), ['c', 'a', 'b'])
+  assert.equal(findLeaf(root, leaf.id)?.activeTabId, 'b')
+})
+
+test('setTabOrder ignores an order that does not match the pane', () => {
+  const leaf = leafOf(['a', 'b', 'c'])
+  for (const order of [
+    ['a', 'b'],
+    ['a', 'b', 'z'],
+    ['a', 'a', 'b']
+  ]) {
+    assert.deepEqual(idsOf(setTabOrder(leaf, leaf.id, order), leaf.id), ['a', 'b', 'c'])
+  }
 })

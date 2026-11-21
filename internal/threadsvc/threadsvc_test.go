@@ -354,3 +354,28 @@ func TestANudgeWaitsWhileTheHumanIsTyping(t *testing.T) {
 		})
 	}
 }
+
+func TestColdHoldKeepsRowsOwedWithoutRetry(t *testing.T) {
+	store := openStore(t)
+	store.CreateThread(tabAuthor, "Review", "a !>>"+tabClaude+"<<!")
+	var outcomes []string
+	retries := 0
+	d := &Deliverer{
+		Store: store,
+		Nudge: func(string) (bool, string, error) { return false, "cold", nil },
+		Log:   func(_ string, _ []int64, outcome string) { outcomes = append(outcomes, outcome) },
+		Later: func(string) { retries++ },
+	}
+	if typed, err := d.DeliverTab(tabClaude); typed || err != nil {
+		t.Fatalf("DeliverTab = %v, %v", typed, err)
+	}
+	if want := []string{"held, the tab's prompt cache is cold"}; strings.Join(outcomes, "|") != strings.Join(want, "|") {
+		t.Errorf("outcomes = %q, want %q", outcomes, want)
+	}
+	if retries != 0 {
+		t.Errorf("scheduled %d retries for a cold tab", retries)
+	}
+	if pending, _ := store.PendingForTab(tabClaude); pending.Empty() {
+		t.Error("the rows are no longer owed")
+	}
+}

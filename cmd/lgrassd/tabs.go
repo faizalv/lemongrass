@@ -31,7 +31,7 @@ func openStore() *session.Store {
 
 func cmdTabs(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrassd tabs <list|states|register|title|clear|forget|interrupted> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd tabs <list|states|owners|register|title|clear|forget|interrupted> ...")
 		os.Exit(1)
 	}
 	store := openStore()
@@ -50,6 +50,16 @@ func cmdTabs(args []string) {
 			fail(err)
 		}
 		json.NewEncoder(os.Stdout).Encode(states)
+	case "owners":
+		proj, err := project.ResolveCwd()
+		if err != nil {
+			fail(err)
+		}
+		owners, err := store.TaskOwners(proj.Path)
+		if err != nil {
+			fail(err)
+		}
+		json.NewEncoder(os.Stdout).Encode(owners)
 	case "register":
 		if len(args) != 3 {
 			fmt.Fprintln(os.Stderr, "usage: lgrassd tabs register <tab-id> <vendor>")

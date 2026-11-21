@@ -10,3 +10,11 @@ export function formatElapsed(ms: number): string {
   if (hours === 0) return `${minutes}:${seconds}`
   return `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
 }
+
+// A span in whole minutes for a sentence: 5 min, 1 h, 1 h 12 min. Never less than a minute.
+export function spanText(ms: number): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000))
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`
+}

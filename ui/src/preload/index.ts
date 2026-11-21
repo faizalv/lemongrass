@@ -164,6 +164,19 @@ const tabSessions = {
     ipcRenderer.invoke('tabSessions:forget', { projectPath, tabId }),
   states: (projectPath: string): Promise<Record<string, TabBusy>> =>
     ipcRenderer.invoke('tabSessions:states', projectPath),
+  // Tab id to the scratchpad task slug its session most recently edited a file in.
+  owners: (projectPath: string): Promise<Record<string, string>> =>
+    ipcRenderer.invoke('tabSessions:owners', projectPath),
+  // Types the close prompt for a task into a tab, composed in main from the slug.
+  closeTask: (tabId: string, slug: string): Promise<string> =>
+    ipcRenderer.invoke('tabSessions:closeTask', tabId, slug),
+  // A nudge for a tab was held because its cache is cold over a large context.
+  onNudgeHeld: (callback: (held: { tabId: string }) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, held: { tabId: string }): void =>
+      callback(held)
+    ipcRenderer.on('tabSessions:nudge-held', listener)
+    return () => ipcRenderer.removeListener('tabSessions:nudge-held', listener)
+  },
   onStateChanged: (callback: (change: TabStateChange) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, change: TabStateChange): void =>
       callback(change)

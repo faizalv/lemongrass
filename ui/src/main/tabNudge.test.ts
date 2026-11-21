@@ -27,6 +27,7 @@ function fixture(
   timers: { callback: () => void; delay: number }[]
   composed: () => number
   pastePrompt: (tabId: string, text: string) => Promise<string>
+  setNudgeHold: (hold: (tabId: string) => boolean) => void
 } {
   const writes: string[] = []
   const timers: { callback: () => void; delay: number }[] = []
@@ -37,6 +38,7 @@ function fixture(
       tabId: string
     ) => Promise<{ ok: boolean; typed?: boolean; reason?: string }>
     pastePrompt?: (tabId: string, text: string) => Promise<string>
+    setNudgeHold?: (hold: (tabId: string) => boolean) => void
   } = {}
   runInNewContext(compiled.outputText, {
     exports,
@@ -76,7 +78,8 @@ function fixture(
     writes,
     timers,
     composed: () => composed,
-    pastePrompt: exports.pastePrompt!
+    pastePrompt: exports.pastePrompt!,
+    setNudgeHold: exports.setNudgeHold!
   }
 }
 
@@ -110,6 +113,19 @@ test('human typing defers the notice before consuming or writing it', async () =
   assert.equal(f.composed(), 0)
   assert.deepEqual(f.writes, [])
   assert.equal(f.timers.length, 0)
+})
+
+test('a held tab gets no notice, and the notice stays unread in the ledger', async () => {
+  const f = fixture('claude')
+  const asked: string[] = []
+  f.setNudgeHold((tabId) => {
+    asked.push(tabId)
+    return true
+  })
+  assert.equal((await f.handleNudge('/tmp/lgrassd', TAB_ID)).reason, 'cold')
+  assert.deepEqual(asked, [TAB_ID])
+  assert.equal(f.composed(), 0)
+  assert.deepEqual(f.writes, [])
 })
 
 test('an empty ledger produces no text or Enter', async () => {

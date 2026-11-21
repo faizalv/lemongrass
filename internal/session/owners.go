@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: MPL-2.0
+// Copyright (C) 2026 The Lemongrass Authors
+
+package session
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// TaskOwners maps each tab to the scratchpad task its session most recently edited a file in, for the project rooted at
+// root. A task whose directory no longer exists, archived or removed, is skipped, so its tab falls back to the task it
+// edited before that, or to none. Ownership is read from the edit log alone: no model declares it.
+func (s *Store) TaskOwners(root string) (map[string]string, error) {
+	rows, err := s.db.Query(`
+		SELECT ts.tab_id, fa.file_path FROM lg_tab_sessions ts
+		JOIN file_activity fa ON fa.project_id = ts.project_id AND fa.session_id = ts.session_id
+		WHERE ts.project_id = ? AND fa.file_path LIKE '%scratchpad%'
+		ORDER BY fa.touched_at DESC
+	`, s.projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	scratchpads := []string{filepath.Join(root, "biblio", "scratchpad")}
+	if r, err := filepath.EvalSymlinks(scratchpads[0]); err == nil && r != scratchpads[0] {
+		scratchpads = append(scratchpads, r)
+	}
+	owners := map[string]string{}
+	decided := map[string]bool{}
+	for rows.Next() {
+		var tabID, path string
+		if err := rows.Scan(&tabID, &path); err != nil {
+			return nil, err
+		}
+		if decided[tabID] {
+			continue
+		}
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(root, path)
+		}
+		slug, ok := taskSlug(filepath.Clean(path), scratchpads)
+		if !ok {
+			continue
+		}
+		decided[tabID] = true
+		owners[tabID] = slug
+	}
+	return owners, rows.Err()
+}
+
+// The task a path sits in: the first directory below a scratchpad, which must still exist and is never the archive. A
+// file directly in the scratchpad belongs to no task.
+func taskSlug(path string, scratchpads []string) (string, bool) {
+	for _, dir := range scratchpads {
+		rel, err := filepath.Rel(dir, path)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if len(parts) < 2 || parts[0] == "archive" || parts[0] == "." {
+			continue
+		}
+		if info, err := os.Stat(filepath.Join(dir, parts[0])); err != nil || !info.IsDir() {
+			continue
+		}
+		return parts[0], true
+	}
+	return "", false
+}

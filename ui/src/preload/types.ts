@@ -1082,10 +1082,18 @@ export type WorkspaceLayoutNode =
       sizes: number[]
     }
 
+// When a tab was last on screen and, for a shell, when its agent last started working, in epoch
+// milliseconds. Reorganize and the stale documents notice read them.
+export interface TabRecency {
+  seenAt?: number
+  activeAt?: number
+}
+
 export interface WorkspaceLayoutState {
   root: WorkspaceLayoutNode | null
   focusedPaneId: string | null
   groupColors?: Record<string, string>
+  recency?: Record<string, TabRecency>
 }
 
 export interface WorkgroupSpawnMember {
@@ -1253,6 +1261,8 @@ export interface ContextUsage {
   used_tokens: number
   window_tokens: number
   seen_at: number
+  // Seconds the session's latest prompt cache write lives for; absent when its transcript showed none.
+  cache_ttl?: number
 }
 
 export interface UsageReport {

@@ -21,6 +21,7 @@ import SetupLayer from './components/deps/SetupLayer.vue'
 import ProjectSelector from './components/ProjectSelector.vue'
 import { loadAccounts } from './accounts'
 import { startContextFeed, startUsagePolling } from './usage'
+import { startColdTabs } from './coldTabs'
 import { startDepsFeed } from './deps'
 import { registerCenterHost, type SettingsSection } from './notifications'
 import { restoreZoom, setZoom, stepZoom } from './zoom'
@@ -169,6 +170,7 @@ onMounted(() => {
   void loadAccounts()
   startUsagePolling()
   startContextFeed()
+  startColdTabs()
   startDepsFeed()
   window.addEventListener('keydown', onKeydown, { capture: true })
   unsubscribeBiblio = window.api.biblio.onChanged(onBiblioChanged)

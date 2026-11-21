@@ -4,13 +4,17 @@
 <script setup lang="ts">
 import {
   AppActivity,
+  AppBanner,
+  AppButton,
   AppConfirmButton,
   AppIcon,
   AppIconButton,
+  AppMenuButton,
   AppTabClose,
   pointAnchor,
   useMenuPlacement,
-  vWheelScrollX
+  vWheelScrollX,
+  type MenuItem
 } from '@sankasten'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import TabIcon from './TabIcon.vue'
@@ -18,7 +22,7 @@ import StripIcon from './StripIcon.vue'
 import UsageMeters from './UsageMeters.vue'
 import ContextMeter from './ContextMeter.vue'
 import { accountLabel, accountStore } from '../accounts'
-import { claudeUsage, contextStore, resetText, seenText, usageStore } from '../usage'
+import { claudeUsage, contextStore, resetText, seenText, tokenCount, usageStore } from '../usage'
 import {
   activateTab,
   addShell,
@@ -29,16 +33,29 @@ import {
   closeOtherTabs,
   closeTab,
   closeTabsInPane,
+  closeTabsInPaneById,
   docTabCount,
+  openFreshTabOnTask,
   documentPath,
   isDocumentTab,
   focusPane,
   openInNewShell,
   openWeb,
   placeTab,
+  reorganizePane,
+  staleDocumentsInPane,
   tabBand,
   type ProjectRef
 } from '../workspace'
+import { ageNow } from '../ageClock'
+import { taskOfTab, taskPlansDone } from '../taskOwners'
+import { tabHookState } from '../tabStates'
+import { tabParts, type NamePart } from '../tabNames'
+import { cacheLeftMs, cacheTtlKnown, closeReminderDue } from '../../../preload/cacheState'
+import MarkedText from './MarkedText.vue'
+import ColdCacheWarning from './ColdCacheWarning.vue'
+import { coldAssumed, coldWarningShown, continueCold } from '../coldTabs'
+import { spanText } from '../elapsed'
 import { tabKindOf, type TabContext } from '../tabKinds'
 import { tabGlow } from '../tabGlow'
 import { joinVendor, liveGroupsOf, openJoin } from '../workgroups'
@@ -315,6 +332,116 @@ function menuCloseAction(key: string): void {
   runCloseAction(key)
 }
 
+const REORGANIZE_ICON = [
+  'M2 3.5h10',
+  'M2 7h6.5',
+  'M2 10.5h3.5',
+  'M10.5 6.5v5',
+  'M8.8 9.8l1.7 1.7 1.7-1.7'
+]
+
+const paneMenuItems = computed((): MenuItem[] => [
+  {
+    key: 'reorganize',
+    label: 'Reorganize',
+    title: 'Shells by latest activity, each with its task documents, then the rest by last viewed',
+    icon: REORGANIZE_ICON,
+    disabled: props.leaf.tabs.length < 2
+  }
+])
+
+function onPaneMenu(key: string): void {
+  if (key === 'reorganize') void reorganizePane(props.project, props.leaf.id)
+}
+
+// Dismissing hides the notice for the tabs stale at that moment; a tab that goes stale later
+// brings it back.
+const dismissedStale = ref(new Set<string>())
+const staleDocs = computed(() =>
+  staleDocumentsInPane(props.project.id, props.leaf.id, ageNow.value)
+)
+const showStale = computed(() => staleDocs.value.some((tab) => !dismissedStale.value.has(tab.id)))
+
+function dismissStale(): void {
+  dismissedStale.value = new Set([...dismissedStale.value, ...staleDocs.value.map((tab) => tab.id)])
+}
+
+function closeStale(): void {
+  closeTabsInPaneById(
+    props.project,
+    props.leaf.id,
+    staleDocs.value.map((tab) => tab.id)
+  )
+}
+
+// A shell in this pane that finished every Plans item of its task while its prompt cache is still
+// warm: closing the task now reads the cached context instead of resending it at full price.
+const dismissedClose = ref(new Set<string>())
+const closeReminders = computed(() =>
+  props.leaf.tabs.flatMap((tab) => {
+    if (tab.kind !== 'shell' || tabHookState(tab.id) !== 'idle') return []
+    const task = taskOfTab(props.project.path, tab.id)
+    const context = contextStore.tabs[tab.id]
+    if (!task || !context || !taskPlansDone(props.project.path, task)) return []
+    if (dismissedClose.value.has(`${tab.id}:${task}`)) return []
+    if (!closeReminderDue(context, ageNow.value)) return []
+    const left = cacheLeftMs(context, ageNow.value)
+    return [
+      {
+        tabId: tab.id,
+        task,
+        minutes: Math.max(1, Math.floor(left / 60_000)),
+        known: cacheTtlKnown(context)
+      }
+    ]
+  })
+)
+
+function closeReminderParts(reminder: {
+  tabId: string
+  task: string
+  minutes: number
+  known: boolean
+}): NamePart[] {
+  const warmth = reminder.known
+    ? `. Its cache stays warm for ${reminder.minutes} more min, so closing the task now costs little.`
+    : `. Lemongrass couldn't read its cache lifetime and assumes 5 min, so it may stay warm for about ${reminder.minutes} more min. Closing the task now likely costs little.`
+  return [
+    ...tabParts(reminder.tabId),
+    { text: ' finished every Plans item of ' },
+    { text: reminder.task, mark: true },
+    { text: warmth }
+  ]
+}
+
+// The soft counterpart of the cold warning, for a lifetime lemongrass only assumed: it says so,
+// holds nothing, and a dismiss lasts until the tab's next response.
+const assumedCold = computed(() => {
+  const tab = activeTab.value
+  if (tab?.kind !== 'shell' || !coldAssumed(tab.id)) return null
+  const context = contextStore.tabs[tab.id]
+  if (!context) return null
+  return {
+    tabId: tab.id,
+    task: taskOfTab(props.project.path, tab.id),
+    parts: [
+      ...tabParts(tab.id),
+      {
+        text: ` may have a cold cache. Lemongrass couldn't read its cache lifetime and assumes 5 min, and its last response was ${spanText(ageNow.value - context.seen_at * 1000)} ago. If the cache did expire, the next prompt resends about ${tokenCount(context.used_tokens)} tokens of context at full price.`
+      }
+    ] as NamePart[]
+  }
+})
+
+function closeTask(tabId: string, task: string): void {
+  void window.api.tabSessions.closeTask(tabId, task)
+  dismissedClose.value = new Set([...dismissedClose.value, `${tabId}:${task}`])
+}
+
+function dismissClose(tabId: string, task: string): void {
+  dismissedClose.value = new Set([...dismissedClose.value, `${tabId}:${task}`])
+}
+
 const copiedTabId = ref<string | null>(null)
 let copiedTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -543,6 +670,13 @@ onBeforeUnmount(() => {
             @click="copyPath(activeTab.id)"
           />
         </template>
+        <AppMenuButton size="sm" :items="paneMenuItems" label="Pane menu" @select="onPaneMenu">
+          <svg viewBox="0 0 14 14" fill="currentColor" stroke="none">
+            <circle cx="3" cy="7" r="1.1" />
+            <circle cx="7" cy="7" r="1.1" />
+            <circle cx="11" cy="7" r="1.1" />
+          </svg>
+        </AppMenuButton>
       </div>
     </div>
 
@@ -563,6 +697,71 @@ onBeforeUnmount(() => {
           v-bind="tabKindOf(tab).bodyProps(tab, tabContext(tab))"
         />
       </template>
+
+      <ColdCacheWarning
+        v-if="activeTab?.kind === 'shell' && coldWarningShown(activeTab.id)"
+        :key="activeTab.id"
+        :tab-id="activeTab.id"
+        :project="project"
+      />
+
+      <!-- Floats over the top of the body, so a notice never moves the terminal under it. -->
+      <div v-if="closeReminders.length || showStale || assumedCold" class="pane-notices">
+        <div v-if="assumedCold">
+          <AppBanner tone="info" floating>
+            <MarkedText :parts="assumedCold.parts" capitalize />
+            <template #actions>
+              <AppButton
+                v-if="assumedCold.task"
+                size="sm"
+                variant="ghost"
+                @click="openFreshTabOnTask(project, assumedCold.tabId, assumedCold.task)"
+              >
+                Fresh tab on {{ assumedCold.task }}
+              </AppButton>
+              <AppIconButton
+                icon="close"
+                label="Dismiss"
+                size="sm"
+                @click="continueCold(assumedCold.tabId)"
+              />
+            </template>
+          </AppBanner>
+        </div>
+        <div v-for="reminder in closeReminders" :key="reminder.tabId">
+          <AppBanner tone="info" floating>
+            <MarkedText :parts="closeReminderParts(reminder)" capitalize />
+            <template #actions>
+              <AppButton
+                size="sm"
+                variant="primary"
+                @click="closeTask(reminder.tabId, reminder.task)"
+              >
+                Close task
+              </AppButton>
+              <AppIconButton
+                icon="close"
+                label="Dismiss"
+                size="sm"
+                @click="dismissClose(reminder.tabId, reminder.task)"
+              />
+            </template>
+          </AppBanner>
+        </div>
+
+        <div v-if="showStale">
+          <AppBanner tone="info" floating>
+            {{ staleDocs.length === 1 ? '1 document' : `${staleDocs.length} documents` }} in this
+            pane not viewed for over a day.
+            <template #actions>
+              <AppConfirmButton variant="ghost" size="sm" @confirm="closeStale">
+                Close them
+              </AppConfirmButton>
+              <AppIconButton icon="close" label="Dismiss" size="sm" @click="dismissStale" />
+            </template>
+          </AppBanner>
+        </div>
+      </div>
 
       <div v-if="dropZone" class="drop-overlay" :class="dropZone">
         <span v-if="dropDuplicate" class="drop-copy">Copy</span>
@@ -778,6 +977,17 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-3) var(--space-4) var(--space-2) 0;
+}
+
+.pane-notices {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: 21;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .action-divider {

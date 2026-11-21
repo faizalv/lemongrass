@@ -117,6 +117,19 @@ export function registerTabSessionHandlers(lgrassdPath: string | null): void {
 
   ipcMain.handle('tabSessions:states', (_event, projectPath: string) => tabStates(projectPath))
 
+  ipcMain.handle(
+    'tabSessions:owners',
+    async (_event, projectPath: string): Promise<Record<string, string>> => {
+      if (!lgrassdPath) return {}
+      try {
+        return JSON.parse(await runLgrassd(lgrassdPath, projectPath, ['owners']))
+      } catch (err) {
+        console.error('lgrassd tabs owners failed:', err)
+        return {}
+      }
+    }
+  )
+
   ipcMain.handle('tabSessions:clear', async (_event, projectPath: string) => {
     if (!lgrassdPath) return
     try {

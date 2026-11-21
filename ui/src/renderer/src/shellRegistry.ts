@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
+import { shellInputHeld } from './coldTabs'
 import { reactive, watch } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -222,8 +223,9 @@ function createSession(spec: ShellSpec): ShellSession {
     shellTitles[spec.id] = title
     pushTitle(spec, title)
   })
+  // A cold tab with a large context takes no input until the human answers its warning.
   term.onData((data) => {
-    if (session.shellId) window.api.pty.write(session.shellId, data)
+    if (session.shellId && !shellInputHeld(spec.id)) window.api.pty.write(session.shellId, data)
   })
   term.attachCustomKeyEventHandler((event) => {
     const clipboardKey = event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey
@@ -237,7 +239,7 @@ function createSession(spec: ShellSpec): ShellSession {
       return false
     }
     if (event.key !== 'Enter' || !event.shiftKey) return true
-    if (event.type === 'keydown' && session.shellId) {
+    if (event.type === 'keydown' && session.shellId && !shellInputHeld(spec.id)) {
       window.api.pty.write(session.shellId, NEWLINE_SEQUENCE)
     }
     return false

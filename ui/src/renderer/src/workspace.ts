@@ -29,10 +29,14 @@ import {
 import { stopFiles } from './components/ssh/files/filesStore'
 import { forgetServerEditor } from './components/ssh/editor/remoteFiles'
 import { isTabKind } from './tabKindNames'
+import { onTabState } from './tabStates'
+import { refreshTaskOwners, taskOfDocPath, taskOfTab } from './taskOwners'
+import { reorganizedTabs, staleTabs } from './paneOrder'
 import {
   preferredShellAgentId,
   resumeArgs,
   setPreferredShellAgentId,
+  shellAgentByCommand,
   shellAgentById,
   type ShellAgent
 } from './shellAgents'
@@ -40,6 +44,7 @@ import type {
   WorkgroupSpawnMember,
   WorkgroupSpawnRequest,
   WorkgroupSpawnResult,
+  TabRecency,
   WorkspaceLayoutState,
   WorkspaceTab
 } from '../../preload/types'
@@ -462,12 +467,35 @@ function pruneDocs(project: ProjectRef): void {
   }
 }
 
+function recencyOf(projectId: string): Record<string, TabRecency> {
+  const layout = workspaces[projectId].layout
+  if (!layout.recency) layout.recency = {}
+  return layout.recency
+}
+
+// A pane's active tab is on screen, so it is stamped seen both when it is shown and when it is
+// replaced, and entries of closed tabs are dropped.
+function stampSeen(
+  projectId: string,
+  before: tree.LayoutNode<WorkspaceTab> | null,
+  after: tree.LayoutNode<WorkspaceTab> | null
+): void {
+  const recency = recencyOf(projectId)
+  const now = Date.now()
+  for (const leaf of [...tree.allLeaves(before), ...tree.allLeaves(after)]) {
+    if (leaf.activeTabId) recency[leaf.activeTabId] = { ...recency[leaf.activeTabId], seenAt: now }
+  }
+  const open = new Set(tree.allLeaves(after).flatMap((leaf) => leaf.tabs.map((tab) => tab.id)))
+  for (const tabId of Object.keys(recency)) if (!open.has(tabId)) delete recency[tabId]
+}
+
 function commit(
   project: ProjectRef,
   root: tree.LayoutNode<WorkspaceTab> | null,
   focusPaneId?: string | null
 ): void {
   const layout = workspaces[project.id].layout
+  stampSeen(project.id, layout.root, root)
   layout.root = root
   if (focusPaneId !== undefined) layout.focusedPaneId = focusPaneId
   const leaves = tree.allLeaves(root)
@@ -524,7 +552,8 @@ async function init(project: ProjectRef): Promise<void> {
     layout: {
       root: savedRoot,
       focusedPaneId: saved?.focusedPaneId ?? null,
-      groupColors: saved?.groupColors ?? {}
+      groupColors: saved?.groupColors ?? {},
+      recency: saved?.recency ?? {}
     },
     docs: {},
     files: {}
@@ -534,6 +563,11 @@ async function init(project: ProjectRef): Promise<void> {
   if (!leaves.some((leaf) => leaf.id === layout.focusedPaneId)) {
     layout.focusedPaneId = leaves[0]?.id ?? null
   }
+  void refreshTaskOwners(project.path)
+  // Tabs saved before recency was recorded start their clock now rather than counting as stale.
+  const recency = recencyOf(project.id)
+  const loadedAt = Date.now()
+  for (const tab of tabsOf(project.id)) recency[tab.id] ??= { seenAt: loadedAt }
   await Promise.all(openPaths(project.id).map((path) => loadDoc(project, path)))
   await Promise.all(openFilePaths(project.id).map((path) => loadProjectFile(project, path)))
   watch(
@@ -1069,6 +1103,28 @@ function openInNewShellWithAgent(
   focusShellAfterMount(tab.id)
 }
 
+// Opens a new tab of the same agent and account beside a shell, started on that shell's task from
+// its files, for when the shell's own context has gone cold and would cost its whole size to resume.
+export function openFreshTabOnTask(project: ProjectRef, shellTabId: string, slug: string): void {
+  const root = workspaces[project.id].layout.root
+  const leaf = tree.findLeaf(root, tree.findLeafByTab(root, shellTabId)?.id ?? null)
+  const source = leaf?.tabs.find((tab) => tab.id === shellTabId)
+  if (!root || !leaf || source?.kind !== 'shell') return
+  const agent = shellAgentByCommand(source.command)
+  if (!agent) return
+  const tab = newShellTab(project, agent, source.account)
+  setShellArgs(
+    tab.id,
+    startingPromptArgs(
+      agent.command,
+      `Resume the task ${slug} from biblio/scratchpad/${slug}/. Another tab worked it until its prompt cache went cold; pick up from the task's files, as your instructions say for a resumed task.`
+    )
+  )
+  const index = leaf.tabs.indexOf(source) + 1
+  commit(project, tree.addTab(root, leaf.id, tab, index), leaf.id)
+  focusShellAfterMount(tab.id)
+}
+
 export function focusPane(project: ProjectRef, paneId: string): void {
   workspaces[project.id].layout.focusedPaneId = paneId
 }
@@ -1180,12 +1236,61 @@ export function closeDocumentsInPane(project: ProjectRef, paneId: string): void 
   closeMatching(project, isDocumentTab, paneId)
 }
 
+// The task a tab belongs to: a shell's from the edit log, a scratchpad document's from its path.
+export function taskOfWorkspaceTab(project: ProjectRef, tab: WorkspaceTab): string | null {
+  if (tab.kind === 'shell') return taskOfTab(project.path, tab.id)
+  if (tab.kind === 'doc') return taskOfDocPath(tab.path)
+  if (tab.kind === 'file' && tab.path.startsWith('biblio/')) return taskOfDocPath(tab.path.slice(7))
+  return null
+}
+
+export async function reorganizePane(project: ProjectRef, paneId: string): Promise<void> {
+  await refreshTaskOwners(project.path)
+  // Read after the refresh, so tabs opened or closed meanwhile are in the order.
+  const root = workspaces[project.id].layout.root
+  const leaf = tree.findLeaf(root, paneId)
+  if (!root || !leaf) return
+  const order = reorganizedTabs(leaf.tabs, recencyOf(project.id), (tab) =>
+    taskOfWorkspaceTab(project, tab)
+  ).map((tab) => tab.id)
+  commit(project, tree.setTabOrder(root, paneId, order))
+}
+
+export function staleDocumentsInPane(
+  projectId: string,
+  paneId: string,
+  now: number
+): WorkspaceTab[] {
+  const leaf = tree.findLeaf(workspaces[projectId]?.layout.root ?? null, paneId)
+  if (!leaf) return []
+  return staleTabs(leaf.tabs, leaf.activeTabId, recencyOf(projectId), now, isDocumentTab)
+}
+
+export function closeTabsInPaneById(project: ProjectRef, paneId: string, tabIds: string[]): void {
+  const ids = new Set(tabIds)
+  closeMatching(project, (tab) => ids.has(tab.id), paneId)
+}
+
 onShellAccountChange((tabId, account) => {
   for (const projectId of Object.keys(workspaces)) {
     const tab = tabsOf(projectId).find((candidate) => candidate.id === tabId)
     if (tab?.kind !== 'shell') continue
     if (account) tab.account = account
     else delete tab.account
+    return
+  }
+})
+
+onTabState((tabId, state) => {
+  for (const projectId of Object.keys(workspaces)) {
+    if (!tabsOf(projectId).some((tab) => tab.id === tabId)) continue
+    if (state === 'working') {
+      const recency = recencyOf(projectId)
+      recency[tabId] = { ...recency[tabId], activeAt: Date.now() }
+    } else {
+      const project = projectRefs.get(projectId)
+      if (project) void refreshTaskOwners(project.path)
+    }
     return
   }
 })

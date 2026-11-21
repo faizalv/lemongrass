@@ -28,6 +28,13 @@ function runJson<T>(lgrassdPath: string, args: string[]): Promise<T | null> {
 
 const CONTEXT_DEBOUNCE_MS = 150
 
+// The latest figures by tab id, for main's own readers such as the nudge hold.
+let latestContexts: Record<string, ContextUsage> = {}
+
+export function contextOfTab(tabId: string): ContextUsage | undefined {
+  return latestContexts[tabId]
+}
+
 interface ContextReport {
   dir: string
   tabs: Record<string, ContextUsage>
@@ -43,10 +50,16 @@ function contextFeed(
   let watcher: FSWatcher | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
 
+  // The first read of a run also fills cache lifetimes missing from records written before they
+  // were recorded; it searches transcripts, so later reads skip it.
+  let backfilled = false
+
   const read = async (): Promise<Record<string, ContextUsage> | null> => {
     if (!lgrassdPath) return null
-    const report = await runJson<ContextReport>(lgrassdPath, ['usage', 'context'])
+    const args = backfilled ? ['usage', 'context'] : ['usage', 'context', '--backfill']
+    const report = await runJson<ContextReport>(lgrassdPath, args)
     if (!report) return null
+    backfilled = true
     if (!watcher) {
       try {
         watcher = watch(report.dir, () => {
@@ -62,6 +75,7 @@ function contextFeed(
         watcher = undefined
       }
     }
+    latestContexts = report.tabs
     return report.tabs
   }
 

@@ -9,6 +9,7 @@ import type { TabHookState } from '../../preload/types'
 // report afresh, so the one read at start only covers a renderer reload under running tabs.
 const states = reactive<Record<string, TabHookState>>({})
 const pushed = new Set<string>()
+const listeners = new Set<(tabId: string, state: TabHookState) => void>()
 
 let started = false
 
@@ -22,6 +23,11 @@ export function tabActivity(tabId: string): 'working' | 'waiting' | null {
   if (state === 'working') return 'working'
   if (state === 'prompting') return 'waiting'
   return null
+}
+
+// Called on every pushed state change, never for the seed read at start.
+export function onTabState(listener: (tabId: string, state: TabHookState) => void): void {
+  listeners.add(listener)
 }
 
 function set(tabId: string, state: TabHookState): void {
@@ -46,6 +52,7 @@ export function startTabStates(): void {
   window.api.tabSessions.onStateChanged(({ tabId, state }) => {
     pushed.add(tabId)
     set(tabId, state)
+    for (const listener of listeners) listener(tabId, state)
   })
   void seed().catch(() => undefined)
 }

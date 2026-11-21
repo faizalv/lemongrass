@@ -63,6 +63,26 @@ func (s *Store) TabSessions() (map[string]string, error) {
 	return out, rows.Err()
 }
 
+// Maps tab id to session id across every project, for readers keyed by tab alone. Tab ids are UUIDs, so they do not
+// collide between projects.
+func (s *Store) TabSessionsAllProjects() (map[string]string, error) {
+	rows, err := s.db.Query(`SELECT tab_id, session_id FROM lg_tab_sessions`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[string]string{}
+	for rows.Next() {
+		var tabID, sessionID string
+		if err := rows.Scan(&tabID, &sessionID); err != nil {
+			return nil, err
+		}
+		out[tabID] = sessionID
+	}
+	return out, rows.Err()
+}
+
 // Empty string, no error, when the tab has reported no session.
 func (s *Store) SessionForTab(tabID string) (string, error) {
 	var sessionID string

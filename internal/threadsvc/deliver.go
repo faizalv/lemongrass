@@ -56,6 +56,10 @@ func (d *Deliverer) DeliverTab(tabID string) (bool, error) {
 	case reason == "typing":
 		d.log(tabID, rows, "held, the human is typing")
 		d.later(tabID)
+	case reason == "cold":
+		// The app holds a nudge for a tab whose prompt cache expired over a large context. No quick retry: the rows
+		// stay owed and reach the agent with the human's next prompt, or with a later retype once the human resumed.
+		d.log(tabID, rows, "held, the tab's prompt cache is cold")
 	default:
 		d.log(tabID, rows, "not typed: "+reason)
 	}

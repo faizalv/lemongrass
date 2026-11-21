@@ -17,6 +17,7 @@ import { loadWindowsPath } from './windowsPath'
 import { registerTabSessionHandlers } from './tabSessions'
 import { registerAccountHandlers } from './accounts'
 import { registerUsageHandlers } from './usage'
+import { registerColdTabHandlers } from './coldTabs'
 import { registerUpdateHandlers } from './updater'
 import { registerNotificationHandlers } from './notifications'
 import { registerDepsHandlers } from './deps'
@@ -144,6 +145,7 @@ app.whenReady().then(async () => {
   registerAskTerminal()
   registerAccountHandlers(lgrassdPath)
   registerUsageHandlers(lgrassdPath, () => mainWindow?.webContents)
+  registerColdTabHandlers(() => mainWindow?.webContents)
   registerUpdateHandlers(() => mainWindow)
   registerDepsHandlers(lgrassdPath, () => mainWindow)
   registerCreditsHandlers()

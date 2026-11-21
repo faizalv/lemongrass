@@ -6,6 +6,7 @@
     "src/renderer/src/**/*.vue",
     "src/preload/*.d.ts",
     "src/preload/types.ts",
+    "src/preload/cacheState.ts",
     "../sankasten/src/**/*.ts",
     "../sankasten/src/**/*.vue"
   ],

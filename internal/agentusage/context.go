@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +29,9 @@ type Context struct {
 	UsedTokens   int64 `json:"used_tokens"`
 	WindowTokens int64 `json:"window_tokens"`
 	SeenAt       int64 `json:"seen_at"`
+	// CacheTTL is the prompt cache lifetime in seconds the session's latest cache write asked for, 0 when its
+	// transcript never showed one.
+	CacheTTL int64 `json:"cache_ttl,omitempty"`
 }
 
 func ContextDir(home string) string {
@@ -47,7 +51,8 @@ func RecordContext(home, tabID string, payload []byte, now time.Time) error {
 		return nil
 	}
 	var p struct {
-		ContextWindow *struct {
+		TranscriptPath string `json:"transcript_path"`
+		ContextWindow  *struct {
 			Size         int64 `json:"context_window_size"`
 			CurrentUsage *struct {
 				Input         int64 `json:"input_tokens"`
@@ -66,8 +71,14 @@ func RecordContext(home, tabID string, payload []byte, now time.Time) error {
 	u := cw.CurrentUsage
 	rec := Context{UsedTokens: u.Input + u.CacheCreation + u.CacheRead, WindowTokens: cw.Size, SeenAt: now.Unix()}
 	path := contextPath(home, tabID)
-	if old, err := readContext(path); err == nil && old.UsedTokens == rec.UsedTokens && old.WindowTokens == rec.WindowTokens {
+	old, oldErr := readContext(path)
+	if oldErr == nil && old.UsedTokens == rec.UsedTokens && old.WindowTokens == rec.WindowTokens {
 		return nil
+	}
+	// A turn served wholly from cache writes nothing, so it keeps the lifetime an earlier write asked for.
+	rec.CacheTTL = transcriptCacheTTL(p.TranscriptPath)
+	if rec.CacheTTL == 0 && oldErr == nil {
+		rec.CacheTTL = old.CacheTTL
 	}
 	data, err := json.Marshal(rec)
 	if err != nil {
@@ -127,4 +138,83 @@ func ReadContexts(home string) (map[string]Context, error) {
 		}
 	}
 	return out, nil
+}
+
+// The transcript tail read for the cache lifetime: the latest assistant turns, never the whole file.
+const transcriptTail = 512 << 10
+
+var (
+	cache1h = regexp.MustCompile(`"ephemeral_1h_input_tokens":\s*(\d+)`)
+	cache5m = regexp.MustCompile(`"ephemeral_5m_input_tokens":\s*(\d+)`)
+)
+
+// transcriptCacheTTL reads the cache lifetime, in seconds, of the latest turn in a Claude Code transcript that wrote
+// to the prompt cache: each assistant line's usage splits its cache writes into 1h and 5m buckets. It is 0 when no
+// turn in the tail wrote any, or the transcript has no such fields.
+func transcriptCacheTTL(path string) int64 {
+	if path == "" {
+		return 0
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return 0
+	}
+	start := max(info.Size()-transcriptTail, 0)
+	buf := make([]byte, info.Size()-start)
+	if _, err := f.ReadAt(buf, start); err != nil {
+		return 0
+	}
+	lines := strings.Split(string(buf), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if bucketTokens(cache1h, lines[i]) > 0 {
+			return 3600
+		}
+		if bucketTokens(cache5m, lines[i]) > 0 {
+			return 300
+		}
+	}
+	return 0
+}
+
+func bucketTokens(re *regexp.Regexp, line string) int64 {
+	m := re.FindStringSubmatch(line)
+	if m == nil {
+		return 0
+	}
+	n, _ := strconv.ParseInt(m[1], 10, 64)
+	return n
+}
+
+var sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
+
+// BackfillCacheTTL fills the cache lifetime of records written before lifetimes were recorded, reading it from the
+// tab's Claude Code transcript, which sits under any account's config directory as projects/<slug>/<session>.jsonl.
+// sessions maps tab id to session id. A filled record is written back with its other fields unchanged, so the next
+// read is cheap; a tab whose transcript is missing or shows no cache write keeps its record as it was.
+func BackfillCacheTTL(home string, tabs map[string]Context, sessions map[string]string) {
+	for tabID, rec := range tabs {
+		sessionID := sessions[tabID]
+		if rec.CacheTTL != 0 || !sessionIDPattern.MatchString(sessionID) || !tabIDPattern.MatchString(tabID) {
+			continue
+		}
+		matches, _ := filepath.Glob(filepath.Join(home, ".claude*", "projects", "*", sessionID+".jsonl"))
+		for _, transcript := range matches {
+			ttl := transcriptCacheTTL(transcript)
+			if ttl == 0 {
+				continue
+			}
+			rec.CacheTTL = ttl
+			if data, err := json.Marshal(rec); err == nil {
+				if agentconf.WriteAtomic(contextPath(home, tabID), append(data, '\n'), 0o600) == nil {
+					tabs[tabID] = rec
+				}
+			}
+			break
+		}
+	}
 }

@@ -149,6 +149,24 @@ export function splitWithTab<T extends LayoutTab>(
   )
 }
 
+// Gives a pane's tabs a new order. `order` must hold exactly the pane's tab ids, so a stale order
+// computed before a tab opened or closed changes nothing.
+export function setTabOrder<T extends LayoutTab>(
+  root: LayoutNode<T>,
+  paneId: string,
+  order: string[]
+): LayoutNode<T> {
+  return (
+    replaceNode(root, paneId, (node) => {
+      if (node.type !== 'leaf' || order.length !== node.tabs.length) return node
+      const byId = new Map(node.tabs.map((tab) => [tab.id, tab]))
+      const tabs = order.map((id) => byId.get(id))
+      if (tabs.some((tab) => !tab) || new Set(order).size !== order.length) return node
+      return { ...node, tabs: tabs as T[] }
+    }) ?? root
+  )
+}
+
 // Moves or duplicates a tab into a pane (center) or into a new pane split off its edge.
 // `index` places a center drop at that position in the destination's tabs, counted before the
 // move, and lets a tab be reordered within its own pane. `placed` is the tab at its destination.

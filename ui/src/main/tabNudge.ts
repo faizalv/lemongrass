@@ -34,13 +34,24 @@ function printable(text: string): string {
     .trim()
 }
 
+// Decides whether a nudge for a tab is held rather than typed. Set by main at startup; it reads the
+// tab's cache state, which this module does not import so it stays testable on its own.
+let holdNudge: (tabId: string) => boolean = () => false
+
+export function setNudgeHold(hold: (tabId: string) => boolean): void {
+  holdNudge = hold
+}
+
 // The request carries only a tab id, so the typed line always comes from lgrass's own ledger and no caller can type text of its own choosing.
+// A held nudge stays unread, so it is retyped later or reaches the model with the human's next prompt.
 export async function handleNudge(lgrassdPath: string | null, tabId: string): Promise<NudgeReply> {
   if (!lgrassdPath) return { ok: false, error: 'lgrassd is not installed' }
   if (!UUID.test(tabId)) return { ok: false, error: 'the tab id is not valid' }
   const shell = findShellByTab(tabId)
   if (!shell) return { ok: false, error: 'no open tab has that id' }
   if (shell.humanIsTyping()) return { ok: true, typed: false, reason: 'typing' }
+  // A typed line would make the agent resend its whole context at full price; the human decides.
+  if (holdNudge(tabId)) return { ok: true, typed: false, reason: 'cold' }
 
   const text = printable(await composeNudge(lgrassdPath, shell.cwd, tabId))
   if (!text) return { ok: true, typed: false, reason: 'nothing pending' }
