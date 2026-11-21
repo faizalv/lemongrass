@@ -269,10 +269,11 @@ function formatSize(bytes: number): string {
 
     <div class="box-body">
       <AppEmptyState v-if="sending" layout="fill" loading title="Sending..." />
-      <p v-else-if="error" class="error-text">{{ error }}</p>
+      <p v-else-if="error" class="error-text sk-selectable">{{ error }}</p>
       <AppEmptyState
         v-else-if="download?.kind === 'saved'"
         layout="fill"
+        class="sk-selectable"
         :title="`Saved to ${download.path}`"
       />
       <AppEmptyState

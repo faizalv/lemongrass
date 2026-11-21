@@ -100,7 +100,7 @@ function formatJson(): void {
             placeholder="{ }"
             @input="formatError = ''"
           />
-          <p v-if="formatError" class="error-text">{{ formatError }}</p>
+          <p v-if="formatError" class="error-text sk-selectable">{{ formatError }}</p>
         </template>
         <MultipartRows v-else-if="request.bodyKind === 'multipart'" v-model="request.multipart" />
         <template v-else-if="request.bodyKind === 'file'">

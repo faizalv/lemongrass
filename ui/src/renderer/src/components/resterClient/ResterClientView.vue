@@ -715,7 +715,7 @@ function onUrlKeydown(event: KeyboardEvent): void {
             Flush token
           </AppButton>
         </div>
-        <p v-if="restersError" class="error-text">{{ restersError }}</p>
+        <p v-if="restersError" class="error-text sk-selectable">{{ restersError }}</p>
 
         <AppEmptyState
           v-if="!selected || !outcome"
@@ -753,8 +753,8 @@ function onUrlKeydown(event: KeyboardEvent): void {
           <AppButton variant="primary" :disabled="!canSend" @click="send(false)">Send</AppButton>
           <AppButton :disabled="!canSend" @click="send(true)">Send and download</AppButton>
         </div>
-        <p v-if="resolvedURL" class="hint resolved">{{ resolvedURL }}</p>
-        <p v-if="outcome?.notice" class="hint notice">{{ outcome.notice }}</p>
+        <p v-if="resolvedURL" class="hint resolved sk-selectable">{{ resolvedURL }}</p>
+        <p v-if="outcome?.notice" class="hint notice sk-selectable">{{ outcome.notice }}</p>
 
         <div v-if="selected && outcome" ref="panesEl" class="panes">
           <div v-if="collapsed === 'request'" class="box-rail" @click="collapsed = null">
