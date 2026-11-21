@@ -170,6 +170,16 @@ const tabSessions = {
   // Types the close prompt for a task into a tab, composed in main from the slug.
   closeTask: (tabId: string, slug: string): Promise<string> =>
     ipcRenderer.invoke('tabSessions:closeTask', tabId, slug),
+  // Raises the OS popup for a close reminder that just became due; main fixes its text.
+  closeDuePopup: (projectPath: string, tabId: string): Promise<void> =>
+    ipcRenderer.invoke('tabSessions:closeDuePopup', projectPath, tabId),
+  // A click on that popup, asking the renderer to show the tab.
+  onOpenTab: (callback: (target: { tabId: string }) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, target: { tabId: string }): void =>
+      callback(target)
+    ipcRenderer.on('notice:open-tab', listener)
+    return () => ipcRenderer.removeListener('notice:open-tab', listener)
+  },
   // A nudge for a tab was held because its cache is cold over a large context.
   onNudgeHeld: (callback: (held: { tabId: string }) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, held: { tabId: string }): void =>

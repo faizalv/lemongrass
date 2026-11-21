@@ -9,9 +9,10 @@ import (
 	"strings"
 )
 
-// TaskOwners maps each tab to the scratchpad task its session most recently edited a file in, for the project rooted at
-// root. A task whose directory no longer exists, archived or removed, is skipped, so its tab falls back to the task it
-// edited before that, or to none. Ownership is read from the edit log alone: no model declares it.
+// TaskOwners maps each tab to the scratchpad task of its session's latest edit under the scratchpad, for the project
+// rooted at root. Only that latest edit counts: when its task is archived or removed, or the file sits loose in the
+// scratchpad, the tab owns nothing, so a closed task never hands the tab an older one. Ownership is read from the edit
+// log alone: no model declares it.
 func (s *Store) TaskOwners(root string) (map[string]string, error) {
 	rows, err := s.db.Query(`
 		SELECT ts.tab_id, fa.file_path FROM lg_tab_sessions ts
@@ -41,30 +42,33 @@ func (s *Store) TaskOwners(root string) (map[string]string, error) {
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(root, path)
 		}
-		slug, ok := taskSlug(filepath.Clean(path), scratchpads)
-		if !ok {
+		slug, under := taskSlug(filepath.Clean(path), scratchpads)
+		if !under {
 			continue
 		}
 		decided[tabID] = true
-		owners[tabID] = slug
+		if slug != "" {
+			owners[tabID] = slug
+		}
 	}
 	return owners, rows.Err()
 }
 
-// The task a path sits in: the first directory below a scratchpad, which must still exist and is never the archive. A
-// file directly in the scratchpad belongs to no task.
+// The task a path sits in, and whether the path is under a scratchpad at all. The task is the first directory below the
+// scratchpad while it still exists and is not the archive; a path under the scratchpad that names no live task gives
+// an empty slug.
 func taskSlug(path string, scratchpads []string) (string, bool) {
 	for _, dir := range scratchpads {
 		rel, err := filepath.Rel(dir, path)
-		if err != nil || strings.HasPrefix(rel, "..") {
+		if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
 			continue
 		}
 		parts := strings.Split(filepath.ToSlash(rel), "/")
-		if len(parts) < 2 || parts[0] == "archive" || parts[0] == "." {
-			continue
+		if len(parts) < 2 || parts[0] == "archive" {
+			return "", true
 		}
 		if info, err := os.Stat(filepath.Join(dir, parts[0])); err != nil || !info.IsDir() {
-			continue
+			return "", true
 		}
 		return parts[0], true
 	}

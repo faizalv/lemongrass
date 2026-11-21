@@ -36,24 +36,29 @@ func TestTaskOwnersTakesTheLatestLiveTask(t *testing.T) {
 	mustRecord("tab-b", "sess-b")
 	mustRecord("tab-c", "sess-c")
 	mustRecord("tab-d", "sess-d")
+	mustRecord("tab-e", "sess-e")
+	mustRecord("tab-f", "sess-f")
 
 	touch("sess-a", filepath.Join(pad, "older", "prd.md"))
 	touch("sess-a", filepath.Join(pad, "newer", "activities.md"))
 	touch("sess-a", filepath.Join(root, "main.go"))
-	// An archived or deleted task owns nothing, so the tab keeps the task it worked before.
+	// A closed task, archived or removed, leaves the tab with no task rather than the one it worked before.
 	touch("sess-b", filepath.Join(pad, "older", "notes.md"))
 	touch("sess-b", filepath.Join(pad, "archive", "done", "prd.md"))
-	touch("sess-b", filepath.Join(pad, "removed", "prd.md"))
-	// A relative path is read against the root; a loose scratchpad file is no task.
+	touch("sess-e", filepath.Join(pad, "older", "notes.md"))
+	touch("sess-e", filepath.Join(pad, "removed", "prd.md"))
+	// A relative path is read against the root, and a scratchpad elsewhere, such as an agent's own, is not this one.
 	touch("sess-c", "biblio/scratchpad/newer/prd.md")
-	touch("sess-c", filepath.Join(pad, "loose.md"))
+	touch("sess-c", filepath.Join(t.TempDir(), "scratchpad", "x.md"))
 	touch("sess-d", filepath.Join(root, "other.go"))
+	touch("sess-f", filepath.Join(pad, "older", "prd.md"))
+	touch("sess-f", filepath.Join(pad, "loose.md"))
 
 	owners, err := store.TaskOwners(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]string{"tab-a": "newer", "tab-b": "older", "tab-c": "newer"}
+	want := map[string]string{"tab-a": "newer", "tab-c": "newer"}
 	if !reflect.DeepEqual(owners, want) {
 		t.Fatalf("owners = %v, want %v", owners, want)
 	}

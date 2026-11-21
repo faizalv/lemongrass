@@ -244,6 +244,8 @@ interface Api {
     owners: (projectPath: string) => Promise<Record<string, string>>
     closeTask: (tabId: string, slug: string) => Promise<string>
     onNudgeHeld: (callback: (held: { tabId: string }) => void) => () => void
+    closeDuePopup: (projectPath: string, tabId: string) => Promise<void>
+    onOpenTab: (callback: (target: { tabId: string }) => void) => () => void
     onStateChanged: (callback: (change: TabStateChange) => void) => () => void
   }
   workspaceLayouts: {

@@ -1594,6 +1594,7 @@ export type NoticeEvent =
   | 'ask-answered'
   | 'turn-ended'
   | 'tab-prompting'
+  | 'task-close-due'
   | 'conflict-submitted'
   | 'update-available'
   | 'dep-problem'

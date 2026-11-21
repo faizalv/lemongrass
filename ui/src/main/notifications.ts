@@ -23,6 +23,7 @@ const KINDS: Record<NoticeEvent, NoticeKind> = {
   'ask-answered': 'history',
   'turn-ended': 'agent',
   'tab-prompting': 'agent',
+  'task-close-due': 'agent',
   'conflict-submitted': 'agent',
   'update-available': 'app',
   'dep-problem': 'app',
@@ -33,6 +34,9 @@ const KINDS: Record<NoticeEvent, NoticeKind> = {
 
 // Popups for these channels stand for a waiting decision, which the center already lists live.
 const DECISION_CHANNELS = new Set(['ask:open', 'workgroup:open-approvals'])
+// Popups for these channels mirror an item the renderer records itself with the tab named, which a
+// popup's fixed text cannot do.
+const RENDERER_RECORDED_CHANNELS = new Set(['notice:open-tab'])
 
 let items: Notice[] = []
 let currentWindow: () => BrowserWindow | undefined = () => undefined
@@ -118,7 +122,8 @@ export function recordNotification(input: NoticeInput): void {
 
 // Every OS popup lands here, so dismissing the popup loses nothing.
 export function recordNotice(notice: AppNotice): void {
-  if (DECISION_CHANNELS.has(notice.channel)) return
+  if (DECISION_CHANNELS.has(notice.channel) || RENDERER_RECORDED_CHANNELS.has(notice.channel))
+    return
   recordNotification({
     event: 'popup',
     key: `popup:${notice.title}:${notice.body}`,

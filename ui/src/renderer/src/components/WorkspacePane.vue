@@ -48,10 +48,9 @@ import {
   type ProjectRef
 } from '../workspace'
 import { ageNow } from '../ageClock'
-import { taskOfTab, taskPlansDone } from '../taskOwners'
-import { tabHookState } from '../tabStates'
+import { taskOfTab } from '../taskOwners'
+import { closeReminderFor, type CloseReminder } from '../closeReminder'
 import { tabParts, type NamePart } from '../tabNames'
-import { cacheLeftMs, cacheTtlKnown, closeReminderDue } from '../../../preload/cacheState'
 import MarkedText from './MarkedText.vue'
 import ColdCacheWarning from './ColdCacheWarning.vue'
 import { coldAssumed, coldWarningShown, continueCold } from '../coldTabs'
@@ -379,35 +378,25 @@ function closeStale(): void {
 const dismissedClose = ref(new Set<string>())
 const closeReminders = computed(() =>
   props.leaf.tabs.flatMap((tab) => {
-    if (tab.kind !== 'shell' || tabHookState(tab.id) !== 'idle') return []
-    const task = taskOfTab(props.project.path, tab.id)
-    const context = contextStore.tabs[tab.id]
-    if (!task || !context || !taskPlansDone(props.project.path, task)) return []
-    if (dismissedClose.value.has(`${tab.id}:${task}`)) return []
-    if (!closeReminderDue(context, ageNow.value)) return []
-    const left = cacheLeftMs(context, ageNow.value)
-    return [
-      {
-        tabId: tab.id,
-        task,
-        minutes: Math.max(1, Math.floor(left / 60_000)),
-        known: cacheTtlKnown(context)
-      }
-    ]
+    if (tab.kind !== 'shell') return []
+    const reminder = closeReminderFor(props.project.path, tab.id, ageNow.value)
+    if (!reminder || dismissedClose.value.has(`${tab.id}:${reminder.task}`)) return []
+    return [reminder]
   })
 )
 
-function closeReminderParts(reminder: {
-  tabId: string
-  task: string
-  minutes: number
-  known: boolean
-}): NamePart[] {
+// The tab the pane is showing is the one under the banner, so it is simply this tab; any other
+// tab in the pane is named.
+function subjectParts(tabId: string): NamePart[] {
+  return tabId === props.leaf.activeTabId ? [{ text: 'This tab' }] : tabParts(tabId)
+}
+
+function closeReminderParts(reminder: CloseReminder): NamePart[] {
   const warmth = reminder.known
     ? `. Its cache stays warm for ${reminder.minutes} more min, so closing the task now costs little.`
     : `. Lemongrass couldn't read its cache lifetime and assumes 5 min, so it may stay warm for about ${reminder.minutes} more min. Closing the task now likely costs little.`
   return [
-    ...tabParts(reminder.tabId),
+    ...subjectParts(reminder.tabId),
     { text: ' finished every Plans item of ' },
     { text: reminder.task, mark: true },
     { text: warmth }
@@ -425,7 +414,7 @@ const assumedCold = computed(() => {
     tabId: tab.id,
     task: taskOfTab(props.project.path, tab.id),
     parts: [
-      ...tabParts(tab.id),
+      ...subjectParts(tab.id),
       {
         text: ` may have a cold cache. Lemongrass couldn't read its cache lifetime and assumes 5 min, and its last response was ${spanText(ageNow.value - context.seen_at * 1000)} ago. If the cache did expire, the next prompt resends about ${tokenCount(context.used_tokens)} tokens of context at full price.`
       }

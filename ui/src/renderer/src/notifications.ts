@@ -18,6 +18,7 @@ import { isWindows } from './platform'
 import { askParts, askWhere } from './components/decisions/askOrigin'
 import { shellTitles } from './shellRegistry'
 import { cleanTitle, tabParts, type NamePart } from './tabNames'
+import { closeReminderFor } from './closeReminder'
 import { vaultSession } from './vaultSession'
 import { approvals, openApprovals } from './workgroups'
 import {
@@ -134,6 +135,13 @@ export function sentenceOf(item: Notice): NamePart[] {
       return line(tab, ` finished a ${item.detail}-minute turn${where}.`)
     case 'tab-prompting':
       return line(tab, ` waits for your answer${where}.`)
+    case 'task-close-due':
+      return line(
+        tab,
+        ' finished every Plans item of ',
+        [{ text: item.subject ?? 'its task', mark: true }],
+        `${where}. Close the task while its cache is warm.`
+      )
     case 'conflict-submitted': {
       const count = Number(item.detail) || 1
       const files = count === 1 ? 'one conflicted file' : `${count} conflicted files`
@@ -408,6 +416,34 @@ function noteTab(
   })
 }
 
+// Close reminders already announced, by tab and task, so each idle stretch notifies once; a key
+// leaves the set when its reminder stops being due, and the next due stretch notifies again.
+const closeDueNoted = new Set<string>()
+
+function noteCloseDue(project: Project, tabId: string, shown: boolean, now: number): void {
+  const reminder = closeReminderFor(project.path, tabId, now)
+  for (const key of closeDueNoted) {
+    if (key.startsWith(`${tabId}:`) && key !== `${tabId}:${reminder?.task}`)
+      closeDueNoted.delete(key)
+  }
+  if (!reminder) return
+  const key = `${tabId}:${reminder.task}`
+  if (closeDueNoted.has(key)) return
+  closeDueNoted.add(key)
+  const seen = shown && document.hasFocus()
+  add({
+    event: 'task-close-due',
+    key: `task-close-due:${key}`,
+    projectPath: project.path,
+    tabId,
+    tabTitle: liveTitle(tabId) || undefined,
+    subject: reminder.task,
+    read: seen
+  })
+  // The pane already shows the reminder over the tab the human is looking at.
+  if (!seen) void window.api.tabSessions.closeDuePopup(project.path, tabId).catch(() => undefined)
+}
+
 async function pollTabs(): Promise<void> {
   const now = Date.now()
   const seen = new Set<string>()
@@ -422,6 +458,7 @@ async function pollTabs(): Promise<void> {
     }
     for (const { tabId, shown } of tabs) {
       seen.add(tabId)
+      noteCloseDue(project, tabId, shown, now)
       const next = stateOf(states[tabId]?.reason)
       const before = watched.get(tabId)
       if (!before) {
@@ -440,6 +477,7 @@ async function pollTabs(): Promise<void> {
     }
   }
   for (const tabId of watched.keys()) if (!seen.has(tabId)) watched.delete(tabId)
+  for (const key of closeDueNoted) if (!seen.has(key.split(':')[0])) closeDueNoted.delete(key)
 }
 
 export function startNotificationFeed(): void {
@@ -471,5 +509,13 @@ export function startNotificationFeed(): void {
       detail: String(submitted.files.length)
     })
   )
+  window.api.tabSessions.onOpenTab(({ tabId }) => void openTabFromPopup(tabId))
   setInterval(() => void pollTabs(), POLL_MS)
+}
+
+async function openTabFromPopup(tabId: string): Promise<void> {
+  const found = shellTabById(tabId)
+  if (!found) return
+  const project = await showProject(found.project.path)
+  if (project) focusTab(project, tabId)
 }
