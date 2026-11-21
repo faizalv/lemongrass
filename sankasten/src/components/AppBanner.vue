@@ -66,18 +66,24 @@ const icon = computed((): AppIconName => (props.tone === 'info' ? 'info' : 'warn
 
 .tone-warning {
   --banner-tint: var(--color-amber-muted);
+  --ghost-hover: color-mix(in srgb, var(--color-amber) 22%, transparent);
   border-color: var(--color-amber-dim);
 }
 
 .tone-info {
   --banner-tint: color-mix(in srgb, var(--color-info) 12%, transparent);
+  --ghost-hover: color-mix(in srgb, var(--color-info) 28%, transparent);
   border-color: color-mix(in srgb, var(--color-info) 45%, transparent);
 }
 
 .tone-danger {
   --banner-tint: var(--color-error-muted);
+  --ghost-hover: color-mix(in srgb, var(--color-error) 24%, transparent);
   border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
 }
+
+/* Ghost buttons in the actions hover in the banner's own hue (--ghost-hover, read by AppButton),
+   since the neutral surface hover reads as gray on a tint. */
 
 /* Nudged to sit on the first line of text, title or not. */
 .banner-icon {

@@ -31,7 +31,8 @@ import { forgetServerEditor } from './components/ssh/editor/remoteFiles'
 import { isTabKind } from './tabKindNames'
 import { onTabState } from './tabStates'
 import { refreshTaskOwners, taskOfDocPath, taskOfTab } from './taskOwners'
-import { reorganizedTabs, staleTabs } from './paneOrder'
+import { STALE_AFTER_MS, reorganizedTabs, staleTabs } from './paneOrder'
+import { contextStore } from './usage'
 import {
   preferredShellAgentId,
   resumeArgs,
@@ -1250,20 +1251,35 @@ export async function reorganizePane(project: ProjectRef, paneId: string): Promi
   const root = workspaces[project.id].layout.root
   const leaf = tree.findLeaf(root, paneId)
   if (!root || !leaf) return
-  const order = reorganizedTabs(leaf.tabs, recencyOf(project.id), (tab) =>
-    taskOfWorkspaceTab(project, tab)
+  const recency = recencyOf(project.id)
+  const order = reorganizedTabs(
+    leaf.tabs,
+    recency,
+    (tab) => taskOfWorkspaceTab(project, tab),
+    // A shell's last response outlives the app run, so a tab idle for days sorts as idle even when
+    // it has not worked since the app started.
+    (tab) =>
+      Math.max(recency[tab.id]?.activeAt ?? 0, (contextStore.tabs[tab.id]?.seen_at ?? 0) * 1000)
   ).map((tab) => tab.id)
   commit(project, tree.setTabOrder(root, paneId, order))
 }
 
-export function staleDocumentsInPane(
-  projectId: string,
-  paneId: string,
-  now: number
-): WorkspaceTab[] {
+// A pane's tabs unused for over a day: documents off screen that long, and sessions whose agent
+// last responded that long ago. A session that owns a task is left out, since closing it would end
+// the session holding that work; the idle task reminder speaks for it instead. A session with no
+// recorded response, such as a Codex tab, cannot be judged and is left out too.
+export function staleTabsInPane(projectId: string, paneId: string, now: number): WorkspaceTab[] {
   const leaf = tree.findLeaf(workspaces[projectId]?.layout.root ?? null, paneId)
-  if (!leaf) return []
-  return staleTabs(leaf.tabs, leaf.activeTabId, recencyOf(projectId), now, isDocumentTab)
+  const project = projectRefs.get(projectId)
+  if (!leaf || !project) return []
+  const docs = staleTabs(leaf.tabs, leaf.activeTabId, recencyOf(projectId), now, isDocumentTab)
+  const sessions = leaf.tabs.filter((tab) => {
+    if (tab.kind !== 'shell' || tab.id === leaf.activeTabId) return false
+    const seenAt = contextStore.tabs[tab.id]?.seen_at
+    if (!seenAt || taskOfTab(project.path, tab.id)) return false
+    return now - seenAt * 1000 > STALE_AFTER_MS
+  })
+  return [...docs, ...sessions]
 }
 
 export function closeTabsInPaneById(project: ProjectRef, paneId: string, tabIds: string[]): void {

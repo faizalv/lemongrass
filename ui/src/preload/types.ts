@@ -1595,6 +1595,7 @@ export type NoticeEvent =
   | 'turn-ended'
   | 'tab-prompting'
   | 'task-close-due'
+  | 'task-idle'
   | 'conflict-submitted'
   | 'update-available'
   | 'dep-problem'

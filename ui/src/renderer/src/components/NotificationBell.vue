@@ -7,12 +7,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import NotificationCenter from './NotificationCenter.vue'
 import { askState } from '../asks'
 import { approvals } from '../workgroups'
-import { center, startNotificationFeed, unreadCount } from '../notifications'
+import { attentionWaiting, center, startNotificationFeed, unreadCount } from '../notifications'
 
 const rootRef = ref<HTMLElement | null>(null)
 const count = computed(() => unreadCount())
-// A waiting decision is the one thing here that holds an agent up, so it alone colors the badge.
-const deciding = computed(() => askState.count.waiting > 0 || approvals.pending.length > 0)
+// A waiting decision holds an agent up, and an unread task reminder asks the human to act while
+// a cache is warm, so either colors the badge.
+const deciding = computed(
+  () => askState.count.waiting > 0 || approvals.pending.length > 0 || attentionWaiting()
+)
 const label = computed(() => {
   if (count.value === 0) return 'Notifications'
   return count.value === 1 ? 'Notifications, 1 new' : `Notifications, ${count.value} new`

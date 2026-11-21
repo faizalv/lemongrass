@@ -35,10 +35,15 @@ export function isColdAndLarge(context: ContextUsage | undefined, nowMs: number)
 // closing is still cheap.
 const CLOSE_REMINDER_MAX_WAIT_MS = 10 * 60 * 1000
 
-export function closeReminderDue(context: ContextUsage, nowMs: number): boolean {
+// When the close reminder for the tab's current idle stretch becomes due, in epoch milliseconds.
+export function closeReminderDueAt(context: ContextUsage): number {
   const ttlMs = (context.cache_ttl || DEFAULT_CACHE_TTL_S) * 1000
-  const idleMs = nowMs - context.seen_at * 1000
-  return (
-    idleMs >= Math.min(ttlMs / 2, CLOSE_REMINDER_MAX_WAIT_MS) && cacheLeftMs(context, nowMs) > 0
-  )
+  return context.seen_at * 1000 + Math.min(ttlMs / 2, CLOSE_REMINDER_MAX_WAIT_MS)
 }
+
+export function closeReminderDue(context: ContextUsage, nowMs: number): boolean {
+  return nowMs >= closeReminderDueAt(context) && cacheLeftMs(context, nowMs) > 0
+}
+
+// An unfinished task whose tab has sat idle this long is one the human may have forgotten.
+export const IDLE_TASK_REMINDER_MS = 15 * 60 * 1000

@@ -24,6 +24,7 @@ const KINDS: Record<NoticeEvent, NoticeKind> = {
   'turn-ended': 'agent',
   'tab-prompting': 'agent',
   'task-close-due': 'agent',
+  'task-idle': 'agent',
   'conflict-submitted': 'agent',
   'update-available': 'app',
   'dep-problem': 'app',

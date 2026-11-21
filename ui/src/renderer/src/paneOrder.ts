@@ -11,11 +11,6 @@ export interface OrderTab {
 // A document tab nobody has had on screen for this long is offered for closing.
 export const STALE_AFTER_MS = 24 * 60 * 60 * 1000
 
-function shellTime(tab: OrderTab, recency: Record<string, TabRecency>): number {
-  const r = recency[tab.id]
-  return Math.max(r?.activeAt ?? 0, r?.seenAt ?? 0)
-}
-
 function seenTime(tab: OrderTab, recency: Record<string, TabRecency>): number {
   return recency[tab.id]?.seenAt ?? 0
 }
@@ -27,19 +22,32 @@ function newestFirst<T extends OrderTab>(tabs: T[], time: (tab: T) => number): T
     .map((entry) => entry.tab)
 }
 
-// The order Reorganize gives a pane: shells by their latest activity, each followed by the other
+// When a shell's agent last worked, from its last response or a turn started this run; 0 when
+// unknown. Being on screen is not activity, so it never counts here.
+export type ActivityOf = (tab: OrderTab) => number
+
+// The order Reorganize gives a pane: shells by their latest agent activity, shells with none known
+// after them by when they were last on screen, each followed by the other
 // tabs of the task it works, then every other tab by when it was last on screen. `taskOf` names a
 // shell's task and a document's task; when two shells work one task, its tabs follow the more
 // recent shell. Ties keep the pane's current order, so a second Reorganize changes nothing.
 export function reorganizedTabs<T extends OrderTab>(
   tabs: T[],
   recency: Record<string, TabRecency>,
-  taskOf: (tab: T) => string | null = () => null
+  taskOf: (tab: T) => string | null = () => null,
+  activityOf: ActivityOf = (tab) => recency[tab.id]?.activeAt ?? 0
 ): T[] {
-  const shells = newestFirst(
-    tabs.filter((tab) => tab.kind === 'shell'),
-    (tab) => shellTime(tab, recency)
-  )
+  const allShells = tabs.filter((tab) => tab.kind === 'shell')
+  const shells = [
+    ...newestFirst(
+      allShells.filter((tab) => activityOf(tab) > 0),
+      (tab) => activityOf(tab)
+    ),
+    ...newestFirst(
+      allShells.filter((tab) => activityOf(tab) === 0),
+      (tab) => seenTime(tab, recency)
+    )
+  ]
   const rest = newestFirst(
     tabs.filter((tab) => tab.kind !== 'shell'),
     (tab) => seenTime(tab, recency)

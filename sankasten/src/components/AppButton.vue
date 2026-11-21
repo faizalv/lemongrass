@@ -100,10 +100,11 @@ defineExpose({ focus: () => el.value?.focus() })
   color: var(--tone, var(--color-fg-secondary));
 }
 
+/* A surface with its own tint, such as a banner, sets --ghost-hover so the hover stays in its hue. */
 .ghost:hover:not(:disabled),
 .text:hover:not(:disabled) {
   color: var(--tone, var(--color-fg-primary));
-  background: var(--color-surface-2);
+  background: var(--ghost-hover, var(--color-surface-2));
 }
 
 .danger {

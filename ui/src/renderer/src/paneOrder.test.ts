@@ -9,16 +9,32 @@ const shell = (id: string): OrderTab => ({ id, kind: 'shell' })
 const doc = (id: string): OrderTab => ({ id, kind: 'doc' })
 const ids = (tabs: OrderTab[]): string[] => tabs.map((tab) => tab.id)
 
-test('shells come first by latest activity, then other tabs by last seen', () => {
-  const tabs = [doc('d1'), shell('s1'), doc('d2'), shell('s2'), shell('s3')]
+test('shells come first by agent activity, then other tabs by last seen', () => {
+  const tabs = [doc('d1'), shell('s1'), doc('d2'), shell('s2'), shell('s3'), shell('s4')]
   const recency = {
     s1: { seenAt: 10, activeAt: 50 },
-    s2: { seenAt: 70 },
+    s2: { seenAt: 99 },
     s3: { seenAt: 20 },
+    s4: { seenAt: 5, activeAt: 70 },
     d1: { seenAt: 5 },
     d2: { seenAt: 90 }
   }
-  assert.deepEqual(ids(reorganizedTabs(tabs, recency)), ['s2', 's1', 's3', 'd2', 'd1'])
+  // Being on screen is not activity: s2 was seen last but never worked, so it follows the shells
+  // that did, ahead of s3, seen earlier.
+  assert.deepEqual(ids(reorganizedTabs(tabs, recency)), ['s4', 's1', 's2', 's3', 'd2', 'd1'])
+})
+
+test('a last response counts as activity', () => {
+  const tabs = [shell('old'), shell('recent')]
+  const recency = { old: { seenAt: 1000 }, recent: { seenAt: 1 } }
+  const responses: Record<string, number> = { old: 10, recent: 500 }
+  const order = reorganizedTabs(
+    tabs,
+    recency,
+    () => null,
+    (tab) => responses[tab.id] ?? 0
+  )
+  assert.deepEqual(ids(order), ['recent', 'old'])
 })
 
 test('tabs with no recency keep their order after the dated ones', () => {

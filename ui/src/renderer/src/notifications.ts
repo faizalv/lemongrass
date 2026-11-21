@@ -18,7 +18,7 @@ import { isWindows } from './platform'
 import { askParts, askWhere } from './components/decisions/askOrigin'
 import { shellTitles } from './shellRegistry'
 import { cleanTitle, tabParts, type NamePart } from './tabNames'
-import { closeReminderFor } from './closeReminder'
+import { closeReminderFor, idleTaskReminderFor } from './closeReminder'
 import { vaultSession } from './vaultSession'
 import { approvals, openApprovals } from './workgroups'
 import {
@@ -142,6 +142,20 @@ export function sentenceOf(item: Notice): NamePart[] {
         [{ text: item.subject ?? 'its task', mark: true }],
         `${where}. Close the task while its cache is warm.`
       )
+    case 'task-idle':
+      return item.detail === 'approval'
+        ? line(
+            tab,
+            ' finished ',
+            [{ text: item.subject ?? 'its task', mark: true }],
+            `${where}. The task is waiting for your approval.`
+          )
+        : line(
+            tab,
+            ' stopped working on ',
+            [{ text: item.subject ?? 'its task', mark: true }],
+            `${where}, but the task is not finished.`
+          )
     case 'conflict-submitted': {
       const count = Number(item.detail) || 1
       const files = count === 1 ? 'one conflicted file' : `${count} conflicted files`
@@ -386,16 +400,20 @@ function stateOf(reason: string | null | undefined): TabWatch['state'] {
   return 'idle'
 }
 
-function shellTabsOf(project: Project): { tabId: string; shown: boolean }[] {
-  const root = workspaceOf(project.id)?.layout.root ?? null
+// shown: the tab is its pane's active tab in the active project. focused: it is also the active
+// tab of the pane the human works in, the only place a reminder banner is surely in view.
+function shellTabsOf(project: Project): { tabId: string; shown: boolean; focused: boolean }[] {
+  const layout = workspaceOf(project.id)?.layout
+  const root = layout?.root ?? null
   const active = host?.activeProjectId() === project.id
-  return tree
-    .allLeaves(root)
-    .flatMap((leaf) =>
-      leaf.tabs
-        .filter((tab) => tab.kind === 'shell')
-        .map((tab) => ({ tabId: tab.id, shown: active && leaf.activeTabId === tab.id }))
-    )
+  return tree.allLeaves(root).flatMap((leaf) =>
+    leaf.tabs
+      .filter((tab) => tab.kind === 'shell')
+      .map((tab) => {
+        const shown = active && leaf.activeTabId === tab.id
+        return { tabId: tab.id, shown, focused: shown && leaf.id === layout?.focusedPaneId }
+      })
+  )
 }
 
 function noteTab(
@@ -416,32 +434,65 @@ function noteTab(
   })
 }
 
-// Close reminders already announced, by tab and task, so each idle stretch notifies once; a key
-// leaves the set when its reminder stops being due, and the next due stretch notifies again.
-const closeDueNoted = new Set<string>()
+// Reminders already announced, by kind, tab, task and idle stretch.
+const remindersNoted = new Set<string>()
+const startedAt = Date.now()
 
-function noteCloseDue(project: Project, tabId: string, shown: boolean, now: number): void {
-  const reminder = closeReminderFor(project.path, tabId, now)
-  for (const key of closeDueNoted) {
-    if (key.startsWith(`${tabId}:`) && key !== `${tabId}:${reminder?.task}`)
-      closeDueNoted.delete(key)
-  }
+type ReminderPopup = 'close' | 'idle' | 'approval'
+
+function noteReminder(
+  project: Project,
+  tabId: string,
+  focused: boolean,
+  event: 'task-close-due' | 'task-idle',
+  reminder: { task: string; seenAt: number; dueAt: number } | null,
+  detail: string | undefined,
+  popup: ReminderPopup
+): void {
   if (!reminder) return
-  const key = `${tabId}:${reminder.task}`
-  if (closeDueNoted.has(key)) return
-  closeDueNoted.add(key)
-  const seen = shown && document.hasFocus()
+  const key = `${event}:${tabId}:${reminder.task}:${reminder.seenAt}`
+  if (remindersNoted.has(key)) return
+  remindersNoted.add(key)
+  // A reminder already due when this app run started goes to the center but raises no popup, so a
+  // restart under many tabs idle for days lists them without a burst of popups.
+  const old = reminder.dueAt < startedAt
+  const seen = focused && document.hasFocus()
   add({
-    event: 'task-close-due',
-    key: `task-close-due:${key}`,
+    event,
+    key: `${event}:${tabId}:${reminder.task}`,
     projectPath: project.path,
     tabId,
     tabTitle: liveTitle(tabId) || undefined,
     subject: reminder.task,
+    detail,
     read: seen
   })
-  // The pane already shows the reminder over the tab the human is looking at.
-  if (!seen) void window.api.tabSessions.closeDuePopup(project.path, tabId).catch(() => undefined)
+  // A banner shows over the tab the human works in, so only other tabs pop up.
+  if (!seen && !old)
+    void window.api.tabSessions.taskPopup(project.path, tabId, popup).catch(() => undefined)
+}
+
+function noteReminders(project: Project, tabId: string, focused: boolean, now: number): void {
+  const close = closeReminderFor(project.path, tabId, now)
+  noteReminder(project, tabId, focused, 'task-close-due', close, undefined, 'close')
+  const idle = idleTaskReminderFor(project.path, tabId, now)
+  const approval = idle?.awaitingApproval === true
+  noteReminder(
+    project,
+    tabId,
+    focused,
+    'task-idle',
+    idle,
+    approval ? 'approval' : 'open',
+    approval ? 'approval' : 'idle'
+  )
+}
+
+// Unread reminder items color the bell like a waiting decision: each is the human's to act on.
+const ATTENTION_EVENTS = new Set(['task-close-due', 'task-idle'])
+
+export function attentionWaiting(): boolean {
+  return center.items.some((item) => !item.read && ATTENTION_EVENTS.has(item.event))
 }
 
 async function pollTabs(): Promise<void> {
@@ -456,9 +507,9 @@ async function pollTabs(): Promise<void> {
     } catch {
       continue
     }
-    for (const { tabId, shown } of tabs) {
+    for (const { tabId, shown, focused } of tabs) {
       seen.add(tabId)
-      noteCloseDue(project, tabId, shown, now)
+      noteReminders(project, tabId, focused, now)
       const next = stateOf(states[tabId]?.reason)
       const before = watched.get(tabId)
       if (!before) {
@@ -477,7 +528,7 @@ async function pollTabs(): Promise<void> {
     }
   }
   for (const tabId of watched.keys()) if (!seen.has(tabId)) watched.delete(tabId)
-  for (const key of closeDueNoted) if (!seen.has(key.split(':')[0])) closeDueNoted.delete(key)
+  for (const key of remindersNoted) if (!seen.has(key.split(':')[1])) remindersNoted.delete(key)
 }
 
 export function startNotificationFeed(): void {

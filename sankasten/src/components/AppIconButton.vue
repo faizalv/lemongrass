@@ -175,8 +175,9 @@ defineExpose({
   --tone-fill: var(--color-error-muted);
 }
 
+/* --ghost-hover comes from a tinted surface such as a banner, so the hover keeps its hue. */
 .app-icon-button:hover:not(:disabled) {
-  background: var(--color-surface-2);
+  background: var(--ghost-hover, var(--color-surface-2));
   color: var(--tone);
 }
 

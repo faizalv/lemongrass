@@ -43,14 +43,19 @@ import {
   openWeb,
   placeTab,
   reorganizePane,
-  staleDocumentsInPane,
+  staleTabsInPane,
   tabBand,
   type ProjectRef
 } from '../workspace'
 import { ageNow } from '../ageClock'
 import { taskOfTab } from '../taskOwners'
-import { closeReminderFor, type CloseReminder } from '../closeReminder'
-import { tabParts, type NamePart } from '../tabNames'
+import {
+  closeReminderFor,
+  idleTaskReminderFor,
+  type CloseReminder,
+  type IdleTaskReminder
+} from '../closeReminder'
+import { type NamePart } from '../tabNames'
 import MarkedText from './MarkedText.vue'
 import ColdCacheWarning from './ColdCacheWarning.vue'
 import { coldAssumed, coldWarningShown, continueCold } from '../coldTabs'
@@ -356,9 +361,37 @@ function onPaneMenu(key: string): void {
 // Dismissing hides the notice for the tabs stale at that moment; a tab that goes stale later
 // brings it back.
 const dismissedStale = ref(new Set<string>())
-const staleDocs = computed(() =>
-  staleDocumentsInPane(props.project.id, props.leaf.id, ageNow.value)
-)
+const staleDocs = computed(() => staleTabsInPane(props.project.id, props.leaf.id, ageNow.value))
+// Documents count from when they were last on screen, sessions from their agent's last response.
+const STALE_NAMES_SHOWN = 3
+
+// Names the tabs it means, so the human sees what Close them would close before pressing it. Tab
+// labels can be model-written, so each is marked.
+const staleParts = computed((): NamePart[] => {
+  const tabs = staleDocs.value
+  const docs = tabs.filter((tab) => tab.kind !== 'shell').length
+  const sessions = tabs.length - docs
+  const counts = [
+    docs ? (docs === 1 ? '1 document' : `${docs} documents`) : '',
+    sessions ? (sessions === 1 ? '1 session' : `${sessions} sessions`) : ''
+  ].filter(Boolean)
+  const verb = tabs.length === 1 ? 'has' : 'have'
+  const names = tabs
+    .slice(0, STALE_NAMES_SHOWN)
+    .map((tab) => tabKindOf(tab).label(tab, tabContext(tab)).text)
+  const more = tabs.length - names.length
+  const listed: NamePart[] = names.flatMap((name, i) => {
+    const last = i === names.length - 1
+    const joint = i === 0 ? '' : last && !more ? ' and ' : ', '
+    return [{ text: joint }, { text: name, mark: true }]
+  })
+  return [
+    { text: `In this pane, ${counts.join(' and ')} ${verb} not been used for over a day: ` },
+    ...listed,
+    { text: more ? ` and ${more} more.` : '.' }
+  ]
+})
+
 const showStale = computed(() => staleDocs.value.some((tab) => !dismissedStale.value.has(tab.id)))
 
 function dismissStale(): void {
@@ -373,33 +406,70 @@ function closeStale(): void {
   )
 }
 
-// A shell in this pane that finished every Plans item of its task while its prompt cache is still
-// warm: closing the task now reads the cached context instead of resending it at full price.
-const dismissedClose = ref(new Set<string>())
-const closeReminders = computed(() =>
-  props.leaf.tabs.flatMap((tab) => {
-    if (tab.kind !== 'shell') return []
-    const reminder = closeReminderFor(props.project.path, tab.id, ageNow.value)
-    if (!reminder || dismissedClose.value.has(`${tab.id}:${reminder.task}`)) return []
-    return [reminder]
-  })
-)
+// Reminders are tab scoped: a banner speaks only for the tab the pane is showing, and every other
+// tab's reminder lives in the notification center. A dismiss holds for the reminder's idle stretch,
+// named by the tab's last response, so the next stretch shows it again until the task is closed.
+const dismissedReminders = ref(new Set<string>())
 
-// The tab the pane is showing is the one under the banner, so it is simply this tab; any other
-// tab in the pane is named.
-function subjectParts(tabId: string): NamePart[] {
-  return tabId === props.leaf.activeTabId ? [{ text: 'This tab' }] : tabParts(tabId)
+function reminderKey(
+  kind: string,
+  reminder: { tabId: string; task: string; seenAt: number }
+): string {
+  return `${kind}:${reminder.tabId}:${reminder.task}:${reminder.seenAt}`
 }
+
+function dismissReminder(key: string): void {
+  dismissedReminders.value = new Set([...dismissedReminders.value, key])
+}
+
+// Finished every Plans item while the prompt cache is still warm: closing the task now reads the
+// cached context instead of resending it at full price.
+const closeReminders = computed((): CloseReminder[] => {
+  const tab = activeTab.value
+  if (tab?.kind !== 'shell') return []
+  const reminder = closeReminderFor(props.project.path, tab.id, ageNow.value)
+  if (!reminder || dismissedReminders.value.has(reminderKey('close', reminder))) return []
+  return [reminder]
+})
+
+// The shown tab stopped working on an unfinished task long enough ago to have been forgotten.
+const idleReminders = computed((): IdleTaskReminder[] => {
+  const tab = activeTab.value
+  if (tab?.kind !== 'shell') return []
+  const reminder = idleTaskReminderFor(props.project.path, tab.id, ageNow.value)
+  if (!reminder || dismissedReminders.value.has(reminderKey('idle', reminder))) return []
+  return [reminder]
+})
 
 function closeReminderParts(reminder: CloseReminder): NamePart[] {
   const warmth = reminder.known
     ? `. Its cache stays warm for ${reminder.minutes} more min, so closing the task now costs little.`
     : `. Lemongrass couldn't read its cache lifetime and assumes 5 min, so it may stay warm for about ${reminder.minutes} more min. Closing the task now likely costs little.`
   return [
-    ...subjectParts(reminder.tabId),
+    { text: 'This tab' },
     { text: ' finished every Plans item of ' },
     { text: reminder.task, mark: true },
     { text: warmth }
+  ]
+}
+
+function idleReminderParts(reminder: IdleTaskReminder): NamePart[] {
+  const task = { text: reminder.task, mark: true }
+  if (reminder.awaitingApproval) {
+    return [
+      { text: 'This tab finished ' },
+      task,
+      { text: '. The task is waiting for your approval.' }
+    ]
+  }
+  const warmth =
+    reminder.warmMinutes === null
+      ? ''
+      : ` Its cache stays warm for ${reminder.warmMinutes} more min.`
+  return [
+    { text: 'This tab stopped working on ' },
+    task,
+    { text: ` ${spanText(reminder.idleMs)} ago, but the task is not finished.${warmth}` }
   ]
 }
 
@@ -414,7 +484,7 @@ const assumedCold = computed(() => {
     tabId: tab.id,
     task: taskOfTab(props.project.path, tab.id),
     parts: [
-      ...subjectParts(tab.id),
+      { text: 'This tab' },
       {
         text: ` may have a cold cache. Lemongrass couldn't read its cache lifetime and assumes 5 min, and its last response was ${spanText(ageNow.value - context.seen_at * 1000)} ago. If the cache did expire, the next prompt resends about ${tokenCount(context.used_tokens)} tokens of context at full price.`
       }
@@ -422,13 +492,9 @@ const assumedCold = computed(() => {
   }
 })
 
-function closeTask(tabId: string, task: string): void {
-  void window.api.tabSessions.closeTask(tabId, task)
-  dismissedClose.value = new Set([...dismissedClose.value, `${tabId}:${task}`])
-}
-
-function dismissClose(tabId: string, task: string): void {
-  dismissedClose.value = new Set([...dismissedClose.value, `${tabId}:${task}`])
+function closeTask(reminder: CloseReminder): void {
+  void window.api.tabSessions.closeTask(reminder.tabId, reminder.task)
+  dismissReminder(reminderKey('close', reminder))
 }
 
 const copiedTabId = ref<string | null>(null)
@@ -695,7 +761,10 @@ onBeforeUnmount(() => {
       />
 
       <!-- Floats over the top of the body, so a notice never moves the terminal under it. -->
-      <div v-if="closeReminders.length || showStale || assumedCold" class="pane-notices">
+      <div
+        v-if="closeReminders.length || idleReminders.length || showStale || assumedCold"
+        class="pane-notices"
+      >
         <div v-if="assumedCold">
           <AppBanner tone="info" floating>
             <MarkedText :parts="assumedCold.parts" capitalize />
@@ -721,18 +790,27 @@ onBeforeUnmount(() => {
           <AppBanner tone="info" floating>
             <MarkedText :parts="closeReminderParts(reminder)" capitalize />
             <template #actions>
-              <AppButton
-                size="sm"
-                variant="primary"
-                @click="closeTask(reminder.tabId, reminder.task)"
-              >
+              <AppButton size="sm" variant="primary" @click="closeTask(reminder)">
                 Close task
               </AppButton>
               <AppIconButton
                 icon="close"
                 label="Dismiss"
                 size="sm"
-                @click="dismissClose(reminder.tabId, reminder.task)"
+                @click="dismissReminder(reminderKey('close', reminder))"
+              />
+            </template>
+          </AppBanner>
+        </div>
+        <div v-for="reminder in idleReminders" :key="`idle-${reminder.tabId}`">
+          <AppBanner tone="info" floating>
+            <MarkedText :parts="idleReminderParts(reminder)" capitalize />
+            <template #actions>
+              <AppIconButton
+                icon="close"
+                label="Dismiss"
+                size="sm"
+                @click="dismissReminder(reminderKey('idle', reminder))"
               />
             </template>
           </AppBanner>
@@ -740,8 +818,7 @@ onBeforeUnmount(() => {
 
         <div v-if="showStale">
           <AppBanner tone="info" floating>
-            {{ staleDocs.length === 1 ? '1 document' : `${staleDocs.length} documents` }} in this
-            pane not viewed for over a day.
+            <MarkedText :parts="staleParts" />
             <template #actions>
               <AppConfirmButton variant="ghost" size="sm" @confirm="closeStale">
                 Close them

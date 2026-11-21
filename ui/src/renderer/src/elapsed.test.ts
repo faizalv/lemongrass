@@ -18,4 +18,6 @@ test('spanText reads in whole minutes, never under one', () => {
   assert.equal(spanText(5 * 60_000), '5 min')
   assert.equal(spanText(60 * 60_000), '1 h')
   assert.equal(spanText(72 * 60_000), '1 h 12 min')
+  assert.equal(spanText(2875 * 60_000), '1 day 23 h')
+  assert.equal(spanText(7879 * 60_000), '5 days 11 h')
 })

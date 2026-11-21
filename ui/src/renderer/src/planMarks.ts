@@ -4,22 +4,30 @@
 const PLANS_HEADING = /^##\s+Plans\b/
 const NEXT_HEADING = /^##\s/
 // Plain or backslash-escaped brackets, since an editor round trip can escape them.
-const UNCHECKED = /^\s*[-*+]\s+\\?\[ \\?\]/m
-const CHECKED = /^\s*[-*+]\s+\\?\[[xX]\\?\]/m
+const ITEM = /^\s*[-*+]\s+\\?\[([ xX])\\?\]\s*(.*)$/
+const APPROVAL = /^user approval\b/i
+
+// done: every Plans item checked. approval: only the user approval item is open, so the work is
+// built and waits for the user. open: anything else, a PRD with no checkbox at all included.
+export type PlanStatus = 'done' | 'approval' | 'open'
 
 // The Plans section of a PRD, or the whole text when it has none.
-function plansOf(markdown: string): string {
+function plansOf(markdown: string): string[] {
   const lines = markdown.split('\n')
   const start = lines.findIndex((line) => PLANS_HEADING.test(line))
-  if (start === -1) return markdown
+  if (start === -1) return lines
   const rest = lines.slice(start + 1)
   const end = rest.findIndex((line) => NEXT_HEADING.test(line))
-  return (end === -1 ? rest : rest.slice(0, end)).join('\n')
+  return end === -1 ? rest : rest.slice(0, end)
 }
 
-// True when a PRD's Plans hold at least one checked item and no unchecked one, the same bar the
-// task close checks before it prints any step.
-export function plansAllChecked(markdown: string): boolean {
-  const plans = plansOf(markdown)
-  return CHECKED.test(plans) && !UNCHECKED.test(plans)
+export function planStatus(markdown: string): PlanStatus {
+  const items = plansOf(markdown).flatMap((line) => {
+    const match = ITEM.exec(line)
+    return match ? [{ checked: match[1] !== ' ', text: match[2] }] : []
+  })
+  const open = items.filter((item) => !item.checked)
+  if (items.length === 0) return 'open'
+  if (open.length === 0) return 'done'
+  return open.every((item) => APPROVAL.test(item.text)) ? 'approval' : 'open'
 }
