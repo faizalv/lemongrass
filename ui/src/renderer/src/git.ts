@@ -24,6 +24,8 @@ export interface GitState {
   unchecked: string[]
   foldedGroups: GitFileGroup[]
   busy: 'commit' | 'push' | 'stash' | 'fetch' | 'branch' | null
+  // A commit run that pushes after it, so its button stays busy through both steps.
+  commitAndPush: boolean
   // The branch the merge confirm is open for.
   mergeSource: string | null
   // The base the new-branch modal is open for.
@@ -47,6 +49,7 @@ export function gitStateOf(projectId: string): GitState {
       unchecked: [],
       foldedGroups: [],
       busy: null,
+      commitAndPush: false,
       mergeSource: null,
       branchBase: null,
       diverged: null,
@@ -114,6 +117,7 @@ export async function commitChanges(project: ProjectRef, andPush: boolean): Prom
   if (state.busy) return
   state.error = null
   state.busy = 'commit'
+  state.commitAndPush = andPush
   const files = state.status?.files ?? []
   const selected = files.filter((file) => !state.unchecked.includes(file.path))
   // A rename must carry its old path too, or the deletion half stays behind.
@@ -125,6 +129,7 @@ export async function commitChanges(project: ProjectRef, andPush: boolean): Prom
   if (!committed.ok) {
     state.error = committed.error
     state.busy = null
+    state.commitAndPush = false
     await refreshGit(project)
     return
   }
@@ -136,6 +141,7 @@ export async function commitChanges(project: ProjectRef, andPush: boolean): Prom
     }
   }
   state.busy = null
+  state.commitAndPush = false
   await refreshGit(project)
 }
 

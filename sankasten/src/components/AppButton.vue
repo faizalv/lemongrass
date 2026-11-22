@@ -3,8 +3,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import AppSpinner from './AppSpinner.vue'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     // text is frameless, for a secondary action in a toolbar or a row. tone colors text and
     // ghost; the other variants carry their own color. pressed marks a toggle that is on.
@@ -13,11 +14,20 @@ withDefaults(
     size?: 'xs' | 'sm' | 'md'
     tone?: 'neutral' | 'accent' | 'info' | 'success' | 'danger'
     pressed?: boolean
+    // Work started by this button is running: a spinner leads the label and clicks are ignored.
+    // The button stays enabled, so leave disabled off while busy or it fades.
+    busy?: boolean
   }>(),
-  { variant: 'ghost', size: 'md', tone: 'neutral', pressed: undefined }
+  { variant: 'ghost', size: 'md', tone: 'neutral', pressed: undefined, busy: false }
 )
 
 const el = ref<HTMLButtonElement | null>(null)
+
+// A caller's @click falls through onto the native button after this handler, and Vue skips the
+// handlers after one that stops immediate propagation, which is how busy holds the click back.
+function holdWhileBusy(event: MouseEvent): void {
+  if (props.busy) event.stopImmediatePropagation()
+}
 
 defineExpose({ focus: () => el.value?.focus() })
 </script>
@@ -28,9 +38,17 @@ defineExpose({ focus: () => el.value?.focus() })
   <button
     ref="el"
     class="app-button"
-    :class="[variant, `app-button--${size}`, `tone-${tone}`, { 'is-pressed': pressed }]"
+    :class="[
+      variant,
+      `app-button--${size}`,
+      `tone-${tone}`,
+      { 'is-pressed': pressed, 'is-busy': busy }
+    ]"
     :aria-pressed="pressed"
+    :aria-busy="busy || undefined"
+    @click="holdWhileBusy"
   >
+    <AppSpinner v-if="busy" />
     <slot />
   </button>
 </template>
@@ -76,6 +94,11 @@ defineExpose({ focus: () => el.value?.focus() })
 .app-button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Full opacity on purpose, so a running action reads as alive, not as disabled. */
+.is-busy {
+  cursor: progress;
 }
 
 .primary {

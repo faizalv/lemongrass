@@ -57,6 +57,12 @@ export const DOCS: Record<string, ComponentDoc> = {
         name: 'pressed',
         type: 'boolean',
         doc: 'A toggle that is on: aria-pressed and an amber-muted fill. Leave undefined on a plain action.'
+      },
+      {
+        name: 'busy',
+        type: 'boolean',
+        default: 'false',
+        doc: 'Work it started is running: a spinner leads the label at full opacity and clicks are ignored. Leave disabled off while busy.'
       }
     ],
     slots: [{ name: 'default', type: '', doc: 'The label.' }],

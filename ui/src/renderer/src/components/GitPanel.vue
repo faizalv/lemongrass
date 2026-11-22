@@ -173,10 +173,12 @@ async function push(): Promise<void> {
 const hint = computed((): string | null => {
   if (status.value?.operation) return 'Continue or abort the merge or rebase first.'
   if (hasConflicts.value) return 'Resolve conflicts before committing.'
-  if (state.value.busy === 'commit') return 'Committing...'
-  if (state.value.busy === 'push') return 'Pushing...'
   return null
 })
+
+// Each commit button spins for the run it started; a commit and push spins through its push too.
+const committing = computed(() => state.value.busy === 'commit' && !state.value.commitAndPush)
+const committingAndPushing = computed(() => state.value.busy !== null && state.value.commitAndPush)
 
 const pushTitle = computed(() => {
   if (pushBlockedReason.value) return pushBlockedReason.value
@@ -303,7 +305,8 @@ const pushTitle = computed(() => {
           <AppButton
             size="sm"
             class="git-action"
-            :disabled="!canCommit"
+            :disabled="!canCommit && !committing"
+            :busy="committing"
             @click="commitChanges(project, false)"
           >
             Commit
@@ -312,7 +315,8 @@ const pushTitle = computed(() => {
             variant="primary"
             size="sm"
             class="git-action"
-            :disabled="!canPush"
+            :disabled="!canPush && !committingAndPushing"
+            :busy="committingAndPushing"
             :title="pushTitle"
             @click="commitChanges(project, true)"
           >
