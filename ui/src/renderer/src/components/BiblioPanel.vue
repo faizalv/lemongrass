@@ -49,6 +49,19 @@ function expandDir(path: string): void {
 
 const panel = ref<HTMLElement | null>(null)
 
+// A null tree means the project has no biblio/ folder; the main process notices it appear and sends
+// biblio:changed, and the refresh here only makes the pane follow at once.
+const settingUp = ref(false)
+async function setUpBiblio(): Promise<void> {
+  settingUp.value = true
+  try {
+    await window.api.biblio.init(props.project.path)
+    emit('refresh')
+  } finally {
+    settingUp.value = false
+  }
+}
+
 const search = useBiblioSearch({
   panel,
   nodes: () => props.tree?.children ?? [],
@@ -238,6 +251,19 @@ async function submitCreate(): Promise<void> {
             @archive-scratchpad="archiveScratchpad"
           />
         </template>
+        <AppEmptyState
+          v-else-if="tree === null"
+          class="tree-empty"
+          size="sm"
+          title="No biblio/ in this project yet."
+          detail="It keeps plans, laws, handovers and books beside the code."
+        >
+          <template #action>
+            <AppButton variant="primary" size="sm" :busy="settingUp" @click="setUpBiblio">
+              Set up biblio
+            </AppButton>
+          </template>
+        </AppEmptyState>
         <AppEmptyState v-else class="tree-empty" size="sm" title="Nothing in biblio/ yet." />
       </div>
     </div>

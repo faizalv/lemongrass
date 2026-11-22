@@ -367,6 +367,33 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
     }
   )
 
+  // The twin of `lgrass biblio init` (cmd/lgrass/biblioinit.go): the same folders, empty index files and
+  // .gitignore line, never changing a file that exists. A change to the layout is made in both.
+  ipcMain.handle('biblio:init', (_event, projectPath: string): boolean => {
+    const biblioRoot = join(projectPath, 'biblio')
+    try {
+      for (const dir of ['scratchpad', 'laws', 'handover', 'books']) {
+        mkdirSync(join(biblioRoot, dir), { recursive: true })
+      }
+      for (const file of ['books/toc.md', 'laws/summary.md', 'handover/whiteboard.md']) {
+        const target = join(biblioRoot, file)
+        if (!existsSync(target)) writeFileSync(target, '', 'utf-8')
+      }
+      const ignorePath = join(projectPath, '.gitignore')
+      const ignore = existsSync(ignorePath) ? readFileSync(ignorePath, 'utf-8') : ''
+      const named = ignore
+        .split('\n')
+        .some((line) => ['biblio', 'biblio/', '/biblio', '/biblio/'].includes(line.trim()))
+      if (!named) {
+        const lead = ignore !== '' && !ignore.endsWith('\n') ? '\n' : ''
+        writeFileSync(ignorePath, `${ignore}${lead}biblio/\n`, 'utf-8')
+      }
+      return true
+    } catch {
+      return false
+    }
+  })
+
   ipcMain.handle(
     'biblio:createScratchpad',
     (_event, projectPath: string, title: string, content: string): string | null => {

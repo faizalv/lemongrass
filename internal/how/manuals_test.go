@@ -9,7 +9,7 @@ import (
 )
 
 func TestManualsRender(t *testing.T) {
-	root := t.TempDir()
+	root := biblioRoot(t)
 	cases := map[string][]string{
 		"ask request":   {"lgrass ask <path>", "operations: [select]", "methods: [GET, POST]", "Removed tables", "type: db", "type: rester", "type: command", "lgrass ask show <id>", "Do not ask again with a variation"},
 		"book write":    {"Split.", "never how it broke", "toc.md"},

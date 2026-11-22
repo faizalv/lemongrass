@@ -4,6 +4,8 @@
 package how
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -17,8 +19,27 @@ func wantAll(t *testing.T, out string, wants ...string) {
 	}
 }
 
+// biblioRoot is a project root that already has biblio/, which every work, task, book, laws and keeper action needs.
+func biblioRoot(t *testing.T) string {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "biblio"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func TestActionsNeedBiblio(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Render(root, []string{"work", "task", "feat"}); err == nil || !strings.Contains(err.Error(), "lgrass biblio init") {
+		t.Fatalf("work task without biblio/: err %v", err)
+	}
+	if _, err := Render(root, []string{"ask", "request"}); err != nil {
+		t.Fatalf("ask request without biblio/: %v", err)
+	}
+}
+
 func TestWorkTaskNew(t *testing.T) {
-	out := render(t, t.TempDir(), "work", "task", "feat")
+	out := render(t, biblioRoot(t), "work", "task", "feat")
 	wantAll(t, out, "New task feat.", "Books first.", "biblio/scratchpad/feat/prd.md", "State how the work is done", "lgrass how task close feat")
 }
 
@@ -60,7 +81,7 @@ func TestWorkRefusesArchivedSlug(t *testing.T) {
 }
 
 func TestWorkResearchAndDebugBranch(t *testing.T) {
-	root := t.TempDir()
+	root := biblioRoot(t)
 	wantAll(t, render(t, root, "work", "research", "q"), "New research q.", "Then read `biblio/books/toc.md`", "`biblio/scratchpad/q/recon.md`")
 	writeFile(t, root, "biblio/scratchpad/q/recon.md", "x")
 	out := render(t, root, "work", "research", "q")
@@ -74,7 +95,7 @@ func TestWorkResearchAndDebugBranch(t *testing.T) {
 }
 
 func TestWorkDiscussionIsAManual(t *testing.T) {
-	root := t.TempDir()
+	root := biblioRoot(t)
 	wantAll(t, render(t, root, "work", "discussion"), "1. **Books first.** Read `biblio/books/toc.md`", "needs none of this", "notes.md", "lgrass how work task <slug>")
 	if _, err := Render(root, []string{"work", "discussion", "x"}); err == nil {
 		t.Error("discussion accepted an argument")
@@ -82,7 +103,7 @@ func TestWorkDiscussionIsAManual(t *testing.T) {
 }
 
 func TestWorkHotfixBranch(t *testing.T) {
-	root := t.TempDir()
+	root := biblioRoot(t)
 	out := render(t, root, "work", "hotfix", "fix")
 	wantAll(t, out, "New hotfix fix.", "biblio/scratchpad/fix/prd.md", "word for word", "ask one short question", "Undo whole", "never commit while it fails", "lgrass how task close fix")
 	if strings.Contains(out, "**Books first.**") || strings.Contains(out, "Plan first") {

@@ -273,6 +273,7 @@ const uiState = {
 }
 
 const biblio = {
+  init: (projectPath: string): Promise<boolean> => ipcRenderer.invoke('biblio:init', projectPath),
   tree: (projectPath: string): Promise<BiblioTree | null> =>
     ipcRenderer.invoke('biblio:tree', projectPath),
   read: (projectPath: string, relativePath: string): Promise<string | null> =>

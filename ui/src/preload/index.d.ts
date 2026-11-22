@@ -264,6 +264,7 @@ interface Api {
     zoomPresets: () => Promise<number[]>
   }
   biblio: {
+    init: (projectPath: string) => Promise<boolean>
     tree: (projectPath: string) => Promise<BiblioTree | null>
     read: (projectPath: string, relativePath: string) => Promise<string | null>
     readFile: (projectPath: string, relativePath: string) => Promise<BiblioFileResult | null>

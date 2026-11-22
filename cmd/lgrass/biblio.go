@@ -22,10 +22,12 @@ const (
 
 func cmdBiblio(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: lgrass biblio <log|show> ...")
+		fmt.Fprintln(os.Stderr, "usage: lgrass biblio <init|log|show> ...")
 		os.Exit(1)
 	}
 	switch args[0] {
+	case "init":
+		cmdBiblioInit(args[1:])
 	case "log":
 		cmdBiblioLog(args[1:])
 	case "show":

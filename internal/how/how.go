@@ -7,6 +7,8 @@ package how
 import (
 	"embed"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -82,6 +84,14 @@ var domains = map[string]map[string]action{
 	},
 }
 
+// needsBiblio lists the domains whose steps read or write biblio/; the others, such as ask and git, work without it.
+var needsBiblio = map[string]bool{"book": true, "keeper": true, "laws": true, "task": true, "work": true}
+
+func hasBiblio(root string) bool {
+	info, err := os.Stat(filepath.Join(root, "biblio"))
+	return err == nil && info.IsDir()
+}
+
 // static serves a manual: fixed text with one branch and no arguments, joined from its fragments in order.
 func static(paths ...string) func(root string, args []string) (string, error) {
 	return func(_ string, args []string) (string, error) {
@@ -116,6 +126,9 @@ func RenderEnv(env Env, args []string) (string, error) {
 	act, ok := actions[args[1]]
 	if !ok {
 		return "", fmt.Errorf("how: unknown action %q in %s\n\n%s", args[1], args[0], listActions(args[0], actions))
+	}
+	if needsBiblio[args[0]] && !hasBiblio(env.Root) {
+		return "", fmt.Errorf("how: this project has no biblio/ yet; run `lgrass biblio init` first, then run this again")
 	}
 	if act.runEnv != nil {
 		return act.runEnv(env, args[2:])
