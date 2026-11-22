@@ -344,7 +344,13 @@ const REORGANIZE_ICON = [
   'M8.8 9.8l1.7 1.7 1.7-1.7'
 ]
 
+// The pane frame with a divider, split vertically for a pane to the right, horizontally for one below.
+const PANE_FRAME =
+  'M3 2h8a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 2z'
+
 const paneMenuItems = computed((): MenuItem[] => [
+  { key: 'shell-right', label: 'New shell to the right', icon: [PANE_FRAME, 'M7 2v10'] },
+  { key: 'shell-down', label: 'New shell below', icon: [PANE_FRAME, 'M1.5 7h11'] },
   {
     key: 'reorganize',
     label: 'Reorganize',
@@ -356,6 +362,8 @@ const paneMenuItems = computed((): MenuItem[] => [
 
 function onPaneMenu(key: string): void {
   if (key === 'reorganize') void reorganizePane(props.project, props.leaf.id)
+  else if (key === 'shell-right') addShellInNewPane(props.project, props.leaf.id, 'right')
+  else if (key === 'shell-down') addShellInNewPane(props.project, props.leaf.id, 'down')
 }
 
 // Dismissing hides the notice for the tabs stale at that moment; a tab that goes stale later
@@ -660,48 +668,15 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="pane-actions">
+        <span class="action-divider" />
         <AppIconButton
           icon="plus"
           label="New shell"
           size="sm"
+          class="new-shell"
           @click="addShell(project, leaf.id)"
         />
-        <AppIconButton
-          label="New shell in a pane to the right"
-          size="sm"
-          @click="addShellInNewPane(project, leaf.id, 'right')"
-        >
-          <svg
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
-            <path d="M7 2v10" />
-          </svg>
-        </AppIconButton>
-        <AppIconButton
-          label="New shell in a pane below"
-          size="sm"
-          @click="addShellInNewPane(project, leaf.id, 'down')"
-        >
-          <svg
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="1.5" y="2" width="11" height="10" rx="1.5" />
-            <path d="M1.5 7h11" />
-          </svg>
-        </AppIconButton>
         <template v-if="activeTab && isDocumentTab(activeTab)">
-          <span class="action-divider" />
           <AppIconButton
             label="Read in a new shell"
             size="sm"
@@ -903,7 +878,7 @@ onBeforeUnmount(() => {
         {{ direction.label }}
       </button>
       <template v-if="isDocumentTab(menuTab)">
-        <p class="menu-heading">Split into new pane</p>
+        <p class="menu-heading">Duplicate into new pane</p>
         <button
           v-for="direction in MENU_DIRECTIONS"
           :key="`split-${direction.zone}`"
@@ -1056,6 +1031,12 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
 }
 
+/* New shell acts on the pane and the document actions after it on the open tab, so a wider gap
+   stands in for a divider there; the header's one divider is at the tab strip. */
+.new-shell {
+  margin-right: var(--space-1);
+}
+
 .action-divider {
   width: 1px;
   height: 16px;
@@ -1063,10 +1044,13 @@ onBeforeUnmount(() => {
   background: var(--color-border-default);
 }
 
+/* The strip stops short of the pane's buttons, which open with a divider, so a tab scrolled up
+   to the edge is clipped in open space instead of running into the + as if it owned it. */
 .tab-bar {
   position: relative;
   flex: 1;
   min-width: 0;
+  margin-right: var(--space-3);
   display: flex;
   align-items: center;
   gap: var(--space-2);
