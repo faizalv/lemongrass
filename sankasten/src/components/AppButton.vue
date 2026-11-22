@@ -14,8 +14,8 @@ const props = withDefaults(
     size?: 'xs' | 'sm' | 'md'
     tone?: 'neutral' | 'accent' | 'info' | 'success' | 'danger'
     pressed?: boolean
-    // Work started by this button is running: a spinner leads the label and clicks are ignored.
-    // The button stays enabled, so leave disabled off while busy or it fades.
+    // Work started by this button is running: a spinner takes the label's place and clicks are
+    // ignored. The button stays enabled, so leave disabled off while busy or it fades.
     busy?: boolean
   }>(),
   { variant: 'ghost', size: 'md', tone: 'neutral', pressed: undefined, busy: false }
@@ -48,8 +48,8 @@ defineExpose({ focus: () => el.value?.focus() })
     :aria-busy="busy || undefined"
     @click="holdWhileBusy"
   >
-    <AppSpinner v-if="busy" />
-    <slot />
+    <span class="content"><slot /></span>
+    <AppSpinner v-if="busy" class="busy-spinner" />
   </button>
 </template>
 
@@ -57,6 +57,7 @@ defineExpose({ focus: () => el.value?.focus() })
 /* The height comes from the size token and every variant has a 1px border, transparent where it
    is not drawn, so primary, ghost, danger and text buttons of one size are the same height. */
 .app-button {
+  position: relative;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -99,6 +100,26 @@ defineExpose({ focus: () => el.value?.focus() })
 /* Full opacity on purpose, so a running action reads as alive, not as disabled. */
 .is-busy {
   cursor: progress;
+}
+
+/* The label's wrapper adds no box, so slot children keep the button's own gap. */
+.content {
+  display: contents;
+}
+
+/* The hidden label still sets the width, so the button keeps its size while the spinner shows. */
+.is-busy .content {
+  visibility: hidden;
+}
+
+/* Centered by auto margins at its own size; a translate would fight the spinner's turn, which is a
+   transform too. */
+.busy-spinner {
+  position: absolute;
+  inset: 0;
+  width: fit-content;
+  height: fit-content;
+  margin: auto;
 }
 
 .primary {

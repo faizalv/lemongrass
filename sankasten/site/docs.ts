@@ -62,7 +62,7 @@ export const DOCS: Record<string, ComponentDoc> = {
         name: 'busy',
         type: 'boolean',
         default: 'false',
-        doc: 'Work it started is running: a spinner leads the label at full opacity and clicks are ignored. Leave disabled off while busy.'
+        doc: "Work it started is running: a spinner takes the label's place at full opacity, the button keeps its size, and clicks are ignored. Leave disabled off while busy."
       }
     ],
     slots: [{ name: 'default', type: '', doc: 'The label.' }],
