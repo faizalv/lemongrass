@@ -166,6 +166,9 @@ func (r *Repo) Snapshot(sessions Sessions) (bool, error) {
 	if info, err := os.Stat(r.workTree); err != nil || !info.IsDir() {
 		return false, nil
 	}
+	if err := r.excludeNested(); err != nil {
+		return false, err
+	}
 	if _, err := r.run(nil, nil, "add", "--all"); err != nil {
 		return false, err
 	}

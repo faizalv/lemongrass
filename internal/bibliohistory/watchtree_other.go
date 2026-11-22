@@ -24,9 +24,14 @@ func watchNew(fw *fsnotify.Watcher, dir string) {
 
 func addTree(fw *fsnotify.Watcher, root string) {
 	filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err == nil && d.IsDir() {
-			fw.Add(p)
+		if err != nil || !d.IsDir() {
+			return nil
 		}
+		// A nested repository's .git is never part of the history, so its churn needs no watch.
+		if d.Name() == ".git" {
+			return filepath.SkipDir
+		}
+		fw.Add(p)
 		return nil
 	})
 }

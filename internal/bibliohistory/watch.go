@@ -143,7 +143,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 				continue
 			}
 			t := owner(ev.Name)
-			if t == nil {
+			if t == nil || insideGitDir(t.root, ev.Name) {
 				continue
 			}
 			if ev.Op.Has(fsnotify.Create) {
@@ -175,6 +175,16 @@ func (w *Watcher) Run(ctx context.Context) error {
 			pass()
 		}
 	}
+}
+
+// insideGitDir reports whether path is a nested repository's .git or below it. Windows watches the tree recursively,
+// so the event filter, not the watch list, keeps git activity in a nested repository from scheduling snapshots.
+func insideGitDir(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return slices.Contains(strings.Split(filepath.ToSlash(rel), "/"), ".git")
 }
 
 // dropGone stops watching projects that left the registry, so their folders, which purge removes, hold no watch.
