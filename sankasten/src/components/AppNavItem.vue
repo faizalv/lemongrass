@@ -5,7 +5,7 @@
 import AppBadge from './AppBadge.vue'
 import AppIcon from './AppIcon.vue'
 
-// A sidebar entry card: a full-width raised button that opens a view, a panel or a fold. The
+// A sidebar entry: a full-width button that opens a view, a panel or a fold, quiet at rest. The
 // panel around it (border, padding, margins) stays with the caller.
 withDefaults(
   defineProps<{
@@ -100,13 +100,13 @@ withDefaults(
   width: 100%;
   height: var(--h);
   padding: 0 var(--space-3);
-  background: var(--layer-raised);
+  background: transparent;
   border: none;
   border-radius: var(--radius-md);
-  color: var(--color-fg-primary);
+  color: var(--color-fg-secondary);
   font-family: var(--font-body);
   font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   text-align: left;
   cursor: pointer;
   transition:
@@ -119,8 +119,11 @@ withDefaults(
   padding: 0 var(--space-2);
 }
 
+/* At rest an entry has no fill, so in a list only the active one stands out; the fill shows on
+   hover. Every state keeps one font weight, so a label never reflows when its state changes. */
 .app-nav-item:hover {
-  background: var(--layer-raised-hover);
+  background: var(--layer-raised);
+  color: var(--color-fg-primary);
 }
 
 .app-nav-item.active {
@@ -163,7 +166,7 @@ withDefaults(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-fg-secondary);
+  color: var(--color-fg-muted);
   font-weight: var(--weight-regular);
 }
 

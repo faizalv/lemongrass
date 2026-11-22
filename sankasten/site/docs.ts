@@ -479,7 +479,7 @@ export const DOCS: Record<string, ComponentDoc> = {
   AppNavItem: {
     name: 'AppNavItem',
     summary:
-      'A sidebar entry card: a full-width raised button that opens a view, a panel or a fold.',
+      'A sidebar entry: a full-width button that opens a view, a panel or a fold. No fill at rest, the raised fill on hover, amber when active.',
     props: [
       { name: 'label', type: 'string', doc: 'Or the default slot.' },
       {
