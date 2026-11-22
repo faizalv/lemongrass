@@ -25,13 +25,11 @@ jobs:
       run:
         shell: bash
     steps:
-      # Go sources are LF; without this, autocrlf would hand the embedded bibliothek files to the tests with CRLF.
+      # Go sources are LF; without this, autocrlf would hand the embedded text files to the tests with CRLF.
       - name: Keep LF line endings
         run: git config --global core.autocrlf false
 
       - uses: actions/checkout@v5
-        with:
-          submodules: true
 
       - uses: actions/setup-go@v6
         with:

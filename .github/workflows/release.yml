@@ -20,8 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: true
 
       # The package is built inside this image, never on the runner's own OS, because the image's glibc is the oldest
       # glibc the rpm starts on (build/rpm/Containerfile). A runner image upgrade then changes nothing in the package.
@@ -63,8 +61,6 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: true
 
       - uses: actions/setup-go@v6
         with:
@@ -131,8 +127,6 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: true
 
       - uses: actions/setup-go@v6
         with:

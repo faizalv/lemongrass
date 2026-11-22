@@ -4,7 +4,7 @@
 make build-linux
 ```
 
-Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `linux/amd64` into `dist/`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `dist/` to exist already, so use the root `make` target. `make verify` compiles every Go package without writing a binary into the source tree. Every Go target first checks out the bibliothek submodule, and `make bibliothek-update` moves its pin to bibliothek's latest commit. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
+Cross-compiles `lgrass`, `lgrassd` and `lgrassconf` for `linux/amd64` into `dist/`, then builds and packages the Electron app for Linux. This is the one entrypoint above both toolchains. `ui/`'s own `npm run build:linux` builds only the Electron half and expects `dist/` to exist already, so use the root `make` target. `make verify` compiles every Go package without writing a binary into the source tree. It builds AppImage, snap, deb and rpm, so it needs `dpkg` and `snapcraft` on the host.
 
 ```
 make build-rpm

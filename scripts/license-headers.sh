@@ -3,7 +3,6 @@
 # Copyright (C) 2026 The Lemongrass Authors
 
 # Adds the license header to every tracked source file that lacks one. With --check it only lists those files and fails.
-# git ls-files does not descend into the bibliothek submodule, which is a separate repository with its own license.
 # Files under sankasten/ are the Sankasten design system, Apache-2.0 under its own holder; every other file is MPL-2.0.
 # The check fails a file whose header carries the other identifier, or one left from an earlier license, and the
 # stamping run restamps it, so a file moved across that line is corrected rather than kept.

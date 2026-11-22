@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/faizalv/lemongrass/internal/bibliothek"
 )
 
 var installedOrientations = []string{"tab.md", "thinker.md", "codex-tab.md", "codex-thinker.md", "agy-tab.md", "agy-thinker.md"}
@@ -28,11 +26,7 @@ func embeddedOrientation(t *testing.T, name string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	convention, err := bibliothek.Prompt()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(forVendor(data, vendor)) + bibliothekHeading + string(convention)
+	return string(forVendor(data, vendor)) + bibliothekHeading + string(conventionText)
 }
 
 func TestOrientationCarriesBibliothekWithoutTheTrigger(t *testing.T) {

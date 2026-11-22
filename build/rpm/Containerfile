@@ -32,7 +32,6 @@ RUN printf '#!/bin/sh\nunset LD_LIBRARY_PATH\nexec /usr/bin/rpmbuild "$@"\n' > /
 
 # The checkout is mounted at /src, and git refuses a repository owned by another user than the one running it,
 # which is the case whenever the container runs as root over a checkout the host user owns.
-RUN git config --system --add safe.directory /src \
-    && git config --system --add safe.directory /src/internal/bibliothek/repo
+RUN git config --system --add safe.directory /src
 
 WORKDIR /src

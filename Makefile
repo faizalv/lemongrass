@@ -7,27 +7,19 @@ BINARIES := lgrass lgrassd lgrassconf
 # lgrassroot is the Linux root helper run through pkexec, so only the Linux packages carry it.
 LINUX_BINARIES := $(BINARIES) lgrassroot
 
-.PHONY: build-linux build-rpm build-mac build-windows dist dist-linux dist-darwin dist-windows dev install verify clean submodules bibliothek-update license license-check
+.PHONY: build-linux build-rpm build-mac build-windows dist dist-linux dist-darwin dist-windows dev install verify clean license license-check
 
 dist: dist-linux dist-darwin dist-windows
 
-# bibliothek is a submodule embedded by internal/bibliothek, so no Go build works without it checked out.
-submodules:
-	git submodule update --init
-
-# Moves the bibliothek pin to its latest commit; the new pin is committed like any other change.
-bibliothek-update: submodules
-	git submodule update --remote internal/bibliothek/repo
-
 # Every binary for each target arch, written to dist/<os>-<arch>/ where ui/electron-builder.yml reads them. The old output of that os is removed first so a stale binary is never bundled. Builds other than macOS are x64 only.
-dist-linux: submodules
+dist-linux:
 	rm -rf $(DIST)/linux-amd64 $(DIST)/linux-arm64
 	mkdir -p $(DIST)/linux-amd64
 	for bin in $(LINUX_BINARIES); do \
 		GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(DIST)/linux-amd64/$$bin ./cmd/$$bin || exit 1; \
 	done
 
-dist-darwin: submodules
+dist-darwin:
 	rm -rf $(DIST)/darwin-amd64 $(DIST)/darwin-arm64
 	mkdir -p $(DIST)/darwin-amd64 $(DIST)/darwin-arm64
 	for bin in $(BINARIES); do \
@@ -37,7 +29,7 @@ dist-darwin: submodules
 
 # lgrassconf is linked as a GUI program so its logon task opens no console window; it attaches to the parent's console
 # when run from a terminal (cmd/lgrassconf/console_windows.go). lgrass and lgrassd stay console programs.
-dist-windows: submodules
+dist-windows:
 	rm -rf $(DIST)/windows-amd64
 	mkdir -p $(DIST)/windows-amd64
 	for bin in lgrass lgrassd; do \
@@ -60,11 +52,10 @@ build-mac: dist-darwin
 build-windows: dist-windows
 	npm --prefix ui run build:win
 
-# Host-arch build for local dev iteration. lgrass goes to ~/.local/bin, lgrassd to ~/.lemongrass/bin, and lgrassconf beside lgrass with its service unit registered. Every binary is built beside its destination first and only renamed into place once all of them built, so a failed install leaves the previous set untouched and `make dev` keeps running on it. A running executable cannot be overwritten in place, which the rename also avoids. The submodule update runs inside the same guarded block so a failure there is just as loud.
+# Host-arch build for local dev iteration. lgrass goes to ~/.local/bin, lgrassd to ~/.lemongrass/bin, and lgrassconf beside lgrass with its service unit registered. Every binary is built beside its destination first and only renamed into place once all of them built, so a failed install leaves the previous set untouched and `make dev` keeps running on it. A running executable cannot be overwritten in place, which the rename also avoids.
 install:
 	mkdir -p $(BIN_DIR) $(D_BIN_DIR)
-	@if ! { $(MAKE) --no-print-directory bibliothek-update \
-		&& go build $(LDFLAGS) -o $(BIN_DIR)/lgrassconf.new ./cmd/lgrassconf \
+	@if ! { go build $(LDFLAGS) -o $(BIN_DIR)/lgrassconf.new ./cmd/lgrassconf \
 		&& go build $(LDFLAGS) -o $(BIN_DIR)/lgrass.new ./cmd/lgrass \
 		&& go build $(LDFLAGS) -o $(D_BIN_DIR)/lgrassd.new ./cmd/lgrassd; }; then \
 		rm -f $(BIN_DIR)/lgrassconf.new $(BIN_DIR)/lgrass.new $(D_BIN_DIR)/lgrassd.new; \
@@ -87,7 +78,7 @@ dev:
 
 # Compiles everything and discards the output, since a plain `go build` of a single main package writes its binary into the source directory.
 # The Windows check runs here on Linux so a Unix-only change fails at once; vet also compiles the test files.
-verify: submodules
+verify:
 	go build -a -o /dev/null ./...
 	GOOS=windows GOARCH=amd64 go build -a -o /dev/null ./...
 	GOOS=windows GOARCH=amd64 go vet ./...

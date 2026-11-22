@@ -9,12 +9,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/faizalv/lemongrass/internal/bibliothek"
 )
 
 //go:embed orientation
 var orientationFS embed.FS
+
+// Lemongrass's own biblio convention. Its folder layout and file names stay compatible with the public bibliothek
+// skill, so a project works under either, but its wording follows lemongrass and is never synced from the skill.
+//
+//go:embed convention/biblio.md
+var conventionText []byte
 
 func (k *keeper) orientationDir() string {
 	return filepath.Join(k.home, ".lemongrass", "orientation")
@@ -56,13 +60,9 @@ func forVendor(src []byte, vendor string) []byte {
 	return []byte(out.String())
 }
 
-// Each installed orientation is followed by bibliothek's text, so a tab never loads the skill.
+// Each installed orientation is followed by the convention text, so a tab never loads the bibliothek skill.
 func (k *keeper) loadOrientation() []skillFile {
 	entries, err := fs.ReadDir(orientationFS, "orientation")
-	if err != nil {
-		panic(err)
-	}
-	convention, err := bibliothek.Prompt()
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +73,7 @@ func (k *keeper) loadOrientation() []skillFile {
 			panic(err)
 		}
 		for _, v := range orientationVendors {
-			content := append(append(forVendor(data, v.name), bibliothekHeading...), convention...)
+			content := append(append(forVendor(data, v.name), bibliothekHeading...), conventionText...)
 			path := filepath.Join(k.orientationDir(), v.prefix+e.Name())
 			files = append(files, skillFile{root: k.orientationDir(), path: path, content: content})
 		}
