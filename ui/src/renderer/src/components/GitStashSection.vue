@@ -6,6 +6,7 @@ import {
   AppBanner,
   AppButton,
   AppCheckbox,
+  AppChip,
   AppDisclosure,
   AppEmptyState,
   AppIconButton,
@@ -101,9 +102,12 @@ async function save(): Promise<void> {
       >
       <AppEmptyState v-if="stashes.length === 0" size="sm" title="No stashes" />
       <ul v-else class="stash-list">
-        <li v-for="stash in stashes" :key="stash.ref" class="stash-item">
+        <li v-for="stash in stashes" :key="stash.ref" class="stash-card">
           <button class="stash-row" :title="stash.message" @click="viewing = stash">
-            <span class="stash-message">{{ stash.message }}</span>
+            <AppChip v-if="stash.branch" tone="accent" class="stash-branch">{{
+              stash.branch
+            }}</AppChip>
+            <span class="stash-message">{{ stash.text }}</span>
             <span class="stash-age">{{ formatAge(stash.time) }}</span>
           </button>
           <div class="stash-actions">
@@ -182,15 +186,40 @@ async function save(): Promise<void> {
   word-break: break-word;
 }
 
+/* Cards keep one fixed height so the list can show exactly --stash-visible whole cards before it
+   scrolls, never a card cut in half. */
 .stash-list {
-  max-height: 160px;
+  --stash-card-h: 56px;
+  --stash-gap: var(--space-1);
+  --stash-visible: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--stash-gap);
+  max-height: calc(
+    var(--stash-card-h) * var(--stash-visible) + var(--stash-gap) * (var(--stash-visible) - 1)
+  );
+  padding: 0 var(--space-2);
   overflow-y: auto;
   will-change: scroll-position;
   list-style: none;
 }
 
-.stash-item {
-  padding: 2px var(--space-2);
+.stash-card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: var(--stash-card-h);
+  padding: 6px var(--space-2) 4px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--layer-card);
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.stash-card:hover {
+  background: var(--layer-card-hover);
 }
 
 .stash-row {
@@ -198,7 +227,8 @@ async function save(): Promise<void> {
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 2px 0;
+  min-height: 20px;
+  padding: 0;
   background: none;
   border: none;
   color: var(--color-fg-secondary);
@@ -210,6 +240,19 @@ async function save(): Promise<void> {
 
 .stash-row:hover {
   color: var(--color-fg-primary);
+}
+
+.stash-row:focus-visible {
+  outline: 1px solid var(--color-amber);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+
+/* A long branch name gives way to the message instead of pushing it out. */
+.stash-branch {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 55%;
 }
 
 .stash-message {
@@ -225,8 +268,10 @@ async function save(): Promise<void> {
   color: var(--color-fg-muted);
 }
 
+/* The glyphs line up with the row's text above, past the icon buttons' own 2px padding. */
 .stash-actions {
   display: flex;
+  margin-left: -2px;
 }
 
 .stash-view {

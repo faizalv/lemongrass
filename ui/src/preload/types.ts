@@ -610,7 +610,10 @@ export interface GitBranches {
 
 export interface GitStash {
   ref: string
+  // The raw reflog subject; branch and text are split from it.
   message: string
+  branch: string | null
+  text: string
   time: number
 }
 

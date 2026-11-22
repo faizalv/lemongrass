@@ -14,7 +14,9 @@ withDefaults(
 </script>
 
 <template>
-  <span class="app-badge" :class="[`tone-${tone}`, `size-${size}`]"><slot /></span>
+  <span class="app-badge" :class="[`tone-${tone}`, `size-${size}`]"
+    ><span class="badge-text"><slot /></span
+  ></span>
 </template>
 
 <style scoped>
@@ -35,6 +37,13 @@ withDefaults(
   white-space: nowrap;
 }
 
+/* A line box is taller below the digits than above them, so the text centers by its glyphs, not
+   its line: a block trimmed to cap height and the alphabetic baseline holds only the digits. */
+.badge-text {
+  display: block;
+  text-box: trim-both cap alphabetic;
+}
+
 .size-sm {
   height: 16px;
   min-width: 16px;
@@ -49,7 +58,7 @@ withDefaults(
 }
 
 .tone-info {
-  background: var(--color-info);
+  background: var(--color-info-fill);
   color: var(--color-white);
 }
 

@@ -3,7 +3,14 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseBlame, parseLog, parseNameStatus, parseStatus, parseTrack } from './gitParse.ts'
+import {
+  parseBlame,
+  parseLog,
+  parseNameStatus,
+  parseStashSubject,
+  parseStatus,
+  parseTrack
+} from './gitParse.ts'
 
 const HASH = '0000000000000000000000000000000000000000'
 const mode = '100644 100644 100644'
@@ -106,4 +113,21 @@ test('reads ahead and behind from an upstream track', () => {
   assert.deepEqual(parseTrack('[behind 3]'), { ahead: 0, behind: 3 })
   assert.deepEqual(parseTrack('[gone]'), { ahead: 0, behind: 0 })
   assert.deepEqual(parseTrack(''), { ahead: 0, behind: 0 })
+})
+
+test('splits a stash subject into its branch and message', () => {
+  assert.deepEqual(parseStashSubject('On main: pane reorg'), { branch: 'main', text: 'pane reorg' })
+  assert.deepEqual(parseStashSubject('WIP on fix/a-b: 1a2b3c4 feat: add x'), {
+    branch: 'fix/a-b',
+    text: 'feat: add x'
+  })
+  assert.deepEqual(parseStashSubject('On main: note: with colon'), {
+    branch: 'main',
+    text: 'note: with colon'
+  })
+  assert.deepEqual(parseStashSubject('WIP on (no branch): 1a2b3c4 subject'), {
+    branch: null,
+    text: 'subject'
+  })
+  assert.deepEqual(parseStashSubject('autostash'), { branch: null, text: 'autostash' })
 })

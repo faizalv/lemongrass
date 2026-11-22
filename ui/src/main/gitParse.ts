@@ -288,3 +288,15 @@ export function parseTrack(track: string): { ahead: number; behind: number } {
   const behind = /behind (\d+)/.exec(track)
   return { ahead: ahead ? Number(ahead[1]) : 0, behind: behind ? Number(behind[1]) : 0 }
 }
+
+// Splits a stash's reflog subject into the branch it was made on and its message. git writes
+// "On <branch>: <message>" for a named stash and "WIP on <branch>: <short hash> <subject>" for an
+// unnamed one; a ref cannot contain a colon, so the first ": " ends the branch. Any other subject,
+// such as a rebase's "autostash", has no branch.
+export function parseStashSubject(subject: string): { branch: string | null; text: string } {
+  const match = /^(WIP on|On) (.+?): (.*)$/s.exec(subject)
+  if (!match) return { branch: null, text: subject }
+  const [, kind, branch, rest] = match
+  const text = kind === 'WIP on' ? rest.replace(/^[0-9a-f]{4,64} /, '') : rest
+  return { branch: branch === '(no branch)' ? null : branch, text }
+}

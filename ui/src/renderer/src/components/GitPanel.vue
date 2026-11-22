@@ -196,7 +196,7 @@ const pushTitle = computed(() => {
         <GitCounts :ahead="status.ahead" :behind="status.behind" />
       </GitBranchMenu>
       <div v-if="status?.isRepo" class="remote-line">
-        <AppButton variant="text" size="sm" class="history-open" @click="openHistory(project)">
+        <AppButton variant="ghost" size="sm" class="history-open" @click="openHistory(project)">
           <GitIcon class="row-icon" name="open" />
           History
         </AppButton>

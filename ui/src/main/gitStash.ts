@@ -2,6 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { ipcMain } from 'electron'
+import { parseStashSubject } from './gitParse'
 import { WRITE_TIMEOUT_MS, errorText, readEnv, repoRoot, run } from './gitRun'
 import type { GitActionResult, GitStash } from '../preload/types'
 
@@ -18,7 +19,7 @@ async function list(projectPath: string): Promise<GitStash[]> {
     .filter(Boolean)
     .map((line) => {
       const [ref, message, time] = line.split('\x1f')
-      return { ref, message, time: Number(time) }
+      return { ref, message, ...parseStashSubject(message), time: Number(time) }
     })
 }
 
