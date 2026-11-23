@@ -23,6 +23,7 @@ const (
 var (
 	whiteboardRow = regexp.MustCompile(`^\d+\.\s+(\S+)\s.*->\s*(\S+)\s*$`)
 	plansItem     = regexp.MustCompile(`^\s*[-*]\s+\\?\[([ xX])\\?\]\s*(.*)$`)
+	phaseHeading  = regexp.MustCompile(`^###\s+Phase\s+\d+\b`)
 )
 
 type closeFacts struct {
@@ -32,6 +33,7 @@ type closeFacts struct {
 	age         taskAge
 	related     []relatedTask
 	plans       int
+	phases      int
 	words       int
 	open        []string
 	noRootCause bool
@@ -39,8 +41,17 @@ type closeFacts struct {
 }
 
 func (f closeFacts) full() bool {
-	return f.handover != "" || f.plans > lightPlansLimit || f.words > lightWordsLimit ||
+	return f.handover != "" || f.size() > lightPlansLimit || f.words > lightWordsLimit ||
 		f.footprint.newFiles() > 0 || len(f.footprint.files) > lightFilesLimit
+}
+
+// size counts phases when the PRD has phase headings and checkboxes otherwise, since a PRD in the phase shape gives
+// every step its own checkbox and would otherwise reach the full close for a small task.
+func (f closeFacts) size() int {
+	if f.phases > 0 {
+		return f.phases
+	}
+	return f.plans
 }
 
 // A step is one fragment followed by the lists the tool already gathered for it.
@@ -214,6 +225,7 @@ func inspectTask(env Env, slug string) (closeFacts, error) {
 	facts.age = ageOf(env, slug)
 	facts.related = relatedTasks(env, slug, facts.age)
 	facts.plans, facts.words, facts.open = readPRD(filepath.Join(dir, "prd.md"))
+	facts.phases = countPhases(filepath.Join(dir, "prd.md"))
 	if debug := filepath.Join(dir, "debug.md"); exists(debug) && !rootCause.MatchString(readText(debug)) {
 		facts.noRootCause = true
 	}
@@ -245,6 +257,16 @@ func findHandover(root, slug string) string {
 		return slug + ".md"
 	}
 	return ""
+}
+
+func countPhases(prdPath string) int {
+	n := 0
+	for _, line := range strings.Split(readText(prdPath), "\n") {
+		if phaseHeading.MatchString(line) {
+			n++
+		}
+	}
+	return n
 }
 
 func readPRD(prdPath string) (plans, words int, open []string) {
@@ -279,6 +301,9 @@ func closeHeadline(f closeFacts, full bool) string {
 		reasons = append(reasons, "no related task")
 	}
 	reasons = append(reasons, fmt.Sprintf("%d PRD words", f.words), fmt.Sprintf("%d Plans item(s)", f.plans))
+	if f.phases > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d phase(s)", f.phases))
+	}
 	switch {
 	case len(f.footprint.files) == 0:
 		reasons = append(reasons, "no code files found")

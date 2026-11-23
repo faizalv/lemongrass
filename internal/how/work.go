@@ -111,7 +111,7 @@ func workHotfix(root string, args []string) (string, error) {
 		return archivedNotice(slug), nil
 	}
 	var b strings.Builder
-	start := "**Record the request.** Write `biblio/scratchpad/" + slug + "/prd.md`: the Problem quotes the human's request word for word, the Expectation and the Objective name the one element to change, the Objective puts everything else out of scope, and Plans holds one `- [ ]` item. Start `activities.md` beside it."
+	start := "**Record the request.** Write `biblio/scratchpad/" + slug + "/prd.md`: the Problem quotes the human's request word for word, the Expectation and the Objective name the one element to change, the Objective puts everything else out of scope, and Plans holds the solo line, `### Phase 1: <the element>` with one `- [ ]` step, and `- [ ] User approval`. Start `activities.md` beside it."
 	if f.has("prd.md") {
 		fmt.Fprintf(&b, "Continue hotfix %s.\n\n", slug)
 		start = handoverLead(f) + "**Read the request.** Read `biblio/scratchpad/" + slug + "/prd.md` and `activities.md`. The Problem holds the request word for word and is the scope."

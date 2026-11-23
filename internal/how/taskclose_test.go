@@ -4,6 +4,7 @@
 package how
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -315,6 +316,19 @@ func TestPRDSizeChoosesThePath(t *testing.T) {
 	}
 	if out := render(t, root, "task", "close", "biblio/scratchpad/six/"); !strings.Contains(out, "PRD words, 6 Plans item(s), ") {
 		t.Errorf("headline lacks the size facts: %q", strings.SplitN(out, "\n", 2)[0])
+	}
+}
+
+func TestPhasesSetTheSizeWhenPresent(t *testing.T) {
+	root := t.TempDir()
+	var lines []string
+	for p := 1; p <= 3; p++ {
+		lines = append(lines, fmt.Sprintf("### Phase %d: part", p), "- [x] step", "- [x] step", "- [x] step")
+	}
+	task(t, root, "phased", lines...)
+	out := render(t, root, "task", "close", "phased")
+	if !strings.HasPrefix(out, "Light close for phased,") || !strings.Contains(strings.SplitN(out, "\n", 2)[0], "9 Plans item(s), 3 phase(s)") {
+		t.Errorf("headline = %q", strings.SplitN(out, "\n", 2)[0])
 	}
 }
 

@@ -40,7 +40,7 @@ func TestActionsNeedBiblio(t *testing.T) {
 
 func TestWorkTaskNew(t *testing.T) {
 	out := render(t, biblioRoot(t), "work", "task", "feat")
-	wantAll(t, out, "New task feat.", "Books first.", "biblio/scratchpad/feat/prd.md", "State how the work is done", "lgrass how task close feat")
+	wantAll(t, out, "New task feat.", "Books first.", "biblio/scratchpad/feat/prd.md", "says how the work is done", "### Phase 1: <the deliverable>", "- [ ] User approval", "lgrass how task close feat")
 }
 
 func TestWorkTaskResumesFromFirstOpenItem(t *testing.T) {
