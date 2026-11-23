@@ -20,7 +20,7 @@ The system temp directory is wiped by a reboot or power cut, so it holds only wh
 ## What reaches you
 
 <!-- claude codex -->
-When the project has laws, their summary follows this text. Lemongrass adds hooks to your session. At session start a hook gives you any pending notifications. While you work, hooks add short notes after tool calls, such as how many other tabs are open.
+When the project has laws, their summary follows this text. Lemongrass adds hooks to your session. At session start a hook gives you any pending notifications. While you work, hooks add short notes after tool calls, such as how many other tabs are open. A note starting with `tip:` brings a project rule back to mind.
 <!-- end -->
 <!-- agy -->
 When the project has laws, their summary follows this text. Lemongrass adds hooks to your session. At session start a hook gives you any pending notifications. While you work, a notification that arrives for you is added before your next step after a tool call.

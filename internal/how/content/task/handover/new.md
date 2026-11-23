@@ -18,4 +18,4 @@
 
    Add a pointer to the matching `biblio/books/` chapter on the summary line if one exists.
 4. **Whiteboard.** Add `N. {slug} [tags] -> {slug}.md` to `biblio/handover/whiteboard.md` at its priority position and renumber the rows below it. Tags follow the book tag rules, and `blocked` marks a handover stalled on a decision.
-5. **Memory pointer.** Write a `type: project` memory file whose body is one or two sentences pointing at `biblio/handover/{slug}.md`, never the content, and add its line to `MEMORY.md`. Memory writes need `lgrass sign i-write-memory`.
+5. **Memory pointer.** Write a pointer in your agent's own memory. It is one or two sentences pointing at `biblio/handover/{slug}.md`, never the content. Memory writes need `lgrass sign i-write-memory`.

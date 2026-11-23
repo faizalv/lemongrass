@@ -5,22 +5,24 @@ package session
 
 import "math/rand"
 
-// Loading-screen-style reminders, surfaced periodically alongside the
-// regular nudge -- only when the current project has actually adopted
-// bibliothek (biblio/ exists), so they're never noise for one that hasn't.
-var bibliothekTips = []string{
-	"bibliothek tip: a handover is never written for finished work -- that's a book chapter.",
-	"bibliothek tip: handover is temporary, permanence is a book entry.",
-	"bibliothek tip: finishing a task includes writing its book chapter, same as running its tests.",
-	"bibliothek tip: memory only ever points at biblio/handover/<task>.md or biblio/books/toc.md -- never a hardcoded book path.",
-	"bibliothek tip: a task directory has reserved names such as prd.md and activities.md, and takes any other important file the work needs. It becomes the permanent record in the archive once the task closes.",
-	"bibliothek tip: before touching a part of the project you have not read about this session, open its book from biblio/books/toc.md. A chapter costs a fraction of the code it explains, and only the chapter tells you why it is wired that way.",
-	"bibliothek tip: a handover's Status section is the truth, its Log is history only -- don't read the Log for current state.",
-	"bibliothek tip: once a handover's work is done, archive it -- biblio/handover/ should only ever hold what's still in flight.",
-	"bibliothek tip: tags are one word each -- a compound idea is multiple tags, not one hyphenated tag.",
-	"bibliothek tip: a plan for work that hasn't started lives in scratchpad -- a handover's Status section tracks an already-open task, not a future one.",
-	"lgrass tip: before your first reply to any prompt, run the `lgrass how work` action that fits it. Before anything with a task, a handover, a law, a book or a workgroup, check `lgrass how` first and follow what it prints.",
-	"bibliothek tip: scratchpad is editable by the model too, not just the user. It is the working space for planning, debugging and every work file, not only somewhere the user drops notes.",
+// Short reminders surfaced periodically alongside the regular nudge, only in a project with biblio/. They bring rules
+// back into relevance late in a long session, so each stays a few words and must match the current biblio convention
+// and lgrass how content.
+var tips = []string{
+	"tip: finished work gets closed, never handed over.",
+	"tip: scratchpad and handover hold only work in flight.",
+	"tip: chapters record how it works, never how it broke.",
+	"tip: memory holds pointers only, never facts.",
+	"tip: every task file sits in its task directory.",
+	"tip: unread part? Open its book first.",
+	"tip: handover Status is current, its Log is history.",
+	"tip: task close archives the task and its handover.",
+	"tip: one camelCase tag per compound idea.",
+	"tip: unstarted work gets a PRD, not a handover.",
+	"tip: you write in scratchpad too.",
+	"tip: only the user ticks User approval.",
+	"tip: PRDs use only the standard headings.",
+	"tip: `lgrass how` has the manual for each action.",
 }
 
 func RandomTip() string {
@@ -29,6 +31,6 @@ func RandomTip() string {
 
 // RandomTipFrom picks from the built-in tips plus whatever user-authored ones this project has configured.
 func RandomTipFrom(extra []string) string {
-	all := append(append([]string{}, bibliothekTips...), extra...)
+	all := append(append([]string{}, tips...), extra...)
 	return all[rand.Intn(len(all))]
 }
