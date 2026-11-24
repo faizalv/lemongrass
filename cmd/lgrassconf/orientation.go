@@ -24,7 +24,7 @@ func (k *keeper) orientationDir() string {
 	return filepath.Join(k.home, ".lemongrass", "orientation")
 }
 
-const bibliothekHeading = "\n# The bibliothek convention\n\n"
+const conventionHeading = "\n# The biblio convention\n\n"
 
 // Each orientation source is installed once per vendor; Codex's and Antigravity's copies carry their prefix.
 var orientationVendors = []struct{ name, prefix string }{{"claude", ""}, {"codex", "codex-"}, {"agy", "agy-"}}
@@ -73,7 +73,7 @@ func (k *keeper) loadOrientation() []skillFile {
 			panic(err)
 		}
 		for _, v := range orientationVendors {
-			content := append(append(forVendor(data, v.name), bibliothekHeading...), conventionText...)
+			content := append(append(forVendor(data, v.name), conventionHeading...), conventionText...)
 			path := filepath.Join(k.orientationDir(), v.prefix+e.Name())
 			files = append(files, skillFile{root: k.orientationDir(), path: path, content: content})
 		}

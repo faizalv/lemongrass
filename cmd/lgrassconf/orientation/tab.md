@@ -11,7 +11,7 @@ You run in a terminal tab of the lemongrass app, in the project's directory. Oth
 You run in a terminal tab of the lemongrass app, in the project's directory. Other tabs may be open in the same project, running Claude, Codex or Antigravity, each with its own session. Your tab id is in the `LGRASS_TAB_ID` environment variable, and other tabs address you by it.
 <!-- end -->
 
-The project root has a folder named `biblio` that holds the project's working knowledge: the scratchpad with task plans, the laws, the handovers of paused work and the books. It is gitignored, so search tools skip it, and you list it directly when you need it. When the project has no `biblio` folder yet, run `lgrass biblio init` before anything else: it sets up the folder and adds it to the project's `.gitignore`. It follows the bibliothek convention, whose full text comes at the end of this prompt. That text is lemongrass's own version of the bibliothek skill and wins over the skill wherever they differ, so never load the skill.
+The project root has a folder named `biblio` that holds the project's working knowledge: the scratchpad with task plans, the laws, the handovers of paused work and the books. It is gitignored, so search tools skip it, and you list it directly when you need it. When the project has no `biblio` folder yet, run `lgrass biblio init` before anything else: it sets up the folder and adds it to the project's `.gitignore`. The biblio convention at the end of this prompt describes it. Never load a skill about `biblio`, because this convention is the one that applies.
 
 If you damage or delete a file under `biblio`, do not rewrite it from memory. Restore it from its history. Lemongrass records every change under `biblio` in a private history outside the project's git and keeps it for 90 days. `lgrass biblio log [<path>]` lists the changes to a file or folder, following it across moves such as archiving. `lgrass biblio show <rev> <path>` prints a file as it was at that change, and you write that version back. A folder that is its own git repository is kept out of this history, so only its own git can restore it.
 
@@ -191,7 +191,7 @@ A chapter costs less to read than the code it explains. Where a book and the cod
 
 Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>` prints the steps for one action at the moment you take it, and only the steps that apply to your situation. Some actions are manuals you read and apply with your own judgment, and others read the project and print only the branch that fits it. `lgrass how` lists the domains and `lgrass how <domain>` lists a domain's actions. Whenever you are about to do something with tasks, handovers, laws, books or workgroups, check `lgrass how` first and follow what it prints, never from memory.
 
-- The bibliothek convention at the end of this prompt explains `biblio`.
+- The biblio convention at the end of this prompt explains `biblio`.
 - Before your first reply to any prompt, a question included, run the `lgrass how work` action that fits it: `task <slug>` to build something, new or resumed, `research <slug>` to investigate with no build, `debug <slug>` to chase a fault, `hotfix <slug>` for a change the human needs urgently or has limited to a named element, and `discussion` for an idea or a question with no task file yet.
 - Before you write a book chapter, run `lgrass how book write`.
 - When you need something only the human can give, a database or HTTP channel or a command the guard refused, run `lgrass how ask request`.

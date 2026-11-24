@@ -26,10 +26,10 @@ func embeddedOrientation(t *testing.T, name string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(forVendor(data, vendor)) + bibliothekHeading + string(conventionText)
+	return string(forVendor(data, vendor)) + conventionHeading + string(conventionText)
 }
 
-func TestOrientationCarriesBibliothekWithoutTheTrigger(t *testing.T) {
+func TestOrientationCarriesTheConvention(t *testing.T) {
 	k, _ := fakeHome(t)
 	if err := k.reconcile(); err != nil {
 		t.Fatal(err)
@@ -40,8 +40,8 @@ func TestOrientationCarriesBibliothekWithoutTheTrigger(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(data)
-		if !strings.Contains(text, "# The bibliothek convention") || !strings.Contains(text, "## Tier 2") {
-			t.Errorf("%s does not carry bibliothek", name)
+		if !strings.Contains(text, "# The biblio convention") || !strings.Contains(text, "## The four folders") {
+			t.Errorf("%s does not carry the biblio convention", name)
 		}
 		if strings.Contains(text, "MANDATORY: invoke bibliothek") || strings.Contains(text, "name: bibliothek") {
 			t.Errorf("%s carries the autoload trigger or the skill frontmatter", name)
@@ -79,16 +79,16 @@ func TestOrientationIsAdaptedPerVendor(t *testing.T) {
 	}
 	for _, name := range installedOrientations {
 		text := read(name)
-		orientation, _, _ := strings.Cut(text, bibliothekHeading)
+		orientation, _, _ := strings.Cut(text, conventionHeading)
 		if strings.Contains(orientation, "<!--") || strings.Contains(text, "\n\n\n") {
 			t.Errorf("%s keeps a vendor marker or a doubled gap", name)
 		}
 	}
 	for _, role := range []string{"tab.md", "thinker.md"} {
-		// Only the orientation itself; the appended bibliothek text names agents on purpose.
-		claudeText, _, _ := strings.Cut(read(role), bibliothekHeading)
-		codexText, _, _ := strings.Cut(read("codex-"+role), bibliothekHeading)
-		agyText, _, _ := strings.Cut(read("agy-"+role), bibliothekHeading)
+		// Only the orientation itself, since the appended convention is the same for every vendor.
+		claudeText, _, _ := strings.Cut(read(role), conventionHeading)
+		codexText, _, _ := strings.Cut(read("codex-"+role), conventionHeading)
+		agyText, _, _ := strings.Cut(read("agy-"+role), conventionHeading)
 		for _, harness := range []string{"ToolSearch", "Claude Code's", "memory gate"} {
 			if !strings.Contains(claudeText, harness) {
 				t.Errorf("%s lost %q", role, harness)
