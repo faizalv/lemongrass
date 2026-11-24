@@ -54,12 +54,63 @@ func (c checker) programDir(script shellScript, at int) (string, bool) {
 
 // codeVerdicts runs the path pass and the call pass over one program's text.
 func (c checker) codeVerdicts(lang, code, dir string, known bool, ruleID, where string) []Verdict {
+	found := c.pathPassVerdicts(lang, code)
+	if detail := c.destructiveCallDetail(lang, code, dir, known); detail != "" {
+		found = append(found, ruleVerdict(ruleID, "In "+where+", "+detail))
+	}
+	return found
+}
+
+// pathPassVerdicts judges the paths a program's code names. Python is read for what it does with each path; any
+// other language, and Python the reading cannot follow, gets the mention scan.
+func (c checker) pathPassVerdicts(lang, code string) []Verdict {
+	if lang == "python" {
+		if found, ok := c.pythonPathVerdicts(code); ok {
+			return found
+		}
+	}
+	return c.mentionScanVerdicts(code)
+}
+
+// pythonPathVerdicts judges each string literal that names a guarded path by what the program does with it: a
+// mention, such as text being edited or printed, passes; a read is judged as the shell judges a read argument; a
+// write, a command, or a call the reading does not know is judged as a write. ok is false when the program cannot be
+// read or followed.
+func (c checker) pythonPathVerdicts(code string) (found []Verdict, ok bool) {
+	prog, err := pyParse(code)
+	if err != nil || prog.dynamic {
+		return nil, false
+	}
+	guarded := make([]bool, len(prog.lits))
+	for i, lit := range prog.lits {
+		for _, token := range pathTokens(lit.value) {
+			if len(c.pathChecks(token, true)) > 0 {
+				guarded[i] = true
+				break
+			}
+		}
+	}
+	access, ok := pyAccesses(prog, guarded)
+	if !ok {
+		return nil, false
+	}
+	for i, kind := range access {
+		if !guarded[i] || kind == accessNone {
+			continue
+		}
+		for _, token := range pathTokens(prog.lits[i].value) {
+			found = append(found, c.pathChecks(token, kind == accessWrite)...)
+		}
+	}
+	return found, true
+}
+
+// mentionScanVerdicts judges every path-like word in the code as a write to that path, since without reading the
+// code a read, a write and a mere mention cannot be told apart.
+func (c checker) mentionScanVerdicts(code string) []Verdict {
 	var found []Verdict
 	for _, token := range pathTokens(code) {
 		found = append(found, c.pathChecks(token, true)...)
-	}
-	if detail := c.destructiveCallDetail(lang, code, dir, known); detail != "" {
-		found = append(found, ruleVerdict(ruleID, "In "+where+", "+detail))
 	}
 	return found
 }
