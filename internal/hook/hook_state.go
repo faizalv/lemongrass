@@ -39,7 +39,7 @@ func recordTabState(store *session.Store, event string, payload hookEvent) {
 		} else {
 			store.SetActiveTabState(tab, session.StateWorking)
 		}
-	case "PostToolUse", "UserPromptSubmit":
+	case "PostToolUse", "PostToolUseFailure", "UserPromptSubmit":
 		store.SetActiveTabState(tab, session.StateWorking)
 	case "PermissionRequest":
 		store.SetTabState(tab, session.StatePrompting)

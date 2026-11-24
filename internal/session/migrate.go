@@ -26,6 +26,7 @@ var migrations = []func(execer) error{
 	migrateV6,
 	migrateV7,
 	migrateV8,
+	migrateV9,
 }
 
 // Version 1 is the schema as it stood before the store was versioned, applied idempotently so a store from any earlier release lands on the same tables.
@@ -116,6 +117,20 @@ func migrateV8(db execer) error {
 	_, err := db.ExecContext(context.Background(), `
 ALTER TABLE lg_messages ADD COLUMN anchor_pane TEXT;
 ALTER TABLE lg_messages ADD COLUMN anchor_block INTEGER;
+`)
+	return err
+}
+
+// Version 9 records when each running shell tool call started, so its PostToolUse can log the files it changed.
+func migrateV9(db execer) error {
+	_, err := db.ExecContext(context.Background(), `
+CREATE TABLE lg_shell_calls (
+	project_id TEXT NOT NULL,
+	session_id TEXT NOT NULL,
+	call_id TEXT NOT NULL,
+	started_at TEXT NOT NULL,
+	PRIMARY KEY (project_id, session_id, call_id)
+);
 `)
 	return err
 }

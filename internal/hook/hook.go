@@ -32,6 +32,7 @@ type hookEvent struct {
 	ProjectDir       string          `json:"-"`
 	ToolName         string          `json:"tool_name"`
 	ToolInput        json.RawMessage `json:"tool_input"`
+	ToolUseID        string          `json:"tool_use_id"`
 	SessionSource    string          `json:"source"`
 	NotificationType string          `json:"notification_type"`
 	Message          string          `json:"message"`
@@ -56,7 +57,7 @@ type patchToolInput struct {
 // Every failure here fails soft so a hook-side problem never breaks the agent's own hook chain.
 func Run(args []string, tabID string) {
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: lgrassd hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|UserPromptSubmit|Notification|Stop|PermissionRequest|Interrupt> [--vendor <id>]")
+		fmt.Fprintln(os.Stderr, "usage: lgrassd hook <SessionStart|SessionEnd|PreToolUse|PostToolUse|PostToolUseFailure|UserPromptSubmit|Notification|Stop|PermissionRequest|Interrupt> [--vendor <id>]")
 		os.Exit(1)
 	}
 	event := args[0]
@@ -119,6 +120,8 @@ func Run(args []string, tabID string) {
 		result = hookPreToolUse(store, payload, proj.Path)
 	case "PostToolUse":
 		result = hookPostToolUse(store, payload, proj.Path)
+	case "PostToolUseFailure":
+		logShellWrites(store, payload, proj.Path)
 	case "UserPromptSubmit":
 		result = hookUserPromptSubmit(store, payload)
 	}
@@ -141,6 +144,7 @@ func hookSessionStart(store *session.Store, payload hookEvent, projectPath strin
 	if payload.TabID != "" {
 		store.ClearMarks(payload.TabID)
 	}
+	store.DropShellCalls(payload.SessionID)
 
 	var parts []string
 	if payload.Vendor == "agy" && payload.TabID != "" {
@@ -244,6 +248,7 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 	if os.Getenv(replayEnv) == "" && payload.Vendor != "agy" {
 		parts = append(parts, notificationContext(store, payload.TabID)...)
 	}
+	recordShellStart(store, payload)
 
 	return newHookResult("PreToolUse", "allow", parts)
 }
@@ -309,6 +314,7 @@ func hookPostToolUse(store *session.Store, payload hookEvent, projectPath string
 			store.LogFileActivity(payload.SessionID, filePath)
 		}
 	}
+	logShellWrites(store, payload, projectPath)
 
 	var parts []string
 	if payload.Vendor == "agy" {
