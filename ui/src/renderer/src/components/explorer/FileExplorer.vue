@@ -49,6 +49,8 @@ import {
   toggleHideIgnored
 } from '../../explorerSettings'
 import { useTreeSearch } from '../../useTreeSearch'
+import { FILE_OP_ICONS } from '../../fileOpIcons'
+import { setPathDrag } from '../../pathDrag'
 import { activeFilePath, openProjectFile, retargetFileTabs, type ProjectRef } from '../../workspace'
 import type { SearchNode, SearchRow } from '../../treeSearch'
 import type { IconShape } from '../../tabKinds'
@@ -73,19 +75,9 @@ const ICONS = {
   check: ['M3 7.5l2.5 2.5L11 4.5'],
   open: ['M3 1.5h5l3 3v8H3z', 'M8 1.5v3h3'],
   rename: ['M9.5 1.5 12.5 4.5 5 12H2V9z'],
-  cut: [
-    'M3.5 12a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3ZM10.5 12a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z',
-    'M4.6 9.3 10 2M9.4 9.3 4 2'
-  ],
-  copy: ['M4.5 4.5h7v8h-7z', 'M9.5 4.5V2H2v8h2.5'],
-  paste: ['M4.5 2.5H3v10h8v-10H9.5', 'M5 1.5h4v2H5z'],
   duplicate: ['M4.5 4.5h7v8h-7z', 'M9.5 4.5V2H2v8h2.5', 'M8 6.5v4M6 8.5h4'],
-  path: [
-    'M6 8a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-.7.7',
-    'M8 6a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l.7-.7'
-  ],
   reveal: ['M1.5 3.5h4l1.5 2h5.5v6h-11z', 'M6 8.5h4M8.5 7l1.5 1.5L8.5 10'],
-  trash: ['M2.5 3.5h9', 'M5.5 3.5V2h3v1.5', 'M3.5 3.5l.7 9h5.6l.7-9']
+  ...FILE_OP_ICONS
 } as const
 
 function shapesOf(paths: readonly string[]): IconShape[] {
@@ -450,6 +442,7 @@ function onDragStart(event: DragEvent, entry: ProjectEntry): void {
   if (!event.dataTransfer) return
   dragPath.value = entry.path
   event.dataTransfer.setData(DRAG_MIME, entry.path)
+  setPathDrag(event, entry.path)
   event.dataTransfer.effectAllowed = 'copyMove'
 }
 

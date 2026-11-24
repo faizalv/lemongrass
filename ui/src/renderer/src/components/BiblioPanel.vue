@@ -2,25 +2,43 @@
 <!-- Copyright (C) 2026 The Lemongrass Authors -->
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
+  AppBanner,
   AppButton,
   AppCheckbox,
+  AppContextMenu,
   AppEmptyState,
   AppIconButton,
   AppInput,
   AppModal,
   AppNavItem,
-  AppSwitcher
+  AppSwitcher,
+  type MenuItem
 } from '@sankasten'
 import BiblioTreeItem from './BiblioTreeItem.vue'
 import MarkdownEditor from './MarkdownEditor.vue'
 import TreeSearchBar from './treeSearch/TreeSearchBar.vue'
-import { activePath, closeUnder, openFile, type ProjectRef } from '../workspace'
+import {
+  activePath,
+  closeUnder,
+  flushDocsUnder,
+  openFile,
+  projectRelativePath,
+  retargetDocTabs,
+  type ProjectRef
+} from '../workspace'
 import { biblioExpandedOf } from '../explorerStore'
+import {
+  biblioClipboard,
+  clearBiblioClipboard,
+  opErrorText,
+  putOnBiblioClipboard
+} from '../explorerOps'
+import { FILE_OP_ICONS } from '../fileOpIcons'
 import { useBiblioSearch } from '../useBiblioSearch'
 import type { BiblioScope } from '../biblioSearch'
-import type { BiblioTree } from '../../../preload/types'
+import type { BiblioNode, BiblioOpsResult, BiblioTree } from '../../../preload/types'
 
 const props = defineProps<{
   tree: BiblioTree | null
@@ -93,6 +111,102 @@ async function archiveScratchpad(taskPath: string): Promise<void> {
   if (!ok) return
   closeUnder(props.project, taskPath)
   emit('refresh')
+}
+
+// The category folders stay in place: their menu offers only Copy path and Paste. Main refuses
+// them too.
+const CATEGORY_PATHS = new Set(['books', 'handover', 'laws', 'scratchpad', 'scratchpad/archive'])
+
+const opError = ref<string | null>(null)
+let opErrorTimer: ReturnType<typeof setTimeout> | undefined
+
+function showOpResult(result: BiblioOpsResult): string[] {
+  if (!('error' in result)) return result.paths
+  opError.value = opErrorText(result.error)
+  clearTimeout(opErrorTimer)
+  opErrorTimer = setTimeout(() => (opError.value = null), 5000)
+  return result.done
+}
+
+onBeforeUnmount(() => clearTimeout(opErrorTimer))
+
+const cutPaths = computed((): string[] =>
+  biblioClipboard.mode === 'cut' && biblioClipboard.projectPath === props.project.path
+    ? biblioClipboard.paths
+    : []
+)
+
+const canPaste = computed(
+  () => biblioClipboard.projectPath === props.project.path && biblioClipboard.paths.length > 0
+)
+
+function parentOf(path: string): string {
+  return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
+}
+
+async function paste(destDir: string): Promise<void> {
+  if (!canPaste.value) return
+  const paths = [...biblioClipboard.paths]
+  if (biblioClipboard.mode === 'copy') {
+    showOpResult(await window.api.biblio.copy(props.project.path, paths, destDir))
+    expandDir(destDir)
+    return
+  }
+  await Promise.all(paths.map((path) => flushDocsUnder(props.project, path)))
+  const result = await window.api.biblio.move(props.project.path, paths, destDir)
+  const done = showOpResult(result)
+  // The move reports the new paths in the order it was given the old ones.
+  done.forEach((to, index) => retargetDocTabs(props.project, paths[index], to))
+  if (!('error' in result)) clearBiblioClipboard()
+  expandDir(destDir)
+}
+
+async function trash(path: string): Promise<void> {
+  await flushDocsUnder(props.project, path)
+  showOpResult(await window.api.biblio.trash(props.project.path, [path]))
+}
+
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    return
+  }
+}
+
+const menu = ref<{ x: number; y: number; node: BiblioNode } | null>(null)
+
+function openMenu(event: MouseEvent, node: BiblioNode): void {
+  menu.value = { x: event.clientX, y: event.clientY, node }
+}
+
+const menuItems = computed((): MenuItem[] => {
+  const node = menu.value?.node
+  if (!node) return []
+  const fixed = CATEGORY_PATHS.has(node.path)
+  const items: MenuItem[] = [{ key: 'copyPath', label: 'Copy path', icon: FILE_OP_ICONS.path }]
+  if (!fixed) {
+    items.push(
+      { key: 'cut', label: 'Cut', icon: FILE_OP_ICONS.cut },
+      { key: 'copy', label: 'Copy', icon: FILE_OP_ICONS.copy }
+    )
+  }
+  items.push({ key: 'paste', label: 'Paste', icon: FILE_OP_ICONS.paste, disabled: !canPaste.value })
+  if (!fixed)
+    items.push({ key: 'trash', label: 'Delete', icon: FILE_OP_ICONS.trash, confirm: true })
+  return items
+})
+
+function onMenuSelect(key: string): void {
+  const node = menu.value?.node
+  menu.value = null
+  if (!node) return
+  if (key === 'copyPath') void copyText(projectRelativePath(node.path))
+  else if (key === 'cut' || key === 'copy')
+    putOnBiblioClipboard(props.project.path, key, [node.path])
+  else if (key === 'paste') void paste(node.type === 'dir' ? node.path : parentOf(node.path))
+  else if (key === 'trash') void trash(node.path)
+  panel.value?.focus()
 }
 
 const showCreateForm = ref(false)
@@ -231,6 +345,10 @@ async function submitCreate(): Promise<void> {
         </div>
       </TreeSearchBar>
 
+      <AppBanner v-if="opError" tone="danger" class="op-error" @click="opError = null">{{
+        opError
+      }}</AppBanner>
+
       <div class="tree-groups">
         <template v-if="tree?.children?.length">
           <BiblioTreeItem
@@ -243,12 +361,14 @@ async function submitCreate(): Promise<void> {
             :matches="search.result.value?.matches"
             :cursor-path="search.cursorPath.value"
             :no-match="search.result.value?.noMatch"
+            :cut-paths="cutPaths"
             @select="selectFile"
             @toggle="search.toggle"
             @expand="expandDir"
             @add-scratchpad="openCreateForm"
             @add-scratchpad-file="openCreateFileForm"
             @archive-scratchpad="archiveScratchpad"
+            @menu="openMenu"
           />
         </template>
         <AppEmptyState
@@ -267,6 +387,17 @@ async function submitCreate(): Promise<void> {
         <AppEmptyState v-else class="tree-empty" size="sm" title="Nothing in biblio/ yet." />
       </div>
     </div>
+
+    <Teleport to="body">
+      <AppContextMenu
+        v-if="menu"
+        :x="menu.x"
+        :y="menu.y"
+        :items="menuItems"
+        @select="onMenuSelect"
+        @close="menu = null"
+      />
+    </Teleport>
 
     <AppModal
       v-if="showCreateForm"
@@ -341,6 +472,11 @@ async function submitCreate(): Promise<void> {
   justify-content: space-between;
   gap: var(--space-2);
   padding: 0 var(--space-1);
+}
+
+.op-error {
+  margin: 0 0 var(--space-2);
+  cursor: pointer;
 }
 
 .tree-groups {

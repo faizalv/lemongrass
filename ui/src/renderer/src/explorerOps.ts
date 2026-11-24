@@ -22,16 +22,40 @@ export function clearClipboard(): void {
   explorerClipboard.paths = []
 }
 
-const OP_ERRORS: Record<ProjectOpError, string> = {
+// The Biblio tree's own clipboard: its paths are biblio-relative, so they never paste into the
+// Files tree or the other way round.
+export const biblioClipboard = reactive<{
+  projectPath: string | null
+  mode: 'cut' | 'copy'
+  paths: string[]
+}>({ projectPath: null, mode: 'copy', paths: [] })
+
+export function putOnBiblioClipboard(
+  projectPath: string,
+  mode: 'cut' | 'copy',
+  paths: string[]
+): void {
+  biblioClipboard.projectPath = projectPath
+  biblioClipboard.mode = mode
+  biblioClipboard.paths = paths
+}
+
+export function clearBiblioClipboard(): void {
+  biblioClipboard.projectPath = null
+  biblioClipboard.paths = []
+}
+
+const OP_ERRORS: Record<ProjectOpError | 'protected', string> = {
   exists: 'A file or folder with that name is already there.',
   notFound: 'That file or folder no longer exists.',
   outside: 'That path is outside the project.',
   invalidName: 'That name cannot be used here.',
   intoItself: 'A folder cannot go into itself.',
-  failed: 'The file operation failed.'
+  failed: 'The file operation failed.',
+  protected: 'The biblio category folders stay where they are.'
 }
 
-export function opErrorText(error: ProjectOpError): string {
+export function opErrorText(error: ProjectOpError | 'protected'): string {
   return OP_ERRORS[error]
 }
 

@@ -146,6 +146,10 @@ export type ProjectOpResult = { ok: true; path: string } | { error: ProjectOpErr
 export type ProjectOpsResult =
   { ok: true; paths: string[] } | { error: ProjectOpError; done: string[] }
 
+// protected: the operation named one of biblio's category folders, which stay in place.
+export type BiblioOpsResult =
+  { ok: true; paths: string[] } | { error: ProjectOpError | 'protected'; done: string[] }
+
 export interface ProjectFilesChange {
   projectPath: string
   dir: string

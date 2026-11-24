@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (C) 2026 The Lemongrass Authors
 
-import { ipcMain, net, protocol, WebContents } from 'electron'
+import { ipcMain, net, protocol, shell, WebContents } from 'electron'
 import { fileURLToPath, pathToFileURL } from 'url'
 import {
   closeSync,
@@ -21,6 +21,9 @@ import {
 import { dirname, extname, join, posix, relative, resolve, sep } from 'path'
 import { PROJECT_FILE_SCHEME } from './projectFiles'
 import { byLatestActivity } from './biblioActivity'
+import { isBiblioCategory } from './biblioGuard'
+import { copyEntries, moveEntries, resolveEntries, toRelative } from './projectFilesCore'
+import type { BiblioOpsResult } from '../preload/types'
 
 const IMAGES_DIR = 'images'
 const IMAGE_SCHEME = 'biblio-image'
@@ -281,6 +284,25 @@ export function closeBiblioWatchers(): void {
   debounceTimers.clear()
 }
 
+// The real biblio root for a tree file operation, after refusing a category folder as a source and
+// a path the Windows separator check rejects. Every change reaches the renderer through the watch.
+function checkOps(
+  projectPath: string,
+  paths: unknown,
+  destDir: string
+): { root: string } | Extract<BiblioOpsResult, { error: unknown }> {
+  if (!Array.isArray(paths) || paths.some((path) => typeof path !== 'string'))
+    return { error: 'outside', done: [] }
+  if ([...paths, destDir].some((path) => ipcSegments(path) === null))
+    return { error: 'outside', done: [] }
+  if (paths.some((path) => isBiblioCategory(path))) return { error: 'protected', done: [] }
+  try {
+    return { root: realpathSync(join(projectPath, 'biblio')) }
+  } catch {
+    return { error: 'notFound', done: [] }
+  }
+}
+
 export function registerBiblioHandlers(getSender: () => WebContents | undefined): void {
   protocol.handle(IMAGE_SCHEME, handleImageRequest)
 
@@ -466,6 +488,42 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
       } catch {
         return false
       }
+    }
+  )
+
+  ipcMain.handle(
+    'biblio:move',
+    (_event, projectPath: string, paths: string[], destDir: string): BiblioOpsResult => {
+      const checked = checkOps(projectPath, paths, destDir)
+      return 'root' in checked ? moveEntries(checked.root, paths, destDir) : checked
+    }
+  )
+
+  ipcMain.handle(
+    'biblio:copy',
+    (_event, projectPath: string, paths: string[], destDir: string): BiblioOpsResult => {
+      const checked = checkOps(projectPath, paths, destDir)
+      return 'root' in checked ? copyEntries(checked.root, paths, destDir) : checked
+    }
+  )
+
+  ipcMain.handle(
+    'biblio:trash',
+    async (_event, projectPath: string, paths: string[]): Promise<BiblioOpsResult> => {
+      const checked = checkOps(projectPath, paths, '')
+      if (!('root' in checked)) return checked
+      const resolved = resolveEntries(checked.root, paths)
+      if ('error' in resolved) return { error: resolved.error, done: [] }
+      const done: string[] = []
+      for (const target of resolved.targets) {
+        try {
+          await shell.trashItem(target)
+        } catch {
+          return { error: 'failed', done }
+        }
+        done.push(toRelative(checked.root, target))
+      }
+      return { ok: true, paths: done }
     }
   )
 

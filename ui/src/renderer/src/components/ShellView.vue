@@ -11,6 +11,7 @@ import {
   focusShell,
   fitShell,
   pasteIntoShell,
+  pasteTextIntoShell,
   setShellActive,
   shellAccountGone,
   shellHasSelection,
@@ -22,6 +23,7 @@ import {
 import { AppButton, AppContextMenu, AppEmptyState, type MenuItem } from '@sankasten'
 import { heldThinkers } from '../thinkerHold'
 import { terminalScheme } from '../appearance'
+import { PATH_DRAG_MIME, isPathDrag, quotePath } from '../pathDrag'
 
 const props = defineProps<{
   spec: ShellSpec
@@ -48,6 +50,31 @@ function onMenuSelect(key: string): void {
   menu.value = null
   if (key === 'copy') void copyShellSelection(props.spec.id)
   else void pasteIntoShell(props.spec.id)
+  focusShell(props.spec.id)
+}
+
+// A sidebar tree row held over the terminal: dropping it types its path, followed by a space so a
+// second drop stays a separate word. Tab drags are not path drags and keep the pane's handling.
+const pathOver = ref(false)
+
+function onPathDragOver(event: DragEvent): void {
+  if (!isPathDrag(event)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+  pathOver.value = true
+}
+
+function onPathDragLeave(event: DragEvent): void {
+  const card = event.currentTarget as HTMLElement
+  if (!card.contains(event.relatedTarget as Node | null)) pathOver.value = false
+}
+
+function onPathDrop(event: DragEvent): void {
+  pathOver.value = false
+  const path = event.dataTransfer?.getData(PATH_DRAG_MIME)
+  if (!path) return
+  event.preventDefault()
+  pasteTextIntoShell(props.spec.id, `${quotePath(path)} `)
   focusShell(props.spec.id)
 }
 
@@ -101,7 +128,15 @@ onBeforeUnmount(() => {
     title="Thinker is preparing"
     detail="Another thinker in this group starts first. This one starts right after, so it can reuse the prompt the first one cached."
   />
-  <div v-else class="terminal-card fade-in" :data-theme="terminalScheme">
+  <div
+    v-else
+    class="terminal-card fade-in"
+    :class="{ 'path-drop': pathOver }"
+    :data-theme="terminalScheme"
+    @dragover="onPathDragOver"
+    @dragleave="onPathDragLeave"
+    @drop="onPathDrop"
+  >
     <div ref="containerEl" class="terminal-pane" @contextmenu.prevent="openMenu"></div>
     <div v-if="shellAccountGone[spec.id]" class="restore-failure">
       <span class="restore-message">
@@ -150,6 +185,11 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-lg);
   overflow: hidden;
   position: relative;
+}
+
+.terminal-card.path-drop {
+  border-color: var(--color-amber);
+  box-shadow: inset 0 0 0 1px var(--color-amber);
 }
 
 .terminal-pane {

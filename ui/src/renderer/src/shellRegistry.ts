@@ -506,6 +506,12 @@ export async function pasteIntoShell(tabId: string): Promise<void> {
   if (session) await pasteClipboard(session)
 }
 
+// Pasted, not typed, so a bracketed-paste agent takes the text as one paste and never submits it.
+export function pasteTextIntoShell(tabId: string, text: string): void {
+  const session = sessions.get(tabId)
+  if (session && !session.disposed) session.term.paste(text)
+}
+
 export function focusShell(tabId: string): void {
   const session = sessions.get(tabId)
   if (session?.opened) session.term.focus()

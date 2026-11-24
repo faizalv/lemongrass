@@ -8,6 +8,9 @@ import TabIcon from './TabIcon.vue'
 import MatchName from './treeSearch/MatchName.vue'
 import { archiveIcon, biblioDirShapes, biblioFileShapes } from '../biblioIcons'
 import { biblioLabel } from '../biblioSearch'
+import { showDragGhost } from '../dragGhost'
+import { setPathDrag } from '../pathDrag'
+import { projectRelativePath } from '../workspace'
 import type { MatchRange } from '../treeSearch'
 import type { BiblioNode } from '../../../preload/types'
 
@@ -23,6 +26,8 @@ const props = defineProps<{
   cursorPath?: string | null
   // Categories the search found nothing in, which show a line saying so.
   noMatch?: Set<string> | null
+  // Paths on the clipboard from Cut, shown muted until they are pasted.
+  cutPaths?: string[]
 }>()
 
 const ranges = computed((): MatchRange[] | undefined => props.matches?.get(props.node.path))
@@ -36,7 +41,20 @@ const emit = defineEmits<{
   'add-scratchpad': []
   'add-scratchpad-file': [folderPath: string]
   'archive-scratchpad': [taskPath: string]
+  menu: [event: MouseEvent, node: BiblioNode]
 }>()
+
+const isCut = computed((): boolean => !!props.cutPaths?.includes(props.node.path))
+
+// Dropped on a shell, the row types its project-relative path there (pathDrag.ts).
+function onDragStart(event: DragEvent): void {
+  if (!event.dataTransfer) return
+  setPathDrag(event, projectRelativePath(props.node.path))
+  event.dataTransfer.effectAllowed = 'copy'
+  showDragGhost(event, event.currentTarget as HTMLElement, {
+    background: 'var(--color-surface-2)'
+  })
+}
 
 const expanded = computed((): boolean => !!props.expandedPaths[props.node.path])
 
@@ -79,9 +97,12 @@ const isArchivableScratchpadTask = computed((): boolean => {
   <button
     v-if="node.type === 'file'"
     class="tree-item file"
-    :class="{ active: node.path === selectedPath, 'search-cursor': isCursor }"
+    :class="{ active: node.path === selectedPath, 'search-cursor': isCursor, cut: isCut }"
     :style="{ paddingLeft: `${depth * 14 + 10}px` }"
+    draggable="true"
     @click="emit('select', node.path)"
+    @contextmenu.prevent.stop="emit('menu', $event, node)"
+    @dragstart="onDragStart"
   >
     <span class="indent" />
     <TabIcon class="icon" :shapes="biblioFileShapes(node.name)" />
@@ -91,13 +112,16 @@ const isArchivableScratchpadTask = computed((): boolean => {
   <div
     v-else
     class="dir-row"
-    :class="{ 'archive-row': isArchive, 'search-cursor': isCursor }"
+    :class="{ 'archive-row': isArchive, 'search-cursor': isCursor, cut: isCut }"
     :style="isArchive ? { marginLeft: `${depth * 14}px`, width: 'auto' } : undefined"
+    @contextmenu.prevent.stop="emit('menu', $event, node)"
   >
     <button
       class="tree-item tree-item-main"
       :style="isArchive ? undefined : { paddingLeft: `${depth * 14 + 10}px` }"
+      draggable="true"
       @click="emit('toggle', node.path)"
+      @dragstart="onDragStart"
     >
       <svg
         class="indent chevron"
@@ -158,12 +182,14 @@ const isArchivableScratchpadTask = computed((): boolean => {
       :matches="matches"
       :cursor-path="cursorPath"
       :no-match="noMatch"
+      :cut-paths="cutPaths"
       @select="(path) => emit('select', path)"
       @toggle="(path) => emit('toggle', path)"
       @expand="(path) => emit('expand', path)"
       @add-scratchpad="emit('add-scratchpad')"
       @add-scratchpad-file="(folderPath) => emit('add-scratchpad-file', folderPath)"
       @archive-scratchpad="(taskPath) => emit('archive-scratchpad', taskPath)"
+      @menu="(event, child) => emit('menu', event, child)"
     />
   </template>
 </template>
@@ -231,6 +257,11 @@ const isArchivableScratchpadTask = computed((): boolean => {
 .dir-row.search-cursor {
   box-shadow: inset 0 0 0 1px var(--color-border-strong);
   border-radius: var(--radius-md);
+}
+
+.tree-item.cut,
+.dir-row.cut .tree-item-main {
+  color: var(--color-fg-muted);
 }
 
 .no-match {

@@ -746,6 +746,36 @@ export function retargetFileTabs(project: ProjectRef, from: string, to: string):
   pruneDocs(project)
 }
 
+function isAtOrUnder(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`)
+}
+
+// Saves pending edits of open biblio docs at or under a path, so a move does not leave an
+// autosave writing to the old location.
+export async function flushDocsUnder(project: ProjectRef, prefix: string): Promise<void> {
+  const workspace = workspaces[project.id]
+  if (!workspace) return
+  await Promise.all(
+    Object.keys(workspace.docs)
+      .filter((path) => isAtOrUnder(path, prefix))
+      .map((path) => flushDoc(project, path))
+  )
+}
+
+// The biblio counterpart of retargetFileTabs; paths are biblio-relative. A doc moved into or out
+// of the archive reloads with the editability of its new place.
+export function retargetDocTabs(project: ProjectRef, from: string, to: string): void {
+  const workspace = workspaces[project.id]
+  if (!workspace) return
+  for (const tab of tabsOf(project.id)) {
+    if (tab.kind !== 'doc' || !isAtOrUnder(tab.path, from)) continue
+    const next = to + tab.path.slice(from.length)
+    tab.path = next
+    void loadDoc(project, next, true)
+  }
+  pruneDocs(project)
+}
+
 let fileChangesSubscribed = false
 
 // A watched folder changed: reread the open files in it.

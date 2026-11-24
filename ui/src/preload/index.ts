@@ -49,6 +49,7 @@ import type {
   ProjectDeleteResult,
   UiState,
   ThemeSetting,
+  BiblioOpsResult,
   BiblioTree,
   BiblioFileResult,
   ProjectFileResult,
@@ -302,6 +303,12 @@ const biblio = {
     ipcRenderer.invoke('biblio:readImageFile', filePath),
   archiveScratchpad: (projectPath: string, relativePath: string): Promise<boolean> =>
     ipcRenderer.invoke('biblio:archiveScratchpad', projectPath, relativePath),
+  move: (projectPath: string, paths: string[], destDir: string): Promise<BiblioOpsResult> =>
+    ipcRenderer.invoke('biblio:move', projectPath, paths, destDir),
+  copy: (projectPath: string, paths: string[], destDir: string): Promise<BiblioOpsResult> =>
+    ipcRenderer.invoke('biblio:copy', projectPath, paths, destDir),
+  trash: (projectPath: string, paths: string[]): Promise<BiblioOpsResult> =>
+    ipcRenderer.invoke('biblio:trash', projectPath, paths),
   onChanged: (callback: (projectPath: string) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, projectPath: string): void =>
       callback(projectPath)

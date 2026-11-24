@@ -48,6 +48,7 @@ import type {
   ProjectDeleteResult,
   UiState,
   ThemeSetting,
+  BiblioOpsResult,
   BiblioTree,
   BiblioFileResult,
   ProjectFileResult,
@@ -288,6 +289,10 @@ interface Api {
     ) => Promise<ScratchpadImageResult>
     readImageFile: (filePath: string) => Promise<ImageFileResult>
     archiveScratchpad: (projectPath: string, relativePath: string) => Promise<boolean>
+    // Paths are biblio-relative. A category folder as a source is refused as protected.
+    move: (projectPath: string, paths: string[], destDir: string) => Promise<BiblioOpsResult>
+    copy: (projectPath: string, paths: string[], destDir: string) => Promise<BiblioOpsResult>
+    trash: (projectPath: string, paths: string[]) => Promise<BiblioOpsResult>
     onChanged: (callback: (projectPath: string) => void) => () => void
   }
   projectFiles: {
