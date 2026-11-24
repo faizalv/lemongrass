@@ -5,10 +5,13 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/faizalv/lemongrass/internal/how"
 )
 
 //go:embed orientation
@@ -60,6 +63,22 @@ func forVendor(src []byte, vendor string) []byte {
 	return []byte(out.String())
 }
 
+const howDomainsMarker = "{how-domains}"
+
+// installedOrientation is one vendor's orientation with the `lgrass how` domain list filled in from the how registry,
+// so the cached orientation never drifts from what `lgrass how` prints, followed by the convention text.
+func installedOrientation(src []byte, vendor string) []byte {
+	var list strings.Builder
+	for i, d := range how.Domains() {
+		if i > 0 {
+			list.WriteString("\n")
+		}
+		fmt.Fprintf(&list, "- `%s`: %s", d.Name, d.Summary)
+	}
+	text := strings.Replace(string(forVendor(src, vendor)), howDomainsMarker, list.String(), 1)
+	return append(append([]byte(text), conventionHeading...), conventionText...)
+}
+
 // Each installed orientation is followed by the convention text, so a tab never loads the bibliothek skill.
 func (k *keeper) loadOrientation() []skillFile {
 	entries, err := fs.ReadDir(orientationFS, "orientation")
@@ -73,7 +92,7 @@ func (k *keeper) loadOrientation() []skillFile {
 			panic(err)
 		}
 		for _, v := range orientationVendors {
-			content := append(append(forVendor(data, v.name), conventionHeading...), conventionText...)
+			content := installedOrientation(data, v.name)
 			path := filepath.Join(k.orientationDir(), v.prefix+e.Name())
 			files = append(files, skillFile{root: k.orientationDir(), path: path, content: content})
 		}

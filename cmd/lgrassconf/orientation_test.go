@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/faizalv/lemongrass/internal/how"
 )
 
 var installedOrientations = []string{"tab.md", "thinker.md", "codex-tab.md", "codex-thinker.md", "agy-tab.md", "agy-thinker.md"}
@@ -26,7 +28,7 @@ func embeddedOrientation(t *testing.T, name string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(forVendor(data, vendor)) + conventionHeading + string(conventionText)
+	return string(installedOrientation(data, vendor))
 }
 
 func TestOrientationCarriesTheConvention(t *testing.T) {
@@ -187,4 +189,18 @@ func TestWatcherRestoresEditedOrientation(t *testing.T) {
 		t.Fatal(err)
 	}
 	w.waitFor(t, "orientation restored after deletion", restored)
+}
+
+func TestOrientationListsEveryHowDomain(t *testing.T) {
+	for _, name := range installedOrientations {
+		text := embeddedOrientation(t, name)
+		if strings.Contains(text, howDomainsMarker) {
+			t.Errorf("%s keeps the domain marker", name)
+		}
+		for _, d := range how.Domains() {
+			if !strings.Contains(text, "- `"+d.Name+"`: "+d.Summary+"\n") {
+				t.Errorf("%s does not list domain %s", name, d.Name)
+			}
+		}
+	}
 }

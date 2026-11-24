@@ -78,10 +78,40 @@ var domains = map[string]map[string]action{
 		"hotfix":     {summary: "A change needed urgently or limited to a named element: `lgrass how work hotfix <slug>`", run: workHotfix},
 		"research":   {summary: "Investigate with no build: `lgrass how work research <slug>`", run: workResearch},
 		"task":       {summary: "Build something, new or resumed: `lgrass how work task <slug>`", run: workTask},
+		"wrapping":   {summary: "Wrap up a session so a new one continues from biblio/ alone: `lgrass how work wrapping <slug>`", run: workWrapping},
 	},
 	"thinker": {
 		"start": {summary: "Your role as a thinker in a workgroup: `lgrass how thinker start`", run: static("thinker/start.md")},
 	},
+}
+
+// domainSummaries gives each domain one sentence. lgrassconf writes the same list into the orientation, so a model
+// knows every domain without calling `lgrass how`; a domain without a sentence fails the tests.
+var domainSummaries = map[string]string{
+	"ask":          "ask the human for a channel or a command run.",
+	"book":         "write a book chapter.",
+	"collaborator": "join a workgroup the human added you to.",
+	"git":          "resolve a git conflict the human handed you.",
+	"keeper":       "keep biblio/ and the code in agreement.",
+	"laws":         "write a law the human approved.",
+	"leader":       "declare and lead a workgroup.",
+	"task":         "close or hand over a scratchpad task.",
+	"thinker":      "work as a thinker in a workgroup.",
+	"work":         "start, resume or wrap up any work.",
+}
+
+// Domain is one `lgrass how` domain and its sentence.
+type Domain struct {
+	Name, Summary string
+}
+
+// Domains lists every domain with its sentence, sorted by name.
+func Domains() []Domain {
+	list := make([]Domain, 0, len(domains))
+	for _, name := range sortedKeys(domains) {
+		list = append(list, Domain{Name: name, Summary: domainSummaries[name]})
+	}
+	return list
 }
 
 // needsBiblio lists the domains whose steps read or write biblio/; the others, such as ask and git, work without it.
@@ -145,8 +175,9 @@ func Known(domain, actionName string) bool {
 func listDomains() string {
 	var b strings.Builder
 	b.WriteString("Domains, each listing its actions with `lgrass how <domain>`:\n")
-	for _, name := range sortedKeys(domains) {
-		fmt.Fprintf(&b, "  %s\n", name)
+	width := nameWidth(sortedKeys(domains))
+	for _, d := range Domains() {
+		fmt.Fprintf(&b, "  %-*s  %s\n", width, d.Name, upperFirst(d.Summary))
 	}
 	return b.String()
 }
@@ -154,10 +185,27 @@ func listDomains() string {
 func listActions(domain string, actions map[string]action) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Actions in %s:\n", domain)
-	for _, name := range sortedKeys(actions) {
-		fmt.Fprintf(&b, "  %s  %s\n", name, actions[name].summary)
+	names := sortedKeys(actions)
+	width := nameWidth(names)
+	for _, name := range names {
+		fmt.Fprintf(&b, "  %-*s  %s\n", width, name, actions[name].summary)
 	}
 	return b.String()
+}
+
+func nameWidth(names []string) int {
+	width := 0
+	for _, name := range names {
+		width = max(width, len(name))
+	}
+	return width
+}
+
+func upperFirst(text string) string {
+	if text == "" {
+		return text
+	}
+	return strings.ToUpper(text[:1]) + text[1:]
 }
 
 func sortedKeys[V any](m map[string]V) []string {

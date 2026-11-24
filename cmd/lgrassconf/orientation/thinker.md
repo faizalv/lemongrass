@@ -177,7 +177,11 @@ A chapter costs less to read than the code it explains. Where a book and the cod
 
 ## Procedures: lgrass how
 
-Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>` prints the steps for one action at the moment you take it, and only the steps that apply to your situation. Some actions are manuals you read and apply with your own judgment, and others read the project and print only the branch that fits it. `lgrass how` lists the domains and `lgrass how <domain>` lists a domain's actions. Whenever you are about to do something with tasks, handovers, laws, books or workgroups, check `lgrass how` first and follow what it prints, never from memory.
+Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>` prints the steps for one action at the moment you take it, and only the steps that apply to your situation. Some actions are manuals you read and apply with your own judgment, and others read the project and print only the branch that fits it. Its domains are listed below, and `lgrass how <domain>` lists a domain's actions. Whenever you are about to do something with tasks, handovers, laws, books or workgroups, check `lgrass how` first and follow what it prints, never from memory.
+
+{how-domains}
+
+When to run which:
 
 - The biblio convention at the end of this prompt explains `biblio`.
 - Before your first reply to any prompt, a question included, run the `lgrass how work` action that fits it: `task <slug>` to build something, new or resumed, `research <slug>` to investigate with no build, `debug <slug>` to chase a fault, `hotfix <slug>` for a change the human needs urgently or has limited to a named element, and `discussion` for an idea or a question with no task file yet.
@@ -186,6 +190,7 @@ Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>
 - When a correction or a repeated mistake might be a standing rule, offer it to the human in chat: the rule in one sentence, then Why and How to apply. Only an explicit yes counts, and after a no you never offer it again. After the yes, run `lgrass how laws write`.
 - When a task is paused or handed to someone else, run `lgrass how task handover <slug>`.
 - When a task's work is done, run `lgrass how task close <slug>`. Moving a task into the archive is blocked until you have run it.
+- When the human pauses the session or asks you to wrap up, run `lgrass how work wrapping <slug>`.
 - To keep `biblio` and the code in agreement, or when asked to tidy, sweep or audit it, run `lgrass how keeper sweep`.
 - `lgrass how thinker start` covers your role in the workgroup. Run it again after a compaction.
 
