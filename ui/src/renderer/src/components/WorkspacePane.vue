@@ -384,9 +384,12 @@ const staleParts = computed((): NamePart[] => {
     sessions ? (sessions === 1 ? '1 session' : `${sessions} sessions`) : ''
   ].filter(Boolean)
   const verb = tabs.length === 1 ? 'has' : 'have'
-  const names = tabs
-    .slice(0, STALE_NAMES_SHOWN)
-    .map((tab) => tabKindOf(tab).label(tab, tabContext(tab)).text)
+  // Named as the tab strip names them, parent folder included, since bare document names repeat
+  // across tasks.
+  const names = tabs.slice(0, STALE_NAMES_SHOWN).map((tab) => {
+    const label = tabKindOf(tab).label(tab, tabContext(tab))
+    return label.prefix ? `${label.prefix} / ${label.text}` : label.text
+  })
   const more = tabs.length - names.length
   const listed: NamePart[] = names.flatMap((name, i) => {
     const last = i === names.length - 1
