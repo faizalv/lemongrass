@@ -19,7 +19,7 @@ func TestBiblioInitCreatesLayoutAndIgnoresIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"biblio/scratchpad/", "biblio/laws/", "biblio/handover/", "biblio/books/", "biblio/books/toc.md", "biblio/laws/summary.md", "biblio/handover/whiteboard.md", "biblio/ in .gitignore"} {
+	for _, want := range []string{"biblio/scratchpad/", "biblio/laws/", "biblio/handover/", "biblio/books/", "biblio/books/toc.md", "biblio/laws/summary.md", "biblio/handover/whiteboard.md", "biblio/toolbox/", "biblio/toolbox/inventory.md", "biblio/ in .gitignore"} {
 		if !slices.Contains(created, want) {
 			t.Errorf("created %v lacks %s", created, want)
 		}

@@ -43,6 +43,8 @@ func main() {
 		cmdHow(os.Args[2:])
 	case "biblio":
 		cmdBiblio(os.Args[2:])
+	case "toolbox":
+		cmdToolbox(os.Args[2:])
 	case "device":
 		cmdDevice(os.Args[2:])
 	case "flutter":
@@ -103,12 +105,20 @@ COMMANDS
                                      what exists. how task close <slug> picks the light or full close from
                                      the task's handover, child tasks and PRD size
 
-  biblio init                       Sets up biblio/ in this project: its four folders, empty index files, and
+  biblio init                       Sets up biblio/ in this project: its five folders, empty index files, and
                                      biblio/ in .gitignore; an existing file is never changed
   biblio log [<path>] [--limit N]   Changes recorded in this project's biblio history, newest first, 20 by default:
                                      id, time, sessions that wrote them, paths. A path is a file or folder relative
                                      to biblio and is followed back across moves such as archiving
   biblio show <rev> <path>          Prints a file as it was at a change id from biblio log, using the path it had then
+
+  toolbox add <slug> --about "<sentence>" [--tags a,b] <file>...
+                                    Puts reusable files, such as scripts and queries, into biblio/toolbox/<slug>/
+                                     with one inventory line; refused once the toolbox holds 40 items
+  toolbox update <slug> [--about ..] [--tags ..] [--drop <file>]... [<file>...]
+                                    Replaces or drops an item's files, or changes its sentence or tags
+  toolbox remove <slug>             Deletes an item and its inventory line
+  toolbox list                      Prints the inventory: each item's slug, tags and sentence
 
   ask <path-to-ask.yaml>            Asks the human for a db channel, a rester channel or a command run, from a YAML file
                                      with type and its fields (lgrass how ask request explains it); waits up to 30 minutes and prints

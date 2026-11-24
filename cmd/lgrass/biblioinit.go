@@ -14,11 +14,11 @@ import (
 
 // The Biblio pane's "Set up biblio" button writes the same layout from the Electron main process
 // (ui/src/main/biblio.ts, biblio:init), so a change here is made there too.
-var biblioInitDirs = []string{"scratchpad", "laws", "handover", "books"}
+var biblioInitDirs = []string{"scratchpad", "laws", "handover", "books", "toolbox"}
 
 // The index files start empty: the session hook delivers no laws block for an empty summary.md, and keeper sweep
 // accepts an empty toc and whiteboard.
-var biblioInitFiles = []string{"books/toc.md", "laws/summary.md", "handover/whiteboard.md"}
+var biblioInitFiles = []string{"books/toc.md", "laws/summary.md", "handover/whiteboard.md", "toolbox/inventory.md"}
 
 func cmdBiblioInit(args []string) {
 	if len(args) > 0 {

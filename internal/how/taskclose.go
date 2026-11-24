@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -124,6 +125,10 @@ func taskClose(env Env, args []string) (string, error) {
 		}
 	}
 	books := closeStep{booksFile, []closeList{chapters}}
+	var toolbox []closeStep
+	if files := taskWorkFiles(dir); len(files) > 0 {
+		toolbox = []closeStep{{"toolbox.md", []closeList{{"Work files in the task directory:", files}}}}
+	}
 
 	var steps []closeStep
 	if full {
@@ -132,14 +137,17 @@ func taskClose(env Env, args []string) (string, error) {
 			closeStep{"full-scope.md", []closeList{{"Written in the PRD:", matchingLines(readText(filepath.Join(dir, "prd.md")), scopeLine)}}},
 			closeStep{file: "full-docs.md"},
 			books,
-			closeStep{"full-laws.md", []closeList{{"Activity log lines that mention a correction:", matchingLines(readText(filepath.Join(dir, "activities.md")), correctionLine)}}},
-			closeStep{file: "archive.md"})
+			closeStep{"full-laws.md", []closeList{{"Activity log lines that mention a correction:", matchingLines(readText(filepath.Join(dir, "activities.md")), correctionLine)}}})
+		steps = append(steps, toolbox...)
+		steps = append(steps, closeStep{file: "archive.md"})
 		if facts.handover != "" {
 			steps = append(steps, closeStep{file: "handover.md"})
 		}
 		steps = append(steps, stale, closeStep{file: "full-report.md"})
 	} else {
-		steps = []closeStep{{doneFile, []closeList{edited, named, questions}}, {file: "light-log.md"}, books, {file: "archive.md"}, stale, {file: "light-report.md"}}
+		steps = []closeStep{{doneFile, []closeList{edited, named, questions}}, {file: "light-log.md"}, books}
+		steps = append(steps, toolbox...)
+		steps = append(steps, closeStep{file: "archive.md"}, stale, closeStep{file: "light-report.md"})
 	}
 
 	signature := closeSignature(full, steps)
@@ -338,4 +346,31 @@ func unfinishedNotice(f closeFacts) string {
 		fmt.Fprintf(&b, "%s is not ready to close: `biblio/scratchpad/%s/debug.md` names no root cause. Record the root cause, then run `lgrass how task close %s` again. If it was never found, tell the user the task cannot close and why.\n", f.slug, f.slug, f.slug)
 	}
 	return b.String()
+}
+
+// taskWorkFiles lists the files a task directory holds beyond its reserved documents and its wraps, the candidates
+// the close offers for the toolbox.
+func taskWorkFiles(dir string) []string {
+	reserved := map[string]bool{"activities.md": true}
+	for _, name := range taskKinds {
+		reserved[name] = true
+	}
+	var files []string
+	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, path)
+		if d.IsDir() {
+			if rel == "wraps" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !reserved[rel] {
+			files = append(files, "`"+filepath.ToSlash(rel)+"`")
+		}
+		return nil
+	})
+	return files
 }

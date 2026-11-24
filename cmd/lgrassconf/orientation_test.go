@@ -42,7 +42,7 @@ func TestOrientationCarriesTheConvention(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(data)
-		if !strings.Contains(text, "# The biblio convention") || !strings.Contains(text, "## The four folders") {
+		if !strings.Contains(text, "# The biblio convention") || !strings.Contains(text, "## The five folders") {
 			t.Errorf("%s does not carry the biblio convention", name)
 		}
 		if strings.Contains(text, "MANDATORY: invoke bibliothek") || strings.Contains(text, "name: bibliothek") {

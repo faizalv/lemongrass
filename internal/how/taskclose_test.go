@@ -411,3 +411,17 @@ func TestFootprintListsEditedAndNamedApart(t *testing.T) {
 		t.Fatalf("footprint lists: %q", out)
 	}
 }
+
+func TestCloseOffersWorkFilesForTheToolbox(t *testing.T) {
+	root := t.TempDir()
+	task(t, root, "plain", "- [x] done")
+	writeFile(t, root, "biblio/scratchpad/plain/activities.md", "# Activities\n")
+	writeFile(t, root, "biblio/scratchpad/plain/wraps/2026-11-24-2130.md", "# Wrap\n")
+	if out := render(t, root, "task", "close", "plain"); strings.Contains(out, "**Toolbox.**") {
+		t.Errorf("a task with only reserved files got the toolbox step:\n%s", out)
+	}
+	task(t, root, "scripted", "- [x] done")
+	writeFile(t, root, "biblio/scratchpad/scripted/slow.sql", "select 1;")
+	writeFile(t, root, "biblio/scratchpad/scripted/tools/check.sh", "true")
+	wantAll(t, render(t, root, "task", "close", "scripted"), "**Toolbox.**", "`slow.sql`", "`tools/check.sh`", "lgrass how toolbox add")
+}

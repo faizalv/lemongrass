@@ -22,6 +22,7 @@ var tips = []string{
 	"tip: you write in scratchpad too.",
 	"tip: only the user ticks User approval.",
 	"tip: PRDs use only the standard headings.",
+	"tip: check the toolbox before writing a script.",
 	"tip: `lgrass how` has the manual for each action.",
 }
 

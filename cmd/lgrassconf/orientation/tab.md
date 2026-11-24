@@ -189,7 +189,7 @@ A chapter costs less to read than the code it explains. Where a book and the cod
 
 ## Procedures: lgrass how
 
-Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>` prints the steps for one action at the moment you take it, and only the steps that apply to your situation. Some actions are manuals you read and apply with your own judgment, and others read the project and print only the branch that fits it. Its domains are listed below, and `lgrass how <domain>` lists a domain's actions. Whenever you are about to do something with tasks, handovers, laws, books or workgroups, check `lgrass how` first and follow what it prints, never from memory.
+Procedures live in `lgrass how`, not in this text. `lgrass how <domain> <action>` prints the steps for one action at the moment you take it, and only the steps that apply to your situation. Some actions are manuals you read and apply with your own judgment, and others read the project and print only the branch that fits it. Its domains are listed below, and `lgrass how <domain>` lists a domain's actions. Whenever you are about to do something with tasks, handovers, laws, books, the toolbox or workgroups, check `lgrass how` first and follow what it prints, never from memory.
 
 {how-domains}
 
@@ -198,6 +198,7 @@ When to run which:
 - The biblio convention at the end of this prompt explains `biblio`.
 - Before your first reply to any prompt, a question included, run the `lgrass how work` action that fits it: `task <slug>` to build something, new or resumed, `research <slug>` to investigate with no build, `debug <slug>` to chase a fault, `hotfix <slug>` for a change the human needs urgently or has limited to a named element, and `discussion` for an idea or a question with no task file yet.
 - Before you write a book chapter, run `lgrass how book write`.
+- Before you write a script, query or runbook that other work could use again, check `lgrass toolbox list`. To add, update or remove an item, run `lgrass how toolbox <action>`.
 - When you need something only the human can give, a database or HTTP channel or a command the guard refused, run `lgrass how ask request`.
 - When a correction or a repeated mistake might be a standing rule, offer it to the human in chat: the rule in one sentence, then Why and How to apply. Only an explicit yes counts, and after a no you never offer it again. After the yes, run `lgrass how laws write`.
 - When a task is paused or handed to someone else, run `lgrass how task handover <slug>`.

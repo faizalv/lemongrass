@@ -33,11 +33,12 @@ func keeperSweep(root string, args []string) (string, error) {
 	findings = append(findings, sweepHandovers(biblio)...)
 	findings = append(findings, sweepScratchpad(root, biblio)...)
 	findings = append(findings, sweepBooks(biblio)...)
+	findings = append(findings, sweepToolbox(biblio)...)
 
 	var b strings.Builder
 	b.WriteString(fragment("keeper/rules.md", nil))
 	if len(findings) == 0 {
-		b.WriteString("\n\n## Structural drift\n\nNone found in the whiteboard, handovers, scratchpad, toc or names.\n")
+		b.WriteString("\n\n## Structural drift\n\nNone found in the whiteboard, handovers, scratchpad, toc, toolbox or names.\n")
 	} else {
 		fmt.Fprintf(&b, "\n\n## Structural drift, %d finding(s)\n\nFix each in place. A rename propagates to the toc and every reference.\n\n", len(findings))
 		for _, f := range findings {
@@ -234,4 +235,50 @@ func clip(s string) string {
 		return s[:80] + "..."
 	}
 	return s
+}
+
+var toolboxInventoryLine = regexp.MustCompile(`^(\S+) \[[^\]]*\] .+$`)
+
+// sweepToolbox matches biblio/toolbox/'s folders against inventory.md. The hooks refuse a model's direct write there,
+// so each finding names the `lgrass toolbox` command that fixes it, or leaves the fix to the human.
+func sweepToolbox(biblio string) []string {
+	dir := filepath.Join(biblio, "toolbox")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	folders := map[string]bool{}
+	for _, e := range entries {
+		switch {
+		case e.IsDir():
+			folders[e.Name()] = true
+		case e.Name() != "inventory.md":
+			out = append(out, fmt.Sprintf("biblio/toolbox/%s is a loose file outside any item: ask the human to move or delete it, since only `lgrass toolbox` writes there.", e.Name()))
+		}
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "inventory.md"))
+	listed := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		m := toolboxInventoryLine.FindStringSubmatch(line)
+		if m == nil {
+			out = append(out, fmt.Sprintf("biblio/toolbox/inventory.md line %q is not `<slug> [tags] <sentence>`: ask the human to fix it.", line))
+			continue
+		}
+		listed[m[1]] = true
+		if !folders[m[1]] {
+			out = append(out, fmt.Sprintf("toolbox item %s is listed but has no folder: drop the line with `lgrass toolbox remove %s`.", m[1], m[1]))
+		}
+	}
+	for name := range folders {
+		if !listed[name] {
+			out = append(out, fmt.Sprintf("biblio/toolbox/%s has no inventory line: ask the human whether to keep it, since `lgrass toolbox add` refuses an existing folder.", name))
+		}
+	}
+	sort.Strings(out)
+	return out
 }

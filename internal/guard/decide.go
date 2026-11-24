@@ -155,7 +155,7 @@ func (c checker) scriptVerdicts(script shellScript) []Verdict {
 	found := append([]Verdict(nil), script.Refusals...)
 	env := matchEnv{Home: c.in.Home, Cwd: c.in.Cwd, ProjectRoot: c.in.ProjectRoot}
 	dirs, scopeReason := c.deletionDirs(script)
-	for _, call := range script.Calls {
+	for i, call := range script.Calls {
 		if call.Dynamic {
 			found = append(found, ruleVerdict("dynamic-command", ""))
 			continue
@@ -179,7 +179,7 @@ func (c checker) scriptVerdicts(script shellScript) []Verdict {
 			found = append(found, Verdict{RuleID: "custom-binary", Description: "a binary the user blocked", Mode: ModeDeny})
 		}
 		found = append(found, c.pathChecks(call.Path, false)...)
-		found = append(found, c.callPathVerdicts(call)...)
+		found = append(found, c.callPathVerdicts(call, readArgIndexes(script, i))...)
 	}
 	found = append(found, c.redirectVerdicts(script)...)
 	found = append(found, downloadExecVerdicts(script)...)
@@ -197,7 +197,9 @@ func (c checker) toolPaths() *Verdict {
 	return c.pick(found)
 }
 
-func (c checker) callPathVerdicts(call shellCall) []Verdict {
+// callPathVerdicts checks every argument of a call as a path. reads names the arguments the call only reads, which
+// toolbox-write skips so a toolbox item can be run or copied out while any write into the toolbox is still refused.
+func (c checker) callPathVerdicts(call shellCall, reads map[int]bool) []Verdict {
 	var found []Verdict
 	exempt := patternArgIndexes(call)
 	guardApplies := !readOnlyCall(call)
@@ -206,10 +208,72 @@ func (c checker) callPathVerdicts(call shellCall) []Verdict {
 			continue
 		}
 		for _, candidate := range c.pathCandidates(arg) {
-			found = append(found, c.pathChecks(candidate, guardApplies)...)
+			for _, verdict := range c.pathChecks(candidate, guardApplies) {
+				if reads[i] && verdict.RuleID == toolboxWriteRule {
+					continue
+				}
+				found = append(found, verdict)
+			}
 		}
 	}
 	return found
+}
+
+const toolboxWriteRule = "toolbox-write"
+
+// copyTools take their sources before a destination, which is the last positional argument unless a target directory
+// flag names it.
+var copyTools = map[string]bool{"cp": true, "install": true, "rsync": true, "scp": true}
+
+var copyTargetFlags = map[string]bool{"-t": true, "--target-directory": true}
+
+// readArgIndexes lists the arguments call at reads without writing: the script file an interpreter runs, and the
+// sources a copy tool reads from.
+func readArgIndexes(script shellScript, at int) map[int]bool {
+	call := script.Calls[at]
+	reads := map[int]bool{}
+	for _, program := range script.Programs {
+		// A program is recorded right after the call that runs it, so At counts that call as preceding it.
+		if program.At != at+1 || program.File == "" {
+			continue
+		}
+		for i, arg := range call.Args {
+			if arg == program.File {
+				reads[i] = true
+			}
+		}
+	}
+	if !copyTools[call.Name] {
+		return reads
+	}
+	var positional []int
+	targetFlag := false
+	for i := 0; i < len(call.Args); i++ {
+		arg := call.Args[i]
+		switch {
+		case copyTargetFlags[arg]:
+			targetFlag = true
+			i++
+		case strings.HasPrefix(arg, "--target-directory="), strings.HasPrefix(arg, "-t") && len(arg) > 2 && !strings.HasPrefix(arg, "--"):
+			targetFlag = true
+		case arg == "--":
+			for j := i + 1; j < len(call.Args); j++ {
+				positional = append(positional, j)
+			}
+			i = len(call.Args)
+		case strings.HasPrefix(arg, "-"):
+		default:
+			positional = append(positional, i)
+		}
+	}
+	sources := positional
+	if !targetFlag && len(positional) > 0 {
+		sources = positional[:len(positional)-1]
+	}
+	for _, i := range sources {
+		reads[i] = true
+	}
+	return reads
 }
 
 func (c checker) redirectVerdicts(script shellScript) []Verdict {

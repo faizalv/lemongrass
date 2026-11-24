@@ -394,10 +394,15 @@ export function registerBiblioHandlers(getSender: () => WebContents | undefined)
   ipcMain.handle('biblio:init', (_event, projectPath: string): boolean => {
     const biblioRoot = join(projectPath, 'biblio')
     try {
-      for (const dir of ['scratchpad', 'laws', 'handover', 'books']) {
+      for (const dir of ['scratchpad', 'laws', 'handover', 'books', 'toolbox']) {
         mkdirSync(join(biblioRoot, dir), { recursive: true })
       }
-      for (const file of ['books/toc.md', 'laws/summary.md', 'handover/whiteboard.md']) {
+      for (const file of [
+        'books/toc.md',
+        'laws/summary.md',
+        'handover/whiteboard.md',
+        'toolbox/inventory.md'
+      ]) {
         const target = join(biblioRoot, file)
         if (!existsSync(target)) writeFileSync(target, '', 'utf-8')
       }

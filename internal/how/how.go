@@ -83,6 +83,12 @@ var domains = map[string]map[string]action{
 	"thinker": {
 		"start": {summary: "Your role as a thinker in a workgroup: `lgrass how thinker start`", run: static("thinker/start.md")},
 	},
+	"toolbox": {
+		"add":    {summary: "Put a reusable script, query or runbook into the toolbox: `lgrass how toolbox add`", run: static("toolbox/add.md", "toolbox/about.md")},
+		"list":   {summary: "Find and use what the toolbox holds: `lgrass how toolbox list`", run: static("toolbox/list.md", "toolbox/about.md")},
+		"remove": {summary: "Take an item out of the toolbox: `lgrass how toolbox remove`", run: static("toolbox/remove.md", "toolbox/about.md")},
+		"update": {summary: "Change an item's files, sentence or tags: `lgrass how toolbox update`", run: static("toolbox/update.md", "toolbox/about.md")},
+	},
 }
 
 // domainSummaries gives each domain one sentence. lgrassconf writes the same list into the orientation, so a model
@@ -97,6 +103,7 @@ var domainSummaries = map[string]string{
 	"leader":       "declare and lead a workgroup.",
 	"task":         "close or hand over a scratchpad task.",
 	"thinker":      "work as a thinker in a workgroup.",
+	"toolbox":      "add, update, remove or list the scripts and queries the project reuses.",
 	"work":         "start, resume or wrap up any work.",
 }
 
@@ -115,7 +122,7 @@ func Domains() []Domain {
 }
 
 // needsBiblio lists the domains whose steps read or write biblio/; the others, such as ask and git, work without it.
-var needsBiblio = map[string]bool{"book": true, "keeper": true, "laws": true, "task": true, "work": true}
+var needsBiblio = map[string]bool{"book": true, "keeper": true, "laws": true, "task": true, "toolbox": true, "work": true}
 
 func hasBiblio(root string) bool {
 	info, err := os.Stat(filepath.Join(root, "biblio"))

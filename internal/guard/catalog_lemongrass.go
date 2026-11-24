@@ -14,6 +14,8 @@ var lemongrassRules = []rule{
 	}},
 	{ID: "secret-path", Category: catLemongrass, Description: "access to credentials or lemongrass private state", Mode: ModeDeny, Locked: true},
 	{ID: "guard-config", Category: catLemongrass, Description: "changing the agent settings, hooks or the lgrass binaries", Mode: ModeDeny, Locked: true},
+	// toolbox-write keeps `lgrass toolbox` the only way a model changes the toolbox, so its item limit holds.
+	{ID: "toolbox-write", Category: catLemongrass, Description: "writing into biblio/toolbox/ directly; lgrass toolbox adds, updates and removes items", Mode: ModeDeny, WritePaths: []string{"biblio/toolbox/"}},
 	{ID: "dynamic-command", Category: catLemongrass, Description: "the command name is computed at runtime, so it cannot be checked", Mode: ModeDeny, Locked: true},
 	{ID: "unparseable-command", Category: catLemongrass, Description: "the shell command could not be parsed, so it cannot be checked", Mode: ModeDeny, Locked: true},
 	// The PowerShell judge reports these: constructs it does not model, and PowerShell-only ways to change what a

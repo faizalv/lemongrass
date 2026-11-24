@@ -74,3 +74,16 @@ func TestKeeperSweepNeedsBiblio(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestKeeperChecksTheToolboxAgainstItsInventory(t *testing.T) {
+	root := biblioRoot(t)
+	writeFile(t, root, "biblio/toolbox/inventory.md", "kept [db] Does a thing.\ngone [db] Lost its folder.\nnot a line\n")
+	writeFile(t, root, "biblio/toolbox/kept/q.sql", "select 1;")
+	writeFile(t, root, "biblio/toolbox/stray/x.sh", "true")
+	writeFile(t, root, "biblio/toolbox/loose.sh", "true")
+	out := render(t, root, "keeper", "sweep")
+	wantAll(t, out, "toolbox item gone is listed but has no folder", "lgrass toolbox remove gone", "biblio/toolbox/stray has no inventory line", "biblio/toolbox/loose.sh is a loose file", "\"not a line\" is not")
+	if strings.Contains(out, "item kept") || strings.Contains(out, "toolbox/kept has no") {
+		t.Errorf("a matching item was reported:\n%s", out)
+	}
+}
