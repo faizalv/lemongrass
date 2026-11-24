@@ -24,6 +24,7 @@ test('only a large context past its lifetime is cold and large', () => {
   const big = { used_tokens: 400_000, window_tokens: 1_000_000, seen_at: 0, cache_ttl: 3600 }
   assert.equal(isColdAndLarge(big, at(3599)), false)
   assert.equal(isColdAndLarge(big, at(3601)), true)
+  assert.equal(isColdAndLarge({ ...big, used_tokens: 90_000 }, at(9999)), true)
   assert.equal(isColdAndLarge({ ...big, used_tokens: 20_000 }, at(9999)), false)
   assert.equal(isColdAndLarge(undefined, at(9999)), false)
 })

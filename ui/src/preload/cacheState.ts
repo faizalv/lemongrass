@@ -9,8 +9,9 @@ import type { ContextUsage } from './types'
 // It is only an assumption, so the app never blocks a tab on it.
 export const DEFAULT_CACHE_TTL_S = 300
 
-// Below this a cold resume is cheap enough to need no warning.
-export const COLD_CONTEXT_TOKENS = 150_000
+// Below this a cold resume is cheap enough to need no warning: a fresh tab that rereads the task
+// costs roughly 40 to 50k, so resuming only clearly costs more above this.
+export const COLD_CONTEXT_TOKENS = 80_000
 
 // Milliseconds until the tab's prompt cache expires, counted from its last response; zero or less
 // once it has.
