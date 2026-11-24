@@ -47,6 +47,7 @@ export interface UiState {
   zoomFactor?: number
   startup?: 'lastProject' | 'projectSelector'
   vaultAutoLockMinutes?: number
+  resterClientRunLimit?: number
   windowControls?: 'right' | 'left'
   theme?: ThemeSetting
   terminalTheme?: 'dark' | 'app'
@@ -1053,7 +1054,15 @@ export interface ResterClientRun {
   result: ResterClientResult | null
   download: ResterClientDownload | null
   error: string
+  // Set only on runs stored before history kept bodies whole.
   bodyCut: boolean
+}
+
+// A history entry as listed: the run without its response body, which is read by id only for the
+// run on screen, and the bytes its stored file takes.
+export interface ResterClientRunSummary extends Omit<ResterClientRun, 'result'> {
+  result: Omit<ResterClientResult, 'body'> | null
+  bytes: number
 }
 
 export type WorkspaceTab =

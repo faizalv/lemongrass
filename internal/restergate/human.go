@@ -44,6 +44,11 @@ type HumanResult struct {
 	URL        string              `json:"url"`
 }
 
+// maxHumanResponseBytes caps the body a Rester Client call reads inline. It is larger than a
+// channel's cap because the human browses it as a tree, and history keeps it whole; bigger bodies
+// go through a download. The app's Plain requests mirror it as PLAIN_INLINE_BYTES.
+const maxHumanResponseBytes = 10 << 20
+
 func humanOwner(rester, environment string) tokenOwner {
 	return tokenOwner{rester: rester, environment: environment}
 }
@@ -58,7 +63,7 @@ func (g *Gate) HumanRequest(rootSecret string, call HumanCall) (HumanResult, err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxLoginResponseBytes+1))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxHumanResponseBytes+1))
 	if err != nil {
 		return HumanResult{}, fmt.Errorf("restergate: reading response: %w", err)
 	}
@@ -68,8 +73,8 @@ func (g *Gate) HumanRequest(rootSecret string, call HumanCall) (HumanResult, err
 		DurationMs: time.Since(start).Milliseconds(),
 		URL:        target.URL,
 	}
-	if len(body) > maxLoginResponseBytes {
-		body = body[:maxLoginResponseBytes]
+	if len(body) > maxHumanResponseBytes {
+		body = body[:maxHumanResponseBytes]
 		result.Truncated = true
 	}
 	result.Size = len(body)

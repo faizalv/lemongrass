@@ -4,17 +4,16 @@
 // @ts-ignore node:assert has no types in the node tsconfig
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { existsSync, mkdtempSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
-  HISTORY_BODY_BYTES,
-  HISTORY_LIMIT,
   appendRun,
   clearHistory,
   deleteRun,
   loadHistory,
-  loadRequests
+  loadRequests,
+  loadRun
   // @ts-ignore node --test imports the .ts source by its extension
 } from './resterClientStore.ts'
 
@@ -75,33 +74,66 @@ test('per-project lists are merged once into the global list', () => {
   assert.equal(loadRequests(store, legacy).length, 3)
 })
 
-test('history keeps the newest runs first, up to the limit', () => {
+const MB = 1 << 20
+
+function ids(runs: { id: string }[]): string[] {
+  return runs.map((r) => r.id)
+}
+
+test('history keeps the newest runs first, up to the run limit', () => {
   const dir = tempDir()
-  for (let i = 0; i < HISTORY_LIMIT + 5; i++) appendRun(dir, 'req-1', run(`r${i}`))
+  for (let i = 0; i < 15; i++) appendRun(dir, 'req-1', run(`r${i}`), 10, 10 * MB)
   const history = loadHistory(dir, 'req-1')
-  assert.equal(history.length, HISTORY_LIMIT)
-  assert.equal(history[0].id, `r${HISTORY_LIMIT + 4}`)
+  assert.equal(history.length, 10)
+  assert.equal(history[0].id, 'r14')
+  assert.equal(loadRun(dir, 'req-1', 'r4'), null)
 })
 
-test('a long response body is cut and marked', () => {
+test('a large body is kept whole and listed without its body', () => {
   const dir = tempDir()
-  const [stored] = appendRun(dir, 'req-1', run('big', 'x'.repeat(HISTORY_BODY_BYTES + 10)))
-  assert.equal(stored.result.body.length, HISTORY_BODY_BYTES)
-  assert.equal(stored.bodyCut, true)
+  const body = JSON.stringify({ items: 'x'.repeat(3 * MB) })
+  const [summary] = appendRun(dir, 'req-1', run('big', body), 10, 10 * MB)
+  assert.equal('body' in summary.result, false)
+  assert.equal(summary.bodyCut, false)
+  assert.equal(loadRun(dir, 'req-1', 'big').result.body, body)
+})
+
+test('older runs are kept only while the size budget holds', () => {
+  const dir = tempDir()
+  for (let i = 0; i < 5; i++) appendRun(dir, 'req-1', run(`r${i}`, 'x'.repeat(3 * MB)), 10, 10 * MB)
+  assert.deepEqual(ids(loadHistory(dir, 'req-1')), ['r4', 'r3', 'r2'])
+  assert.equal(loadRun(dir, 'req-1', 'r1'), null)
+})
+
+test('the newest run is kept even when it alone passes the budget', () => {
+  const dir = tempDir()
+  appendRun(dir, 'req-1', run('small'), 10, 1 * MB)
+  appendRun(dir, 'req-1', run('huge', 'x'.repeat(2 * MB)), 10, 1 * MB)
+  assert.deepEqual(ids(loadHistory(dir, 'req-1')), ['huge'])
+  assert.equal(loadRun(dir, 'req-1', 'small'), null)
+})
+
+test('a single history file is moved into per-run files once', () => {
+  const dir = tempDir()
+  mkdirSync(join(dir, 'history'), { recursive: true })
+  const legacy = join(dir, 'history', 'req-1.json')
+  writeFileSync(legacy, JSON.stringify([run('b', '{"b":1}'), run('a')]))
+  assert.deepEqual(ids(loadHistory(dir, 'req-1')), ['b', 'a'])
+  assert.equal(existsSync(legacy), false)
+  assert.equal(loadRun(dir, 'req-1', 'b').result.body, '{"b":1}')
 })
 
 test('runs can be deleted and the history cleared', () => {
   const dir = tempDir()
-  appendRun(dir, 'req-1', run('a'))
-  appendRun(dir, 'req-1', run('b'))
-  assert.deepEqual(
-    deleteRun(dir, 'req-1', 'a').map((r: { id: string }) => r.id),
-    ['b']
-  )
+  appendRun(dir, 'req-1', run('a'), 10, 10 * MB)
+  appendRun(dir, 'req-1', run('b'), 10, 10 * MB)
+  assert.deepEqual(ids(deleteRun(dir, 'req-1', 'a')), ['b'])
+  assert.equal(loadRun(dir, 'req-1', 'a'), null)
   clearHistory(dir, 'req-1')
   assert.deepEqual(loadHistory(dir, 'req-1'), [])
 })
 
-test('a request id that is not a plain id is refused', () => {
+test('a request or run id that is not a plain id is refused', () => {
   assert.throws(() => loadHistory(tempDir(), '../escape'))
+  assert.throws(() => loadRun(tempDir(), 'req-1', '../escape'))
 })

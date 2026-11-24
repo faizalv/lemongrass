@@ -8,17 +8,17 @@ import RunHistory from './RunHistory.vue'
 import { formatAge } from '../../relativeAge'
 import { ageNow } from '../../ageClock'
 import { noteVaultActivity } from '../../vaultSession'
-import type { ResterClientRun } from '../../../../preload/types'
+import type { ResterClientRunSummary } from '../../../../preload/types'
 
 defineProps<{
   // When the shown response came back.
   at: string
-  runs: ResterClientRun[]
+  runs: ResterClientRunSummary[]
   runId: string | null
 }>()
 
 const emit = defineEmits<{
-  pick: [run: ResterClientRun]
+  pick: [run: ResterClientRunSummary]
   remove: [runId: string]
   clear: []
 }>()
@@ -53,7 +53,7 @@ async function toggle(): Promise<void> {
   place()
 }
 
-function pick(run: ResterClientRun): void {
+function pick(run: ResterClientRunSummary): void {
   emit('pick', run)
   open.value = false
 }

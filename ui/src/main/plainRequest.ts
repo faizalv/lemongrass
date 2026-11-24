@@ -16,8 +16,8 @@ import type { BuiltBody } from './resterUpload'
 // restergate.RequestTimeout: the whole inline call, or the wait for headers and then each silence
 // between body reads of a download.
 export const PLAIN_TIMEOUT_MS = 120_000
-// restergate.maxLoginResponseBytes, the inline cap of a human call.
-export const PLAIN_INLINE_BYTES = 1 << 20
+// restergate.maxHumanResponseBytes, the inline cap of a human call.
+export const PLAIN_INLINE_BYTES = 10 << 20
 
 export function plainURL(path: string): URL {
   let url: URL

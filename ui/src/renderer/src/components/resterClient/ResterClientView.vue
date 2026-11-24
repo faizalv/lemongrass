@@ -19,6 +19,7 @@ import {
   deleteRun,
   loadHistory,
   loadResterClient,
+  loadRun,
   recordRun,
   removeRequest as removeStoredRequest,
   resterClientStore
@@ -28,6 +29,7 @@ import type {
   ResterClientRequest,
   ResterClientResult,
   ResterClientRun,
+  ResterClientRunSummary,
   VaultRester
 } from '../../../../preload/types'
 import { noUserIcon, plainRequestIcon, resterClientIcon } from '../../icons'
@@ -428,7 +430,7 @@ watch(selectedId, async (id) => {
   state.restored = true
   const newest = resterClientStore.histories[id]?.[0]
   // A send that started before the history arrived already shows its own run.
-  if (newest && !state.runId && !state.sending) showRun(state, newest)
+  if (newest && !state.runId && !state.sending) showRun(id, state, newest)
 })
 
 function addRequest(): void {
@@ -598,22 +600,33 @@ async function send(download: boolean): Promise<void> {
   }).catch((err) => (state.notice = `The run was not kept in history: ${describeError(err)}`))
 }
 
-function showRun(state: Outcome, run: ResterClientRun): void {
-  state.result = run.result
+// Shows a stored run. Its response body is read from disk here rather than kept with the
+// history, so only the tab on screen holds it.
+async function showRun(
+  requestId: string,
+  state: Outcome,
+  run: ResterClientRunSummary
+): Promise<void> {
+  state.result = null
   state.download = run.download
   state.error = run.error
   state.notice = ''
   state.runId = run.id
   state.at = run.at
   state.bodyCut = run.bodyCut
+  if (!run.result) return
+  const full = await loadRun(requestId, run.id)
+  if (state.runId !== run.id || state.sending) return
+  if (full?.result) state.result = full.result
+  else state.notice = 'The response of this run is no longer stored.'
 }
 
 // Loads a run's parameters into its request and shows the response it got.
-function pickRun(run: ResterClientRun): void {
+function pickRun(run: ResterClientRunSummary): void {
   const request = selected.value
   if (!request) return
   Object.assign(request, plainCopy(run.request))
-  showRun(outcomeOf(request.id), run)
+  showRun(request.id, outcomeOf(request.id), run)
 }
 
 function removeRun(runId: string): void {

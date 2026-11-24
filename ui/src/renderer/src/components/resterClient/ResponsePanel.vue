@@ -4,6 +4,7 @@
 <script setup lang="ts">
 import { computed, provide, reactive, ref, watch } from 'vue'
 import { AppEmptyState, AppIcon, AppIconButton, AppInput, AppSegmented } from '@sankasten'
+import CodeReader from '../CodeReader.vue'
 import JsonNode from './JsonNode.vue'
 import HistoryPopover from './HistoryPopover.vue'
 import { wheelSideways } from './headScroll'
@@ -14,7 +15,7 @@ import { treeRequestKey, treeSearchKey, type TreeSearch } from './searchContext'
 import type {
   ResterClientDownload,
   ResterClientResult,
-  ResterClientRun
+  ResterClientRunSummary
 } from '../../../../preload/types'
 
 const props = defineProps<{
@@ -26,14 +27,14 @@ const props = defineProps<{
   bodyCut: boolean
   // When the shown response came back, null before the first send.
   at: string | null
-  runs: ResterClientRun[]
+  runs: ResterClientRunSummary[]
   runId: string | null
   // The request this response belongs to, the key of its saved tree state.
   requestId: string
 }>()
 
 const emit = defineEmits<{
-  pickRun: [run: ResterClientRun]
+  pickRun: [run: ResterClientRunSummary]
   removeRun: [runId: string]
   clearHistory: []
   collapse: []
@@ -304,7 +305,11 @@ function formatSize(bytes: number): string {
         <div v-else-if="activeView === 'tree'" class="tree sk-selectable">
           <JsonNode :value="parsed.value" :depth="0" :last="true" :path="[]" />
         </div>
-        <pre v-else class="raw">{{ rawText }}</pre>
+        <CodeReader
+          v-else
+          :content="rawText"
+          :path="parsed.ok ? 'response.json' : 'response.txt'"
+        />
       </template>
 
       <AppEmptyState v-else layout="fill" title="Send the request to see its response here." />
@@ -345,16 +350,6 @@ function formatSize(bytes: number): string {
 
 .count.invalid {
   color: var(--color-error);
-}
-
-.raw {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--color-fg-primary);
 }
 
 .header-row {

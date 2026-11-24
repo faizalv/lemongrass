@@ -30,7 +30,7 @@ func humanServer(t *testing.T, logins *atomic.Int32) *httptest.Server {
 		io.WriteString(w, `{"zeta":1,"alpha":"`+r.Method+" "+r.Header.Get("Authorization")+`"}`)
 	})
 	mux.HandleFunc("/api/big", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(strings.Repeat("a", maxLoginResponseBytes+10)))
+		w.Write([]byte(strings.Repeat("a", maxHumanResponseBytes+10)))
 	})
 	mux.HandleFunc("/api/binary", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte{0xff, 0xfe, 0x00, 0x01})
@@ -203,8 +203,8 @@ func TestHumanRequestTruncatedAndBinaryBodies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !big.Truncated || big.Size != maxLoginResponseBytes || len(big.Body) != maxLoginResponseBytes {
-		t.Errorf("big: truncated %v size %d body %d bytes, want true and %d", big.Truncated, big.Size, len(big.Body), maxLoginResponseBytes)
+	if !big.Truncated || big.Size != maxHumanResponseBytes || len(big.Body) != maxHumanResponseBytes {
+		t.Errorf("big: truncated %v size %d body %d bytes, want true and %d", big.Truncated, big.Size, len(big.Body), maxHumanResponseBytes)
 	}
 
 	bin, err := svc.HumanRequest("root-secret", humanCall("bob", "GET", "/api/binary"))
@@ -229,8 +229,8 @@ func TestHumanDownloadStreamsBody(t *testing.T) {
 	}
 	defer dl.Body.Close()
 	n, err := io.Copy(io.Discard, dl.Body)
-	if err != nil || n != maxLoginResponseBytes+10 {
-		t.Errorf("read %d bytes, err %v, want %d", n, err, maxLoginResponseBytes+10)
+	if err != nil || n != maxHumanResponseBytes+10 {
+		t.Errorf("read %d bytes, err %v, want %d", n, err, maxHumanResponseBytes+10)
 	}
 	if dl.Name != "big" {
 		t.Errorf("Name = %q, want big", dl.Name)

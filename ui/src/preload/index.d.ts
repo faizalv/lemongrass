@@ -97,6 +97,7 @@ import type {
   ResterClientRequest,
   ResterClientResult,
   ResterClientRun,
+  ResterClientRunSummary,
   NodeState,
   WorkspaceLayoutState,
   VaultScope,
@@ -415,9 +416,14 @@ interface Api {
     flush: (rester: string, environment: string, user: string) => Promise<number>
     load: () => Promise<ResterClientRequest[]>
     save: (requests: ResterClientRequest[]) => Promise<void>
-    history: (requestId: string) => Promise<ResterClientRun[]>
-    recordRun: (requestId: string, run: ResterClientRun) => Promise<ResterClientRun[]>
-    deleteRun: (requestId: string, runId: string) => Promise<ResterClientRun[]>
+    history: (requestId: string) => Promise<ResterClientRunSummary[]>
+    run: (requestId: string, runId: string) => Promise<ResterClientRun | null>
+    recordRun: (
+      requestId: string,
+      run: ResterClientRun,
+      runLimit: number
+    ) => Promise<ResterClientRunSummary[]>
+    deleteRun: (requestId: string, runId: string) => Promise<ResterClientRunSummary[]>
     clearHistory: (requestId: string) => Promise<void>
     pickFile: () => Promise<ResterClientPickedFile | null>
   }

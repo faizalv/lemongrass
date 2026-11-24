@@ -6,19 +6,19 @@ import { AppIconButton, AppEmptyState } from '@sankasten'
 import { statusClass } from '../../resterClientCall'
 import { formatAge } from '../../relativeAge'
 import { ageNow } from '../../ageClock'
-import type { ResterClientRun } from '../../../../preload/types'
+import type { ResterClientRunSummary } from '../../../../preload/types'
 
 defineProps<{
-  runs: ResterClientRun[]
+  runs: ResterClientRunSummary[]
   selectedRunId: string | null
 }>()
 
 const emit = defineEmits<{
-  pick: [run: ResterClientRun]
+  pick: [run: ResterClientRunSummary]
   remove: [runId: string]
 }>()
 
-function statusOf(run: ResterClientRun): { text: string; className: string } {
+function statusOf(run: ResterClientRunSummary): { text: string; className: string } {
   if (run.error) return { text: 'Error', className: 'failed' }
   const status = run.result?.status ?? (run.download?.kind === 'saved' ? run.download.status : 0)
   return { text: String(status), className: statusClass(status) }

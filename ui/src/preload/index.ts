@@ -97,6 +97,7 @@ import type {
   ResterClientRequest,
   ResterClientResult,
   ResterClientRun,
+  ResterClientRunSummary,
   NodeIssueRequest,
   NodeState,
   NodeUpdateRequest,
@@ -479,11 +480,17 @@ const resterClient = {
   load: (): Promise<ResterClientRequest[]> => ipcRenderer.invoke('resterClient:load'),
   save: (requests: ResterClientRequest[]): Promise<void> =>
     ipcRenderer.invoke('resterClient:save', requests),
-  history: (requestId: string): Promise<ResterClientRun[]> =>
+  history: (requestId: string): Promise<ResterClientRunSummary[]> =>
     ipcRenderer.invoke('resterClient:history', requestId),
-  recordRun: (requestId: string, run: ResterClientRun): Promise<ResterClientRun[]> =>
-    ipcRenderer.invoke('resterClient:recordRun', requestId, run),
-  deleteRun: (requestId: string, runId: string): Promise<ResterClientRun[]> =>
+  run: (requestId: string, runId: string): Promise<ResterClientRun | null> =>
+    ipcRenderer.invoke('resterClient:run', requestId, runId),
+  recordRun: (
+    requestId: string,
+    run: ResterClientRun,
+    runLimit: number
+  ): Promise<ResterClientRunSummary[]> =>
+    ipcRenderer.invoke('resterClient:recordRun', requestId, run, runLimit),
+  deleteRun: (requestId: string, runId: string): Promise<ResterClientRunSummary[]> =>
     ipcRenderer.invoke('resterClient:deleteRun', requestId, runId),
   clearHistory: (requestId: string): Promise<void> =>
     ipcRenderer.invoke('resterClient:clearHistory', requestId),

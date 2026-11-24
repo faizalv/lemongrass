@@ -6,6 +6,8 @@ import { computed, onMounted, ref } from 'vue'
 import { AppSegmented, AppSwitcher } from '@sankasten'
 import { refreshZoomPresets, setZoom, zoom, zoomLabel } from '../../zoom'
 import { AUTO_LOCK_CHOICES, loadVaultAutoLock, setVaultAutoLock } from '../../vaultSession'
+import { RUN_LIMIT_CHOICES } from '../../../../preload/resterHistory'
+import { loadRunLimit, setRunLimit } from '../../resterClientStore'
 
 type Startup = 'lastProject' | 'projectSelector'
 
@@ -26,6 +28,17 @@ function changeAutoLock(value: string): void {
   setVaultAutoLock(Number(value))
 }
 
+const runLimitOptions = RUN_LIMIT_CHOICES.map((runs) => ({
+  value: String(runs),
+  label: `${runs} runs`
+}))
+const runLimit = ref('10')
+
+function changeRunLimit(value: string): void {
+  runLimit.value = value
+  setRunLimit(Number(value))
+}
+
 const items = computed(() =>
   zoom.presets.map((factor) => ({ id: String(factor), label: zoomLabel(factor) }))
 )
@@ -39,6 +52,7 @@ onMounted(async () => {
   void refreshZoomPresets()
   startup.value = (await window.api.uiState.load()).startup ?? 'lastProject'
   autoLock.value = String(await loadVaultAutoLock())
+  runLimit.value = String(await loadRunLimit())
 })
 </script>
 
@@ -69,6 +83,20 @@ onMounted(async () => {
     <p class="settings-text">
       The vault locks after this long without a click or keypress in a Vault tab, the Rester Client
       or a decision.
+    </p>
+
+    <div class="settings-field">
+      <span id="general-rester-history">Rester Client history</span>
+      <AppSegmented
+        :model-value="runLimit"
+        :options="runLimitOptions"
+        aria-labelledby="general-rester-history"
+        @update:model-value="changeRunLimit"
+      />
+    </div>
+    <p class="settings-text">
+      The most runs each request keeps. A request's runs together stay under 10 MB, so large
+      responses keep fewer, and the latest run is always kept.
     </p>
 
     <div class="settings-field settings-field--zoom">

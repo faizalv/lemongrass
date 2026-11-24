@@ -15,12 +15,14 @@ import type {
   ResterClientResult,
   ResterClientRun
 } from '../preload/types'
+import { DEFAULT_RUN_LIMIT, HISTORY_BUDGET_BYTES, validRunLimit } from '../preload/resterHistory'
 import { DownloadDecoder, type DownloadEvent } from './downloadFrames'
 import {
   appendRun,
   clearHistory,
   deleteRun,
   loadHistory,
+  loadRun,
   loadRequests,
   saveRequests
 } from './resterClientStore'
@@ -303,8 +305,19 @@ export function registerResterClientHandlers(): void {
   ipcMain.handle('resterClient:history', (_event, requestId: string) =>
     loadHistory(STORE_DIR, requestId)
   )
-  ipcMain.handle('resterClient:recordRun', (_event, requestId: string, run: ResterClientRun) =>
-    appendRun(STORE_DIR, requestId, run)
+  ipcMain.handle('resterClient:run', (_event, requestId: string, runId: string) =>
+    loadRun(STORE_DIR, requestId, runId)
+  )
+  ipcMain.handle(
+    'resterClient:recordRun',
+    (_event, requestId: string, run: ResterClientRun, runLimit: unknown) =>
+      appendRun(
+        STORE_DIR,
+        requestId,
+        run,
+        validRunLimit(runLimit) ? runLimit : DEFAULT_RUN_LIMIT,
+        HISTORY_BUDGET_BYTES
+      )
   )
   ipcMain.handle('resterClient:deleteRun', (_event, requestId: string, runId: string) =>
     deleteRun(STORE_DIR, requestId, runId)

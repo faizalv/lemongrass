@@ -2,19 +2,39 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 // Saved requests and their history for the Rester Client. Resters belong to the vault, not to a
-// project, so nothing here is keyed by project: one requests file and one history file per request.
+// project, so nothing here is keyed by project: one requests file, and per request a history
+// folder holding an index of run summaries and one file per run.
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import type { ResterClientRequest, ResterClientRun } from '../preload/types'
+import type {
+  ResterClientRequest,
+  ResterClientResult,
+  ResterClientRun,
+  ResterClientRunSummary
+} from '../preload/types'
 
-export const HISTORY_LIMIT = 50
-export const HISTORY_BODY_BYTES = 256 * 1024
+// Request and run ids become file names, so only the characters a UUID uses are accepted.
+function plainId(id: string): string {
+  if (!/^[A-Za-z0-9-]+$/.test(id)) throw new Error(`lgrass: invalid id ${id}`)
+  return id
+}
 
-// A request id becomes a file name, so only the characters a UUID uses are accepted.
-function historyFile(dir: string, requestId: string): string {
-  if (!/^[A-Za-z0-9-]+$/.test(requestId)) throw new Error(`lgrass: invalid request id ${requestId}`)
-  return join(dir, 'history', `${requestId}.json`)
+function historyDir(dir: string, requestId: string): string {
+  return join(dir, 'history', plainId(requestId))
+}
+
+// The single file per request that history used before runs got files of their own.
+function legacyHistoryFile(dir: string, requestId: string): string {
+  return join(dir, 'history', `${plainId(requestId)}.json`)
+}
+
+function indexFile(dir: string, requestId: string): string {
+  return join(historyDir(dir, requestId), 'index.json')
+}
+
+function runFile(dir: string, requestId: string, runId: string): string {
+  return join(historyDir(dir, requestId), `${plainId(runId)}.json`)
 }
 
 function readJson<T>(file: string, fallback: T): T {
@@ -55,31 +75,84 @@ export function saveRequests(dir: string, requests: ResterClientRequest[]): void
   writeJson(join(dir, 'requests.json'), requests)
 }
 
-export function loadHistory(dir: string, requestId: string): ResterClientRun[] {
-  return readJson<ResterClientRun[]>(historyFile(dir, requestId), [])
+function summarize(run: ResterClientRun, bytes: number): ResterClientRunSummary {
+  const { result, ...rest } = run
+  if (!result) return { ...rest, result: null, bytes }
+  const head: Partial<ResterClientResult> = { ...result }
+  delete head.body
+  return { ...rest, result: head as Omit<ResterClientResult, 'body'>, bytes }
 }
 
-// Adds run first, cutting a long response body, keeps the newest HISTORY_LIMIT runs and returns
-// the history as stored.
-export function appendRun(dir: string, requestId: string, run: ResterClientRun): ResterClientRun[] {
+// Writes the run compact, since a body can be megabytes, and returns the bytes written.
+function writeRun(dir: string, requestId: string, run: ResterClientRun): number {
+  const text = JSON.stringify(run)
+  mkdirSync(historyDir(dir, requestId), { recursive: true })
+  writeFileSync(runFile(dir, requestId, run.id), text)
+  return Buffer.byteLength(text)
+}
+
+function removeRunFile(dir: string, requestId: string, runId: string): void {
+  const file = runFile(dir, requestId, runId)
+  if (existsSync(file)) unlinkSync(file)
+}
+
+// Moves a request's history from its old single file into per-run files once.
+function migrateHistory(dir: string, requestId: string): void {
+  const legacy = legacyHistoryFile(dir, requestId)
+  if (!existsSync(legacy) || existsSync(indexFile(dir, requestId))) return
+  const runs = readJson<ResterClientRun[]>(legacy, []).filter((run) =>
+    /^[A-Za-z0-9-]+$/.test(run?.id ?? '')
+  )
+  const summaries = runs.map((run) => summarize(run, writeRun(dir, requestId, run)))
+  writeJson(indexFile(dir, requestId), summaries)
+  unlinkSync(legacy)
+}
+
+// The request's runs, newest first, without their response bodies.
+export function loadHistory(dir: string, requestId: string): ResterClientRunSummary[] {
+  migrateHistory(dir, requestId)
+  return readJson<ResterClientRunSummary[]>(indexFile(dir, requestId), [])
+}
+
+// One run in full, or null once it was trimmed or deleted.
+export function loadRun(dir: string, requestId: string, runId: string): ResterClientRun | null {
+  return readJson<ResterClientRun | null>(runFile(dir, requestId, runId), null)
+}
+
+// Adds run first with its body whole, then keeps older runs newest first while both runLimit and
+// budgetBytes hold, the newest counted too. The newest is kept whatever its size, and the first
+// older run that does not fit ends the history. The limits come from preload/resterHistory.ts.
+export function appendRun(
+  dir: string,
+  requestId: string,
+  run: ResterClientRun,
+  runLimit: number,
+  budgetBytes: number
+): ResterClientRunSummary[] {
+  const previous = loadHistory(dir, requestId)
   const stored = { ...run, bodyCut: false }
-  if (stored.result && Buffer.byteLength(stored.result.body) > HISTORY_BODY_BYTES) {
-    const body = Buffer.from(stored.result.body).subarray(0, HISTORY_BODY_BYTES).toString('utf-8')
-    stored.result = { ...stored.result, body }
-    stored.bodyCut = true
+  const history = [summarize(stored, writeRun(dir, requestId, stored)), ...previous]
+  let total = history[0].bytes
+  let keep = 1
+  while (keep < history.length && keep < runLimit && total + history[keep].bytes <= budgetBytes) {
+    total += history[keep].bytes
+    keep++
   }
-  const history = [stored, ...loadHistory(dir, requestId)].slice(0, HISTORY_LIMIT)
-  writeJson(historyFile(dir, requestId), history)
-  return history
+  const kept = history.slice(0, keep)
+  writeJson(indexFile(dir, requestId), kept)
+  for (const dropped of history.slice(keep)) removeRunFile(dir, requestId, dropped.id)
+  return kept
 }
 
-export function deleteRun(dir: string, requestId: string, runId: string): ResterClientRun[] {
+export function deleteRun(dir: string, requestId: string, runId: string): ResterClientRunSummary[] {
   const history = loadHistory(dir, requestId).filter((run) => run.id !== runId)
-  writeJson(historyFile(dir, requestId), history)
+  writeJson(indexFile(dir, requestId), history)
+  removeRunFile(dir, requestId, runId)
   return history
 }
 
 export function clearHistory(dir: string, requestId: string): void {
-  const file = historyFile(dir, requestId)
-  if (existsSync(file)) unlinkSync(file)
+  rmSync(historyDir(dir, requestId), { recursive: true, force: true })
+  const legacy = legacyHistoryFile(dir, requestId)
+  if (existsSync(legacy)) unlinkSync(legacy)
 }
