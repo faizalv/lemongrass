@@ -39,6 +39,18 @@ test('plain text matches keys and values, ignoring case, in document order', () 
   assert.deepEqual([status.key, status.value], [true, false])
 })
 
+test('plain text under 3 characters matches only a whole key or value, unless quoted', () => {
+  const root = { a: 'xa', b: ['A', 'ab', 7], id: 'a0f3', code: 'A0' }
+  const found = (input: string): string[] =>
+    searchJson(root, parseQuery(input) as SearchQuery).matches.map((m) => m.path.join('.'))
+  assert.deepEqual(found('a'), ['a', 'b.0'])
+  assert.deepEqual(found('a0'), ['code'])
+  assert.deepEqual(found('7'), ['b.2'])
+  assert.deepEqual(found('"a"'), ['a', 'b.0', 'b.1', 'id', 'code'])
+  assert.deepEqual(found('a0f'), ['id'])
+  assert.deepEqual(records('a0 OR id:a0f', [root]), ['0'])
+})
+
 test('key:value matches a value under a key name at any depth', () => {
   assert.deepEqual(paths('status:pend'), ['data.items.1.status'])
   assert.deepEqual(paths('data.items.*.status:paid'), [

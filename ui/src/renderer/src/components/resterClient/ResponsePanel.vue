@@ -9,7 +9,14 @@ import JsonNode from './JsonNode.vue'
 import HistoryPopover from './HistoryPopover.vue'
 import { wheelSideways } from './headScroll'
 import { statusClass } from '../../resterClientCall'
-import { pathId, runSearch } from '../../responseSearch'
+import { resterErrorText } from '../../resterErrorText'
+import {
+  addAncestors,
+  pathId,
+  runSearch,
+  type PathSegment,
+  type SearchResult
+} from '../../responseSearch'
 import { responseViewOf, setResponseView } from '../../resterTreeState'
 import { treeRequestKey, treeSearchKey, type TreeSearch } from './searchContext'
 import type {
@@ -76,6 +83,8 @@ const rawText = computed(() =>
   parsed.value.ok ? JSON.stringify(parsed.value.value, null, 2) : (props.result?.body ?? '')
 )
 
+const errorText = computed(() => (props.error ? resterErrorText(props.error) : null))
+
 const headerRows = computed(() =>
   Object.entries(props.result?.headers ?? {}).flatMap(([name, values]) =>
     values.map((value) => ({ name, value }))
@@ -84,6 +93,9 @@ const headerRows = computed(() =>
 
 // A large body takes a moment to walk, so the search waits for typing to pause.
 const SEARCH_DELAY_MS = 150
+
+// Past this many matched, ancestor and record nodes, only the current step's path is opened.
+const OPEN_ALL_LIMIT = 300
 
 const query = computed(() => saved.value.query)
 const appliedQuery = ref(saved.value.query)
@@ -101,6 +113,8 @@ const tree = reactive<TreeSearch>({
   ancestors: new Set(),
   records: new Set(),
   currentId: null,
+  opened: new Set(),
+  reveal: new Set(),
   filter: saved.value.filter,
   version: 0
 })
@@ -161,8 +175,48 @@ watch(searchResult, (result) => {
 })
 
 function updateCurrent(): void {
-  const step = searchResult.value?.steps[currentIndex.value]
+  const result = searchResult.value
+  const step = result?.steps[currentIndex.value]
   tree.currentId = step ? pathId(step) : null
+  const nodes = result
+    ? openedNodes(result, step)
+    : { opened: new Set<string>(), reveal: new Set<string>() }
+  tree.opened = nodes.opened
+  tree.reveal = nodes.reveal
+}
+
+function openAll(result: SearchResult): boolean {
+  return result.ancestors.size + result.byPath.size + result.records.size <= OPEN_ALL_LIMIT
+}
+
+function openedNodes(
+  result: SearchResult,
+  step: PathSegment[] | undefined
+): { opened: Set<string>; reveal: Set<string> } {
+  if (openAll(result)) {
+    return {
+      opened: result.ancestors,
+      reveal: new Set([...result.ancestors, ...result.byPath.keys(), ...result.records])
+    }
+  }
+  const opened = new Set<string>()
+  const reveal = new Set<string>()
+  if (!step) return { opened, reveal }
+  const stepId = pathId(step)
+  addAncestors(opened, step)
+  reveal.add(stepId)
+  // A record step opens to show its own highlighted fields.
+  if (result.records.has(stepId)) {
+    opened.add(stepId)
+    for (const match of result.matches) {
+      if (match.path.length <= step.length || !step.every((seg, i) => match.path[i] === seg))
+        continue
+      addAncestors(opened, match.path)
+      reveal.add(pathId(match.path))
+    }
+  }
+  for (const id of opened) reveal.add(id)
+  return { opened, reveal }
 }
 
 function step(delta: number): void {
@@ -236,7 +290,7 @@ function formatSize(bytes: number): string {
         type="text"
         spellcheck="false"
         placeholder="Search, key:value, a.b.*.c, price>100, AND OR NOT"
-        title="Plain text matches keys and values. key:value matches under a key. A dotted path picks fields, * for any key or index. Compare with > >= < <= = !=. Quotes force plain text. Chain terms with AND, OR, NOT and parentheses to find records, objects in a list, where all of it holds."
+        title="Plain text matches keys and values. One or two characters match only a whole key or value, unless quoted. key:value matches under a key. A dotted path picks fields, * for any key or index. Compare with > >= < <= = !=. Quotes force plain text. Chain terms with AND, OR, NOT and parentheses to find records, objects in a list, where all of it holds."
         @update:model-value="onQueryInput"
         @keydown="onSearchKeydown"
       />
@@ -270,6 +324,11 @@ function formatSize(bytes: number): string {
 
     <div class="box-body">
       <AppEmptyState v-if="sending" layout="fill" loading title="Sending..." />
+      <div v-else-if="error && errorText" class="failure sk-selectable">
+        <p class="failure-title">{{ errorText.title }}</p>
+        <p class="failure-hint">{{ errorText.hint }}</p>
+        <p class="failure-raw">{{ error }}</p>
+      </div>
       <p v-else-if="error" class="error-text sk-selectable">{{ error }}</p>
       <AppEmptyState
         v-else-if="download?.kind === 'saved'"
@@ -350,6 +409,31 @@ function formatSize(bytes: number): string {
 
 .count.invalid {
   color: var(--color-error);
+}
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.failure-title {
+  color: var(--color-error);
+  font-size: var(--text-sm);
+}
+
+.failure-hint {
+  color: var(--color-fg-secondary);
+  font-size: var(--text-xs);
+}
+
+/* The raw error stays readable and copyable for a search or a bug report. */
+.failure-raw {
+  margin-top: var(--space-2);
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  word-break: break-all;
 }
 
 .header-row {

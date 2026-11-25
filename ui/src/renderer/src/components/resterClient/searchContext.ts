@@ -13,6 +13,11 @@ export interface TreeSearch {
   // The qualifying records of a chained query; empty for a single term.
   records: Set<string>
   currentId: string | null
+  // The nodes forced open, and the children shown past their page. Every match's path when the
+  // search reaches few nodes; past that only the current step's, so a broad search cannot mount
+  // most of a large body at once.
+  opened: Set<string>
+  reveal: Set<string>
   filter: boolean
   version: number
 }

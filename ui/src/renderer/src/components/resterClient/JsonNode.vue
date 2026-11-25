@@ -29,7 +29,7 @@ const requestId = inject(treeRequestKey, () => '')
 const id = computed(() => pathId(props.path))
 const match = computed(() => (search?.active ? search.byPath.get(id.value) : undefined))
 const current = computed(() => !!search?.active && search.currentId === id.value)
-const onMatchPath = computed(() => !!search?.active && search.ancestors.has(id.value))
+const onMatchPath = computed(() => !!search?.active && search.opened.has(id.value))
 const record = computed(() => !!search?.active && search.records.has(id.value))
 
 // The human's own choice outlives the tab, so a project switch does not collapse the tree.
@@ -103,23 +103,24 @@ function onPath(child: Child): boolean {
 
 const keepChildren = computed(() => !!props.keepAll || !!match.value || record.value)
 
-// The filter keeps only children on a match's path, and paging always reaches the last of those.
+// The filter keeps only children on a match's path.
+const pool = computed(() =>
+  search?.active && search.filter && !keepChildren.value
+    ? entries.value.filter(onPath)
+    : entries.value
+)
+
+// Paging always reaches the last child the search reveals.
 const visible = computed(() => {
   if (!search?.active) return entries.value.slice(0, shown.value)
-  if (search.filter && !keepChildren.value)
-    return entries.value.filter(onPath).slice(0, shown.value)
   let needed = 0
-  for (const child of entries.value) if (onPath(child)) needed = child.index + 1
-  return entries.value.slice(0, Math.max(shown.value, needed))
+  pool.value.forEach((child, i) => {
+    if (search.reveal.has(pathId(child.path))) needed = i + 1
+  })
+  return pool.value.slice(0, Math.max(shown.value, needed))
 })
 
-const hiddenCount = computed(() => {
-  const total =
-    search?.active && search.filter && !keepChildren.value
-      ? entries.value.filter(onPath).length
-      : entries.value.length
-  return total - visible.value.length
-})
+const hiddenCount = computed(() => pool.value.length - visible.value.length)
 
 const leafClass = computed(() => {
   const v = props.value

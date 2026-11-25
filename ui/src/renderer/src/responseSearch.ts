@@ -35,8 +35,13 @@ type Selector = { name: string } | { segments: string[] }
 
 type Operator = '>' | '>=' | '<' | '<=' | '=' | '!='
 
+// Unquoted plain text shorter than this matches only a whole key name or value, since one or two
+// characters inside every field match most of a large body and the tree cannot draw that many.
+const WHOLE_TEXT_BELOW = 3
+
 export type SearchQuery =
-  | { kind: 'text'; text: string }
+  // whole: the text must equal a key name or a primitive value, not just appear inside one.
+  | { kind: 'text'; text: string; whole: boolean }
   | { kind: 'keyValue'; selector: Selector; text: string }
   | { kind: 'path'; segments: string[]; fallback: string }
   | { kind: 'compare'; selector: Selector; op: Operator; operand: string }
@@ -59,7 +64,7 @@ export function parseQuery(input: string): SearchQuery | null {
   const query = input.trim()
   if (!query) return null
   if (query.length >= 2 && query.startsWith('"') && query.endsWith('"')) {
-    return { kind: 'text', text: query.slice(1, -1) }
+    return { kind: 'text', text: query.slice(1, -1), whole: false }
   }
   const compare = query.match(/^([^\s<>=!:"]+)\s*(>=|<=|!=|>|<|=)\s*(.+)$/)
   if (compare) {
@@ -77,7 +82,11 @@ export function parseQuery(input: string): SearchQuery | null {
   if (query.includes('.') && !/\s/.test(query)) {
     return { kind: 'path', segments: query.replace(/^\./, '').split('.'), fallback: query }
   }
-  return { kind: 'text', text: query }
+  return plainText(query)
+}
+
+function plainText(text: string): SearchQuery {
+  return { kind: 'text', text, whole: text.length < WHOLE_TEXT_BELOW }
 }
 
 function isBranch(value: unknown): value is Record<string, unknown> | unknown[] {
@@ -91,6 +100,10 @@ function valueText(value: unknown): string {
 
 function contains(haystack: string, needle: string): boolean {
   return haystack.toLowerCase().includes(needle.toLowerCase())
+}
+
+function equalsText(text: string, needle: string): boolean {
+  return text.toLowerCase() === needle.toLowerCase()
 }
 
 function childrenOf(value: unknown): [PathSegment, unknown][] {
@@ -169,12 +182,14 @@ function compareValue(value: unknown, op: Operator, operand: string): boolean {
 
 function matchesOf(root: unknown, query: SearchQuery): SearchMatch[] {
   switch (query.kind) {
-    case 'text':
+    case 'text': {
+      const test = query.whole ? equalsText : contains
       return [...walk(root)].flatMap((node) => {
-        const key = node.name !== undefined && contains(node.name, query.text)
-        const value = !isBranch(node.value) && contains(valueText(node.value), query.text)
+        const key = node.name !== undefined && test(node.name, query.text)
+        const value = !isBranch(node.value) && test(valueText(node.value), query.text)
         return key || value ? [{ path: node.path, key, value }] : []
       })
+    }
     case 'keyValue':
       return selected(root, query.selector).flatMap((node): SearchMatch[] => {
         const key = node.name !== undefined
@@ -209,7 +224,7 @@ function matchesOf(root: unknown, query: SearchQuery): SearchMatch[] {
 export function termMatches(root: unknown, query: SearchQuery): SearchMatch[] {
   const matches = matchesOf(root, query)
   if (query.kind === 'path' && matches.length === 0) {
-    return matchesOf(root, { kind: 'text', text: query.fallback })
+    return matchesOf(root, plainText(query.fallback))
   }
   return matches
 }
@@ -384,8 +399,11 @@ function enclosingRecords(path: PathSegment[], records: Set<string>): string[] {
   return out
 }
 
-function isWithin(path: PathSegment[], record: PathSegment[]): boolean {
-  return record.length <= path.length && record.every((seg, i) => path[i] === seg)
+// Whether path is a record in records or lies inside one, checked by its own prefixes so the cost
+// follows the depth of the path rather than the number of records.
+function insideAny(path: PathSegment[], records: Set<string>): boolean {
+  for (let i = path.length; i >= 0; i--) if (records.has(pathId(path.slice(0, i)))) return true
+  return false
 }
 
 function evaluate(expr: Expr, record: string, holds: Map<SearchQuery, Set<string>>): boolean {
@@ -454,7 +472,7 @@ export function runSearch(root: unknown, input: string): SearchOutcome {
   for (const { query, negated } of leaves) {
     if (negated) continue
     for (const match of matchesByTerm.get(query)!) {
-      if (!qualifying.some((record) => isWithin(match.path, record))) continue
+      if (!insideAny(match.path, records)) continue
       byPath.set(pathId(match.path), match)
       addAncestors(ancestors, match.path)
     }
