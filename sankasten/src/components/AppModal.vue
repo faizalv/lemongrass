@@ -55,7 +55,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
           <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" />
         </svg>
       </button>
-      <h3 v-if="title" class="modal-title">{{ title }}</h3>
+      <!-- title-aside sits on the title's line, such as a pill naming what the dialog is about. -->
+      <div v-if="title && $slots['title-aside']" class="modal-title-row">
+        <h3 class="modal-title">{{ title }}</h3>
+        <slot name="title-aside" />
+      </div>
+      <h3 v-else-if="title" class="modal-title">{{ title }}</h3>
       <div class="modal-body">
         <slot />
       </div>
@@ -158,6 +163,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   font-family: var(--font-display);
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);
+}
+
+/* The row takes over the title's room for the close button; the aside shrinks before the title. */
+.modal-title-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-right: var(--space-6);
+}
+
+.modal-title-row .modal-title {
+  padding-right: 0;
+}
+
+.modal-title-row > :slotted(*) {
+  min-width: 0;
 }
 
 /* The dialog never grows past the window: the title and footer stay put and the body scrolls between

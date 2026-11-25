@@ -10,14 +10,21 @@ import '../../vault.css'
 import type { Ask } from '../../../../preload/types'
 import { askState, closeAsk } from '../../asks'
 import { describeError, noteVaultActivity, vaultSession } from '../../vaultSession'
-import { AppButton, AppEmptyState, AppModal, AppModalActions, AppTextarea } from '@sankasten'
+import {
+  AppButton,
+  AppChip,
+  AppEmptyState,
+  AppModal,
+  AppModalActions,
+  AppTextarea
+} from '@sankasten'
 import VaultUnlockGate from '../VaultUnlockGate.vue'
 import AskCommandCard from './AskCommandCard.vue'
 import AskDbGrant from './AskDbGrant.vue'
 import AskResterGrant from './AskResterGrant.vue'
 import { noteAskAnswered } from '../../notifications'
 import { askStateLabel, askTypeLabel } from './askLabels'
-import { askParts, askWhere, loadAskProjects } from './askOrigin'
+import { askParts, askProject, loadAskProjects } from './askOrigin'
 import MarkedText from '../MarkedText.vue'
 
 const ask = ref<Ask | null>(null)
@@ -190,6 +197,13 @@ const removedLines = computed(() =>
     @click.capture="noteVaultActivity"
     @keydown.capture="noteVaultActivity"
   >
+    <!-- The project sits beside the title, apart from the sentence, so a skimming eye still catches
+         which project an ask comes from before approving it. -->
+    <template v-if="ask" #title-aside>
+      <AppChip tone="info" :tag="askProject(ask).folder || undefined" :title="ask.cwd">
+        {{ askProject(ask).project }}
+      </AppChip>
+    </template>
     <div class="vault-tab ask-body">
       <VaultUnlockGate v-if="!vaultSession.unlocked" />
 
@@ -205,9 +219,7 @@ const removedLines = computed(() =>
                 {{ status.label }}
               </span>
             </div>
-            <p class="ask-meta" :title="ask.cwd">
-              Asked {{ askedAt(ask.created_at) }} in {{ askWhere(ask) }}.
-            </p>
+            <p class="ask-meta">Asked {{ askedAt(ask.created_at) }}.</p>
           </div>
 
           <AskCommandCard

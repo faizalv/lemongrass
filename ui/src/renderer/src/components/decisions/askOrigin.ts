@@ -19,15 +19,21 @@ export function loadAskProjects(): void {
     .catch(() => undefined)
 }
 
-// "lemongrass", or "the ui folder of lemongrass" below the project root.
-export function askWhere(ask: Ask): string {
+// The project the ask's folder belongs to and the folder below its root, empty at the root. An ask
+// from outside every project names its whole folder as the project.
+export function askProject(ask: Ask): { project: string; folder: string } {
   const cwd = ask.cwd
   const owner = projects.list
     .filter((p) => pathWithin(p.path, cwd, isWindows))
     .sort((a, b) => b.path.length - a.path.length)[0]
-  if (!owner) return cwd
-  const rest = pathBelow(owner.path, cwd, isWindows)
-  return rest ? `the ${rest} folder of ${owner.name}` : owner.name
+  if (!owner) return { project: cwd, folder: '' }
+  return { project: owner.name, folder: pathBelow(owner.path, cwd, isWindows) ?? '' }
+}
+
+// "lemongrass", or "the ui folder of lemongrass" below the project root.
+export function askWhere(ask: Ask): string {
+  const { project, folder } = askProject(ask)
+  return folder ? `the ${folder} folder of ${project}` : project
 }
 
 function wants(ask: Ask): string {
