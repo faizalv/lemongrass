@@ -21,6 +21,7 @@ import {
 import { dirname, extname, join, posix, relative, resolve, sep } from 'path'
 import { PROJECT_FILE_SCHEME } from './projectFiles'
 import { byLatestActivity } from './biblioActivity'
+import { watchTree, type TreeWatch } from './biblioWatch'
 import { isBiblioCategory } from './biblioGuard'
 import { copyEntries, moveEntries, resolveEntries, toRelative } from './projectFilesCore'
 import type { BiblioOpsResult } from '../preload/types'
@@ -203,7 +204,7 @@ function send(sender: WebContents | undefined, channel: string, payload: unknown
 }
 
 const watchDebounce = 400
-const watchers = new Map<string, FSWatcher>()
+const watchers = new Map<string, TreeWatch>()
 const rootWatchers = new Map<string, FSWatcher>()
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -223,19 +224,23 @@ function watchBiblio(
   getSender: () => WebContents | undefined
 ): void {
   if (watchers.has(projectPath)) return
+  let failed = false
+  const onChange = (): void => {
+    clearTimeout(debounceTimers.get(projectPath))
+    debounceTimers.set(
+      projectPath,
+      setTimeout(() => send(getSender(), 'biblio:changed', projectPath), watchDebounce)
+    )
+  }
+  // The next tree fetch starts a new watch once this one has failed.
+  const onError = (): void => {
+    failed = true
+    unwatch(watchers, projectPath)
+  }
   try {
-    const watcher = watch(biblioRoot, { recursive: true }, () => {
-      clearTimeout(debounceTimers.get(projectPath))
-      debounceTimers.set(
-        projectPath,
-        setTimeout(() => send(getSender(), 'biblio:changed', projectPath), watchDebounce)
-      )
-    })
-    watcher.on('error', () => {
-      watcher.close()
-      watchers.delete(projectPath)
-    })
-    watchers.set(projectPath, watcher)
+    const watcher = watchTree(biblioRoot, onChange, onError)
+    if (failed) watcher.close()
+    else watchers.set(projectPath, watcher)
   } catch {
     // Recursive fs.watch isn't available on every platform; the tree stays
     // on-demand-only for this project instead of failing the app.
@@ -250,7 +255,7 @@ function isBiblioDir(biblioRoot: string): boolean {
   }
 }
 
-function unwatch(map: Map<string, FSWatcher>, projectPath: string): void {
+function unwatch(map: Map<string, TreeWatch>, projectPath: string): void {
   map.get(projectPath)?.close()
   map.delete(projectPath)
 }
