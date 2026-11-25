@@ -85,7 +85,7 @@ func TestWorkResearchAndDebugBranch(t *testing.T) {
 	wantAll(t, render(t, root, "work", "research", "q"), "New research q.", "Then read `biblio/books/toc.md`", "`biblio/scratchpad/q/recon.md`")
 	writeFile(t, root, "biblio/scratchpad/q/recon.md", "x")
 	out := render(t, root, "work", "research", "q")
-	wantAll(t, out, "Continue research q.", "continue from what is still open", "lgrass how book write")
+	wantAll(t, out, "Continue research q.", "continue from what is still open", "lgrass how write chapter")
 	if strings.Contains(out, "Create `") {
 		t.Error("continue carries the start step")
 	}

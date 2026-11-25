@@ -11,12 +11,17 @@ import (
 func TestManualsRender(t *testing.T) {
 	root := biblioRoot(t)
 	cases := map[string][]string{
-		"ask request":   {"lgrass ask <path>", "operations: [select]", "methods: [GET, POST]", "Removed tables", "type: db", "type: rester", "type: command", "lgrass ask show <id>", "Do not ask again with a variation"},
-		"book write":    {"Split.", "never how it broke", "toc.md"},
-		"git resolve":   {"lgrass git conflict show", "lgrass git conflict decide", "lgrass git conflict ask", "lgrass git conflict submit", "never stage"},
-		"laws write":    {"explicit yes", "biblio/laws/summary.md", "Never write a law to memory"},
-		"leader create": {"lgrass workgroup create <config>", "lgrass how thinker start", "lgrass how task close <slug>", "lgrass how task handover <slug>"},
-		"thinker start": {"lgrass workgroup thread", "wait for the leader's go"},
+		"ask request":      {"lgrass ask <path>", "operations: [select]", "methods: [GET, POST]", "Removed tables", "type: db", "type: rester", "type: command", "lgrass ask show <id>", "Do not ask again with a variation"},
+		"git resolve":      {"lgrass git conflict show", "lgrass git conflict decide", "lgrass git conflict ask", "lgrass git conflict submit", "never stage"},
+		"leader create":    {"lgrass workgroup create <config>", "lgrass how thinker start", "lgrass how task close <slug>", "lgrass how task handover <slug>"},
+		"thinker start":    {"lgrass workgroup thread", "wait for the leader's go"},
+		"write activities": {"# Writing activities.md", "- YYYY-MM-DD: <what happened>", "never a transcript"},
+		"write chapter":    {"Split.", "never how it broke", "toc.md"},
+		"write debug":      {"# Writing debug.md", "root cause"},
+		"write handover":   {"# Writing a handover", "biblio/handover/<slug>.md", "## Status (authoritative", "N. <slug> [tags] -> <slug>.md"},
+		"write law":        {"explicit yes", "biblio/laws/summary.md", "Never write a law to memory"},
+		"write prd":        {"# Writing prd.md", "biblio/scratchpad/<slug>/prd.md", "## Problem", "### Open decisions", "- [ ] User approval"},
+		"write recon":      {"# Writing recon.md", "still open"},
 	}
 	for cmd, wants := range cases {
 		out := render(t, root, strings.Fields(cmd)...)
@@ -28,6 +33,32 @@ func TestManualsRender(t *testing.T) {
 		if _, err := Render(root, append(strings.Fields(cmd), "extra")); err == nil {
 			t.Errorf("%s accepted an argument", cmd)
 		}
+	}
+}
+
+func TestRetiredDomainsPointAtWrite(t *testing.T) {
+	root := biblioRoot(t)
+	for cmd, want := range map[string]string{"book write": "lgrass how write chapter", "laws write": "lgrass how write law"} {
+		if _, err := Render(root, strings.Fields(cmd)); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v, want a pointer at %q", cmd, err, want)
+		}
+	}
+}
+
+// The procedures print the same fragment as `lgrass how write`, so a format has one home.
+func TestProceduresShareWriteFormats(t *testing.T) {
+	root := t.TempDir()
+	task(t, root, "feat", "- [x] a", "- [ ] b")
+	prd := fragment("write/prd.md", nil)
+	if out := render(t, root, "work", "task", "fresh"); !strings.Contains(out, prd) {
+		t.Errorf("work task lacks the write prd fragment")
+	}
+	if out := render(t, root, "write", "prd"); !strings.Contains(out, prd) {
+		t.Errorf("write prd lacks its fragment")
+	}
+	handover := strings.ReplaceAll(fragment("write/handover.md", nil), "<slug>", "feat")
+	if out := render(t, root, "task", "handover", "feat"); !strings.Contains(out, handover) || strings.Contains(out, "<slug>") {
+		t.Errorf("task handover lacks the write handover fragment with the slug filled in")
 	}
 }
 
@@ -51,7 +82,7 @@ func TestHandoverNew(t *testing.T) {
 	root := t.TempDir()
 	task(t, root, "feat", "- [x] a", "- [ ] b")
 	out := render(t, root, "task", "handover", "feat")
-	for _, want := range []string{"New handover for feat: 1 of 2", "biblio/handover/feat.md", "-> feat.md", "i-write-memory", "**Books.**", "lgrass how book write"} {
+	for _, want := range []string{"New handover for feat: 1 of 2", "biblio/handover/feat.md", "-> feat.md", "i-write-memory", "**Books.**", "lgrass how write chapter"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %q", want, out)
 		}
@@ -63,7 +94,7 @@ func TestHandoverUpdateChecksWhiteboard(t *testing.T) {
 	task(t, root, "feat", "- [ ] b")
 	writeFile(t, root, "biblio/handover/feat.md", "# feat")
 	out := render(t, root, "task", "handover", "feat")
-	if !strings.Contains(out, "Rewrite the Status") || !strings.Contains(out, "has no row") || !strings.Contains(out, "lgrass how book write") {
+	if !strings.Contains(out, "Rewrite the Status") || !strings.Contains(out, "has no row") || !strings.Contains(out, "lgrass how write chapter") {
 		t.Fatalf("out = %q", out)
 	}
 	writeFile(t, root, "biblio/handover/whiteboard.md", "1. feat [x] -> feat.md\n")

@@ -68,7 +68,7 @@ func workTask(root string, args []string) (string, error) {
 		return archivedNotice(slug), nil
 	}
 	// books and prdcheck are fragments of their own so a resumed or research-made PRD gets the same books step and stale check as a new task.
-	vars := map[string]string{"slug": slug, "handover": handoverLead(f), "existing": "", "books": fragment("work/books.md", nil), "prdcheck": fragment("work/prdcheck.md", nil)}
+	vars := map[string]string{"slug": slug, "handover": handoverLead(f), "existing": "", "books": fragment("work/books.md", nil), "prdcheck": fragment("work/prdcheck.md", nil), "prdformat": fragment("write/prd.md", nil)}
 
 	var b strings.Builder
 	switch {

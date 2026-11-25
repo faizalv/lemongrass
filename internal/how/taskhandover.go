@@ -29,6 +29,8 @@ func taskHandover(root string, args []string) (string, error) {
 		return fragment("task/handover/finished.md", vars) + "\n", nil
 	}
 
+	// The format is the same fragment `lgrass how write handover` prints, with the task's slug filled in.
+	format := strings.ReplaceAll(fragment("write/handover.md", nil), "<slug>", slug)
 	var b strings.Builder
 	if handover := findHandover(root, slug); handover != "" {
 		vars["handover"] = handover
@@ -37,11 +39,11 @@ func taskHandover(root string, args []string) (string, error) {
 			vars["row"] = "`" + slug + "` has no row in `biblio/handover/whiteboard.md`. Add `N. " + slug + " [tags] -> " + handover + "` at its priority position and renumber the rows below it."
 		}
 		fmt.Fprintf(&b, "Update the handover for %s: biblio/handover/%s exists, %d of %d Plans items open.\n\n", slug, handover, len(open), plans)
-		b.WriteString(fragment("task/handover/rules.md", vars) + "\n\n## Steps\n\n" + fragment("task/handover/update.md", vars) + "\n")
+		b.WriteString(format + "\n\n## Steps\n\n" + fragment("task/handover/update.md", vars) + "\n")
 		return b.String(), nil
 	}
 	fmt.Fprintf(&b, "New handover for %s: %d of %d Plans items open.\n\n", slug, len(open), plans)
-	b.WriteString(fragment("task/handover/rules.md", vars) + "\n\n## Steps\n\n" + fragment("task/handover/new.md", vars) + "\n")
+	b.WriteString(format + "\n\n## Steps\n\n" + fragment("task/handover/new.md", vars) + "\n")
 	return b.String(), nil
 }
 

@@ -202,7 +202,7 @@ func TestAgyMemoryGateAndHeldCallsStayClaudeOnly(t *testing.T) {
 
 func TestAgyThinkerGateAndRoleOrientation(t *testing.T) {
 	store := openHookTestStore(t)
-	_, err := store.CreateGroup("review", session.Member{TabID: gateTabLeader, Label: "lead", Vendor: "claude"}, []session.Member{{TabID: gateTabCodex, Label: "tester", Vendor: "agy", Commands: []string{"lgrass how book write"}}})
+	_, err := store.CreateGroup("review", session.Member{TabID: gateTabLeader, Label: "lead", Vendor: "claude"}, []session.Member{{TabID: gateTabCodex, Label: "tester", Vendor: "agy", Commands: []string{"lgrass how write chapter"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestAgyThinkerGateAndRoleOrientation(t *testing.T) {
 	if result := hookPreToolUse(store, p, root); result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "thinker start") {
 		t.Fatalf("thinker before commands = %+v", result)
 	}
-	for _, command := range []string{"lgrass how thinker start", "lgrass how book write"} {
+	for _, command := range []string{"lgrass how thinker start", "lgrass how write chapter"} {
 		p = agyCapture(t, "run_command", root, map[string]string{"CommandLine": command})
 		p.TabID = gateTabCodex
 		hookPreToolUse(store, p, root)

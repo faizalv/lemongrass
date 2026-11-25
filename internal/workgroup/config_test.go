@@ -217,24 +217,24 @@ func TestCommandsAreNormalizedDedupedAndTheThinkerStartIsImplicit(t *testing.T) 
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("RequiredCommands = %q, want %q", got, want)
 	}
-	codex, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: codex, prompt: x, commands: [lgrass how book write]}"), t.TempDir())
-	if got := codex.Thinkers[0].RequiredCommands(); fmt.Sprint(got) != fmt.Sprint([]string{"lgrass how thinker start", "lgrass how book write"}) {
+	codex, _ := Parse([]byte("name: t\nthinkers:\n  - {label: a, vendor: codex, prompt: x, commands: [lgrass how write chapter]}"), t.TempDir())
+	if got := codex.Thinkers[0].RequiredCommands(); fmt.Sprint(got) != fmt.Sprint([]string{"lgrass how thinker start", "lgrass how write chapter"}) {
 		t.Errorf("RequiredCommands of a Codex thinker = %q, want the thinker start first, as for Claude", got)
 	}
 }
 
 func TestOnlyReadOnlyLgrassCommandsAreAccepted(t *testing.T) {
 	accepted := []string{
-		"lgrass how book write", "lgrass how work task some-slug", "lgrass thread read a1b2c3 --all", "lgrass thread list",
+		"lgrass how write chapter", "lgrass how work task some-slug", "lgrass thread read a1b2c3 --all", "lgrass thread list",
 		"lgrass workgroup thread", "lgrass workgroup list", "lgrass session list", "lgrass session tabs list",
 		"lgrass biblio log books", "lgrass biblio show 12 books/toc.md", "lgrass rester ab12cd34 users", "lgrass tips list", "lgrass version",
 	}
 	refused := []string{
-		"ls", "lgrass", "/usr/bin/lgrass how book write", "lgrass how", "lgrass how book", "lgrass how book burn", "lgrass how nothing write",
+		"ls", "lgrass", "/usr/bin/lgrass how write chapter", "lgrass how", "lgrass how write", "lgrass how write burn", "lgrass how book write", "lgrass how nothing write",
 		"lgrass sign i-write-memory", "lgrass replay 3", "lgrass workgroup create c.yaml", "lgrass workgroup disband 1", "lgrass workgroup add c.yaml",
 		"lgrass thread post a1b2c3 hi", "lgrass thread create t c", "lgrass tips add x", "lgrass db ab12 --sql x",
 		"lgrass rester ab12 get /x", "lgrass rester ab12 flush", "lgrass rester ab12 info --out f", "lgrass device tap --text x", "lgrass flutter test",
-		"lgrass how book write; rm x", "lgrass how book write && ls", "lgrass how book write > f", "lgrass thread read $(id)", "lgrass how book write \\",
+		"lgrass how write chapter; rm x", "lgrass how write chapter && ls", "lgrass how write chapter > f", "lgrass thread read $(id)", "lgrass how write chapter \\",
 		"lgrass how work task " + strings.Repeat("x", MaxCommandRunes),
 	}
 	for _, c := range accepted {

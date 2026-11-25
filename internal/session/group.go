@@ -360,7 +360,7 @@ func (m Member) RequiredCommands() []string { return ThinkerCommands(m.Commands)
 var RetiredSkills = map[string]string{
 	"lgrass-howtodo-work":        "lgrass how work",
 	"lgrass-howtodo-taskclosing": "lgrass how task close",
-	"lgrass-howtodo-newlaws":     "lgrass how laws write",
+	"lgrass-howtodo-newlaws":     "lgrass how write law",
 	"lgrass-howtobe-keeper":      "lgrass how keeper sweep",
 	"lgrass-howtobe-leader":      "lgrass how leader create",
 	ThinkerSkill:                 ThinkerStartCommand,

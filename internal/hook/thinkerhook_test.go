@@ -252,13 +252,13 @@ func TestAThinkerMustRunEveryListedCommand(t *testing.T) {
 }
 
 func TestCodexThinkerRunsTheThinkerStartAndItsListedCommands(t *testing.T) {
-	store := storeWithCodexThinker(t, session.Member{Commands: []string{"lgrass how book write"}})
+	store := storeWithCodexThinker(t, session.Member{Commands: []string{"lgrass how write chapter"}})
 	dir := t.TempDir()
-	if result := codexShell(store, dir, "ls"); result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "run `lgrass how thinker start`, then run `lgrass how book write`") {
+	if result := codexShell(store, dir, "ls"); result.PermissionDecision != "deny" || !strings.Contains(result.PermissionDecisionReason, "run `lgrass how thinker start`, then run `lgrass how write chapter`") {
 		t.Fatalf("deny = %+v, want both commands named", result)
 	}
 	codexShell(store, dir, "lgrass how thinker start")
-	codexShell(store, dir, "lgrass how book write")
+	codexShell(store, dir, "lgrass how write chapter")
 	if result := codexShell(store, dir, "ls"); result.PermissionDecision == "deny" {
 		t.Errorf("still denied: %s", result.PermissionDecisionReason)
 	}

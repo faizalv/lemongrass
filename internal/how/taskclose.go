@@ -190,7 +190,7 @@ func taskClose(env Env, args []string) (string, error) {
 	}
 	if !short {
 		b.WriteString("\n## Books\n\n")
-		b.WriteString(fragment("book/rules.md", vars))
+		b.WriteString(fragment("write/chapter-rules.md", vars))
 		b.WriteString("\n")
 	}
 	return b.String(), nil

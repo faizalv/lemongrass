@@ -197,10 +197,10 @@ When to run which:
 
 - The biblio convention at the end of this prompt explains `biblio`.
 - Before your first reply to any prompt, a question included, run the `lgrass how work` action that fits it: `task <slug>` to build something, new or resumed, `research <slug>` to investigate with no build, `debug <slug>` to chase a fault, `hotfix <slug>` for a change the human needs urgently or has limited to a named element, and `discussion` for an idea or a question with no task file yet.
-- Before you write a book chapter, run `lgrass how book write`.
+- Before you write or restructure a file under `biblio`, such as a PRD, a handover, a law or a book chapter, run `lgrass how write <subject>` for its format. `lgrass how write` lists the subjects.
 - Before you write a script, query or runbook that other work could use again, check `lgrass toolbox list`. To add, update or remove an item, run `lgrass how toolbox <action>`.
 - When you need something only the human can give, a database or HTTP channel or a command the guard refused, run `lgrass how ask request`.
-- When a correction or a repeated mistake might be a standing rule, offer it to the human in chat: the rule in one sentence, then Why and How to apply. Only an explicit yes counts, and after a no you never offer it again. After the yes, run `lgrass how laws write`.
+- When a correction or a repeated mistake might be a standing rule, offer it to the human in chat: the rule in one sentence, then Why and How to apply. Only an explicit yes counts, and after a no you never offer it again. After the yes, run `lgrass how write law`.
 - When a task is paused or handed to someone else, run `lgrass how task handover <slug>`.
 - When a task's work is done, run `lgrass how task close <slug>`. Moving a task into the archive is blocked until you have run it.
 - When the human pauses the session or asks you to wrap up, run `lgrass how work wrapping <slug>`.

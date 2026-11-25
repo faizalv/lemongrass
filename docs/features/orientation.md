@@ -6,15 +6,14 @@ The orientation is onboarding, not procedure. It covers where the tab is and wha
 
 ## Procedures: `lgrass how`
 
-The steps an agent follows for a kind of work live in `lgrass how`, embedded in the `lgrass` binary, not in the orientation. The orientation only says which action fits which situation, so changing a procedure never rewrites the cached prompt. `lgrass how <domain> <action>` prints the steps for one action at the moment it is taken. Some actions are manuals with fixed text, and others read the project and print only the branch that fits it. `lgrass how` lists the domains.
+The steps an agent follows for a kind of work live in `lgrass how`, embedded in the `lgrass` binary, not in the orientation. The orientation only says which action fits which situation, so changing a procedure never rewrites the cached prompt. `lgrass how <domain> <action>` prints the steps for one action at the moment it is taken, except `lgrass how write <subject>`, where the subject comes second because a writer knows what it is about to write. Some actions are manuals with fixed text, and others read the project and print only the branch that fits it. `lgrass how` lists the domains.
 
 | Action | What it gives an agent |
 |---|---|
 | `work task`, `work research`, `work debug`, `work hotfix`, `work discussion` | How to work each kind of task: read the related books, plan first, keep the PRD or the working file current, wait for the user before code. |
 | `task handover` | Pause or hand over a task: the handover file, its whiteboard row and memory pointer, or a refusal when the work is finished or has no PRD. |
 | `task close` | Close a finished task: verify it is done, compare git with the stated facts, update the books and `toc.md`, archive, and sweep stale references. |
-| `book write` | Where a book chapter goes, and how to write it. |
-| `laws write` | Write a standing law the user approved, and its summary line. |
+| `write prd`, `write handover`, `write law`, `write chapter`, `write activities`, `write debug`, `write recon` | The exact format of each file under `biblio`, such as the PRD's closed headings, a handover and its whiteboard row, a law and its summary line, or where a book chapter goes. The procedures above print the same text where they need it. |
 | `ask request` | How to ask the human with `lgrass ask`: the YAML for each type, the reason, and what each answer means. |
 | `keeper sweep` | Keep `biblio/` and the code in agreement: the structural drift it finds itself, then the checks that need reading. |
 | `leader create`, `leader addmember`, `thinker start`, `collaborator join` | Workgroup roles. |
