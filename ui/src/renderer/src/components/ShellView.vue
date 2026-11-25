@@ -195,6 +195,9 @@ onBeforeUnmount(() => {
 .terminal-pane {
   height: 100%;
   width: 100%;
+  /* xterm's layers carry their own z-index (the WebGL link canvas sits at 2), so they are kept
+     inside the pane and the bars drawn over the terminal stay above them for clicks. */
+  isolation: isolate;
 }
 
 .restore-failure {
