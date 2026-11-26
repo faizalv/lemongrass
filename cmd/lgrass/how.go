@@ -45,16 +45,32 @@ func howEnv(proj project.Project) how.Env {
 		},
 		EditsSince: func(since time.Time) []how.Edit {
 			var edits []how.Edit
-			withStore(func(store *session.Store) {
-				touches, err := store.FileActivitySince(since)
+			for _, id := range editStores(proj) {
+				store, err := session.Open(session.DBPath(), id)
 				if err != nil {
-					return
+					continue
+				}
+				touches, err := store.FileActivitySince(since)
+				store.Close()
+				if err != nil {
+					continue
 				}
 				for _, t := range touches {
 					edits = append(edits, how.Edit{Session: t.SessionID, Path: t.FilePath})
 				}
-			})
+			}
 			return edits
+		},
+		ProjectOf: func(path string) (string, string, bool) {
+			other, err := project.Resolve(path)
+			if err != nil || other.ID == proj.ID {
+				return "", "", false
+			}
+			rel, err := filepath.Rel(other.Path, path)
+			if err != nil {
+				return "", "", false
+			}
+			return other.Name, rel, true
 		},
 	}
 	if tabID != "" {
@@ -71,4 +87,16 @@ func howEnv(proj project.Project) how.Env {
 		}
 	}
 	return env
+}
+
+// editStores lists the stores whose edit log the footprint reads: the project's own, and the store of the tab's
+// launch project when the command runs elsewhere, since the hook logs a tab's edits there wherever they land.
+func editStores(proj project.Project) []string {
+	ids := []string{proj.ID}
+	if dir := os.Getenv("LGRASS_PROJECT_DIR"); dir != "" && tabID != "" {
+		if launch, err := project.Resolve(dir); err == nil && launch.ID != proj.ID {
+			ids = append(ids, launch.ID)
+		}
+	}
+	return ids
 }

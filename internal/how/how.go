@@ -30,8 +30,12 @@ type Env struct {
 	Root string
 	// TaskStarted reports when biblio/scratchpad/<slug> first appeared in the biblio history.
 	TaskStarted func(slug string) (time.Time, bool)
-	// EditsSince lists the file edits agent sessions logged in this project after since, oldest first.
+	// EditsSince lists the file edits agent sessions logged after since, in this project's store and the running tab's
+	// launch project's store, each store's oldest first.
 	EditsSince func(since time.Time) []Edit
+	// ProjectOf names the registered project other than Root that holds an absolute path, with the path relative to
+	// it, so the footprint can list edits a task made in another project. Nil or false leaves such an edit out.
+	ProjectOf func(path string) (name, rel string, ok bool)
 	// LastClose reports when this tab was last printed the close steps with this signature for slug, within its
 	// current context: the record clears at every session start, compaction included.
 	LastClose func(slug, signature string) (time.Time, bool)

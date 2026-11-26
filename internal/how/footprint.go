@@ -35,6 +35,8 @@ type footFile struct {
 
 type footprint struct {
 	files []footFile
+	// elsewhere holds edits those sessions made in other registered projects, as "`rel` in name".
+	elsewhere []string
 }
 
 func (f footprint) newFiles() int {
@@ -77,13 +79,17 @@ func taskFootprint(env Env, slug string, age taskAge) footprint {
 		}
 	}
 	if env.EditsSince != nil {
-		add(editedPaths(env, slug, age), true)
+		inRoot, elsewhere := editedPaths(env, slug, age)
+		add(inRoot, true)
+		fp.elsewhere = elsewhere
 	}
 	add(namedPaths(env.Root, slug), false)
 	return fp
 }
 
-func editedPaths(env Env, slug string, age taskAge) []string {
+// editedPaths returns the edits under the root, relative, and the edits in other registered projects, named by
+// project; an edit inside no registered project is left out.
+func editedPaths(env Env, slug string, age taskAge) ([]string, []string) {
 	// The biblio history records a task a moment after its first file is written, so the window opens earlier to keep
 	// the session that created it.
 	edits := env.EditsSince(age.t.Add(-time.Hour))
@@ -96,23 +102,48 @@ func editedPaths(env Env, slug string, age taskAge) []string {
 		}
 	}
 	if len(sessions) == 0 {
-		return nil
+		return nil, nil
 	}
 	seen := map[string]bool{}
-	var paths []string
+	var paths, elsewhere []string
 	for _, e := range edits {
 		if !sessions[e.Session] {
 			continue
 		}
-		rel, ok := relUnder(absEdit(env.Root, e.Path), roots)
-		if !ok || rel == "biblio" || strings.HasPrefix(rel, "biblio/") || seen[rel] {
+		abs := absEdit(env.Root, e.Path)
+		rel, ok := relUnder(abs, roots)
+		if !ok {
+			if line, found := elsewhereLine(env, abs); found && !seen[line] {
+				seen[line] = true
+				elsewhere = append(elsewhere, line)
+			}
+			continue
+		}
+		if rel == "biblio" || strings.HasPrefix(rel, "biblio/") || seen[rel] {
 			continue
 		}
 		seen[rel] = true
 		paths = append(paths, rel)
 	}
 	sort.Strings(paths)
-	return paths
+	sort.Strings(elsewhere)
+	return paths, elsewhere
+}
+
+// elsewhereLine renders an edit in another registered project, leaving out its biblio, as the root's own biblio is.
+func elsewhereLine(env Env, abs string) (string, bool) {
+	if env.ProjectOf == nil {
+		return "", false
+	}
+	name, rel, ok := env.ProjectOf(abs)
+	if !ok {
+		return "", false
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "biblio" || strings.HasPrefix(rel, "biblio/") {
+		return "", false
+	}
+	return "`" + rel + "` in " + name, true
 }
 
 func absEdit(root, p string) string {

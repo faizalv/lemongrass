@@ -33,7 +33,9 @@ func recordShellStart(store *session.Store, payload hookEvent) {
 	store.StartShellCall(payload.SessionID, payload.ToolUseID, time.Now())
 }
 
-// logShellWrites runs at PostToolUse and PostToolUseFailure, since a failed command may still have written files.
+// logShellWrites runs at PostToolUse and PostToolUseFailure, since a failed command may still have written files. It
+// looks in the launch project and every project the command names, so writes a command makes in another project
+// reach the tab's own log.
 func logShellWrites(store *session.Store, payload hookEvent, projectPath string) {
 	if _, _, _, isShell := shellToolCommand(payload); !isShell || payload.SessionID == "" {
 		return
@@ -42,8 +44,14 @@ func logShellWrites(store *session.Store, payload hookEvent, projectPath string)
 	if err != nil || !ok {
 		return
 	}
-	for _, path := range changedSince(projectPath, started.Add(-mtimeSlack)) {
-		store.LogFileActivity(payload.SessionID, path)
+	seen := map[string]bool{}
+	for _, root := range callRoots(payload, projectPath) {
+		for _, path := range changedSince(root, started.Add(-mtimeSlack)) {
+			if !seen[path] {
+				seen[path] = true
+				store.LogFileActivity(payload.SessionID, path)
+			}
+		}
 	}
 }
 

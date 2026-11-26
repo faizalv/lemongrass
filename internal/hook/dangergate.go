@@ -18,27 +18,36 @@ const (
 	claudeProjectDirEnv = "CLAUDE_PROJECT_DIR"
 )
 
+// dangerDecision judges the call under the launch project's policy and under the policy of every other project it
+// names, and returns the strictest verdict, so a call into a stricter project meets its rules and no project
+// loosens another's. The deletion exemption stays bound to the launch project under every policy.
 func dangerDecision(payload hookEvent) *guard.Verdict {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = ""
+	launch := tabLaunchProject(payload)
+	input, early := callInput(payload, launch.Path)
+	if early != nil {
+		return early
 	}
-	launch := launchProject()
-	if launch.Path == "" && payload.Vendor == "agy" && payload.ProjectDir != "" {
-		launch, _ = project.Resolve(payload.ProjectDir)
+	policyIDs := []string{launch.ID}
+	for _, p := range touchedProjects(input, launch) {
+		policyIDs = append(policyIDs, p.ID)
 	}
-	input := guard.Input{Tool: payload.ToolName, Cwd: payload.Cwd, Home: home, ProjectRoot: launch.Path}
-	if command, tool, verdict, isShell := shellToolCommand(payload); isShell {
-		if verdict != nil {
+	var strictest *guard.Verdict
+	for _, id := range policyIDs {
+		verdict := policyVerdict(payload, input, fetchPolicy(id))
+		if verdict != nil && verdict.Mode == guard.ModeDeny {
 			return verdict
 		}
-		input.Tool = tool
-		input.Command = command
-	} else {
-		input.Paths = dangerToolPaths(payload)
-		input.Writes = isMemoryWriteTool(payload.ToolName)
+		if strictest == nil {
+			strictest = verdict
+		}
 	}
-	policy := hookPolicy(launch.ID)
+	return strictest
+}
+
+// fetchPolicy reads a project's policy from the vault. A var so tests can stand in for the vault.
+var fetchPolicy = hookPolicy
+
+func policyVerdict(payload hookEvent, input guard.Input, policy guard.Policy) *guard.Verdict {
 	verdict := guard.Decide(input, policy)
 	if verdict != nil && verdict.Mode == guard.ModeDeny {
 		return verdict

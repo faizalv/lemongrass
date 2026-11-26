@@ -247,6 +247,37 @@ func TestFootprintFromEditsAndRelatedChapters(t *testing.T) {
 	}
 }
 
+func TestFootprintListsEditsInOtherProjects(t *testing.T) {
+	root := t.TempDir()
+	other := t.TempDir()
+	task(t, root, "fix", "- [x] patch")
+	env := Env{
+		Root: root,
+		EditsSince: func(time.Time) []Edit {
+			return []Edit{
+				{"s1", filepath.Join(root, "biblio/scratchpad/fix/prd.md")},
+				{"s1", filepath.Join(other, "src/api.go")},
+				{"s1", filepath.Join(other, "biblio/books/x.md")},
+				{"s1", "/nowhere/registered.go"},
+			}
+		},
+		ProjectOf: func(path string) (string, string, bool) {
+			rel, err := filepath.Rel(other, path)
+			if err != nil || strings.HasPrefix(rel, "..") {
+				return "", "", false
+			}
+			return "backend", rel, true
+		},
+	}
+	out := renderEnv(t, env, "task", "close", "fix")
+	if !strings.Contains(out, "Files the same sessions edited in other projects:") || !strings.Contains(out, "- `src/api.go` in backend") {
+		t.Fatalf("elsewhere footprint: %q", out)
+	}
+	if strings.Contains(out, "x.md") || strings.Contains(out, "registered.go") || !strings.Contains(out, "1 code file(s) in other projects") {
+		t.Fatalf("elsewhere footprint kept biblio or an unregistered path, or miscounted: %q", out)
+	}
+}
+
 func TestFootprintFallsBackToNamedFiles(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "biblio/scratchpad/fix/prd.md", "Change `internal/store/open.go` and internal/missing.go.\n- [x] done")

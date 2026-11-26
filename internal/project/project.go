@@ -140,27 +140,59 @@ func Resolve(dir string) (Project, error) {
 	if err != nil {
 		return Project{}, err
 	}
-	abs = resolvePath(abs)
-
-	resolvedPaths := make([]string, len(projects))
-	for i, p := range projects {
-		resolvedPaths[i] = resolvePath(p.Path)
+	if p, ok := matchProject(projects, resolvedProjectPaths(projects), resolvePath(abs)); ok {
+		return p, nil
 	}
+	return Project{}, fmt.Errorf("%s is not inside a registered lemongrass project", dir)
+}
 
+// ResolveMany resolves each absolute path the way Resolve does, reading the registry once, and returns the distinct
+// projects found in first-seen order. Paths inside no registered project are skipped.
+func ResolveMany(paths []string) []Project {
+	if len(paths) == 0 {
+		return nil
+	}
+	projects, err := List()
+	if err != nil || len(projects) == 0 {
+		return nil
+	}
+	resolved := resolvedProjectPaths(projects)
+	var out []Project
+	seen := map[string]bool{}
+	for _, path := range paths {
+		if !filepath.IsAbs(path) {
+			continue
+		}
+		if p, ok := matchProject(projects, resolved, resolvePath(path)); ok && !seen[p.ID] {
+			seen[p.ID] = true
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func resolvedProjectPaths(projects []Project) []string {
+	out := make([]string, len(projects))
+	for i, p := range projects {
+		out[i] = resolvePath(p.Path)
+	}
+	return out
+}
+
+// matchProject returns the project whose resolved path is abs or its nearest ancestor.
+func matchProject(projects []Project, resolvedPaths []string, abs string) (Project, bool) {
 	for {
 		for i, p := range projects {
 			if samePath(resolvedPaths[i], abs) {
-				return p, nil
+				return p, true
 			}
 		}
 		parent := filepath.Dir(abs)
 		if parent == abs {
-			break
+			return Project{}, false
 		}
 		abs = parent
 	}
-
-	return Project{}, fmt.Errorf("%s is not inside a registered lemongrass project", dir)
 }
 
 // ResolveCwd resolves the current working directory to its project.

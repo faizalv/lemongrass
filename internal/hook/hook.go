@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/faizalv/lemongrass/internal/project"
 	"github.com/faizalv/lemongrass/internal/session"
 	"github.com/faizalv/lemongrass/internal/workgroup"
 )
@@ -92,7 +91,7 @@ func Run(args []string, tabID string) {
 	if payload.ProjectDir != "" {
 		projectDir = payload.ProjectDir
 	}
-	proj, err := project.Resolve(projectDir)
+	proj, err := storeProject(payload, projectDir)
 	if err != nil {
 		if event == "PreToolUse" && payload.TabID != "" {
 			if verdict := dangerDecision(payload); verdict != nil {
@@ -201,7 +200,9 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 	recordPromptTabSession(store, payload)
 	filePaths := toolFilePaths(payload)
 
-	if payload.ToolName == "EnterPlanMode" && hasBiblio(projectPath) {
+	// A gate a project sets applies to any call that reaches it, so a call is judged by every project in roots.
+	roots := callRoots(payload, projectPath)
+	if payload.ToolName == "EnterPlanMode" && anyBiblio(roots) {
 		return newHookResult("PreToolUse", "deny", []string{session.FormatPlanModeDeny()})
 	}
 
@@ -219,17 +220,22 @@ func hookPreToolUse(store *session.Store, payload hookEvent, projectPath string)
 		}
 	}
 
-	if payload.EnforceBibliothek && hasBiblio(projectPath) {
-		if deny := memoryFeedbackDeny(store, payload, projectPath); deny != "" {
-			return newHookResult("PreToolUse", "deny", []string{deny})
+	if payload.EnforceBibliothek {
+		for _, root := range roots {
+			if !hasBiblio(root) {
+				continue
+			}
+			if deny := memoryFeedbackDeny(store, payload, root); deny != "" {
+				return newHookResult("PreToolUse", "deny", []string{deny})
+			}
 		}
 	}
 
-	if hasBiblio(projectPath) {
+	if anyBiblio(roots) {
 		if deny := closeGateDeny(store, payload); deny != "" {
 			return newHookResult("PreToolUse", "deny", []string{deny})
 		}
-		if deny := tempWriteDeny(payload, projectPath); deny != "" {
+		if deny := tempWriteDeny(payload, roots...); deny != "" {
 			return newHookResult("PreToolUse", "deny", []string{deny})
 		}
 	}

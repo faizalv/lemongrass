@@ -43,7 +43,7 @@ type closeFacts struct {
 
 func (f closeFacts) full() bool {
 	return f.handover != "" || f.size() > lightPlansLimit || f.words > lightWordsLimit ||
-		f.footprint.newFiles() > 0 || len(f.footprint.files) > lightFilesLimit
+		f.footprint.newFiles() > 0 || len(f.footprint.files)+len(f.footprint.elsewhere) > lightFilesLimit
 }
 
 // size counts phases when the PRD has phase headings and checkboxes otherwise, since a PRD in the phase shape gives
@@ -104,6 +104,7 @@ func taskClose(env Env, args []string) (string, error) {
 	}
 	edited := closeList{"Files edited by the sessions that wrote this task's documents. A session that also worked other tasks brings their files too; leave those out:", editedLines}
 	named := closeList{"Files the task's documents name:", namedLines}
+	elsewhere := closeList{"Files the same sessions edited in other projects:", facts.footprint.elsewhere}
 	var chapterLines []string
 	for _, c := range relatedChapters(root, facts.footprint.paths()) {
 		chapterLines = append(chapterLines, c.String())
@@ -132,7 +133,7 @@ func taskClose(env Env, args []string) (string, error) {
 
 	var steps []closeStep
 	if full {
-		steps = append(steps, closeStep{doneFile, []closeList{questions}}, closeStep{"full-git.md", []closeList{edited, named}})
+		steps = append(steps, closeStep{doneFile, []closeList{questions}}, closeStep{"full-git.md", []closeList{edited, elsewhere, named}})
 		steps = append(steps,
 			closeStep{"full-scope.md", []closeList{{"Written in the PRD:", matchingLines(readText(filepath.Join(dir, "prd.md")), scopeLine)}}},
 			closeStep{file: "full-docs.md"},
@@ -145,7 +146,7 @@ func taskClose(env Env, args []string) (string, error) {
 		}
 		steps = append(steps, stale, closeStep{file: "full-report.md"})
 	} else {
-		steps = []closeStep{{doneFile, []closeList{edited, named, questions}}, {file: "light-log.md"}, books}
+		steps = []closeStep{{doneFile, []closeList{edited, elsewhere, named, questions}}, {file: "light-log.md"}, books}
 		steps = append(steps, toolbox...)
 		steps = append(steps, closeStep{file: "archive.md"}, stale, closeStep{file: "light-report.md"})
 	}
@@ -313,12 +314,17 @@ func closeHeadline(f closeFacts, full bool) string {
 		reasons = append(reasons, fmt.Sprintf("%d phase(s)", f.phases))
 	}
 	switch {
-	case len(f.footprint.files) == 0:
+	case len(f.footprint.files) == 0 && len(f.footprint.elsewhere) == 0:
 		reasons = append(reasons, "no code files found")
+	case len(f.footprint.files) == 0:
+		reasons = append(reasons, fmt.Sprintf("%d code file(s) in other projects", len(f.footprint.elsewhere)))
 	case f.footprint.newFiles() > 0:
 		reasons = append(reasons, fmt.Sprintf("%d code file(s), %d new", len(f.footprint.files), f.footprint.newFiles()))
 	default:
 		reasons = append(reasons, fmt.Sprintf("%d code file(s)", len(f.footprint.files)))
+	}
+	if len(f.footprint.elsewhere) > 0 && len(f.footprint.files) > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d in other projects", len(f.footprint.elsewhere)))
 	}
 	if f.age.known {
 		reasons = append(reasons, "started "+f.age.day())
