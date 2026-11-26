@@ -53,6 +53,12 @@ var domains = map[string]map[string]action{
 	"ask": {
 		"request": {summary: "Ask the human for a db or rester channel or a command run: `lgrass how ask request`", run: static("ask/request.md")},
 	},
+	"berries": {
+		"fix":   {summary: "Fix a stain and confirm the fix with a replay: `lgrass how berries fix`", run: static("berries/fix.md")},
+		"map":   {summary: "Write or extend the project's access map: `lgrass how berries map`", run: static("berries/map.md")},
+		"run":   {summary: "Record seeds and run berries on a channel: `lgrass how berries run`", run: static("berries/run.md")},
+		"stain": {summary: "Triage a stain berries found: `lgrass how berries stain`", run: static("berries/stain.md")},
+	},
 	"collaborator": {
 		"join": {summary: "What to do after the human adds your tab to a workgroup: `lgrass how collaborator join`", run: static("collaborator/join.md")},
 	},
@@ -105,6 +111,7 @@ var domains = map[string]map[string]action{
 // knows every domain without calling `lgrass how`; a domain without a sentence fails the tests.
 var domainSummaries = map[string]string{
 	"ask":          "ask the human for a channel or a command run.",
+	"berries":      "test the project's api for access-control holes against its access map, and fix what it finds.",
 	"collaborator": "join a workgroup the human added you to.",
 	"git":          "resolve a git conflict the human handed you.",
 	"keeper":       "keep biblio/ and the code in agreement.",

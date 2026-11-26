@@ -12,6 +12,10 @@ func TestManualsRender(t *testing.T) {
 	root := biblioRoot(t)
 	cases := map[string][]string{
 		"ask request":      {"lgrass ask <path>", "operations: [select]", "methods: [GET, POST]", "Removed tables", "type: db", "type: rester", "type: command", "lgrass ask show <id>", "Do not ask again with a variation"},
+		"berries map":      {".berries/map.yaml", "status: proposed", "Only the human sets `approved`", "lgrass berries map <short-id>"},
+		"berries run":      {"lgrass berries run <short-id>", "lgrass berries seeds", "control_failed", "lgrass how berries stain"},
+		"berries stain":    {"lgrass berries stain <stain-id>", "open_proof_gap", "never edit it so the stain goes away", "Berries pane"},
+		"berries fix":      {"lgrass berries replay <short-id> <stain-id>", "lgrass berries run <short-id>"},
 		"git resolve":      {"lgrass git conflict show", "lgrass git conflict decide", "lgrass git conflict ask", "lgrass git conflict submit", "never stage"},
 		"leader create":    {"lgrass workgroup create <config>", "lgrass how thinker start", "lgrass how task close <slug>", "lgrass how task handover <slug>"},
 		"thinker start":    {"lgrass workgroup thread", "wait for the leader's go"},
