@@ -80,3 +80,18 @@ func resolveRequestTarget(baseURL, input string) (requestTarget, error) {
 	target.Fragment = ""
 	return requestTarget{ScopePath: scopePath, URL: target.String()}, nil
 }
+
+// ResolvePath resolves input onto baseURL exactly as a channel call does and returns the cleaned path relative to the
+// base, the form scope is checked against, with the raw query, for callers that key requests the way the gate sees
+// them.
+func ResolvePath(baseURL, input string) (scopePath, rawQuery string, err error) {
+	t, err := resolveRequestTarget(baseURL, input)
+	if err != nil {
+		return "", "", err
+	}
+	u, err := url.Parse(t.URL)
+	if err != nil {
+		return "", "", err
+	}
+	return t.ScopePath, u.RawQuery, nil
+}

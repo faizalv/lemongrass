@@ -293,5 +293,9 @@ func execRester(client *agent.Client, cmd resterCommand) (any, error) {
 	if cmd.out != "" {
 		return downloadThroughAgent(client, cmd, target, body, contentType)
 	}
-	return client.RequestHTTP(cmd.shortID, cmd.user, cmd.method, cmd.path, body, contentType, cmd.headers, actorFor(cmd.shortID))
+	result, err := client.RequestHTTP(cmd.shortID, cmd.user, cmd.method, cmd.path, body, contentType, cmd.headers, actorFor(cmd.shortID))
+	if err == nil {
+		recordSeed(client, cmd, body, contentType, result)
+	}
+	return result, err
 }

@@ -33,6 +33,8 @@ func main() {
 		cmdDb(os.Args[2:])
 	case "rester":
 		cmdRester(os.Args[2:])
+	case "berries":
+		cmdBerries(os.Args[2:])
 	case "tips":
 		cmdTips(os.Args[2:])
 	case "sign":
@@ -141,6 +143,11 @@ COMMANDS
   rester <short-id> <get|post|put|patch|delete|head|options> <path> [--user <name>] [--body '<json>']
                                      Model-facing: proxies one HTTP call through the channel's
                                      rester as user, through the running agent and vault daemons
+
+  berries <map|seeds|run|stains|stain|replay> ...
+                                     Model-facing: tests the project's api for access-control holes by replaying
+                                     recorded lgrass rester calls as the channel's other users and judging each
+                                     answer against .berries/map.yaml; lgrass berries alone prints each command
 
   device [--device <serial>] <list|screenshot|tree|tap|swipe|type|key|logs> ...
                                      Drives a connected Android phone over adb; lgrass device alone
