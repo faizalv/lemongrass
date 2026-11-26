@@ -4,11 +4,12 @@
 import { reactive } from 'vue'
 import type { Ask, Project } from '../../../../preload/types'
 import { capitalizeParts, plainText, tabParts, type NamePart } from '../../tabNames'
-import { pathBelow, pathWithin } from '../../pathForm'
+import { lastSegment, pathBelow } from '../../pathForm'
 import { isWindows } from '../../platform'
+import { shellTabById } from '../../workspace'
 
 // Who asked and where, in words a person reads without the ask id: the tab by its quoted title or its
-// workgroup role, and the project the ask's folder belongs to.
+// workgroup role, and the project the asking tab belongs to.
 
 const projects = reactive<{ list: Project[] }>({ list: [] })
 
@@ -19,15 +20,42 @@ export function loadAskProjects(): void {
     .catch(() => undefined)
 }
 
-// The project the ask's folder belongs to and the folder below its root, empty at the root. An ask
-// from outside every project names its whole folder as the project.
-export function askProject(ask: Ask): { project: string; folder: string } {
+export interface AskOrigin {
+  project: string
+  // The cwd below the project root, '/'-separated, empty at the root or when outside.
+  folder: string
+  // True when the asking tab's cwd has left its project, so a command would run elsewhere.
+  outside: boolean
+}
+
+// The cwd below whichever spelling of the project root holds it: the registered path or its real path,
+// since an agent's cwd arrives resolved after a cd while the project may be registered through a symlink.
+function folderBelow(project: { path: string; realPath?: string }, cwd: string): string | null {
+  for (const root of [project.path, project.realPath]) {
+    if (!root) continue
+    const below = pathBelow(root, cwd, isWindows)
+    if (below !== null) return below
+  }
+  return null
+}
+
+// The project of the tab that asked, since the ask's cwd follows the agent's cd anywhere. A closed tab
+// falls back to the project holding the cwd, and a cwd outside every project names its whole folder.
+export function askProject(ask: Ask): AskOrigin {
   const cwd = ask.cwd
+  const found = shellTabById(ask.tab_id)
+  if (found) {
+    const listed = projects.list.find((p) => p.id === found.project.id)
+    const name = listed?.name ?? lastSegment(found.project.path, isWindows)
+    const folder = folderBelow(listed ?? found.project, cwd)
+    return { project: name, folder: folder ?? '', outside: folder === null }
+  }
   const owner = projects.list
-    .filter((p) => pathWithin(p.path, cwd, isWindows))
-    .sort((a, b) => b.path.length - a.path.length)[0]
-  if (!owner) return { project: cwd, folder: '' }
-  return { project: owner.name, folder: pathBelow(owner.path, cwd, isWindows) ?? '' }
+    .map((p) => ({ p, folder: folderBelow(p, cwd) }))
+    .filter((o) => o.folder !== null)
+    .sort((a, b) => b.p.path.length - a.p.path.length)[0]
+  if (!owner) return { project: cwd, folder: '', outside: false }
+  return { project: owner.p.name, folder: owner.folder ?? '', outside: false }
 }
 
 // "lemongrass", or "the ui folder of lemongrass" below the project root.

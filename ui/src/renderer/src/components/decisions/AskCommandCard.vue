@@ -21,6 +21,9 @@ import { describeError, vaultSession } from '../../vaultSession'
 import AppTerminal from '../AppTerminal.vue'
 import { noteAskAnswered } from '../../notifications'
 import { formatElapsed } from '../../elapsed'
+import { askProject } from './askOrigin'
+import MarkedText from '../MarkedText.vue'
+import type { NamePart } from '../../tabNames'
 
 const props = defineProps<{
   ask: Ask
@@ -213,6 +216,18 @@ const accountLines = computed(() => {
   return lines
 })
 
+// Shown only when the agent has cd'd out of its project, since the pill names the project while a
+// relative path in the command would resolve elsewhere.
+const runsOutside = computed((): NamePart[] => {
+  const origin = askProject(props.ask)
+  if (!origin.outside) return []
+  return [
+    { text: `Runs in ${props.ask.cwd}, ` },
+    { text: `outside ${origin.project}`, mark: true },
+    { text: '.' }
+  ]
+})
+
 // The rule hint's card shows while its info icon is hovered or focused.
 const ruleHintAnchor = ref<HTMLElement | null>(null)
 
@@ -320,6 +335,9 @@ async function decline(): Promise<void> {
         Since {{ clock(result?.started_at) }}
       </span>
       <p v-if="ask.shell === 'powershell'" class="hint">Runs in PowerShell without your profile.</p>
+      <p v-if="runsOutside.length" class="hint account-line">
+        <MarkedText :parts="runsOutside" />
+      </p>
       <p v-for="line in accountLines" :key="line.label" class="hint account-line">
         {{ line.label }}: <span class="account-dir">{{ line.dir }}</span>
       </p>

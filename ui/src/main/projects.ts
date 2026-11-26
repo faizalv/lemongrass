@@ -82,7 +82,11 @@ function liveShellsByProject(projects: Project[]): Record<string, number> {
 }
 
 export function registerProjectHandlers(getWindow: () => BrowserWindow | undefined): void {
-  ipcMain.handle('projects:list', () => listedProjects())
+  // The real path rides along for the renderer, which cannot resolve symlinks: an agent's cwd arrives in its
+  // resolved spelling while a project may be registered through a symlinked one.
+  ipcMain.handle('projects:list', () =>
+    listedProjects().map((p) => ({ ...p, realPath: realpathOrSame(p.path) }))
+  )
 
   ipcMain.handle('projects:home', () => homedir())
 

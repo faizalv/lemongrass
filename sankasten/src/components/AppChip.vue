@@ -18,6 +18,9 @@ withDefaults(
     struck?: boolean
     // Muted text after the value, such as a scope.
     tag?: string
+    // A path inside the value, such as a folder of a project: the value turns semibold and the
+    // subpath follows after a slash in the chip's own color, since it is part of the same name.
+    subpath?: string
     // An inline text action after the value, in amber; emits action.
     actionLabel?: string
     // Shows the remove glyph, which emits remove; removeLabel is its title and aria-label.
@@ -29,6 +32,7 @@ withDefaults(
     mono: false,
     struck: false,
     tag: undefined,
+    subpath: undefined,
     actionLabel: undefined,
     removable: false,
     removeLabel: 'Remove'
@@ -40,7 +44,11 @@ const emit = defineEmits<{ remove: []; action: [] }>()
 
 <template>
   <span class="app-chip" :class="[`tone-${tone}`, { mono, struck }]">
-    <span class="chip-value"><slot /></span>
+    <span class="chip-value"
+      ><template v-if="subpath"
+        ><strong class="chip-main"><slot /></strong>/{{ subpath }}</template
+      ><slot v-else
+    /></span>
     <span v-if="tag" class="chip-tag">{{ tag }}</span>
     <button v-if="actionLabel" type="button" class="chip-action" @click="emit('action')">
       {{ actionLabel }}
@@ -122,6 +130,10 @@ const emit = defineEmits<{ remove: []; action: [] }>()
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.chip-main {
+  font-weight: var(--weight-semibold);
 }
 
 .struck .chip-value {

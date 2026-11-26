@@ -200,7 +200,7 @@ const removedLines = computed(() =>
     <!-- The project sits beside the title, apart from the sentence, so a skimming eye still catches
          which project an ask comes from before approving it. -->
     <template v-if="ask" #title-aside>
-      <AppChip tone="info" :tag="askProject(ask).folder || undefined" :title="ask.cwd">
+      <AppChip tone="info" :subpath="askProject(ask).folder || undefined" :title="ask.cwd">
         {{ askProject(ask).project }}
       </AppChip>
     </template>
@@ -213,13 +213,13 @@ const removedLines = computed(() =>
 
         <template v-else>
           <div class="ask-head">
-            <div class="ask-lead-row">
-              <p class="ask-lead"><MarkedText :parts="askParts(ask)" /></p>
+            <p class="ask-lead"><MarkedText :parts="askParts(ask)" /></p>
+            <div class="ask-meta-row">
+              <p class="ask-meta">Asked {{ askedAt(ask.created_at) }}.</p>
               <span v-if="status" class="ask-status" :class="`ask-status--${status.tone}`">
                 {{ status.label }}
               </span>
             </div>
-            <p class="ask-meta">Asked {{ askedAt(ask.created_at) }}.</p>
           </div>
 
           <AskCommandCard
@@ -375,11 +375,10 @@ const removedLines = computed(() =>
   gap: var(--space-1);
 }
 
-.ask-lead-row {
+.ask-meta-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .ask-status {

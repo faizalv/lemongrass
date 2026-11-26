@@ -32,6 +32,8 @@ export interface Project {
   id: string
   name: string
   path: string
+  // The path with symlinks resolved, sent only by projects.list; never saved.
+  realPath?: string
   trusted?: boolean
   // Assigned once by the renderer from the design-system palette, so the project keeps its color.
   hue?: string
