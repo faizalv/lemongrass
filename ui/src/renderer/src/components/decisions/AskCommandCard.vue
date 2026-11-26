@@ -23,6 +23,7 @@ import { noteAskAnswered } from '../../notifications'
 import { formatElapsed } from '../../elapsed'
 import { askProject } from './askOrigin'
 import MarkedText from '../MarkedText.vue'
+import { useRunReveal } from './runReveal'
 import type { NamePart } from '../../tabNames'
 
 const props = defineProps<{
@@ -67,6 +68,16 @@ const starting = ref(false)
 const waiting = computed(() => props.ask.state === 'waiting' && !starting.value)
 const running = computed(() => props.ask.state === 'running' || starting.value)
 const result = computed(() => props.ask.result ?? null)
+
+// Until the command has run a moment, the card keeps its Execute view and holds the running view out of
+// sight. The terminal is still mounted then, because the command starts at its size.
+const revealed = useRunReveal(() => props.ask)
+const held = computed(() => running.value && !revealed.value)
+const showRun = computed(() => running.value && revealed.value)
+
+watch(revealed, (on) => {
+  if (on && attachId !== null) void nextTick(() => terminal.value?.focus())
+})
 
 watch(
   () => props.ask.state,
@@ -318,8 +329,8 @@ async function decline(): Promise<void> {
   <div class="command-card">
     <div class="field-block">
       <span class="field-label">{{ commandLabel }}</span>
-      <pre class="untrusted mono" :class="{ 'sk-running': running }">{{ ask.command }}</pre>
-      <div v-if="running" class="run-status">
+      <pre class="untrusted mono" :class="{ 'sk-running': showRun }">{{ ask.command }}</pre>
+      <div v-if="showRun" class="run-status">
         <AppProgressLine class="run-line" label="The command is running" />
         <span
           class="run-clock"
@@ -331,7 +342,7 @@ async function decline(): Promise<void> {
           >
         </span>
       </div>
-      <span v-if="running && elapsed !== null" class="run-since">
+      <span v-if="showRun && elapsed !== null" class="run-since">
         Since {{ clock(result?.started_at) }}
       </span>
       <p v-if="ask.shell === 'powershell'" class="hint">Runs in PowerShell without your profile.</p>
@@ -342,7 +353,12 @@ async function decline(): Promise<void> {
         {{ line.label }}: <span class="account-dir">{{ line.dir }}</span>
       </p>
     </div>
-    <div v-if="running" class="field-block">
+    <div
+      v-if="running"
+      class="field-block"
+      :class="{ 'run-held': held }"
+      :aria-hidden="held ? 'true' : undefined"
+    >
       <span class="field-label">Terminal</span>
       <AppTerminal
         ref="terminal"
@@ -383,7 +399,7 @@ async function decline(): Promise<void> {
       <template v-if="ask.rule">The guard refused it and sent it to you.</template>
     </p>
 
-    <template v-if="waiting">
+    <template v-if="waiting || held">
       <template v-if="!declining">
         <p v-if="ask.never_execute" class="error-text">
           Lemongrass never runs the command. {{ ask.never_execute_reason }}
@@ -398,16 +414,16 @@ async function decline(): Promise<void> {
         </div>
         <p v-if="error" class="error-text">{{ error }}</p>
         <AppModalActions>
-          <AppButton :disabled="busy" @click="startDecline">Decline</AppButton>
+          <AppButton :disabled="busy || held" @click="startDecline">Decline</AppButton>
           <AppConfirmButton
             v-if="!ask.never_execute"
             variant="primary"
             tone="jade"
             confirm-label="Click again to execute"
-            :disabled="busy"
+            :disabled="busy || held"
             @confirm="execute"
           >
-            {{ busy ? 'Starting...' : 'Execute' }}
+            {{ busy || held ? 'Starting...' : 'Execute' }}
           </AppConfirmButton>
         </AppModalActions>
       </template>
@@ -463,9 +479,18 @@ async function decline(): Promise<void> {
 
 <style scoped>
 .command-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+/* Out of the layout and out of sight, but at the card's width so the terminal measures its real size. */
+.run-held {
+  position: absolute;
+  inset-inline: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .rule-id,

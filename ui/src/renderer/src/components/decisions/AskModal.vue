@@ -25,6 +25,7 @@ import AskResterGrant from './AskResterGrant.vue'
 import { noteAskAnswered } from '../../notifications'
 import { askStateLabel, askTypeLabel } from './askLabels'
 import { askParts, askProject, loadAskProjects } from './askOrigin'
+import { useRunReveal } from './runReveal'
 import MarkedText from '../MarkedText.vue'
 
 const ask = ref<Ask | null>(null)
@@ -148,11 +149,15 @@ function askedAt(iso: string): string {
   })
 }
 
+// Running shows only once the command has run a moment, like the card's running view.
+const runRevealed = useRunReveal(() => ask.value)
+
 // Waiting needs no chip: the actions below say it. A finished command reads as done too.
 const status = computed(() => {
   const state = ask.value?.state
   if (state === 'answered') return { label: 'Done', tone: 'done' }
-  if (state === 'running') return { label: askStateLabel(state), tone: 'running' }
+  if (state === 'running')
+    return runRevealed.value ? { label: askStateLabel(state), tone: 'running' } : null
   if (state === 'declined' || state === 'expired')
     return { label: askStateLabel(state), tone: 'muted' }
   return null
