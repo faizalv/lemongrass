@@ -89,7 +89,7 @@ func workTask(root string, args []string) (string, error) {
 	default:
 		if f.exists {
 			fmt.Fprintf(&b, "Task %s exists without a prd.md (%s).\n\n", slug, filesOrNone(f.files))
-			vars["existing"] = " Build on what the files already in the directory settled, and keep them beside the PRD."
+			vars["existing"] = " Build on what the files already in the directory settled, and keep them beside the PRD. While the idea is still open, talk it through in prose and raise what is undecided as a point to explore, never as a set of questions with fixed answers to pick from; fixed choices fit only a decision whose options are already settled."
 		} else {
 			fmt.Fprintf(&b, "New task %s.\n\n", slug)
 		}
