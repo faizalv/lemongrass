@@ -2,7 +2,7 @@
 // Copyright (C) 2026 The Lemongrass Authors
 
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 // What an Antigravity tab is launched with on top of its own arguments.
@@ -26,6 +26,22 @@ export function quoteCommandPath(path: string, platform: NodeJS.Platform): strin
   return SHELL_SAFE.test(path) ? path : `'${path.replace(/'/g, `'\\''`)}'`
 }
 
+// Respect a user-configured title block (enabled or disabled) in settings.json so /title and custom commands win.
+function hasUserTitle(home: string): boolean {
+  try {
+    const raw = readFileSync(join(home, '.gemini', 'antigravity-cli', 'settings.json'), 'utf8')
+    const parsed = JSON.parse(raw) as unknown
+    return (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      (parsed as Record<string, unknown>).title != null
+    )
+  } catch {
+    return false
+  }
+}
+
 // Settings passed per session are never saved by agy, so lemongrass writes nothing into the user's own settings.json.
 // The trusted project skips the trust dialog, which would otherwise catch a thinker's first prompt. The statusline is
 // left to the user's own while lgrassd is missing or the human switched the chained statusline off, the same file
@@ -44,6 +60,13 @@ export function agyLaunch(
     settings.statusLine = {
       type: 'command',
       command: `${quoteCommandPath(lgrassdPath, platform)} statusline --vendor agy`
+    }
+  }
+  if (lgrassdPath && !hasUserTitle(home)) {
+    settings.title = {
+      type: 'command',
+      command: `${quoteCommandPath(lgrassdPath, platform)} title --vendor agy`,
+      enabled: true
     }
   }
   const resumed = args.includes('--conversation')

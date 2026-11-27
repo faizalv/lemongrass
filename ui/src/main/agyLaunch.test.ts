@@ -20,11 +20,16 @@ function settingsOf(args: string[]): Record<string, unknown> {
   return JSON.parse(args[1]) as Record<string, unknown>
 }
 
-test('a fresh agy tab trusts its project and chains the lemongrass statusline', () => {
+test('a fresh agy tab trusts its project, chains statusline, and sets a default title command', () => {
   const launch = agyLaunch([], '/work/app', '/h/.lemongrass/bin/lgrassd', home(), 'linux')
   assert.deepEqual(settingsOf(launch.args), {
     trustedWorkspaces: ['/work/app'],
-    statusLine: { type: 'command', command: '/h/.lemongrass/bin/lgrassd statusline --vendor agy' }
+    statusLine: { type: 'command', command: '/h/.lemongrass/bin/lgrassd statusline --vendor agy' },
+    title: {
+      type: 'command',
+      command: '/h/.lemongrass/bin/lgrassd title --vendor agy',
+      enabled: true
+    }
   })
   assert.deepEqual(launch.env, {})
 })
@@ -37,12 +42,45 @@ test('a resumed agy launch carries a fresh token each time', () => {
   assert.notEqual(first.env[AGY_RESUMED_ENV], second.env[AGY_RESUMED_ENV])
 })
 
-test('the statusline off switch leaves the user statusline to agy', () => {
+test('the statusline off switch leaves the user statusline to agy while keeping title', () => {
   const dir = home()
   mkdirSync(join(dir, '.lemongrass'))
   writeFileSync(join(dir, '.lemongrass', 'statusline-off'), '')
   const launch = agyLaunch([], '/p', '/bin/lgrassd', dir, 'linux')
-  assert.deepEqual(settingsOf(launch.args), { trustedWorkspaces: ['/p'] })
+  assert.deepEqual(settingsOf(launch.args), {
+    trustedWorkspaces: ['/p'],
+    title: { type: 'command', command: '/bin/lgrassd title --vendor agy', enabled: true }
+  })
+})
+
+test('an existing title block in settings.json is left untouched', () => {
+  for (const body of [
+    '{"title":{"type":"command","command":"custom","enabled":true}}',
+    '{"title":{"type":"command","command":"custom","enabled":false}}'
+  ]) {
+    const dir = home()
+    mkdirSync(join(dir, '.gemini', 'antigravity-cli'), { recursive: true })
+    writeFileSync(join(dir, '.gemini', 'antigravity-cli', 'settings.json'), body)
+    const launch = agyLaunch([], '/p', '/bin/lgrassd', dir, 'linux')
+    assert.deepEqual(settingsOf(launch.args), {
+      trustedWorkspaces: ['/p'],
+      statusLine: { type: 'command', command: '/bin/lgrassd statusline --vendor agy' }
+    })
+  }
+})
+
+test('invalid or title-less settings.json still gets the default title command', () => {
+  for (const body of ['{', '{}', '{"title":null}']) {
+    const dir = home()
+    mkdirSync(join(dir, '.gemini', 'antigravity-cli'), { recursive: true })
+    writeFileSync(join(dir, '.gemini', 'antigravity-cli', 'settings.json'), body)
+    const launch = agyLaunch([], undefined, '/bin/lgrassd', dir, 'linux')
+    assert.deepEqual(settingsOf(launch.args).title, {
+      type: 'command',
+      command: '/bin/lgrassd title --vendor agy',
+      enabled: true
+    })
+  }
 })
 
 test('with no lgrassd and no project an agy tab gets no settings', () => {
