@@ -100,7 +100,8 @@ const shellAccount = computed(() => {
 
 const shellContext = computed(() => {
   const active = props.leaf.tabs.find((tab) => tab.id === props.leaf.activeTabId)
-  if (active?.kind !== 'shell' || !['claude', 'agy'].includes(active.command ?? '')) return null
+  if (active?.kind !== 'shell' || !['claude', 'agy', 'codex'].includes(active.command ?? ''))
+    return null
   return contextStore.tabs[active.id] ?? null
 })
 

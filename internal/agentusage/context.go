@@ -24,11 +24,12 @@ const contextKeep = 7 * 24 * time.Hour
 // A tab id becomes a file name, so it is held to the characters lemongrass tab ids use.
 var tabIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
-// Context is one tab's context window use as of its latest statusline payload.
+// Context is one tab's context window use as of its latest reported sample.
 type Context struct {
-	UsedTokens   int64 `json:"used_tokens"`
-	WindowTokens int64 `json:"window_tokens"`
-	SeenAt       int64 `json:"seen_at"`
+	UsedTokens   int64  `json:"used_tokens"`
+	WindowTokens int64  `json:"window_tokens"`
+	SeenAt       int64  `json:"seen_at"`
+	Vendor       string `json:"vendor,omitempty"`
 	// CacheTTL is the prompt cache lifetime in seconds the session's latest cache write asked for, 0 when its
 	// transcript never showed one.
 	CacheTTL int64 `json:"cache_ttl,omitempty"`
@@ -80,6 +81,10 @@ func RecordContext(home, tabID string, payload []byte, now time.Time) error {
 	if rec.CacheTTL == 0 && oldErr == nil {
 		rec.CacheTTL = old.CacheTTL
 	}
+	return writeContext(home, path, rec, now)
+}
+
+func writeContext(home, path string, rec Context, now time.Time) error {
 	data, err := json.Marshal(rec)
 	if err != nil {
 		return err

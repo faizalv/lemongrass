@@ -74,7 +74,8 @@ export function idleTaskReminderFor(
   if (tabHookState(tabId) !== 'idle') return null
   const task = taskOfTab(projectPath, tabId)
   const context = contextStore.tabs[tabId]
-  if (!task || !context) return null
+  // Codex context can be sampled while a turn is still running.
+  if (!task || !context || context.vendor === 'codex') return null
   const status = taskPlanStatus(projectPath, task)
   if (status === 'done') return null
   const dueAt = context.seen_at * 1000 + IDLE_TASK_REMINDER_MS

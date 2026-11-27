@@ -46,3 +46,14 @@ test('the close reminder waits half the lifetime, ten minutes at most, and ends 
   assert.equal(closeReminderDue(fiveMinutes, at(149)), false)
   assert.equal(closeReminderDue(fiveMinutes, at(150)), true)
 })
+
+test('a Codex context sample cannot trigger a cache reminder or hold', () => {
+  const codex = {
+    vendor: 'codex' as const,
+    used_tokens: 143_488,
+    window_tokens: 475_000,
+    seen_at: 0
+  }
+  assert.equal(closeReminderDue(codex, at(200)), false)
+  assert.equal(isColdAndLarge(codex, at(3600)), false)
+})

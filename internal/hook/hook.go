@@ -36,6 +36,7 @@ type hookEvent struct {
 	NotificationType string          `json:"notification_type"`
 	Message          string          `json:"message"`
 	Prompt           string          `json:"prompt"`
+	Model            string          `json:"model"`
 	TabID            string
 	// Vendor is the agent that sent the payload, from hookVendor.
 	Vendor               string
@@ -124,6 +125,7 @@ func Run(args []string, tabID string) {
 	case "UserPromptSubmit":
 		result = hookUserPromptSubmit(store, payload)
 	}
+	recordCodexContext(store, event, payload)
 	adapter.emit(result)
 }
 

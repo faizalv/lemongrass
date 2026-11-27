@@ -148,21 +148,26 @@ func recentRollouts(sessions string) ([]string, error) {
 	return paths, nil
 }
 
-func lastCodexSnapshot(path string) (CodexRecord, bool, error) {
+func readCodexRolloutTail(path string) ([]byte, time.Time, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return CodexRecord{}, false, err
+		return nil, time.Time{}, err
 	}
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
-		return CodexRecord{}, false, err
+		return nil, time.Time{}, err
 	}
 	offset := info.Size() - codexTailBytes
 	if offset < 0 {
 		offset = 0
 	}
 	tail, err := io.ReadAll(io.NewSectionReader(f, offset, info.Size()-offset))
+	return tail, info.ModTime(), err
+}
+
+func lastCodexSnapshot(path string) (CodexRecord, bool, error) {
+	tail, modified, err := readCodexRolloutTail(path)
 	if err != nil {
 		return CodexRecord{}, false, err
 	}
@@ -176,7 +181,7 @@ func lastCodexSnapshot(path string) (CodexRecord, bool, error) {
 			continue
 		}
 		limits := line.Payload.RateLimits
-		rec := CodexRecord{PlanType: limits.PlanType, SeenAt: info.ModTime().Unix()}
+		rec := CodexRecord{PlanType: limits.PlanType, SeenAt: modified.Unix()}
 		if ts, err := time.Parse(time.RFC3339Nano, line.Timestamp); err == nil {
 			rec.SeenAt = ts.Unix()
 		}

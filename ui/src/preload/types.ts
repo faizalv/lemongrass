@@ -1274,11 +1274,12 @@ export interface StatusLineChainState {
   commands: Record<string, string>
 }
 
-// One agent tab's context window use as of its latest response, from its statusline payload.
+// One agent tab's latest reported context window use.
 export interface ContextUsage {
   used_tokens: number
   window_tokens: number
   seen_at: number
+  vendor?: 'codex'
   // Seconds the session's latest prompt cache write lives for; absent when its transcript showed none.
   cache_ttl?: number
 }

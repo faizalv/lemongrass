@@ -53,12 +53,18 @@ function contextFeed(
   // The first read of a run also fills cache lifetimes missing from records written before they
   // were recorded; it searches transcripts, so later reads skip it.
   let backfilled = false
+  let request = 0
+  let applied = 0
 
   const read = async (): Promise<Record<string, ContextUsage> | null> => {
     if (!lgrassdPath) return null
+    const sequence = ++request
     const args = backfilled ? ['usage', 'context'] : ['usage', 'context', '--backfill']
     const report = await runJson<ContextReport>(lgrassdPath, args)
     if (!report) return null
+    // An earlier read can finish after a session switch has already reached the feed.
+    if (sequence < applied) return latestContexts
+    applied = sequence
     backfilled = true
     if (!watcher) {
       try {

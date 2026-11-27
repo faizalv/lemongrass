@@ -28,7 +28,12 @@ export function cacheTtlKnown(context: ContextUsage): boolean {
 // A tab whose next prompt would rewrite a large context at full price, on a known or an assumed
 // lifetime. Main holds nudges on this alone, since holding one costs the human nothing.
 export function isColdAndLarge(context: ContextUsage | undefined, nowMs: number): boolean {
-  return !!context && context.used_tokens > COLD_CONTEXT_TOKENS && cacheLeftMs(context, nowMs) <= 0
+  return (
+    !!context &&
+    context.vendor !== 'codex' &&
+    context.used_tokens > COLD_CONTEXT_TOKENS &&
+    cacheLeftMs(context, nowMs) <= 0
+  )
 }
 
 // The close reminder waits until a tab has sat idle for half its cache lifetime, ten minutes at
@@ -43,7 +48,11 @@ export function closeReminderDueAt(context: ContextUsage): number {
 }
 
 export function closeReminderDue(context: ContextUsage, nowMs: number): boolean {
-  return nowMs >= closeReminderDueAt(context) && cacheLeftMs(context, nowMs) > 0
+  return (
+    context.vendor !== 'codex' &&
+    nowMs >= closeReminderDueAt(context) &&
+    cacheLeftMs(context, nowMs) > 0
+  )
 }
 
 // An unfinished task whose tab has sat idle this long is one the human may have forgotten.

@@ -6,6 +6,9 @@ package hook
 import (
 	"encoding/json"
 	"os"
+
+	"github.com/faizalv/lemongrass/internal/agentusage"
+	"github.com/faizalv/lemongrass/internal/session"
 )
 
 type codexHookAdapter struct{}
@@ -50,4 +53,25 @@ func codexOutput(result hookResult) codexHookOutput {
 		PermissionDecisionReason: result.PermissionDecisionReason,
 		AdditionalContext:        result.AdditionalContext,
 	}}
+}
+
+func recordCodexContext(store *session.Store, event string, payload hookEvent) {
+	if payload.Vendor != "codex" || payload.TabID == "" || payload.SessionID == "" {
+		return
+	}
+	switch event {
+	case "SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop", "Interrupt":
+	default:
+		return
+	}
+	current, err := store.SessionForTab(payload.TabID)
+	if err != nil || current != payload.SessionID {
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	refresh := event == "SessionStart" || event == "UserPromptSubmit"
+	_ = agentusage.RecordCodexContext(home, payload.TabID, current, payload.TranscriptPath, payload.Model, refresh)
 }

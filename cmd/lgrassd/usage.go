@@ -56,13 +56,14 @@ func cmdUsageContext(backfill bool) {
 	if err != nil {
 		fail(err)
 	}
-	if backfill {
-		if store, err := session.Open(session.DBPath(), ""); err == nil {
-			if sessions, err := store.TabSessionsAllProjects(); err == nil {
+	if store, err := session.Open(session.DBPath(), ""); err == nil {
+		if sessions, err := store.TabSessionsAllProjects(); err == nil {
+			if backfill {
 				agentusage.BackfillCacheTTL(home, tabs, sessions)
 			}
-			store.Close()
+			agentusage.MergeCodexContexts(home, tabs, sessions)
 		}
+		store.Close()
 	}
 	out := struct {
 		Dir  string                        `json:"dir"`
