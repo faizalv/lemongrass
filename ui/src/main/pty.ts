@@ -18,6 +18,7 @@ import { resolveShellBinary } from './shellBinary'
 import { agentPath } from './agentPaths'
 import { SHELL_COMMAND, shellTabLaunch } from './shellTab'
 import { agyLaunch } from './agyLaunch'
+import { codexContextArgs } from './codexContextLaunch'
 import {
   windowsLaunch,
   windowsShell,
@@ -140,9 +141,12 @@ export function registerPtyHandlers(
       opts.command === 'agy'
         ? agyLaunch(opts.args ?? [], opts.cwd, lgrassdPath, homedir())
         : { args: [], env: {} }
+    const codexContext =
+      opts.command === 'codex' ? codexContextArgs(opts.args ?? [], opts.cwd ?? homedir()) : []
     const args = [
       ...agy.args,
       ...orientation.args,
+      ...codexContext,
       ...startupTrimArgs(opts.command, homedir()),
       ...(opts.args ?? [])
     ]
